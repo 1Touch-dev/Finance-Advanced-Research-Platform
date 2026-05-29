@@ -1,0 +1,11 @@
+**/node_modules
+**/.next
+**/build
+**/__pycache__
+**/*.pyc
+**/.venv
+**/.git
+**/.env
+**/enterprise_finance.egg-info
+**/*.egg-info
+npm-debug.log*

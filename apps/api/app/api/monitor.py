@@ -1,0 +1,97 @@
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy import text, update
+from typing import Optional, List
+import csv, io, json, os, requests
+from app.db.session import get_db
+from app.models.base import Base
+from app.models.monitor import Watchlist, WatchlistItem, Portfolio, Position, AlertRule, AlertEvent, DeliveryChannel
+
+router = APIRouter(prefix="/monitor")
+
+@router.post('/bootstrap')
+def bootstrap(db: Session = Depends(get_db)):
+    Base.metadata.create_all(bind=db.get_bind())
+    return {"ok": True}
+
+# --- Watchlists ---
+@router.post('/watchlists')
+def create_watchlist(name: str, db: Session = Depends(get_db)):
+    w = Watchlist(name=name); db.add(w); db.commit(); db.refresh(w); return {"id": w.id}
+
+@router.post('/watchlists/{wid}/items')
+def add_watch_item(wid: int, entity_id: Optional[int] = None, ticker: Optional[str] = None, notes: Optional[str] = None, db: Session = Depends(get_db)):
+    i = WatchlistItem(watchlist_id=wid, entity_id=entity_id, ticker=ticker, notes=notes); db.add(i); db.commit(); db.refresh(i); return {"id": i.id}
+
+@router.get('/watchlists/{wid}')
+def get_watchlist(wid: int, db: Session = Depends(get_db)):
+    w = db.query(Watchlist).filter_by(id=wid).first();
+    if not w: raise HTTPException(404, 'not found')
+    items = db.execute(text("select id,entity_id,ticker,notes from watchlist_items where watchlist_id=:id"), {"id": wid}).fetchall()
+    return {"id": w.id, "name": w.name, "items": [{"id": r[0], "entity_id": r[1], "ticker": r[2], "notes": r[3]} for r in items]}
+
+# --- Portfolios ---
+@router.post('/portfolios')
+def create_portfolio(name: str, base_ccy: str = 'USD', thesis: Optional[str] = None, db: Session = Depends(get_db)):
+    p = Portfolio(name=name, base_ccy=base_ccy, thesis=thesis); db.add(p); db.commit(); db.refresh(p); return {"id": p.id}
+
+@router.post('/portfolios/{pid}/positions')
+def add_position(pid: int, ticker: str, qty: float, cost_basis: float, entity_id: Optional[int] = None, notes: Optional[str] = None, db: Session = Depends(get_db)):
+    pos = Position(portfolio_id=pid, ticker=ticker, qty=qty, cost_basis=cost_basis, entity_id=entity_id, notes=notes); db.add(pos); db.commit(); db.refresh(pos); return {"id": pos.id}
+
+@router.post('/portfolios/{pid}/import_csv')
+def import_csv(pid: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    content = file.file.read().decode('utf-8'); reader = csv.DictReader(io.StringIO(content))
+    count=0
+    for row in reader:
+        db.add(Position(portfolio_id=pid, ticker=row.get('ticker'), qty=float(row.get('qty',0)), cost_basis=float(row.get('cost_basis',0)), notes=row.get('notes')))
+        count+=1
+    db.commit(); return {"imported": count}
+
+@router.get('/portfolios/{pid}/exposure')
+def exposure(pid: int, db: Session = Depends(get_db)):
+    rows = db.execute(text("select ticker, sum(qty) as qty, avg(cost_basis) as cb from positions where portfolio_id=:id group by ticker"), {"id": pid}).fetchall()
+    total = sum((r[1] or 0)*(r[2] or 0) for r in rows)
+    breakdown = [{"ticker": r[0], "qty": r[1], "cost_basis": r[2], "weight": (((r[1] or 0)*(r[2] or 0))/total if total else 0)} for r in rows]
+    return {"total_cost": total, "breakdown": breakdown}
+
+# --- Alerts ---
+@router.post('/rules')
+def create_rule(name: str, kind: str, params: Optional[dict] = None, watchlist_id: Optional[int] = None, portfolio_id: Optional[int] = None, db: Session = Depends(get_db)):
+    r = AlertRule(name=name, kind=kind, params=params or {}, watchlist_id=watchlist_id, portfolio_id=portfolio_id)
+    db.add(r); db.commit(); db.refresh(r); return {"id": r.id}
+
+@router.post('/rules/{rid}/channels')
+def add_channel(rid: int, kind: str, target: Optional[str] = None, meta: Optional[dict] = None, db: Session = Depends(get_db)):
+    db.add(DeliveryChannel(rule_id=rid, kind=kind, target=target, meta=meta or {})); db.commit(); return {"ok": True}
+
+@router.post('/scan')
+def run_scan(db: Session = Depends(get_db)):
+    # Phase 1: simulate by generating events based on simple params thresholds
+    rules = db.query(AlertRule).filter_by(enabled=True).all()
+    created = []
+    for r in rules:
+        k = r.kind
+        if k == 'price_move':
+            th = float((r.params or {}).get('pct', 5))
+            # create a dummy event
+            ev = AlertEvent(rule_id=r.id, kind='price_move', ticker=(r.params or {}).get('ticker','AAPL'), payload={'pct': th})
+            db.add(ev); db.flush(); created.append(ev.id)
+    db.commit(); return {"events": created}
+
+@router.post('/deliver')
+def deliver(db: Session = Depends(get_db)):
+    events = db.query(AlertEvent).filter_by(delivered=False).all()
+    delivered = []
+    for ev in events:
+        chans = db.query(DeliveryChannel).filter_by(rule_id=ev.rule_id).all()
+        for c in chans:
+            if c.kind == 'webhook' and c.target:
+                try:
+                    requests.post(c.target, json={"event": ev.kind, "payload": ev.payload});
+                except Exception:
+                    pass
+            # inapp/email/slack/teams: Phase 1 stub (recorded via event row)
+        ev.delivered = True
+        delivered.append(ev.id)
+    db.commit(); return {"delivered": delivered}

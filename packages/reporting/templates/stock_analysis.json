@@ -1,0 +1,11 @@
+{
+  "kind": "stock_analysis",
+  "sections": [
+    {"name": "Executive Summary"},
+    {"name": "Business Overview"},
+    {"name": "Market & Competition"},
+    {"name": "Financials & Valuation"},
+    {"name": "Risks & Catalysts"},
+    {"name": "Conclusion"}
+  ]
+}

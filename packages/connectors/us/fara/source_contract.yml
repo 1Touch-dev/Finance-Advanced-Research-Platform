@@ -1,0 +1,8 @@
+version: 1
+source: fara
+contracts:
+  record:
+    id: external_id
+    fields:
+      - registrant
+      - country

@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+apps/admin/build/
+apps/web/.next/
+dist/
+build/
+*.egg-info/
+**/*.egg-info/
+
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Local runtime / secrets
+.env
+apps/admin/.env
+apps/api/local.db
+*.db
+.local-logs/
+.local-pids.json
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs & caches
+*.log
+npm-debug.log*
+.npm/
+.cache/
+**/.cache/
+.eslintcache
+
+# Exports / artifacts (generated at runtime)
+exports/
+artifacts/
+
+# Coverage
+htmlcov/
+.coverage
+coverage/

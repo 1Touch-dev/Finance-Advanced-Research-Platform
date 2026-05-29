@@ -1,0 +1,12 @@
+{
+  "name": "worker",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "bull": "^4.0.0",
+    "ioredis": "^4.0.0"
+  }
+}

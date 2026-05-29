@@ -1,0 +1,9 @@
+version: 1
+source: sec_edgar
+contracts:
+  record:
+    id: external_id
+    fields:
+      - company
+      - form
+      - year
