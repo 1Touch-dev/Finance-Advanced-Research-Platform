@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import update
+from sqlalchemy import update, text
 from datetime import datetime, timezone
 from app.db.session import get_db
 from app.models.sources import Source, SourceCredential, SourceContract, SourceRun, SourceRecordMeta
@@ -52,7 +52,7 @@ def update_run_status(run_id: int, status: str, metrics: dict | None = None, err
 @router.get('/{source_id}/health')
 def source_health(source_id: int, db: Session = Depends(get_db)):
     row = db.execute(
-        "select status, started_at, finished_at from source_runs where source_id=:sid order by id desc limit 1",
+        text("select status, started_at, finished_at from source_runs where source_id=:sid order by id desc limit 1"),
         {"sid": source_id}
     ).fetchone()
     if not row:
@@ -61,7 +61,7 @@ def source_health(source_id: int, db: Session = Depends(get_db)):
 
 @router.get('/health')
 def registry_health(db: Session = Depends(get_db)):
-    total = db.execute("select count(*) from sources").scalar() or 0
-    runs = db.execute("select count(*) from source_runs").scalar() or 0
-    errors = db.execute("select count(*) from source_runs where status='error'").scalar() or 0
+    total = db.execute(text("select count(*) from sources")).scalar() or 0
+    runs = db.execute(text("select count(*) from source_runs")).scalar() or 0
+    errors = db.execute(text("select count(*) from source_runs where status='error'")).scalar() or 0
     return {"sources": total, "runs": runs, "errors": errors}

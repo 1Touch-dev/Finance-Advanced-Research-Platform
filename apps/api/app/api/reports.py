@@ -72,7 +72,7 @@ def contradict_claim(claim_id: int, note: Optional[str] = None, db: Session = De
 def get_report(report_id: int, db: Session = Depends(get_db)):
     r = db.query(Report).filter_by(id=report_id).first()
     if not r: raise HTTPException(404, 'not found')
-    secs = db.execute(text("select id,name,content,order from report_sections where report_id=:id order by order"), {"id": report_id}).fetchall()
+    secs = db.execute(text('select id,name,content,"order" from report_sections where report_id=:id order by "order"'), {"id": report_id}).fetchall()
     clms = db.execute(text("select id,text,status,contradiction_note from claims where report_id=:id"), {"id": report_id}).fetchall()
     buns = db.execute(text("select id,name,items from evidence_bundles where report_id=:id"), {"id": report_id}).fetchall()
     return {

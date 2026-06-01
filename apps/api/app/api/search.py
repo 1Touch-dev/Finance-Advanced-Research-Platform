@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, text
 from typing import Optional, List
 from datetime import datetime
 from app.db.session import get_db
@@ -9,6 +9,16 @@ from app.models.evidence import RawDocument, EvidenceRef
 from app.models.sources import Source, SourceRun
 
 router = APIRouter(prefix="/search")
+
+def _safe_isoformat(val):
+    if not val:
+        return None
+    if isinstance(val, str):
+        return val.replace(" ", "T")
+    try:
+        return val.isoformat()
+    except AttributeError:
+        return str(val)
 
 @router.get('/')
 def global_search(q: Optional[str] = None, type: Optional[str] = None, source: Optional[str] = None,
@@ -54,8 +64,8 @@ def entity_profile(entity_id: int, db: Session = Depends(get_db)):
     e = db.query(Entity).filter_by(id=entity_id).first()
     if not e:
         return {"error": "not found"}
-    aliases = [a.alias for a in db.execute("select alias from entity_aliases where entity_id=:id", {"id": entity_id}).fetchall()]
-    ids = db.execute("select scheme,value from entity_identifiers where entity_id=:id", {"id": entity_id}).fetchall()
+    aliases = [a.alias for a in db.execute(text("select alias from entity_aliases where entity_id=:id"), {"id": entity_id}).fetchall()]
+    ids = db.execute(text("select scheme,value from entity_identifiers where entity_id=:id"), {"id": entity_id}).fetchall()
     return {
         "id": e.id,
         "name": e.name,
@@ -68,22 +78,22 @@ def entity_profile(entity_id: int, db: Session = Depends(get_db)):
 def entity_timeline(entity_id: int, limit: int = 100, db: Session = Depends(get_db)):
     # Timeline from evidence refs and relationships
     refs = db.execute(
-        """
+        text("""
         select er.id, rd.created_at, 'evidence' as kind
         from evidence_refs er
         join raw_documents rd on rd.id = er.raw_document_id
         where er.workspace_id is null or er.workspace_id is not null and er.raw_document_id = rd.id
         order by rd.created_at desc
         limit :lim
-        """, {"lim": limit}
+        """), {"lim": limit}
     ).fetchall()
     rels = db.execute(
-        "select id, null as created_at, 'relationship' as kind from relationships where src_entity_id=:id or dst_entity_id=:id limit :lim",
+        text("select id, null as created_at, 'relationship' as kind from relationships where src_entity_id=:id or dst_entity_id=:id limit :lim"),
         {"id": entity_id, "lim": limit}
     ).fetchall()
     items = []
     for r in refs:
-        items.append({"id": r[0], "ts": r[1].isoformat() if r[1] else None, "type": r[2]})
+        items.append({"id": r[0], "ts": _safe_isoformat(r[1]), "type": r[2]})
     for r in rels:
         items.append({"id": r[0], "ts": None, "type": r[2]})
     items.sort(key=lambda x: (x["ts"] or ''), reverse=True)
@@ -92,7 +102,7 @@ def entity_timeline(entity_id: int, limit: int = 100, db: Session = Depends(get_
 @router.get('/entities/{entity_id}/relationships')
 def entity_relationships(entity_id: int, db: Session = Depends(get_db)):
     rows = db.execute(
-        "select id, src_entity_id, dst_entity_id, kind from relationships where src_entity_id=:id or dst_entity_id=:id",
+        text("select id, src_entity_id, dst_entity_id, kind from relationships where src_entity_id=:id or dst_entity_id=:id"),
         {"id": entity_id}
     ).fetchall()
     return [{"id": r[0], "src": r[1], "dst": r[2], "kind": r[3]} for r in rows]
@@ -100,38 +110,38 @@ def entity_relationships(entity_id: int, db: Session = Depends(get_db)):
 @router.get('/entities/{entity_id}/evidence')
 def entity_evidence(entity_id: int, limit: int = 50, db: Session = Depends(get_db)):
     rows = db.execute(
-        """
+        text("""
         select er.id, er.excerpt, rd.id as doc_id, rd.source_url, rd.created_at
         from evidence_refs er
         join raw_documents rd on rd.id = er.raw_document_id
         where er.project_id=:id or er.case_id=:id or er.workspace_id is not null
         order by rd.created_at desc limit :lim
-        """, {"id": entity_id, "lim": limit}
+        """), {"id": entity_id, "lim": limit}
     ).fetchall()
     return [
-        {"ref_id": r[0], "excerpt": r[1], "doc_id": r[2], "source_url": r[3], "ts": r[4].isoformat() if r[4] else None}
+        {"ref_id": r[0], "excerpt": r[1], "doc_id": r[2], "source_url": r[3], "ts": _safe_isoformat(r[4])}
         for r in rows
     ]
 
 # Saved/recent searches (Phase 1 basics)
 @router.post('/saved')
 def save_search(query: str, db: Session = Depends(get_db)):
-    db.execute("create table if not exists saved_searches (id serial primary key, query text, created_at timestamp with time zone default now())")
-    db.execute("insert into saved_searches (query) values (:q)", {"q": query}); db.commit()
+    db.execute(text("create table if not exists saved_searches (id serial primary key, query text, created_at timestamp with time zone default now())"))
+    db.execute(text("insert into saved_searches (query) values (:q)"), {"q": query}); db.commit()
     return {"ok": True}
 
 @router.get('/saved')
 def list_saved(db: Session = Depends(get_db)):
-    rows = db.execute("select id, query, created_at from saved_searches order by id desc limit 50").fetchall()
-    return [{"id": r[0], "query": r[1], "created_at": r[2].isoformat() if r[2] else None} for r in rows]
+    rows = db.execute(text("select id, query, created_at from saved_searches order by id desc limit 50")).fetchall()
+    return [{"id": r[0], "query": r[1], "created_at": _safe_isoformat(r[2])} for r in rows]
 
 @router.post('/recent')
 def add_recent(query: str, db: Session = Depends(get_db)):
-    db.execute("create table if not exists recent_searches (id serial primary key, query text, created_at timestamp with time zone default now())")
-    db.execute("insert into recent_searches (query) values (:q)", {"q": query}); db.commit()
+    db.execute(text("create table if not exists recent_searches (id serial primary key, query text, created_at timestamp with time zone default now())"))
+    db.execute(text("insert into recent_searches (query) values (:q)"), {"q": query}); db.commit()
     return {"ok": True}
 
 @router.get('/recent')
 def list_recent(db: Session = Depends(get_db)):
-    rows = db.execute("select id, query, created_at from recent_searches order by id desc limit 50").fetchall()
-    return [{"id": r[0], "query": r[1], "created_at": r[2].isoformat() if r[2] else None} for r in rows]
+    rows = db.execute(text("select id, query, created_at from recent_searches order by id desc limit 50")).fetchall()
+    return [{"id": r[0], "query": r[1], "created_at": _safe_isoformat(r[2])} for r in rows]

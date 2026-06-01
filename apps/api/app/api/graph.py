@@ -7,17 +7,31 @@ from app.db.session import get_db
 
 router = APIRouter(prefix="/graph")
 
+def _safe_isoformat(val):
+    if not val:
+        return None
+    if isinstance(val, str):
+        return val.replace(" ", "T")
+    try:
+        return val.isoformat()
+    except AttributeError:
+        return str(val)
+
 
 def fetch_neighbors(db: Session, node_ids: List[int], limit: int = 100) -> Dict[str, Any]:
     if not node_ids:
         return {"nodes": [], "edges": []}
-    q = text("""
+    ids_list = list(node_ids)
+    bind_params = {f"id_{i}": val for i, val in enumerate(ids_list)}
+    bind_params["lim"] = limit
+    placeholders = ", ".join(f":id_{i}" for i in range(len(ids_list)))
+    q = text(f"""
         select r.id, r.src_entity_id, r.dst_entity_id, r.kind
         from relationships r
-        where r.src_entity_id = any(:ids) or r.dst_entity_id = any(:ids)
+        where r.src_entity_id IN ({placeholders}) or r.dst_entity_id IN ({placeholders})
         limit :lim
     """)
-    rows = db.execute(q, {"ids": node_ids, "lim": limit}).fetchall()
+    rows = db.execute(q, bind_params).fetchall()
     edges = []
     nodes: Set[int] = set(node_ids)
     for r in rows:
@@ -25,7 +39,10 @@ def fetch_neighbors(db: Session, node_ids: List[int], limit: int = 100) -> Dict[
         nodes.add(r[1]); nodes.add(r[2])
     if not nodes:
         return {"nodes": [], "edges": []}
-    nrows = db.execute(text("select id, name, kind from entities where id = any(:ids)"), {"ids": list(nodes)}).fetchall()
+    nodes_list = list(nodes)
+    bind_params_nodes = {f"node_{i}": val for i, val in enumerate(nodes_list)}
+    placeholders_nodes = ", ".join(f":node_{i}" for i in range(len(nodes_list)))
+    nrows = db.execute(text(f"select id, name, kind from entities where id IN ({placeholders_nodes})"), bind_params_nodes).fetchall()
     nlist = [{"id": n[0], "name": n[1], "kind": n[2]} for n in nrows]
     return {"nodes": nlist, "edges": edges}
 
@@ -122,8 +139,10 @@ def related(entity_id: int, limit: int = 20, db: Session = Depends(get_db)):
     # attach names
     if not scores:
         return {"related": []}
-    ids = [k for k in scores.keys()]
-    nrows = db.execute(text("select id, name, kind from entities where id = any(:ids)"), {"ids": ids}).fetchall()
+    ids_list = [k for k in scores.keys()]
+    bind_params = {f"id_{i}": val for i, val in enumerate(ids_list)}
+    placeholders = ", ".join(f":id_{i}" for i in range(len(ids_list)))
+    nrows = db.execute(text(f"select id, name, kind from entities where id IN ({placeholders})"), bind_params).fetchall()
     for n in nrows:
         s = scores.get(n[0])
         if s:
@@ -141,6 +160,6 @@ def edge_evidence(relationship_id: int, db: Session = Depends(get_db)):
         where re.relationship_id=:rid
     """), {"rid": relationship_id}).fetchall()
     return [
-        {"id": r[0], "evidence_ref_id": r[1], "source_url": r[2], "ts": r[3].isoformat() if r[3] else None}
+        {"id": r[0], "evidence_ref_id": r[1], "source_url": r[2], "ts": _safe_isoformat(r[3])}
         for r in rows
     ]
