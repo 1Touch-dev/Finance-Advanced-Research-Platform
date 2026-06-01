@@ -88,10 +88,25 @@ def deliver(db: Session = Depends(get_db)):
         for c in chans:
             if c.kind == 'webhook' and c.target:
                 try:
-                    requests.post(c.target, json={"event": ev.kind, "payload": ev.payload});
+                    requests.post(c.target, json={"event": ev.kind, "payload": ev.payload})
                 except Exception:
                     pass
-            # inapp/email/slack/teams: Phase 1 stub (recorded via event row)
+            elif c.kind == 'email' and c.target:
+                try:
+                    from app.services.sendgrid_client import sendgrid_client
+                    subject = f"Platform Watchlist Alert: {ev.kind.upper()}"
+                    body_html = f"<h3>Watchlist Alert Triggered</h3><p>An alert has been triggered: <strong>{ev.kind}</strong></p><p>Details: {json.dumps(ev.payload)}</p>"
+                    sendgrid_client.send_email(c.target, subject, body_html)
+                except Exception:
+                    pass
+            elif c.kind == 'sms' and c.target:
+                try:
+                    from app.services.twilio_client import twilio_client
+                    body = f"Watchlist Alert: {ev.kind.upper()} triggered! Details: {json.dumps(ev.payload)}"
+                    twilio_client.send_sms(c.target, body)
+                except Exception:
+                    pass
+            # inapp/slack/teams: Phase 1 stub (recorded via event row)
         ev.delivered = True
         delivered.append(ev.id)
     db.commit(); return {"delivered": delivered}

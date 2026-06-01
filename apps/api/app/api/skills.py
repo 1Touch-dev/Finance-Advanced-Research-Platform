@@ -62,8 +62,14 @@ def get_run(run_id: int, db: Session = Depends(get_db)):
 # --- Adapters ---
 
 def anthropic_adapter(name: str, inp: Dict[str, Any]) -> Dict[str, Any]:
-    # placeholder for Claude adapters: wrap input into a prompt contract; here we simulate
-    return {"provider": "anthropic", "skill": name, "input": inp, "result": f"Simulated {name} report (Claude)."}
+    # Call OpenAI client to perform real GPT-4o structured completions
+    from app.services.openai_client import openai_client
+    if openai_client.is_configured():
+        prompt = f"Run specialized analysis for skill '{name}' using the following data bundle: {json.dumps(inp)}. Provide professional investment committee level insight."
+        system_instruction = "You are an expert financial and intelligence research analyst. Provide high-quality, professional cited insight."
+        res = openai_client.analyze_text(prompt, system_instruction)
+        return {"provider": "openai", "skill": name, "input": inp, "result": res}
+    return {"provider": "openai", "skill": name, "input": inp, "result": f"Simulated {name} report (OpenAI - unconfigured)."}
 
 def internal_adapter(name: str, inp: Dict[str, Any]) -> Dict[str, Any]:
     # route to internal computations where applicable
