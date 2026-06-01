@@ -3,6 +3,32 @@ name = "connectors-sdk"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = []
+
 [build-system]
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = [
+  "connectors",
+  "us",
+  "us._common",
+  "us.congress",
+  "us.courtlistener",
+  "us.ecfr",
+  "us.fara",
+  "us.fec",
+  "us.federal_register",
+  "us.gleif",
+  "us.govinfo",
+  "us.irs990",
+  "us.lda",
+  "us.ofac",
+  "us.opencorporates",
+  "us.reginfo_oira",
+  "us.regulations",
+  "us.sam",
+  "us.sec",
+  "us.usaspending",
+  "runner"
+]
