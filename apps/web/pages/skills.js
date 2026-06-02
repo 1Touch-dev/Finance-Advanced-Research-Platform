@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { getApiBaseUrl } from '../lib/api'
+import styles from '../src/styles/Page.module.css'
 export default function SkillsGateway(){
   const API = getApiBaseUrl()
   const [name,setName]=useState('dcf');
@@ -24,11 +25,17 @@ export default function SkillsGateway(){
     }
   }
   return (
-    <main style={{padding:20,fontFamily:'sans-serif'}}>
-      <h1>Finance Skills Gateway</h1>
-      <div>
-        <label>Skill Name </label>
-        <select value={name} onChange={e=>setName(e.target.value)}>
+    <main className={styles.page}>
+      <section className={styles.hero}>
+        <h1>Finance Skills Gateway</h1>
+        <p>Execute approved skills with explicit inputs and inspect structured outputs.</p>
+      </section>
+      <section className={styles.grid2}>
+        <aside className={styles.panel}>
+          <div className={styles.controls}>
+            <label className={styles.label}>
+              Skill Name
+              <select className={styles.select} value={name} onChange={e=>setName(e.target.value)}>
           <option value="dcf">dcf</option>
           <option value="comps">comps</option>
           <option value="earnings">earnings</option>
@@ -37,15 +44,23 @@ export default function SkillsGateway(){
           <option value="due_diligence">due_diligence</option>
           <option value="model_review">model_review</option>
           <option value="market_research">market_research</option>
-        </select>
-      </div>
-      <div>
-        <label>Input JSON</label>
-        <textarea value={input} onChange={e=>setInput(e.target.value)} rows={8} cols={80}></textarea>
-      </div>
-      <button onClick={run}>Run Skill</button>
-      {err ? <p style={{color:'#b91c1c'}}>{err}</p> : null}
-      <pre>{data?JSON.stringify(data,null,2):'No run yet'}</pre>
+              </select>
+            </label>
+            <label className={styles.label}>
+              Input JSON
+              <textarea className={styles.textarea} value={input} onChange={e=>setInput(e.target.value)} />
+            </label>
+            <div className={styles.buttonRow}>
+              <button className={styles.button} onClick={run}>Run Skill</button>
+            </div>
+            {err ? <p className={styles.dangerText}>{err}</p> : null}
+          </div>
+        </aside>
+        <section className={styles.panel}>
+          <h2>Skill Run Output</h2>
+          <pre className={styles.mono}>{data?JSON.stringify(data,null,2):'No run yet.'}</pre>
+        </section>
+      </section>
     </main>
   )
 }

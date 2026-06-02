@@ -1,7 +1,9 @@
 import { useRouter } from 'next/router'
 import useSWR from 'swr'
+import { getApiBaseUrl } from '../../lib/api'
+import styles from '../../src/styles/Page.module.css'
 
-const API=process.env.NEXT_PUBLIC_API_URL||'http://localhost:3001'
+const API=getApiBaseUrl()
 const fetcher=(url)=>fetch(url).then(r=>r.json())
 
 export default function EntityProfile(){
@@ -13,27 +15,30 @@ export default function EntityProfile(){
   const {data:timeline}=useSWR(id?`${API}/search/entities/${id}/timeline`:null, fetcher)
   const {data:related}=useSWR(id?`${API}/graph/related?entity_id=${id}`:null, fetcher)
   return (
-    <main style={{padding:20,fontFamily:'sans-serif'}}>
-      <h1>Entity Profile</h1>
-      <section>
+    <main className={styles.page}>
+      <section className={styles.hero}>
+        <h1>Entity Profile</h1>
+        <p>Unified identity, relationship, evidence, and timeline view for entity ID `{id ?? '...'}`.</p>
+      </section>
+      <section className={styles.panel}>
         <h2>Overview</h2>
-        <pre>{profile?JSON.stringify(profile,null,2):'Loading...'}</pre>
+        <pre className={styles.mono}>{profile?JSON.stringify(profile,null,2):'Loading...'}</pre>
       </section>
-      <section>
+      <section className={styles.panel}>
         <h2>Related Parties</h2>
-        <pre>{related?JSON.stringify(related,null,2):'Loading...'}</pre>
+        <pre className={styles.mono}>{related?JSON.stringify(related,null,2):'Loading...'}</pre>
       </section>
-      <section>
+      <section className={styles.panel}>
         <h2>Relationships</h2>
-        <pre>{rels?JSON.stringify(rels,null,2):'Loading...'}</pre>
+        <pre className={styles.mono}>{rels?JSON.stringify(rels,null,2):'Loading...'}</pre>
       </section>
-      <section>
+      <section className={styles.panel}>
         <h2>Evidence</h2>
-        <pre>{refs?JSON.stringify(refs,null,2):'Loading...'}</pre>
+        <pre className={styles.mono}>{refs?JSON.stringify(refs,null,2):'Loading...'}</pre>
       </section>
-      <section>
+      <section className={styles.panel}>
         <h2>Timeline</h2>
-        <pre>{timeline?JSON.stringify(timeline,null,2):'Loading...'}</pre>
+        <pre className={styles.mono}>{timeline?JSON.stringify(timeline,null,2):'Loading...'}</pre>
       </section>
     </main>
   )
