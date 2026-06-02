@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { useMemo } from 'react';
+import { getAdminBaseUrl, getApiBaseUrl } from '../../lib/api';
 import styles from '../styles/Layout.module.css';
 
 const links = [
@@ -13,6 +15,8 @@ const links = [
 export default function Layout({ children }) {
   const router = useRouter();
   const path = router.pathname || '/';
+  const adminUrl = useMemo(() => getAdminBaseUrl(), []);
+  const apiUrl = useMemo(() => getApiBaseUrl(), []);
 
   return (
     <div className={styles.shell}>
@@ -45,7 +49,7 @@ export default function Layout({ children }) {
         </nav>
         <a
           className={styles.adminLink}
-          href="http://localhost:3002"
+          href={adminUrl}
           target="_blank"
           rel="noreferrer"
         >
@@ -54,7 +58,7 @@ export default function Layout({ children }) {
       </header>
       <main className={styles.main}>{children}</main>
       <footer className={styles.footer}>
-        API default: {process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}
+        API endpoint: {apiUrl}
       </footer>
     </div>
   );
