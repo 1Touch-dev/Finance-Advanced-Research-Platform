@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+import { getApiBaseUrl } from '../lib/api'
 
 function GraphView({data}){
   // simple radial layout
@@ -36,17 +35,27 @@ function GraphView({data}){
 }
 
 export default function GraphPage(){
+  const API = getApiBaseUrl()
   const [entityId,setEntityId]=useState('');
   const [data,setData]=useState(null);
+  const [err,setErr]=useState('');
   const run=async()=>{
-    const r=await fetch(`${API}/graph/export?entity_id=${encodeURIComponent(entityId)}&depth=2`)
-    setData(await r.json())
+    setErr('');
+    try {
+      const r=await fetch(`${API}/graph/export?entity_id=${encodeURIComponent(entityId)}&depth=2`)
+      if (!r.ok) throw new Error(`API returned ${r.status}`)
+      setData(await r.json())
+    } catch (e) {
+      setData(null)
+      setErr(`Request failed: ${e.message}`)
+    }
   }
   return (
     <main style={{padding:20,fontFamily:'sans-serif'}}>
       <h1>Intelligence Graph</h1>
       <input value={entityId} onChange={e=>setEntityId(e.target.value)} placeholder="Entity ID"/>
       <button onClick={run}>Expand</button>
+      {err ? <p style={{color:'#b91c1c'}}>{err}</p> : null}
       <GraphView data={data}/>
     </main>
   )

@@ -1,4 +1,4 @@
-from connectors.us.courtlistener.courtlistener import CourtListenerConnector
+from us.courtlistener.courtlistener import CourtListenerConnector
 
 def test_courtlistener_sample_run():
     c = CourtListenerConnector(creds={})

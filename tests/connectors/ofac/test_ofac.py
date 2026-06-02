@@ -1,4 +1,4 @@
-from connectors.us.ofac.ofac import OFACConnector
+from us.ofac.ofac import OFACConnector
 
 def test_ofac_sample_run():
     c = OFACConnector(creds={})

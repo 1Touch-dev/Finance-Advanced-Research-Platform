@@ -1,6 +1,6 @@
 from typing import Iterable, Tuple, Dict, Any
 import time
-from ...us._common.base_us import USBaseConnector
+from .._common.base_us import USBaseConnector
 
 class RegInfoOIRAConnector(USBaseConnector):
     name = "reginfo_oira"

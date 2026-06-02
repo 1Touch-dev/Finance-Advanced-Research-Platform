@@ -1,4 +1,4 @@
-from connectors.us.regulations.regulations import RegulationsGovConnector
+from us.regulations.regulations import RegulationsGovConnector
 
 def test_regulations_sample_run():
     c = RegulationsGovConnector(creds={})

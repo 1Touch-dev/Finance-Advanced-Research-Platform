@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
+import { getApiBaseUrl } from '../lib/api'
 
 export default function SearchPage(){
   const [q,setQ]=useState('');
   const [res,setRes]=useState(null);
   const [err,setErr]=useState('');
-  const API=process.env.NEXT_PUBLIC_API_URL||'http://localhost:3001';
+  const API=getApiBaseUrl();
   const run=async()=>{
     setErr('');
     try {
-      const r=await fetch(`${API}/search?q=${encodeURIComponent(q)}`);
+      // Use trailing slash to avoid cross-origin redirect from /search -> /search/
+      const r=await fetch(`${API}/search/?q=${encodeURIComponent(q)}`);
       if (!r.ok) throw new Error(`API returned ${r.status}`);
       setRes(await r.json());
     } catch (e) {

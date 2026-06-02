@@ -1,4 +1,4 @@
-from connectors.us.gleif.gleif import GLEIFConnector
+from us.gleif.gleif import GLEIFConnector
 
 def test_gleif_sample_run():
     c = GLEIFConnector(creds={})
