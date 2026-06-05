@@ -23,6 +23,11 @@ venv/
 # Local runtime / secrets
 .env
 apps/admin/.env
+
+# Confidential planning docs, credentials, and PDFs (never commit)
+*.pdf
+**/INTELIGENCE Platform Credentials.pdf
+**/Enterprise Intelligence*.pdf
 apps/api/local.db
 *.db
 .local-logs/
