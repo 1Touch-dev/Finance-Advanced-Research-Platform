@@ -48,5 +48,7 @@ def test_monitor_bootstrap_and_scan():
 
 
 def test_search_hybrid():
+    client.post("/entities/bootstrap")
+    client.post("/evidence/bootstrap")
     r = client.get("/search/?q=test")
     assert r.status_code == 200

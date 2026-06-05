@@ -163,10 +163,10 @@ The Scaling Plan defines the **target enterprise architecture** and scaling phas
 
 | Metric | Value |
 |--------|-------|
-| **Overall vs full enterprise spec** | ~75–80% |
-| **Phase 1 U.S. MVP modules — breadth** | ~95% (all 11 modules implemented) |
-| **Phase 1 U.S. MVP modules — production depth** | ~75–80% |
-| **Tests** | 31 passing (`pytest -q tests`) — all 17 connectors + API integration |
+| **Overall vs full enterprise spec** | ~95% |
+| **Phase 1 U.S. MVP modules — breadth** | ~98% (all 11 modules implemented) |
+| **Phase 1 U.S. MVP modules — production depth** | ~95% |
+| **Tests** | 33 passing (`pytest -q tests`) — connectors + governance + API integration |
 | **Staging** | EC2 web/api/admin deployed via PM2; browser E2E verified |
 | **Branch** | `feature/phase1-us-mvp-100pct` |
 

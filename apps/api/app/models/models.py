@@ -14,6 +14,8 @@ class Workspace(Base):
     id = Column(Integer, primary_key=True)
     org_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
     name = Column(String, nullable=False)
+    skill_budget_usd = Column(Integer, default=100)
+    skill_spend_usd = Column(Integer, default=0)
     organization = relationship("Organization", back_populates="workspaces")
     memberships = relationship("Membership", back_populates="workspace")
 
@@ -24,6 +26,9 @@ class User(Base):
     name = Column(String)
     password_hash = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
+    mfa_enabled = Column(Boolean, default=False)
+    mfa_secret = Column(String, nullable=True)
+    mfa_required = Column(Boolean, default=False)
 
 class Role(Base):
     __tablename__ = "roles"

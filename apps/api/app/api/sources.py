@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import text, update
 from sqlalchemy.orm import Session
 
@@ -18,6 +19,25 @@ from app.models.sources import (
 )
 
 router = APIRouter(prefix="/sources")
+
+
+class RunStatusUpdate(BaseModel):
+    status: str
+    metrics: Optional[dict] = None
+    error: Optional[str] = None
+
+
+class SourceRecordUpsert(BaseModel):
+    source_id: int
+    external_id: str
+    run_id: Optional[int] = None
+    normalized: Optional[dict] = None
+    evidence_ref_id: Optional[int] = None
+
+
+class DlqBatch(BaseModel):
+    run_id: int
+    items: list
 
 
 @router.post("/bootstrap")
@@ -65,17 +85,15 @@ def trigger_run(source_id: int, checkpoint: dict | None = None, db: Session = De
 @router.post("/runs/{run_id}/status")
 def update_run_status(
     run_id: int,
-    status: str,
-    metrics: dict | None = None,
-    error: str | None = None,
+    body: RunStatusUpdate,
     db: Session = Depends(get_db),
 ):
     now = datetime.now(timezone.utc)
-    values = {"status": status, "metrics": metrics}
-    if status in ("success", "error", "partial"):
+    values = {"status": body.status, "metrics": body.metrics}
+    if body.status in ("success", "error", "partial"):
         values["finished_at"] = now
-        if error:
-            values["error"] = error
+        if body.error:
+            values["error"] = body.error
     db.execute(update(SourceRun).where(SourceRun.id == run_id).values(**values))
     db.commit()
     return {"ok": True}
@@ -83,45 +101,41 @@ def update_run_status(
 
 @router.post("/records")
 def upsert_record(
-    source_id: int,
-    external_id: str,
-    run_id: int | None = None,
-    normalized: dict | None = None,
-    evidence_ref_id: int | None = None,
+    body: SourceRecordUpsert,
     db: Session = Depends(get_db),
 ):
-    row = db.query(SourceRecordMeta).filter_by(source_id=source_id, external_id=external_id).first()
+    row = db.query(SourceRecordMeta).filter_by(source_id=body.source_id, external_id=body.external_id).first()
     if row:
-        row.run_id = run_id
-        row.normalized = normalized
-        row.evidence_ref_id = evidence_ref_id
+        row.run_id = body.run_id
+        row.normalized = body.normalized
+        row.evidence_ref_id = body.evidence_ref_id
         row.last_ingested_at = datetime.now(timezone.utc)
     else:
         row = SourceRecordMeta(
-            source_id=source_id,
-            run_id=run_id,
-            external_id=external_id,
-            normalized=normalized,
-            evidence_ref_id=evidence_ref_id,
+            source_id=body.source_id,
+            run_id=body.run_id,
+            external_id=body.external_id,
+            normalized=body.normalized,
+            evidence_ref_id=body.evidence_ref_id,
         )
         db.add(row)
     db.commit()
-    return {"ok": True, "external_id": external_id}
+    return {"ok": True, "external_id": body.external_id}
 
 
 @router.post("/dlq")
-def add_dlq(run_id: int, items: list, db: Session = Depends(get_db)):
-    for item in items:
+def add_dlq(body: DlqBatch, db: Session = Depends(get_db)):
+    for item in body.items:
         db.add(
             SourceDeadLetter(
-                run_id=run_id,
+                run_id=body.run_id,
                 external_id=item.get("external_id"),
                 error=item.get("error", "unknown"),
                 payload=item,
             )
         )
     db.commit()
-    return {"count": len(items)}
+    return {"count": len(body.items)}
 
 
 @router.get("/checkpoints/{source_id}")

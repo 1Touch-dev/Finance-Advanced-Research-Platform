@@ -141,8 +141,15 @@ def _report_content(report_id: int, db: Session):
     secs = db.execute(text('select name,content,"order" from report_sections where report_id=:id order by "order"'), {"id": report_id}).fetchall()
     return rep, secs
 
+def _check_export_gate(report_id: int, db: Session):
+    from app.api.reports import export_ready
+    ready = export_ready(report_id, db)
+    if not ready.get("ready"):
+        raise HTTPException(403, f"export blocked: {ready.get('blocked')}")
+
 @router.get('/export/{report_id}/pdf')
 def export_pdf(report_id: int, db: Session = Depends(get_db)):
+    _check_export_gate(report_id, db)
     from reportlab.lib.pagesizes import letter
     from reportlab.pdfgen import canvas
     rep, secs = _report_content(report_id, db)
@@ -175,6 +182,7 @@ def export_pdf(report_id: int, db: Session = Depends(get_db)):
 
 @router.get('/export/{report_id}/docx')
 def export_docx(report_id: int, db: Session = Depends(get_db)):
+    _check_export_gate(report_id, db)
     from docx import Document
     rep, secs = _report_content(report_id, db)
     doc = Document()

@@ -28,21 +28,39 @@ def bootstrap(db: Session = Depends(get_db)):
     db.commit()
     return {"ok": True}
 
+def _estimate_cost_usd(output: dict) -> tuple:
+    tokens = (output.get("cost") or {}).get("tokens", 0)
+    cost_cents = max(1, int(tokens * 0.003)) if tokens else 5
+    return cost_cents, tokens
+
 @router.post('/run')
-def run_skill(name: str, version: str = "v1", input: Optional[Dict[str, Any]] = None, require_review: bool = False, db: Session = Depends(get_db)):
+def run_skill(name: str, version: str = "v1", input: Optional[Dict[str, Any]] = None, require_review: bool = False, workspace_id: int = 1, db: Session = Depends(get_db)):
     reg = db.query(SkillRegistry).filter_by(name=name, version=version).first()
     if not reg or not reg.allowlisted:
         raise HTTPException(403, "skill not available")
+    from app.models.models import Workspace
+    ws = db.query(Workspace).filter_by(id=workspace_id).first()
+    budget = (ws.skill_budget_usd if ws else 100) * 100
+    spent = (ws.skill_spend_usd if ws else 0) * 100
+    if spent >= budget:
+        raise HTTPException(402, "workspace skill budget exceeded")
     adapter = reg.provider
     run = SkillRun(skill_id=reg.id, input=input, adapter=adapter, status='running', review_required=require_review)
     db.add(run); db.commit(); db.refresh(run)
-    # invoke adapter
     if adapter == 'internal':
         output = internal_adapter(name, input or {})
     else:
         output = anthropic_adapter(name, input or {})
+    cost_cents, tokens = _estimate_cost_usd(output)
+    if ws and spent + cost_cents > budget:
+        raise HTTPException(402, "workspace skill budget would be exceeded")
     status = 'requires_review' if require_review else 'succeeded'
-    db.execute(update(SkillRun).where(SkillRun.id==run.id).values(output=output, status=status, finished_at=datetime.now(timezone.utc)))
+    if ws:
+        ws.skill_spend_usd = int((spent + cost_cents) / 100)
+    db.execute(update(SkillRun).where(SkillRun.id==run.id).values(
+        output=output, status=status, finished_at=datetime.now(timezone.utc),
+        cost_usd=int(cost_cents / 100), token_count=tokens,
+    ))
     db.commit()
     # write artifact
     path = os.path.join(ART_DIR, f"run-{run.id}-{name}.json")

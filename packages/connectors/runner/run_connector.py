@@ -68,7 +68,8 @@ def run(connector: BaseConnector, token: str | None, source_id: int, run_id: int
 
     def persist_fn(**kwargs):
         try:
-            persist_raw_and_evidence(token, source_id, run_id, **kwargs)
+            allowed = {k: kwargs[k] for k in ("external_id", "raw", "excerpt", "normalized") if k in kwargs}
+            persist_raw_and_evidence(token, source_id, run_id, **allowed)
         except Exception as e:
             dlq.append({"external_id": kwargs.get("external_id"), "error": str(e)})
             raise

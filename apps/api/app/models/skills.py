@@ -23,6 +23,8 @@ class SkillRun(Base):
     audit_log = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     finished_at = Column(DateTime(timezone=True), nullable=True)
+    cost_usd = Column(Integer, default=0)
+    token_count = Column(Integer, default=0)
 
 class SkillArtifact(Base):
     __tablename__ = 'skill_artifacts'

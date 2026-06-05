@@ -102,6 +102,25 @@ def create_ref(
     db.add(ref); db.commit(); db.refresh(ref)
     return {"id": ref.id}
 
+@router.post('/raw/{doc_id}/legal_hold')
+def set_legal_hold(doc_id: int, hold: bool = True, db: Session = Depends(get_db)):
+    doc = db.query(RawDocument).filter_by(id=doc_id).first()
+    if not doc:
+        raise HTTPException(404, "not found")
+    doc.legal_hold = 1 if hold else 0
+    db.commit()
+    return {"id": doc.id, "legal_hold": bool(doc.legal_hold)}
+
+@router.post('/raw/{doc_id}/retention')
+def set_retention(doc_id: int, retention_until: str, db: Session = Depends(get_db)):
+    from datetime import datetime
+    doc = db.query(RawDocument).filter_by(id=doc_id).first()
+    if not doc:
+        raise HTTPException(404, "not found")
+    doc.retention_until = datetime.fromisoformat(retention_until.replace("Z", "+00:00"))
+    db.commit()
+    return {"id": doc.id, "retention_until": str(doc.retention_until)}
+
 @router.get('/refs/{ref_id}')
 def get_ref(ref_id: int, db: Session = Depends(get_db)):
     ref = db.query(EvidenceRef).filter_by(id=ref_id).first()

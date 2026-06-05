@@ -80,7 +80,7 @@ def run_scan(db: Session = Depends(get_db)):
                 from source_record_meta srm
                 join sources s on s.id = srm.source_id
                 where s.kind in ('sec_edgar', 'sec')
-                and srm.last_ingested_at > datetime('now', '-24 hours')
+                and srm.last_ingested_at > now() - interval '24 hours'
                 order by srm.last_ingested_at desc limit 20
             """)).fetchall()
             for row in rows:
@@ -100,7 +100,7 @@ def run_scan(db: Session = Depends(get_db)):
                 from source_record_meta srm
                 join sources s on s.id = srm.source_id
                 where s.kind = 'usaspending'
-                and srm.last_ingested_at > datetime('now', '-48 hours')
+                and srm.last_ingested_at > now() - interval '48 hours'
                 limit 10
             """)).fetchall()
             for row in rows:
@@ -120,7 +120,7 @@ def run_scan(db: Session = Depends(get_db)):
                 from source_record_meta srm
                 join sources s on s.id = srm.source_id
                 where s.kind = 'ofac'
-                and srm.last_ingested_at > datetime('now', '-72 hours')
+                and srm.last_ingested_at > now() - interval '72 hours'
                 limit 5
             """)).fetchall()
             for row in rows:

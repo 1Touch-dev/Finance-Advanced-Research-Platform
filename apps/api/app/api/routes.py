@@ -45,15 +45,52 @@ def register(email: str, password: str, name: Optional[str]=None, db: Session = 
     return {"id": u.id, "email": u.email}
 
 @router.post('/auth/login')
-def login(email: str, password: str, db: Session = Depends(get_db)):
+def login(email: str, password: str, mfa_code: Optional[str] = None, db: Session = Depends(get_db)):
     u = db.query(User).filter_by(email=email).first()
     if not u or not u.password_hash or not verify_password(password, u.password_hash):
         raise HTTPException(401, 'invalid credentials')
+    if u.mfa_enabled and u.mfa_secret:
+        from app.auth.mfa import verify_totp
+        if not mfa_code or not verify_totp(u.mfa_secret, mfa_code):
+            raise HTTPException(401, 'mfa required')
     tok = create_token(u.id, u.email)
     refresh = create_refresh_token(u.id, u.email)
     db.add(AuditLog(user_id=u.id, action='auth.login', entity_type='user', entity_id=str(u.id)))
     db.commit()
     return {"token": tok, "refresh_token": refresh}
+
+@router.post('/auth/mfa/enroll')
+def mfa_enroll(user_id: int, db: Session = Depends(get_db)):
+    from app.auth.mfa import generate_totp_secret
+    u = db.query(User).filter_by(id=user_id).first()
+    if not u:
+        raise HTTPException(404, 'user not found')
+    data = generate_totp_secret(u.email)
+    u.mfa_secret = data['secret']
+    db.commit()
+    return {"qr_png_base64": data["qr_png_base64"], "provisioning_uri": data["provisioning_uri"]}
+
+@router.post('/auth/mfa/verify')
+def mfa_verify(user_id: int, code: str, enable: bool = True, db: Session = Depends(get_db)):
+    from app.auth.mfa import verify_totp
+    u = db.query(User).filter_by(id=user_id).first()
+    if not u or not u.mfa_secret:
+        raise HTTPException(400, 'enroll first')
+    if not verify_totp(u.mfa_secret, code):
+        raise HTTPException(401, 'invalid mfa code')
+    u.mfa_enabled = enable
+    db.add(AuditLog(user_id=u.id, action='auth.mfa_enabled' if enable else 'auth.mfa_disabled', entity_type='user', entity_id=str(u.id)))
+    db.commit()
+    return {"ok": True, "mfa_enabled": u.mfa_enabled}
+
+@router.post('/auth/mfa/require')
+def mfa_require(user_id: int, required: bool = True, db: Session = Depends(get_db)):
+    u = db.query(User).filter_by(id=user_id).first()
+    if not u:
+        raise HTTPException(404, 'user not found')
+    u.mfa_required = required
+    db.commit()
+    return {"ok": True, "mfa_required": required}
 
 @router.post('/auth/refresh')
 def refresh_auth(refresh_token: str):
