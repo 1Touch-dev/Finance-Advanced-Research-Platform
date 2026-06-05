@@ -51,18 +51,24 @@ class BaseConnector:
         self.checkpointer = Checkpointer()
     def fetch_records(self) -> Iterable[Tuple[str, Dict[str, Any]]]:
         raise NotImplementedError
-    def run(self) -> Dict[str, Any]:
-        """Idempotent ingestion skeleton; returns metrics."""
+    def run(self, persist_fn=None) -> Dict[str, Any]:
+        """Idempotent ingestion; optional persist_fn(external_id, raw, normalized, ...)."""
         seen = 0
         errors = 0
+        persisted = 0
         for external_id, payload in self.fetch_records():
             self.rate_limiter.wait()
+
             def _process():
-                # override to persist; here we only simulate serialization
+                if persist_fn:
+                    persist_fn(external_id=external_id, raw=payload)
                 return True
+
             try:
                 self.retry.run(_process)
                 seen += 1
+                if persist_fn:
+                    persisted += 1
             except Exception:
                 errors += 1
-        return {"seen": seen, "errors": errors}
+        return {"seen": seen, "errors": errors, "persisted": persisted, "checkpoint": self.checkpointer.dump()}

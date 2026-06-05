@@ -135,3 +135,54 @@ def export_evidence_csv(report_id: int, db: Session = Depends(get_db)):
         w=csv.writer(f); w.writerow(['claim_id','evidence_ref_id'])
         for r in rows: w.writerow([r[0], r[1]])
     return {"path": path}
+
+def _report_content(report_id: int, db: Session):
+    rep = db.execute(text("select title,kind,status from reports where id=:id"), {"id": report_id}).fetchone()
+    secs = db.execute(text('select name,content,"order" from report_sections where report_id=:id order by "order"'), {"id": report_id}).fetchall()
+    return rep, secs
+
+@router.get('/export/{report_id}/pdf')
+def export_pdf(report_id: int, db: Session = Depends(get_db)):
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+    rep, secs = _report_content(report_id, db)
+    path = os.path.join(EXPORT_DIR, f'report-{report_id}.pdf')
+    c = canvas.Canvas(path, pagesize=letter)
+    y = 750
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(50, y, f"{rep[0]} ({rep[1]})")
+    y -= 30
+    c.setFont("Helvetica", 10)
+    c.drawString(50, y, f"Status: {rep[2]}")
+    y -= 30
+    for s in secs:
+        if y < 80:
+            c.showPage()
+            y = 750
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(50, y, s[0])
+        y -= 20
+        c.setFont("Helvetica", 10)
+        for line in (s[1] or '').split('\n'):
+            if y < 60:
+                c.showPage()
+                y = 750
+            c.drawString(60, y, line[:90])
+            y -= 14
+        y -= 10
+    c.save()
+    return {"path": path, "format": "pdf"}
+
+@router.get('/export/{report_id}/docx')
+def export_docx(report_id: int, db: Session = Depends(get_db)):
+    from docx import Document
+    rep, secs = _report_content(report_id, db)
+    doc = Document()
+    doc.add_heading(f"{rep[0]} ({rep[1]})", 0)
+    doc.add_paragraph(f"Status: {rep[2]}")
+    for s in secs:
+        doc.add_heading(s[0], level=1)
+        doc.add_paragraph(s[1] or '')
+    path = os.path.join(EXPORT_DIR, f'report-{report_id}.docx')
+    doc.save(path)
+    return {"path": path, "format": "docx"}

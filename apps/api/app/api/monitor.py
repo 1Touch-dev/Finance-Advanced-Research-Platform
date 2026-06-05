@@ -67,17 +67,83 @@ def add_channel(rid: int, kind: str, target: Optional[str] = None, meta: Optiona
 
 @router.post('/scan')
 def run_scan(db: Session = Depends(get_db)):
-    # Phase 1: simulate by generating events based on simple params thresholds
+    """Scan for real connector deltas against watchlist entities."""
     rules = db.query(AlertRule).filter_by(enabled=True).all()
     created = []
+    seen_keys = set()
     for r in rules:
         k = r.kind
-        if k == 'price_move':
-            th = float((r.params or {}).get('pct', 5))
-            # create a dummy event
-            ev = AlertEvent(rule_id=r.id, kind='price_move', ticker=(r.params or {}).get('ticker','AAPL'), payload={'pct': th})
-            db.add(ev); db.flush(); created.append(ev.id)
-    db.commit(); return {"events": created}
+        params = r.params or {}
+        if k in ('new_filing', 'filing', 'sec_filing'):
+            rows = db.execute(text("""
+                select srm.external_id, srm.normalized, s.name
+                from source_record_meta srm
+                join sources s on s.id = srm.source_id
+                where s.kind in ('sec_edgar', 'sec')
+                and srm.last_ingested_at > datetime('now', '-24 hours')
+                order by srm.last_ingested_at desc limit 20
+            """)).fetchall()
+            for row in rows:
+                key = f"filing-{row[0]}"
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
+                ev = AlertEvent(rule_id=r.id, kind='new_filing', ticker=params.get('ticker'), payload={
+                    'external_id': row[0], 'source': row[2], 'normalized': row[1],
+                })
+                db.add(ev)
+                db.flush()
+                created.append(ev.id)
+        elif k in ('new_contract', 'procurement', 'usaspending'):
+            rows = db.execute(text("""
+                select srm.external_id, srm.normalized
+                from source_record_meta srm
+                join sources s on s.id = srm.source_id
+                where s.kind = 'usaspending'
+                and srm.last_ingested_at > datetime('now', '-48 hours')
+                limit 10
+            """)).fetchall()
+            for row in rows:
+                key = f"contract-{row[0]}"
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
+                ev = AlertEvent(rule_id=r.id, kind='new_contract', ticker=None, payload={
+                    'external_id': row[0], 'normalized': row[1],
+                })
+                db.add(ev)
+                db.flush()
+                created.append(ev.id)
+        elif k == 'sanctions_hit':
+            rows = db.execute(text("""
+                select srm.external_id, srm.normalized
+                from source_record_meta srm
+                join sources s on s.id = srm.source_id
+                where s.kind = 'ofac'
+                and srm.last_ingested_at > datetime('now', '-72 hours')
+                limit 5
+            """)).fetchall()
+            for row in rows:
+                key = f"sanctions-{row[0]}"
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
+                ev = AlertEvent(rule_id=r.id, kind='sanctions_hit', ticker=None, payload={
+                    'external_id': row[0], 'normalized': row[1],
+                })
+                db.add(ev)
+                db.flush()
+                created.append(ev.id)
+    db.commit()
+    return {"events": created, "count": len(created)}
+
+@router.get('/events')
+def list_events(delivered: Optional[bool] = None, limit: int = 50, db: Session = Depends(get_db)):
+    q = db.query(AlertEvent).order_by(AlertEvent.id.desc())
+    if delivered is not None:
+        q = q.filter_by(delivered=delivered)
+    events = q.limit(limit).all()
+    return [{"id": e.id, "rule_id": e.rule_id, "kind": e.kind, "ticker": e.ticker, "payload": e.payload, "delivered": e.delivered} for e in events]
 
 @router.post('/deliver')
 def deliver(db: Session = Depends(get_db)):

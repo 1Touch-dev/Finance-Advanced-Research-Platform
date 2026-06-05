@@ -62,14 +62,34 @@ def get_run(run_id: int, db: Session = Depends(get_db)):
 # --- Adapters ---
 
 def anthropic_adapter(name: str, inp: Dict[str, Any]) -> Dict[str, Any]:
-    # Call OpenAI client to perform real GPT-4o structured completions
+    from app.services.anthropic_client import anthropic_client
     from app.services.openai_client import openai_client
+
+    prompts = {
+        "dcf": "Produce a DCF valuation analysis with assumptions, sensitivity table, and key risks.",
+        "comps": "Produce comparable company analysis with peer multiples and relative valuation.",
+        "earnings": "Produce an earnings update memo with beat/miss analysis and forward guidance.",
+        "one_pager": "Produce a one-page investment summary with thesis, catalysts, and risks.",
+        "ic_memo": "Produce an investment committee memo with recommendation and evidence citations.",
+        "due_diligence": "Produce a due diligence checklist and findings summary.",
+    }
+    instruction = prompts.get(name, f"Run specialized financial analysis for skill '{name}'.")
+    prompt = f"{instruction}\n\nData bundle:\n{json.dumps(inp, default=str)}"
+    system = "You are an expert financial and intelligence research analyst. Provide professional, cited insight."
+
+    if anthropic_client.is_configured():
+        res = anthropic_client.analyze_text(prompt, system)
+        return {
+            "provider": "anthropic",
+            "skill": name,
+            "input": inp,
+            "result": res.get("text"),
+            "cost": {"tokens": res.get("tokens", 0), "model": res.get("model")},
+        }
     if openai_client.is_configured():
-        prompt = f"Run specialized analysis for skill '{name}' using the following data bundle: {json.dumps(inp)}. Provide professional investment committee level insight."
-        system_instruction = "You are an expert financial and intelligence research analyst. Provide high-quality, professional cited insight."
-        res = openai_client.analyze_text(prompt, system_instruction)
-        return {"provider": "openai", "skill": name, "input": inp, "result": res}
-    return {"provider": "openai", "skill": name, "input": inp, "result": f"Simulated {name} report (OpenAI - unconfigured)."}
+        res = openai_client.analyze_text(prompt, system)
+        return {"provider": "openai", "skill": name, "input": inp, "result": res, "cost": {"tokens": 0}}
+    return {"provider": "simulated", "skill": name, "input": inp, "result": f"Simulated {name} report (no AI provider configured)."}
 
 def internal_adapter(name: str, inp: Dict[str, Any]) -> Dict[str, Any]:
     # route to internal computations where applicable

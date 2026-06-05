@@ -1,0 +1,27 @@
+name: "{{name}}"
+jurisdiction: US
+version: "1.0"
+auth:
+  type: api_key
+  env_var: "{{env_var}}"
+rate_limits:
+  requests_per_second: 5
+  burst: 10
+cadence:
+  schedule: "0 */6 * * *"
+  incremental: true
+compliance:
+  restricted_use: false
+  attribution_required: true
+  terms_url: "{{terms_url}}"
+etl:
+  discover: true
+  fetch: true
+  raw_persist: true
+  normalize: true
+  evidence_ref: true
+  graph_publish: true
+outputs:
+  entities: true
+  relationships: true
+  timeline_events: true
