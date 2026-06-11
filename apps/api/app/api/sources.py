@@ -156,6 +156,51 @@ def save_checkpoint(source_id: int, state: dict, cursor_key: str = "default", db
     return {"ok": True}
 
 
+@router.get("/records")
+def list_records(kind: str | None = None, limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
+    """List ingested connector records, optionally filtered by source kind (e.g. bea)."""
+    clauses = ["1=1"]
+    params: dict[str, Any] = {"lim": limit, "off": offset}
+    if kind:
+        clauses.append("s.kind = :kind")
+        params["kind"] = kind
+    where = " and ".join(clauses)
+    rows = db.execute(
+        text(f"""
+            select srm.external_id, s.kind, s.name, srm.normalized, srm.last_ingested_at
+            from source_record_meta srm
+            join sources s on s.id = srm.source_id
+            where {where}
+            order by srm.last_ingested_at desc nulls last, srm.id desc
+            limit :lim offset :off
+        """),
+        params,
+    ).fetchall()
+    total = db.execute(
+        text(f"""
+            select count(*) from source_record_meta srm
+            join sources s on s.id = srm.source_id
+            where {where}
+        """),
+        {k: v for k, v in params.items() if k in ("kind",)},
+    ).scalar() or 0
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "records": [
+            {
+                "external_id": r[0],
+                "kind": r[1],
+                "source": r[2],
+                "normalized": r[3],
+                "last_ingested_at": str(r[4]) if r[4] else None,
+            }
+            for r in rows
+        ],
+    }
+
+
 @router.get("/runs")
 def list_runs(limit: int = 50, db: Session = Depends(get_db)):
     rows = (

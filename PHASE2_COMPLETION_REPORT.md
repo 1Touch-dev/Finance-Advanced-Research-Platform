@@ -14,7 +14,9 @@ Phase 2 delivers James Thunder Marketing's full U.S. state company registry prog
 - **51/51 jurisdictions** connected and seeded — all 50 states + DC
 - **110 normalized records** in Postgres with unified `state_entity` schema
 - **Licensable registry API** (`/registry/*`) with API key auth and rate limiting
-- **BEA economic data connector** (#18) fetching GDP/regional data
+- **BEA economic data connector** (#18) — **live** with 429 records (`source_tier: live`)
+- **`/economics` web page** — BEA connector status + data table
+- **E2E live verification** — [E2E_LIVE_VERIFICATION_REPORT.md](./E2E_LIVE_VERIFICATION_REPORT.md) (38 FULL / 8 PARTIAL / 0 FAIL)
 - **72 pytest tests** passing — 0 failures, includes 17 original connector regression tests
 - **Playwright scrape framework** installed for live scraping
 

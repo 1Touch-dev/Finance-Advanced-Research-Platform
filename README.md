@@ -10,12 +10,14 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 
 | Area | Status |
 |------|--------|
-| **Overall** | **Phase 2 U.S. 50-State Registry + BEA** — 51/51 jurisdictions connected, licensable registry API, 72 tests passing |
+| **Overall** | **Phase 2 U.S. 50-State Registry + BEA** — 51/51 jurisdictions, BEA live (429 records), E2E verified 2026-06-11 |
+| **E2E report** | [E2E_LIVE_VERIFICATION_REPORT.md](./E2E_LIVE_VERIFICATION_REPORT.md) — 38 FULL / 8 PARTIAL / 0 FAIL |
 | **Branch** | `feature/us-50-state-registry-api` → PR to `integration/phase1-mvp-base` |
 | **Tests** | **72 passing** (`pytest tests/ -q`) |
 | **Staging** | Web `:3003` · API `:3001` · Admin `:3002` on `184.72.123.188` |
 | **Registry** | `GET /registry/search`, `GET /registry/jurisdictions`, `GET /registry/entity/{jur}/{eid}`, API key auth |
 | **Connectors** | 17 gov connectors + 51 state registry + BEA (#18) = **69 total connectors** |
+| **BEA** | **Live** — 429 records (`source_tier: live`); `/economics` page |
 
 For a detailed requirement-vs-implementation breakdown, see **[docs/REQUIREMENT_GAP_ANALYSIS.md](./docs/REQUIREMENT_GAP_ANALYSIS.md)**.
 
@@ -200,8 +202,10 @@ Source contracts (YAML) are under `packages/connectors/us/*/source_contract.yml`
 | `/` | Home + navigation cards |
 | `/search` | Global search |
 | `/graph` | Graph visualization (entity ID) |
+| `/registry` | U.S. 50-state company registry search (51 jurisdictions) |
+| `/economics` | BEA economic data — GDP, regional income (live connector) |
 | `/stock` | Stock analysis |
-| `/skills` | Skills runner |
+| `/skills` | Skills runner (Anthropic live) |
 | `/entities/[id]` | Entity profile |
 | `/portfolio/[id]` | Portfolio exposure |
 | `/review/[id]` | Report review workspace |

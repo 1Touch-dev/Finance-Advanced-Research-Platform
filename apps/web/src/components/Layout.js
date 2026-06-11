@@ -10,6 +10,7 @@ const links = [
   { href: '/graph', label: 'Graph' },
   { href: '/entities/merge', label: 'Merge' },
   { href: '/registry', label: 'Registry' },
+  { href: '/economics', label: 'Economics' },
   { href: '/stock', label: 'Stock' },
   { href: '/skills', label: 'Skills' },
   { href: '/alerts', label: 'Alerts' },

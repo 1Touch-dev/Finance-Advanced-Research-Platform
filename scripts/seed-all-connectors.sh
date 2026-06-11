@@ -9,6 +9,7 @@ CONNECTORS_DIR="$ROOT/packages/connectors"
 CONNECTORS=(
   sec_edgar fec congress_gov sam_gov courtlistener usaspending ofac gleif
   lda_gov fara govinfo federal_register regulations_gov ecfr reginfo_oira irs_990 opencorporates
+  bea
 )
 
 echo "==> Bootstrapping API modules"

@@ -85,7 +85,7 @@ All 51/51 jurisdictions registered, seeded, and returning `success` status.
 | J5 | No OpenCorporates paid key required | ✅ | `opencorporates` uses SEC fallback only; `OPENCORPORATES_API_KEY` not required |
 | J6 | Cobalt 3rd fallback config-gated | ✅ | `cobalt_fallback.py` returns nothing without `COBALT_API_KEY` |
 | J7 | Licensable API + API keys + rate limits | ✅ | `/registry/*` with `X-Registry-Api-Key` auth, 100 req/min, usage logging |
-| J8 | BEA connector | ✅ | `packages/connectors/us/bea/bea.py`, `BEA_API_USER_ID` env var, 4 sample records |
+| J8 | BEA connector | ✅ | **Live** — 429 records, `source_tier: live`; `/economics` + `/sources/records?kind=bea` |
 | J9 | Evidence/provenance | ✅ | All records through `source_record_meta` + `SourceRun` pipeline |
 | J10 | State-by-state status table | ✅ | 51-row table above; plus `/registry/jurisdictions` API response |
 
@@ -135,7 +135,7 @@ All 51/51 jurisdictions registered, seeded, and returning `success` status.
 
 1. **Scrape-tier data quality**: 44 scrape-tier states have 2 representative sample records each (`source_tier: scrape_sample`). Live Playwright scraping is implemented in `GenericScrapedStateConnector._playwright_scrape()` but most SOS portals require CAPTCHA bypass, session cookies, or JS rendering that blocks automated requests. **Mitigation**: Set `COBALT_API_KEY` in `.env` for live data on any state. Framework is ready to expand per-state.
 
-2. **BEA key**: `BEA_API_USER_ID` not set in staging `.env` — BEA returns 4 sample records. Sign up free at https://apps.bea.gov/API/signup/ and add to `.env`.
+2. **BEA key**: ✅ `BEA_API_USER_ID` activated on staging — 429 live records (E2E verified 2026-06-11).
 
 3. **CA/WA live data**: `CA_SOS_API_KEY` not set; CA returns 4 sample records. WA API endpoint redirected — 3 sample records.
 

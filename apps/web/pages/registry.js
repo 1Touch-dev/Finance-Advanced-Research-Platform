@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
 import { getApiBaseUrl } from '../lib/api';
-import Layout from '../src/components/Layout';
-
 const STATES = [
   { code: '', name: 'All States' },
   { code: 'us_al', name: 'Alabama' }, { code: 'us_ak', name: 'Alaska' },
@@ -80,7 +78,6 @@ export default function RegistryPage() {
   };
 
   return (
-    <Layout>
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '2rem 1rem' }}>
         {/* Header */}
         <div style={{ marginBottom: '2rem' }}>
@@ -256,7 +253,6 @@ export default function RegistryPage() {
           )}
         </div>
       </div>
-    </Layout>
   );
 }
 
