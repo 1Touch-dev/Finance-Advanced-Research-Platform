@@ -207,13 +207,22 @@ def registry_health(db: Session = Depends(get_db)):
     errors = db.execute(text("select count(*) from source_runs where status='error'")).scalar() or 0
     success = db.execute(text("select count(*) from source_runs where status='success'")).scalar() or 0
     dlq = db.execute(text("select count(*) from source_dead_letters")).scalar() or 0
-    sources = db.execute(text("select id, name, kind from sources")).fetchall()
+    sources = db.execute(text("select id, name, kind from sources order by id")).fetchall()
     per_source = []
+    seen_kinds: dict[str, int] = {}
     for s in sources:
+        kind = s[2] or s[1]
+        if kind in seen_kinds:
+            continue
+        seen_kinds[kind] = s[0]
         last = db.execute(
             text("select status, finished_at, metrics from source_runs where source_id=:sid order by id desc limit 1"),
             {"sid": s[0]},
         ).fetchone()
+        records = db.execute(
+            text("select count(*) from source_record_meta where source_id=:sid"),
+            {"sid": s[0]},
+        ).scalar() or 0
         per_source.append({
             "id": s[0],
             "name": s[1],
@@ -221,6 +230,7 @@ def registry_health(db: Session = Depends(get_db)):
             "last_status": last[0] if last else "never_run",
             "last_finished": str(last[1]) if last and last[1] else None,
             "last_metrics": last[2] if last else None,
+            "records": records,
         })
     return {
         "sources": total,

@@ -27,7 +27,20 @@ CONNECTORS = {
 }
 
 
+def _load_env() -> None:
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+    env_path = os.path.join(root, ".env")
+    if os.path.isfile(env_path):
+        try:
+            from dotenv import load_dotenv
+
+            load_dotenv(env_path)
+        except ImportError:
+            pass
+
+
 def main():
+    _load_env()
     parser = argparse.ArgumentParser()
     parser.add_argument("--connector", required=True)
     parser.add_argument("--source-id", type=int, required=True)

@@ -13,6 +13,18 @@ router = APIRouter(prefix="/skills")
 ART_DIR = os.getenv("SKILL_ARTIFACT_DIR", "artifacts")
 os.makedirs(ART_DIR, exist_ok=True)
 
+@router.get('/status')
+def skills_status():
+    from app.services.anthropic_client import anthropic_client
+    from app.services.openai_client import openai_client
+    return {
+        "anthropic": {
+            "configured": anthropic_client.is_configured(),
+            "model": anthropic_client.model if anthropic_client.is_configured() else None,
+        },
+        "openai": {"configured": openai_client.is_configured()},
+    }
+
 @router.post('/bootstrap')
 def bootstrap(db: Session = Depends(get_db)):
     Base.metadata.create_all(bind=db.get_bind())
@@ -96,14 +108,27 @@ def anthropic_adapter(name: str, inp: Dict[str, Any]) -> Dict[str, Any]:
     system = "You are an expert financial and intelligence research analyst. Provide professional, cited insight."
 
     if anthropic_client.is_configured():
-        res = anthropic_client.analyze_text(prompt, system)
-        return {
-            "provider": "anthropic",
-            "skill": name,
-            "input": inp,
-            "result": res.get("text"),
-            "cost": {"tokens": res.get("tokens", 0), "model": res.get("model")},
-        }
+        try:
+            res = anthropic_client.analyze_text(prompt, system)
+            return {
+                "provider": "anthropic",
+                "skill": name,
+                "input": inp,
+                "result": res.get("text"),
+                "cost": {"tokens": res.get("tokens", 0), "model": res.get("model")},
+            }
+        except Exception as e:
+            if openai_client.is_configured():
+                res = openai_client.analyze_text(prompt, system)
+                return {
+                    "provider": "openai",
+                    "skill": name,
+                    "input": inp,
+                    "result": res,
+                    "cost": {"tokens": 0},
+                    "anthropic_error": str(e),
+                }
+            raise HTTPException(502, f"Anthropic skill failed: {e}") from e
     if openai_client.is_configured():
         res = openai_client.analyze_text(prompt, system)
         return {"provider": "openai", "skill": name, "input": inp, "result": res, "cost": {"tokens": 0}}

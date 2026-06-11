@@ -7,9 +7,15 @@ import httpx
 
 class AnthropicClient:
     def __init__(self):
-        self.api_key = os.getenv("ANTHROPIC_API_KEY", "")
-        self.model = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
         self.base_url = "https://api.anthropic.com/v1/messages"
+
+    @property
+    def api_key(self) -> str:
+        return os.getenv("ANTHROPIC_API_KEY", "").strip()
+
+    @property
+    def model(self) -> str:
+        return os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 
     def is_configured(self) -> bool:
         return bool(self.api_key)
@@ -30,8 +36,14 @@ class AnthropicClient:
         }
         with httpx.Client(timeout=120) as client:
             resp = client.post(self.base_url, headers=headers, json=body)
-            resp.raise_for_status()
-            data = resp.json()
+        if resp.status_code >= 400:
+            detail = resp.text[:500]
+            try:
+                detail = resp.json().get("error", {}).get("message", detail)
+            except Exception:
+                pass
+            raise RuntimeError(f"Anthropic API error ({resp.status_code}): {detail}")
+        data = resp.json()
         text = ""
         for block in data.get("content", []):
             if block.get("type") == "text":

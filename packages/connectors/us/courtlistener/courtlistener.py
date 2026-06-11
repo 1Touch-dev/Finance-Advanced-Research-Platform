@@ -12,9 +12,11 @@ class CourtListenerConnector(USBaseConnector):
             try:
                 url = "https://www.courtlistener.com/api/rest/v4/dockets/"
                 headers = {"Authorization": f"Token {cl_token}"}
-                resp = http_get(url, headers=headers, params={"limit": 10})
+                resp = http_get(url, headers=headers, params={"page_size": 10})
                 for r in resp.json().get("results", []):
-                    yield str(r.get("id")), r
+                    docket_id = r.get("id")
+                    if docket_id:
+                        yield str(docket_id), r
                 return
             except Exception:
                 if not is_test_env():

@@ -22,18 +22,28 @@ source "$ROOT/venv/bin/activate"
 export API_URL
 export PYTHONPATH="$CONNECTORS_DIR:${PYTHONPATH:-}"
 
+resolve_source_id() {
+  local kind="$1"
+  curl -sf "$API_URL/sources/health" | python3 -c "
+import sys, json
+kind = sys.argv[1]
+data = json.load(sys.stdin)
+matches = [s for s in data.get('per_source', []) if s.get('kind') == kind or s.get('name') == kind]
+if matches:
+    print(max(matches, key=lambda s: s['id'])['id'])
+" "$kind" 2>/dev/null || true
+}
+
 for kind in "${CONNECTORS[@]}"; do
   echo "--- $kind"
-  src_resp=$(curl -sf -X POST "$API_URL/sources/?name=$kind&kind=$kind" || echo '{}')
-  src_id=$(echo "$src_resp" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id',''))" 2>/dev/null || echo "")
+  src_id="$(resolve_source_id "$kind")"
   if [ -z "$src_id" ]; then
-    src_id=$(curl -sf "$API_URL/sources/health" | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-for s in d.get('per_source',[]):
-    if s.get('kind')==sys.argv[1] or s.get('name')==sys.argv[1]:
-        print(s['id']); break
-" "$kind" 2>/dev/null || echo "1")
+    src_resp=$(curl -sf -X POST "$API_URL/sources/?name=$kind&kind=$kind" || echo '{}')
+    src_id=$(echo "$src_resp" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id',''))" 2>/dev/null || echo "")
+  fi
+  if [ -z "$src_id" ]; then
+    echo "WARN: could not resolve source id for $kind"
+    continue
   fi
   run_resp=$(curl -sf -X POST "$API_URL/sources/${src_id}/runs")
   run_id=$(echo "$run_resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('run_id',''))")

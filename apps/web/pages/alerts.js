@@ -19,7 +19,27 @@ export default function AlertsPage() {
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    let cancelled = false
+    const attemptLoad = async (retries = 2) => {
+      setErr('')
+      for (let i = 0; i <= retries; i++) {
+        if (cancelled) return
+        try {
+          const r = await fetch(`${API}/monitor/events?limit=50`)
+          if (!r.ok) throw new Error(`API ${r.status}`)
+          const data = await r.json()
+          if (!cancelled) setEvents(data)
+          return
+        } catch (e) {
+          if (i === retries && !cancelled) setErr(e.message)
+          else await new Promise((res) => setTimeout(res, 800))
+        }
+      }
+    }
+    attemptLoad()
+    return () => { cancelled = true }
+  }, [API])
 
   const runScan = async () => {
     setNotice('')

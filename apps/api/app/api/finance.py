@@ -1,3 +1,4 @@
+import json
 import os
 from typing import Dict, List
 
@@ -87,6 +88,27 @@ def analyze_stock(ticker: str, wacc: float = 0.1, terminal_growth: float = 0.02,
     live_ctx = _live_source_context(db, ticker)
     gov = _government_exposure_score(live_ctx)
     live_source_names = list(live_ctx.get("live_sources", {}).keys())
+    ai_narrative = None
+    try:
+        from app.services.anthropic_client import anthropic_client
+        if anthropic_client.is_configured():
+            prompt = (
+                f"Write a concise investor memo (thesis, catalysts, risks, government exposure) for {ticker.upper()}.\n"
+                f"Use only this live evidence bundle:\n{json.dumps(live_ctx, default=str)[:12000]}"
+            )
+            res = anthropic_client.analyze_text(
+                prompt,
+                "You are an equity research analyst. Ground every claim in the supplied evidence.",
+                max_tokens=2048,
+            )
+            ai_narrative = {
+                "provider": "anthropic",
+                "model": res.get("model"),
+                "tokens": res.get("tokens", 0),
+                "text": res.get("text"),
+            }
+    except Exception as exc:
+        ai_narrative = {"provider": "anthropic", "error": str(exc)}
     return {
         "ticker": ticker.upper(),
         "quote": q,
@@ -100,6 +122,7 @@ def analyze_stock(ticker: str, wacc: float = 0.1, terminal_growth: float = 0.02,
                 {"type": "earnings", "note": "Next earnings per market calendar"},
                 {"type": "sec_filing", "note": f"{len(live_ctx.get('sec_filings', []))} recent SEC records ingested"},
             ],
+            "ai_narrative": ai_narrative,
         },
         "evidence_sources_used": live_source_names,
         "live_source_count": len(live_source_names),

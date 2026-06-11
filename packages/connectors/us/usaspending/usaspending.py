@@ -10,7 +10,10 @@ class USASpendingConnector(USBaseConnector):
         try:
             url = "https://api.usaspending.gov/api/v2/search/spending_by_award/"
             body = {
-                "filters": {"time_period": [{"start_date": "2024-01-01", "end_date": "2024-12-31"}]},
+                "filters": {
+                    "time_period": [{"start_date": "2024-01-01", "end_date": "2024-12-31"}],
+                    "award_type_codes": ["A", "B", "C", "D"],
+                },
                 "fields": ["Award ID", "Recipient Name", "Award Amount"],
                 "limit": 10,
                 "page": 1,

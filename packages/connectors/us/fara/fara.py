@@ -8,12 +8,15 @@ class FARAConnector(USBaseConnector):
 
     def fetch_records(self) -> Iterable[Tuple[str, Dict[str, Any]]]:
         try:
-            url = "https://efile.fara.gov/api/v1/Registrants"
+            url = "https://efile.fara.gov/api/v1/Registrants/json/Active"
             resp = http_get(url, timeout=30)
             data = resp.json()
-            items = data if isinstance(data, list) else data.get("results", data.get("data", []))
+            registrants = data.get("REGISTRANTS_ACTIVE", {})
+            items = registrants.get("ROW", []) if isinstance(registrants, dict) else registrants
+            if isinstance(items, dict):
+                items = [items]
             for r in items[:10]:
-                ext = str(r.get("registration_number") or r.get("id", ""))
+                ext = str(r.get("Registration_Number") or r.get("registration_number") or "")
                 if ext:
                     yield ext, r
             return

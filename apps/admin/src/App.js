@@ -92,6 +92,7 @@ function App() {
                     <th align="left">Name</th>
                     <th align="left">Kind</th>
                     <th align="left">Last status</th>
+                    <th align="left">Records</th>
                     <th align="left">Last finished</th>
                   </tr>
                 </thead>
@@ -102,6 +103,7 @@ function App() {
                       <td>{s.name}</td>
                       <td>{s.kind}</td>
                       <td>{s.last_status}</td>
+                      <td>{s.records ?? s.last_metrics?.seen ?? '—'}</td>
                       <td>{s.last_finished || '—'}</td>
                     </tr>
                   ))}
