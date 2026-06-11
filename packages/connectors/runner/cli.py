@@ -7,6 +7,7 @@ import sys
 from runner.run_connector import run
 
 CONNECTORS = {
+    # Original 17 gov connectors
     "sec_edgar": ("us.sec.edgar", "SECEDGARConnector"),
     "fec": ("us.fec.fec", "FECConnector"),
     "congress_gov": ("us.congress.congress", "CongressGovConnector"),
@@ -24,6 +25,17 @@ CONNECTORS = {
     "reginfo_oira": ("us.reginfo_oira.reginfo_oira", "RegInfoOIRAConnector"),
     "irs_990": ("us.irs990.irs990", "IRS990Connector"),
     "opencorporates": ("us.opencorporates.opencorporates", "OpenCorporatesConnector"),
+    # Phase 2 — BEA economic data (#18)
+    "bea": ("us.bea.bea", "BEAConnector"),
+    # Phase 2 — State registry Tier A bulk
+    "state_us_ny": ("us.state_registry.bulk.ny", "NewYorkBulkConnector"),
+    "state_us_co": ("us.state_registry.bulk.co", "ColoradoBulkConnector"),
+    "state_us_fl": ("us.state_registry.bulk.fl", "FloridaBulkConnector"),
+    "state_us_or": ("us.state_registry.bulk.or_", "OregonBulkConnector"),
+    # Phase 2 — State registry Tier B API
+    "state_us_wa": ("us.state_registry.api.wa", "WashingtonAPIConnector"),
+    "state_us_tx": ("us.state_registry.api.tx", "TexasAPIConnector"),
+    "state_us_ca": ("us.state_registry.api.ca", "CaliforniaSOSConnector"),
 }
 
 

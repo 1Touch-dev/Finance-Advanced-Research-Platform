@@ -9,6 +9,7 @@ const links = [
   { href: '/search', label: 'Search' },
   { href: '/graph', label: 'Graph' },
   { href: '/entities/merge', label: 'Merge' },
+  { href: '/registry', label: 'Registry' },
   { href: '/stock', label: 'Stock' },
   { href: '/skills', label: 'Skills' },
   { href: '/alerts', label: 'Alerts' },

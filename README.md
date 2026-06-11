@@ -10,13 +10,67 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 
 | Area | Status |
 |------|--------|
-| **Overall** | Phase 1 U.S. MVP **~75–80%** — live connectors, production ETL runner, staging deployed |
-| **Branch** | `feature/phase1-us-mvp-100pct` → PR to `integration/phase1-mvp-base` |
-| **Tests** | 31 passing (`pytest tests/ -q`) |
+| **Overall** | **Phase 2 U.S. 50-State Registry + BEA** — 51/51 jurisdictions connected, licensable registry API, 72 tests passing |
+| **Branch** | `feature/us-50-state-registry-api` → PR to `integration/phase1-mvp-base` |
+| **Tests** | **72 passing** (`pytest tests/ -q`) |
 | **Staging** | Web `:3003` · API `:3001` · Admin `:3002` on `184.72.123.188` |
-| **Local dev** | SQLite default; Postgres + MinIO + OpenSearch via `docker compose` |
+| **Registry** | `GET /registry/search`, `GET /registry/jurisdictions`, `GET /registry/entity/{jur}/{eid}`, API key auth |
+| **Connectors** | 17 gov connectors + 51 state registry + BEA (#18) = **69 total connectors** |
 
 For a detailed requirement-vs-implementation breakdown, see **[docs/REQUIREMENT_GAP_ANALYSIS.md](./docs/REQUIREMENT_GAP_ANALYSIS.md)**.
+
+---
+
+## Phase 2 — U.S. 50-State Registry + BEA (11 June 2026)
+
+James Thunder Marketing's all-50-states registry program is now implemented.
+
+### Registry API (`/registry/*`)
+
+```
+GET  /registry/health               # 51/51 live count + tier distribution
+GET  /registry/jurisdictions        # all 51 with tier, SOS URL, record count
+GET  /registry/search?q=&state=     # search normalized records
+GET  /registry/entity/{jur}/{eid}   # single entity detail
+POST /registry/keys                 # admin: create API key
+```
+
+Auth: `X-Registry-Api-Key` header or `?api_key=` query param. Rate limit: 100 req/min per key.
+
+### Ingestion tiers
+
+| Tier | States | Method |
+|------|--------|--------|
+| **A — Bulk** | NY, CO, FL, OR | data.ny.gov, data.colorado.gov, Sunbiz HTTP, data.oregon.gov |
+| **B — API** | WA, TX, CA | WA SOS API, TX Comptroller, CA SOS (key optional) |
+| **D — Scrape** | 44 remaining states + DC | GenericScrapedStateConnector with Playwright + Cobalt fallback |
+| **E — Cobalt** | All 51 (fallback) | `COBALT_API_KEY` optional; only when free path fails |
+
+### BEA connector (#18)
+
+```bash
+# Signup: https://apps.bea.gov/API/signup/
+BEA_API_USER_ID=your-uuid-here  # in .env
+```
+
+Fetches NIPA GDP, Regional personal income, industry data. Enriches `analyze_stock`.
+
+### New env vars
+
+```bash
+BEA_API_USER_ID=          # free BEA API key
+CA_SOS_API_KEY=           # optional CA SOS BE Public Search key
+COBALT_API_KEY=           # optional Cobalt SOS fallback per-use
+REGISTRY_API_ADMIN_TOKEN= # optional bootstrap admin key for /registry/keys
+REGISTRY_REQUIRE_AUTH=    # set to "true" to enforce API key auth
+```
+
+### Seeding
+
+```bash
+bash scripts/seed-state-registry.sh          # all 51 jurisdictions
+bash scripts/seed-state-registry.sh us_ny us_co  # specific states
+```
 
 ---
 
