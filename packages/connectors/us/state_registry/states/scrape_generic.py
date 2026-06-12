@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, Tuple
 
 from us.state_registry.base import StateRegistryConnector
-from us.state_registry.cobalt_fallback import cobalt_search
+from us.state_registry.cobalt_fallback import _api_key, cobalt_search
 from us.state_registry.registry import JURISDICTIONS
 from us.state_registry.schema import normalize
 
@@ -103,20 +103,14 @@ class GenericScrapedStateConnector(StateRegistryConnector):
             except Exception:
                 pass
 
-            # Cobalt fallback
-            if os.getenv("COBALT_API_KEY"):
+            # Cobalt fallback (cached by default — COBALT_LIVE_DATA=true for live SOS)
+            if _api_key():
                 for query in SEED_QUERIES[:1]:
                     results = cobalt_search(self._state_abbrev, query)
                     if results:
                         for item in results[:5]:
-                            eid = str(item.get("entityNumber") or item.get("id", f"{self.jurisdiction_code}_C{len(results)}"))
-                            yield eid, {
-                                "legal_name": item.get("entityName") or item.get("name", ""),
-                                "status": item.get("status", "unknown"),
-                                "entity_type": item.get("entityType", ""),
-                                "formation_date": item.get("formationDate"),
-                                "source_tier": "cobalt",
-                            }
+                            eid = str(item.get("sos_id") or item.get("legal_name", "")[:32])
+                            yield eid, item
                         return
 
         # Always-working fallback samples

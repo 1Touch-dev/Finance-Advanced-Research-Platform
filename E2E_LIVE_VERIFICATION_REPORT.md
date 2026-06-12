@@ -173,3 +173,23 @@
 ---
 
 *Verified by E2E live test agent on staging EC2 `184.72.123.188` using Cursor Browser MCP + curl.*
+
+---
+
+## Addendum — 12 June 2026 (Cobalt + California)
+
+| Item | Before (11 Jun) | After (12 Jun) |
+|------|-----------------|----------------|
+| `COBALT_API_KEY` | Missing | ✅ Set — trial (20 lookups), live API verified |
+| Cobalt integration | Stub / wrong URL | ✅ Fixed URL, params, parsing; wired to scrape + CA |
+| California records | 4 samples | ✅ **96 live** (Cobalt interim) |
+| CA official API | Not integrated | ✅ Connector uses `calico.sos.ca.gov/cbc/v1/api/`; subscription **Submitted** |
+| Registry records | 110 | **202** |
+| pytest | 72 | **74** |
+
+**Staging checks (12 Jun):**
+- `GET /registry/search?q=apple&state=us_ca` → 51 live CA matches
+- Cobalt direct search `state=California` → 200 OK
+- `scripts/seed-state-registry.sh` upsert path fixed (`/sources/records`)
+
+See **[12th_June.md](./12th_June.md)** for full daily handoff.

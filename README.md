@@ -10,14 +10,17 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 
 | Area | Status |
 |------|--------|
-| **Overall** | **Phase 2 U.S. 50-State Registry + BEA** — 51/51 jurisdictions, BEA live (429 records), E2E verified 2026-06-11 |
-| **E2E report** | [E2E_LIVE_VERIFICATION_REPORT.md](./E2E_LIVE_VERIFICATION_REPORT.md) — 38 FULL / 8 PARTIAL / 0 FAIL |
-| **Branch** | `feature/us-50-state-registry-api` → PR to `integration/phase1-mvp-base` |
-| **Tests** | **72 passing** (`pytest tests/ -q`) |
+| **Overall** | **Phase 2 U.S. 50-State Registry + BEA + Cobalt** — 51/51 jurisdictions, **202 registry records**, Cobalt live, CA API pending |
+| **Daily log** | [12th_June.md](./12th_June.md) · [11th_June.md](./11th_June.md) |
+| **E2E report** | [E2E_LIVE_VERIFICATION_REPORT.md](./E2E_LIVE_VERIFICATION_REPORT.md) — 38 FULL / 8 PARTIAL / 0 FAIL (11 Jun) |
+| **Branch** | `feature/us-50-state-registry-api` → [PR #2](https://github.com/1Touch-dev/Finance-Advanced-Research-Platform/pull/2) |
+| **Tests** | **74 passing** (`pytest tests/ -q`) |
 | **Staging** | Web `:3003` · API `:3001` · Admin `:3002` on `184.72.123.188` |
 | **Registry** | `GET /registry/search`, `GET /registry/jurisdictions`, `GET /registry/entity/{jur}/{eid}`, API key auth |
 | **Connectors** | 17 gov connectors + 51 state registry + BEA (#18) = **69 total connectors** |
 | **BEA** | **Live** — 429 records (`source_tier: live`); `/economics` page |
+| **Cobalt** | **Live** — trial key integrated; scrape-tier + CA interim fallback |
+| **California** | **96 live records** (Cobalt interim); official CA SOS API subscription **submitted** |
 
 For a detailed requirement-vs-implementation breakdown, see **[docs/REQUIREMENT_GAP_ANALYSIS.md](./docs/REQUIREMENT_GAP_ANALYSIS.md)**.
 
@@ -44,9 +47,9 @@ Auth: `X-Registry-Api-Key` header or `?api_key=` query param. Rate limit: 100 re
 | Tier | States | Method |
 |------|--------|--------|
 | **A — Bulk** | NY, CO, FL, OR | data.ny.gov, data.colorado.gov, Sunbiz HTTP, data.oregon.gov |
-| **B — API** | WA, TX, CA | WA SOS API, TX Comptroller, CA SOS (key optional) |
-| **D — Scrape** | 44 remaining states + DC | GenericScrapedStateConnector with Playwright + Cobalt fallback |
-| **E — Cobalt** | All 51 (fallback) | `COBALT_API_KEY` optional; only when free path fails |
+| **B — API** | WA, TX, CA | WA SOS API, TX Comptroller, CA SOS CBC APIs Prod (`calico.sos.ca.gov`) |
+| **D — Scrape** | 44 remaining states + DC | GenericScrapedStateConnector with Playwright + **Cobalt fallback (live)** |
+| **E — Cobalt** | Scrape states + CA interim | `COBALT_API_KEY` — trial 20 lookups; `COBALT_LIVE_DATA=false` for cached |
 
 ### BEA connector (#18)
 
@@ -60,12 +63,15 @@ Fetches NIPA GDP, Regional personal income, industry data. Enriches `analyze_sto
 ### New env vars
 
 ```bash
-BEA_API_USER_ID=          # free BEA API key
-CA_SOS_API_KEY=           # optional CA SOS BE Public Search key
-COBALT_API_KEY=           # optional Cobalt SOS fallback per-use
+BEA_API_USER_ID=          # free BEA API key (live on staging)
+CA_SOS_API_KEY=           # CA SOS Primary key from calicodev.sos.ca.gov/profile (pending approval)
+COBALT_API_KEY=           # Cobalt SOS API — trial at app.cobaltintelligence.com
+COBALT_LIVE_DATA=false    # use cached SOS data (saves trial/paid credits)
 REGISTRY_API_ADMIN_TOKEN= # optional bootstrap admin key for /registry/keys
 REGISTRY_REQUIRE_AUTH=    # set to "true" to enforce API key auth
 ```
+
+**CA SOS signup:** [calicodev.sos.ca.gov](https://calicodev.sos.ca.gov/) → Products → **CBC API Production** → Subscribe → Primary key when **Active**.
 
 ### Seeding
 

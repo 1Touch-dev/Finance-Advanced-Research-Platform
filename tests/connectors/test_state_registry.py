@@ -204,11 +204,55 @@ def test_bea_normalized_fields():
 def test_cobalt_disabled_without_key():
     """Cobalt should yield nothing when COBALT_API_KEY not set."""
     from us.state_registry.cobalt_fallback import CobaltFallbackConnector
-    # Ensure no key
     os.environ.pop("COBALT_API_KEY", None)
     c = CobaltFallbackConnector(jurisdiction_code="us_de", state_abbrev="DE", creds={})
     records = list(c.fetch_records())
     assert records == [], "Cobalt should yield nothing without API key"
+
+
+def test_ca_parse_keyword_response_shape():
+    """Parse CA SOS BE API JSON without calling the network."""
+    from us.state_registry.api.ca import _map_entity, _parse_keyword_response
+
+    sample_response = {
+        "RecordCount": 1,
+        "EntityData": [
+            {
+                "EntityID": "202150010575",
+                "EntityName": "Pure Forest LLC",
+                "EntityType": "Limited Liability Company - CA",
+                "StatusDescription": "Active",
+                "FilingDate": "2021-11-17T10:19:38.923",
+                "AgentName": "Jane Agent",
+            }
+        ],
+    }
+    items = _parse_keyword_response(sample_response)
+    assert len(items) == 1
+    eid, payload = _map_entity(items[0])
+    assert eid == "202150010575"
+    assert payload["legal_name"] == "Pure Forest LLC"
+    assert payload["status"] == "Active"
+
+
+def test_cobalt_parse_response_shape():
+    """Parse real Cobalt JSON shape without calling the API."""
+    from us.state_registry.cobalt_fallback import _parse_cobalt_item, cobalt_search
+    sample = {
+        "title": "PIEZO MOTION CORP.",
+        "sosId": "21203219",
+        "normalizedStatus": "Inactive",
+        "entityType": "Foreign Profit Corporation",
+        "agentName": "CORPORATION SERVICE COMPANY",
+        "history": [{"name": "Business Formation", "date": "07/26/2021"}],
+    }
+    row = _parse_cobalt_item(sample)
+    assert row["legal_name"] == "PIEZO MOTION CORP."
+    assert row["sos_id"] == "21203219"
+    assert row["source_tier"] == "cobalt"
+    # No network when key unset
+    os.environ.pop("COBALT_API_KEY", None)
+    assert cobalt_search("GA", "test") == []
 
 
 # ---------------------------------------------------------------------------

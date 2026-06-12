@@ -57,7 +57,7 @@ def persist_record(source_id: int, run_id: int, external_id: str, normalized: di
         "external_id": external_id,
         "normalized": normalized,
     }
-    requests.post(f"{API_URL}/sources/records/upsert", json=payload, headers=HEADERS, timeout=10)
+    requests.post(f"{API_URL}/sources/records", json=payload, headers=HEADERS, timeout=10)
 
 import sys
 target_jurisdictions = sys.argv[1:] if len(sys.argv) > 1 else list(JURISDICTIONS.keys())

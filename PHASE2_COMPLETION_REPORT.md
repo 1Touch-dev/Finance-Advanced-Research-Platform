@@ -1,6 +1,6 @@
 # Phase 2 Completion Report — U.S. 50-State Registry + BEA + Licensable API
 
-**Date:** 2026-06-11
+**Date:** 2026-06-11 (updated 2026-06-12 — Cobalt + CA)
 **Branch:** `feature/us-50-state-registry-api`
 **Base:** `feature/phase1-us-mvp-100pct`
 **Agent:** Phase 2 implementation agent (Cursor)
@@ -12,12 +12,12 @@
 Phase 2 delivers James Thunder Marketing's full U.S. state company registry program:
 
 - **51/51 jurisdictions** connected and seeded — all 50 states + DC
-- **110 normalized records** in Postgres with unified `state_entity` schema
+- **202 normalized records** in Postgres with unified `state_entity` schema (96 California live via Cobalt interim, 12 Jun)
 - **Licensable registry API** (`/registry/*`) with API key auth and rate limiting
 - **BEA economic data connector** (#18) — **live** with 429 records (`source_tier: live`)
 - **`/economics` web page** — BEA connector status + data table
 - **E2E live verification** — [E2E_LIVE_VERIFICATION_REPORT.md](./E2E_LIVE_VERIFICATION_REPORT.md) (38 FULL / 8 PARTIAL / 0 FAIL)
-- **72 pytest tests** passing — 0 failures, includes 17 original connector regression tests
+- **74 pytest tests** passing — 0 failures, includes CA + Cobalt parse tests
 - **Playwright scrape framework** installed for live scraping
 
 ---
@@ -34,7 +34,7 @@ state_registry/
   bulk/                  # NY, CO, FL, OR parsers
   api/                   # WA, TX, CA adapters
   states/                # GenericScrapedStateConnector for 44 scrape states
-  cobalt_fallback.py     # Cobalt wrapper (disabled without COBALT_API_KEY)
+  cobalt_fallback.py     # Cobalt SOS API (live when COBALT_API_KEY set)
   orchestrator.py        # runs all 51 jurisdictions
 ```
 
@@ -145,11 +145,11 @@ New tests in `tests/connectors/test_state_registry.py`:
 
 ## Gaps / Honest Notes
 
-1. **Scrape-tier data is fallback samples** (not live scraped) for the 44 scrape-tier states. Real Playwright scraping is implemented in `GenericScrapedStateConnector._playwright_scrape()` but most SOS portals block automated requests or require JS-rendered sessions. Cobalt fallback handles live data for these states when `COBALT_API_KEY` is set.
+1. **Scrape-tier states** — Cobalt fallback is **live** when `COBALT_API_KEY` is set (trial: 20 lookups). Bulk seeding all 44 states on trial will exhaust credits; seed per-state or use paid plan.
 
-2. **BEA key not in `.env`** — returns sample data. Works correctly once `BEA_API_USER_ID` is added.
+2. **BEA** — ✅ Live on staging (`BEA_API_USER_ID` active, 429 records).
 
-3. **CA_SOS_API_KEY** — CA falls back to sample data without this key.
+3. **CA_SOS_API_KEY** — ⏳ Subscription submitted at calicodev.sos.ca.gov (state: **Submitted**). Until approved, CA uses **Cobalt interim** (96 live records seeded 12 Jun). Official connector uses `calico.sos.ca.gov/cbc/v1/api/` + `Ocp-Apim-Subscription-Key`.
 
 4. **OpenSearch** — full-text search via OS not yet wired; Postgres LIKE search works.
 

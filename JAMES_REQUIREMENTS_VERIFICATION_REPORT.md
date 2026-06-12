@@ -22,7 +22,7 @@ All 51/51 jurisdictions registered, seeded, and returning `success` status.
 | us_ak | scrape | GenericScrapedStateConnector | 2 | success | seeded 2026-06-11 |
 | us_az | scrape | GenericScrapedStateConnector | 2 | success | seeded 2026-06-11 |
 | us_ar | scrape | GenericScrapedStateConnector | 2 | success | seeded 2026-06-11 |
-| us_ca | api | CaliforniaSOSConnector | 4 | success | seeded 2026-06-11 |
+| us_ca | api | CaliforniaSOSConnector | 96 | success | live via Cobalt interim (12 Jun); CA SOS API submitted |
 | us_co | bulk | ColoradoBulkConnector | 3 | success | seeded 2026-06-11 |
 | us_ct | scrape | GenericScrapedStateConnector | 2 | success | seeded 2026-06-11 |
 | us_de | scrape | GenericScrapedStateConnector | 2 | success | seeded 2026-06-11 |
@@ -83,7 +83,7 @@ All 51/51 jurisdictions registered, seeded, and returning `success` status.
 | J3 | Free first (Tier A/B before scrape) | ✅ | NY/CO/FL/OR=bulk, WA/TX/CA=api, remaining=scrape |
 | J4 | Playwright scraper framework | ✅ | `GenericScrapedStateConnector._playwright_scrape()`, playwright 1.60 installed |
 | J5 | No OpenCorporates paid key required | ✅ | `opencorporates` uses SEC fallback only; `OPENCORPORATES_API_KEY` not required |
-| J6 | Cobalt 3rd fallback config-gated | ✅ | `cobalt_fallback.py` returns nothing without `COBALT_API_KEY` |
+| J6 | Cobalt 3rd fallback config-gated | ✅ | **Live** — `COBALT_API_KEY` set; trial verified; scrape + CA interim |
 | J7 | Licensable API + API keys + rate limits | ✅ | `/registry/*` with `X-Registry-Api-Key` auth, 100 req/min, usage logging |
 | J8 | BEA connector | ✅ | **Live** — 429 records, `source_tier: live`; `/economics` + `/sources/records?kind=bea` |
 | J9 | Evidence/provenance | ✅ | All records through `source_record_meta` + `SourceRun` pipeline |
@@ -133,11 +133,11 @@ All 51/51 jurisdictions registered, seeded, and returning `success` status.
 
 ## Blockers / Honest Gaps
 
-1. **Scrape-tier data quality**: 44 scrape-tier states have 2 representative sample records each (`source_tier: scrape_sample`). Live Playwright scraping is implemented in `GenericScrapedStateConnector._playwright_scrape()` but most SOS portals require CAPTCHA bypass, session cookies, or JS rendering that blocks automated requests. **Mitigation**: Set `COBALT_API_KEY` in `.env` for live data on any state. Framework is ready to expand per-state.
+1. **Scrape-tier data quality**: Cobalt fallback is **live** with trial key (12 Jun). Bulk seeding all 44 states will exhaust 20 trial credits — seed selectively or upgrade plan. Playwright framework remains for free-first long term.
 
 2. **BEA key**: ✅ `BEA_API_USER_ID` activated on staging — 429 live records (E2E verified 2026-06-11).
 
-3. **CA/WA live data**: `CA_SOS_API_KEY` not set; CA returns 4 sample records. WA API endpoint redirected — 3 sample records.
+3. **CA/WA live data**: CA has **96 live records** via Cobalt interim; official CA SOS API subscription **Submitted** (awaiting Primary key). WA API endpoint redirected — 3 sample records.
 
 4. **OpenSearch full-text search**: Registry search uses Postgres LIKE (`normalized->>'legal_name' LIKE ...`). OpenSearch indexing for `registry-entities` is not yet wired (Postgres search is production-ready for MVP).
 
