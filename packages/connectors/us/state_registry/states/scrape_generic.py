@@ -131,6 +131,9 @@ class GenericScrapedStateConnector(StateRegistryConnector):
         except ImportError:
             raise RuntimeError("Playwright not installed")
 
+        from us._common.http_helpers import ensure_playwright_platform
+        ensure_playwright_platform()
+
         meta = JURISDICTIONS.get(self.jurisdiction_code, {})
         search_url = meta.get("search_url", "")
         if not search_url:

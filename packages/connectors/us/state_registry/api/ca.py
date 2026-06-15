@@ -11,7 +11,7 @@ import re
 import time
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-from us._common.http_helpers import http_get, is_test_env
+from us._common.http_helpers import ensure_playwright_platform, http_get, is_test_env
 from us.state_registry.base import StateRegistryConnector
 from us.state_registry.cobalt_fallback import cobalt_search
 from us.state_registry.schema import normalize
@@ -277,6 +277,8 @@ def _bizfile_playwright_query(
         print("[us_ca/bizfile] Playwright not installed — skipping browser scrape")
         return
 
+    ensure_playwright_platform()
+
     try:
         with sync_playwright() as p:
             try:
@@ -284,7 +286,13 @@ def _bizfile_playwright_query(
             except Exception as browser_err:
                 msg = str(browser_err)
                 if "Executable doesn't exist" in msg or "not supported" in msg.lower():
-                    print("[us_ca/bizfile] Chromium not available on this OS — skipping browser scrape")
+                    print(
+                        "[us_ca/bizfile] Chromium not installed — run: "
+                        "PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-x64 playwright install chromium && "
+                        "playwright install-deps chromium"
+                    )
+                elif "shared libraries" in msg or "libatk" in msg:
+                    print("[us_ca/bizfile] Missing browser deps — run: playwright install-deps chromium")
                 else:
                     print(f"[us_ca/bizfile] Chromium launch failed: {browser_err}")
                 return
