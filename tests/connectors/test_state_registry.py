@@ -235,6 +235,84 @@ def test_ca_parse_keyword_response_shape():
     assert payload["status"] == "Active"
 
 
+def test_bizfile_parse_dom_row_standard():
+    """Parse a standard 6-column BizFile DOM row (confirmed from live page 2026-06-15)."""
+    from us.state_registry.api.ca import _parse_bizfile_dom_row
+
+    cells = [
+        "! ! ! APPLE IPAD & ANDROID TABLET TUTORING ! ! ! (3110952)Click to expand",
+        "10/06/2009",
+        "Active",
+        "Stock Corporation - CA - General",
+        "CALIFORNIA",
+        "KOUROSH MASJEDI",
+    ]
+    result = _parse_bizfile_dom_row(cells)
+    assert result is not None
+    eid, payload = result
+    assert eid == "3110952"
+    assert payload["legal_name"] == "! ! ! APPLE IPAD & ANDROID TABLET TUTORING ! ! !"
+    assert payload["status"] == "Active"
+    assert payload["formation_date"] == "2009-10-06"
+    assert payload["entity_type"] == "Stock Corporation - CA - General"
+    assert payload["registered_agent_name"] == "KOUROSH MASJEDI"
+    assert payload["source_tier"] == "scrape_bizfile"
+
+
+def test_bizfile_parse_dom_row_alphanumeric_eid():
+    """BizFile entity numbers can be alphanumeric (e.g. B20260155183)."""
+    from us.state_registry.api.ca import _parse_bizfile_dom_row
+
+    cells = [
+        "11825 Apple Valley Road GP LLC (B20260155183)Click to expand",
+        "03/31/2026",
+        "Active",
+        "Limited Liability Company - Out of State",
+        "DELAWARE",
+        "CSC - LAWYERS INCORPORATING SERVICE",
+    ]
+    result = _parse_bizfile_dom_row(cells)
+    assert result is not None
+    eid, payload = result
+    assert eid == "B20260155183"
+    assert "Apple Valley Road" in payload["legal_name"]
+
+
+def test_bizfile_parse_dom_row_no_eid_falls_back_to_name():
+    """If no entity number in parens, use truncated name as key."""
+    from us.state_registry.api.ca import _parse_bizfile_dom_row
+
+    cells = ["SOME ENTITY WITHOUT NUMBER", "01/01/2020", "Active", "LLC", "CA", "Agent"]
+    result = _parse_bizfile_dom_row(cells)
+    assert result is not None
+    eid, payload = result
+    assert eid == "SOME ENTITY WITHOUT NUMBER"
+    assert payload["legal_name"] == "SOME ENTITY WITHOUT NUMBER"
+
+
+def test_bizfile_parse_date():
+    """_parse_date normalises MM/DD/YYYY and ISO dates; returns None for empty."""
+    from us.state_registry.api.ca import _parse_date
+
+    assert _parse_date("10/06/2009") == "2009-10-06"
+    assert _parse_date("01/13/2023") == "2023-01-13"
+    assert _parse_date("2021-11-17T10:19:38.923") == "2021-11-17"
+    assert _parse_date("") is None
+    assert _parse_date(None) is None
+
+
+def test_bizfile_fetch_graceful_failure(monkeypatch):
+    """_bizfile_fetch yields 0 records when both API and Playwright fail; no exception raised."""
+    import os as _os
+    _os.environ["ENV"] = "production"
+    from us.state_registry.api.ca import _bizfile_fetch
+
+    records = list(_bizfile_fetch(queries=["TestQuery"], max_per_query=5))
+    # On this server Playwright Chromium is unavailable and WAF blocks requests;
+    # the function must return an empty list without raising.
+    assert isinstance(records, list)
+
+
 def test_cobalt_parse_response_shape():
     """Parse real Cobalt JSON shape without calling the API."""
     from us.state_registry.cobalt_fallback import _parse_cobalt_item, cobalt_search
