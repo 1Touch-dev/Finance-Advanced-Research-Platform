@@ -1,116 +1,221 @@
-# 15th June 2026 — BizFile Live on Ubuntu 26.04, Full CA Waterfall Verified
+# 15th June 2026 — BizFile Live + Intelligence Report Layer (Phase 3) Planning
 
-**Purpose:** Daily handoff for James — end-to-end verification of all tiers except official CA SOS API (tier 1 pending). BizFile scrape confirmed working on current server.
+**Purpose:** Daily handoff for James — CA data infrastructure confirmed working + full brief on next major feature: the Advanced Intelligence Report layer requested by James in WhatsApp (12 Jun).
 
-**Prior docs:** `12th_June.md` (Cobalt + CA SOS application) · `PHASE2_COMPLETION_REPORT.md`
+**Prior docs:** `12th_June.md` (Cobalt + CA SOS) · `PHASE2_COMPLETION_REPORT.md`
 
-**Staging:** Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002`  
+**Staging:** Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002`
 **Branch:** `feature/us-50-state-registry-api` · **PR #2**
 
 ---
 
-## 1) Executive summary
+## 1) Executive summary — what is done vs pending
 
-| Area | Status (15 Jun, verified) |
-|------|---------------------------|
-| **Tier 1 — Official CA SOS API** | ⏳ **Pending** — `CA_SOS_API_KEY` empty; subscriptions submitted at calicodev.sos.ca.gov |
-| **Tier 2 — BizFile scrape (free, official)** | ✅ **Working** — Playwright live scrape on this server; **150 CA entities** fetched (3 seed queries) |
-| **Tier 3 — Cobalt Intelligence** | ⚠️ **Integrated, rate-limited** — API returns **429 Usage cap exceeded** (trial credits exhausted); code intact |
-| **Tier 4 — Sample records** | ✅ **Working** — 4 embedded CA samples for tests/offline |
+| Area | Status |
+|------|--------|
+| **CA Tier 1 — Official CA SOS API** | ⏳ Pending approval — subscriptions submitted at calicodev.sos.ca.gov |
+| **CA Tier 2 — BizFile scrape (free, official)** | ✅ Working — Playwright on Ubuntu 26.04; **150 CA entities** per run |
+| **CA Tier 3 — Cobalt Intelligence** | ⚠️ Trial cap exhausted (HTTP 429); code intact; DB has seeded data |
+| **CA Tier 4 — Sample fallback** | ✅ Working |
 | **Staging registry** | ✅ **202 records**, 51 jurisdictions, API healthy |
-| **Bulk states (NY, CO, FL, OR)** | ✅ Working — 50 records each on live fetch |
-| **API states (WA, TX)** | ✅ Working — returns data via API + fallback |
-| **BEA connector** | ✅ Working |
-| **Tests** | ✅ **44/44 passed** (fast suite); **46/46** with orchestrator (full suite ~93s) |
+| **Bulk states (NY, CO, FL, OR)** | ✅ Live — 50 records each |
+| **API states (WA, TX, CA)** | ✅ Live with fallback |
+| **BEA connector** | ✅ Live |
+| **17 federal connectors** | ✅ Live |
+| **Tests** | ✅ 44/44 passed (fast suite) |
+| **Phase 3 — Intelligence Reports** | 🆕 **NEXT — design starts this week** |
 
 ---
 
 ## 2) CA data waterfall — verified 15 Jun
 
 ```
-Priority (fetch_records in ca.py):
-
-  1. Official CA SOS CBC API     ⏳  PENDING  — no subscription key yet
-  2. BizFile Online scrape       ✅  WORKING  — Playwright headless on Ubuntu 26.04
-  3. Cobalt Intelligence API     ⚠️  429 cap  — trial exhausted; DB has cached data
-  4. Embedded sample records     ✅  WORKING  — tests / offline
+1. Official CA SOS CBC API   ⏳  PENDING  — waiting on key
+2. BizFile Online scrape     ✅  WORKING  — 150 live records per run, no cost
+3. Cobalt Intelligence       ⚠️  CAPPED   — 429; upgrade plan or skip for now
+4. Sample records            ✅  WORKING  — tests / offline
 ```
 
-### Live verification results (15 Jun)
-
-| Check | Result |
-|-------|--------|
-| BizFile Playwright (`Apple`, 5 rows) | ✅ 5 records — e.g. `! ! ! APPLE IPAD & ANDROID TABLET TUTORING ! ! !` |
-| BizFile full waterfall (no tier 1/3) | ✅ **150 records** across queries Apple, Google, Services |
-| Cobalt live fetch | ❌ HTTP 429 — `"Usage cap exceeded"` |
-| CA connector samples (test env) | ✅ 4 records |
-| Staging `/registry/search?q=apple&state=us_ca` | ✅ 52+ matches from DB |
-
-### Playwright fix on Ubuntu 26.04 (no new server needed)
-
-BizFile was blocked earlier because Playwright did not recognise Ubuntu 26.04. Fixed with:
-
-```bash
-pip install playwright
-PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-x64 playwright install chromium
-playwright install-deps chromium
-# or: ./scripts/setup-playwright.sh
-```
-
-Code auto-sets platform override via `ensure_playwright_platform()` in `us/_common/http_helpers.py`.
-
-**Note:** Raw HTTP to BizFile API still returns 403 (Imperva WAF). Playwright browser path is required and is now operational.
+**CA is fully covered by tier 2 (BizFile) until tier 1 key arrives.**
+Ubuntu 26.04 Playwright fix applied — no new server needed.
 
 ---
 
-## 3) Other connectors — verified 15 Jun
+## 3) New requirement from James — Phase 3: Advanced Intelligence Reports
 
-| Connector | Tier | Live fetch | Notes |
-|-----------|------|------------|-------|
-| `us_ny` bulk | A | ✅ 50 records | data.ny.gov |
-| `us_co` bulk | A | ✅ 50 records | data.colorado.gov |
-| `us_wa` API | B | ✅ 3 records | API 404 on some queries; fallback works |
-| `us_tx` API | B | ✅ 3 records | API parse errors on some queries; fallback works |
-| `us_ca` | B | ✅ 150 via BizFile | Tier 1 pending; tier 3 rate-limited |
-| Scrape-tier (44 states) | D | ⚠️ Per-state | Playwright framework in place; generic SOS scrape varies; samples in test env |
-| BEA | — | ✅ Live | `BEA_API_USER_ID` active |
-| 17 federal connectors | — | ✅ | Regression tests pass |
+### 3.1 James's WhatsApp message (12 Jun, verbatim)
 
-### Staging API
+> "For actual advanced research to these records how are we gonna approach it"
+> "They need to be advanced intelligence reports that try and find entities business holding companies, and try and dig deeper"
+> "Find relationships of investors / businesses or investment vehicles / government contracts / owners / etc"
+> "All examples of intelligence reports"
+> "We would have layer 1. For future"
 
-```bash
-curl http://127.0.0.1:3001/health
-# → {"status":"ok"}
+James also shared **2 example intelligence reports** (15th_June_docs):
 
-curl http://127.0.0.1:3001/registry/health
-# → 51 jurisdictions, 202 records, tier_distribution: bulk=4, api=3, scrape=44
+---
 
-curl "http://127.0.0.1:3001/registry/search?q=apple&state=us_ca&limit=3"
-# → live search over seeded DB records
+### 3.2 Report A — Rockbridge Network / Scott Bessent / Japan (Japanese_Ties_Rockbridge_Bessent_Report.pdf)
+
+**What it shows — the intelligence dimensions James wants:**
+
+| Dimension | What the report does |
+|-----------|---------------------|
+| **Political donor networks** | Maps Rockbridge Network — private donor group, JD Vance co-founder, Peter Thiel allies, Winklevoss twins |
+| **Cross-border entity relationships** | Connects US conservative political org → Japan branch → JBIC governor (Tadashi Maeda) |
+| **Foreign government influence (FARA)** | Japan ranked top foreign spender under FARA — $500M+ since 2016 via JETRO, Embassy, corporations |
+| **Investor / government linkage** | Scott Bessent: Treasury Secretary + Rockbridge insider — dual role bridging donor network and US-Japan policy |
+| **Holding company / fund structure** | Key Square Group (Bessent's hedge fund) → Soros Fund Management background |
+| **Entity disambiguation** | Same person in multiple capacities — political donor, public official, fund manager |
+
+**Key data sources the report uses:**
+FARA filings, OpenSecrets, FOIA-accessible government readouts, news, Wikipedia, organizational announcements.
+
+---
+
+### 3.3 Report B — LATAM Minerals & Energy (LATAM MINERALS AND ENERGY.pdf)
+
+**What it shows — the intelligence dimensions James wants:**
+
+| Dimension | What the report does |
+|-----------|---------------------|
+| **Corporate ownership trees** | Maps 5-6 Argentine capital groups across both mining AND energy: Techint/Rocca, PAE/Bulgheroni, Pampa/Mindlin, Manzano/Integra, Eurnekian |
+| **Investment vehicles** | RIGI-registered SPVs, JV consortia (Southern Energy SA, Argentina LNG, VMOS), holding structures |
+| **Government contracts / concessions** | RIGI pipeline ($50.7B approved); YPF state involvement; US-Argentina framework $130B |
+| **Investor relationships** | BHP-Lundin (Vicuña JV), JP Morgan debt syndicates, IFC/IDB/JBIC multilateral stacks |
+| **Cross-border capital flows** | Chinese stake mapping (CNOOC 25% PAE; Tianqi 22% SQM; Ganfeng in 13/47 Argentine lithium projects) |
+| **Geopolitical / strategic framing** | Chancay port control (COSCO 60%/Volcan 40%); bi-oceanic railway; Pax Silica alliance |
+| **Risk flags** | Manzano/Integra: Argentine mining player AND 40% indirect Chancay stake (Chinese-aligned port) |
+
+**Key data sources the report uses:**
+SEC filings, RIGI approvals, government readouts, trade data, FARA, Carnegie Endowment, Reuters, mining industry filings.
+
+---
+
+### 3.4 What James actually wants built
+
+Based on both reports and his messages, James wants the platform to **automatically generate these types of reports** from the registry and enrichment data. The core feature set:
+
+```
+Phase 3 — Intelligence Report Layer
+
+INPUT: An entity name, person, or topic
+       e.g. "Apple Inc CA" / "Rockbridge Network" / "BHP copper Argentina"
+
+OUTPUT: A structured intelligence report containing:
+
+  1. ENTITY PROFILE
+     - Legal name, registration number, state, status, entity type
+     - Formation date, registered agent
+     - All known aliases, prior names, successor entities
+
+  2. OWNERSHIP & HOLDING STRUCTURE
+     - Parent companies (1–5 layers deep)
+     - Subsidiaries and sister entities
+     - Beneficial owners (UBO identification)
+     - Investment vehicles and SPVs
+
+  3. INVESTOR & CAPITAL RELATIONSHIPS
+     - Known investors and funding rounds
+     - Debt syndicates, lenders
+     - Equity partners in JVs
+     - Private equity / hedge fund connections
+
+  4. GOVERNMENT CONTRACTS & REGULATORY EXPOSURE
+     - Federal contracts (USASpending.gov — already integrated)
+     - State contracts
+     - FARA registrations (already integrated)
+     - OFAC / sanctions screening (already integrated)
+     - Regulatory filings (SEC EDGAR — already integrated)
+     - LDA lobbying registrations (already integrated)
+
+  5. OFFICER & PERSON RELATIONSHIPS
+     - Named directors, officers, registered agents
+     - Cross-entity officer appearances (same person in multiple companies)
+     - Political donor connections (FEC — already integrated)
+
+  6. CROSS-BORDER & STRATEGIC CONNECTIONS
+     - Foreign entity affiliations
+     - FARA-registered foreign principals
+     - Chinese state-owned exposure indicators
+     - Geopolitical risk flags
+
+  7. INTELLIGENCE NARRATIVE
+     - AI-written 1-2 page summary of findings
+     - Risk indicators highlighted
+     - Source citations for every claim
 ```
 
 ---
 
-## 4) Done today (15 Jun)
+### 3.5 Data sources already integrated vs still needed
 
-1. **BizFile Playwright scraper** — implemented in `ca.py` with DOM parsers, date normaliser, 4-tier waterfall
-2. **Playwright on Ubuntu 26.04** — platform override + system deps; verified live on current server
-3. **`scripts/setup-playwright.sh`** — one-time setup script for BizFile / scrape connectors
-4. **`ensure_playwright_platform()`** — shared helper in `http_helpers.py`; used by `ca.py` and `scrape_generic.py`
-5. **6 new BizFile unit tests** — parsers + graceful failure; all pass
-6. **Full verification** — tier 2 confirmed independent of tier 1 and tier 3
+| Data category | Sources available NOW | Sources to add for Phase 3 |
+|---------------|-----------------------|---------------------------|
+| Business registry (51 states) | ✅ All 51 jurisdictions | CA tier 1 key pending |
+| Federal contracts | ✅ USASpending.gov connector | FPDS direct feed (richer) |
+| FARA filings | ✅ Integrated | — |
+| OFAC sanctions | ✅ Integrated | — |
+| SEC EDGAR filings | ✅ Integrated | Ownership filings (13D/13G/SC 13) |
+| FEC political donations | ✅ Integrated | — |
+| LDA lobbying | ✅ Integrated | — |
+| Federal regulations/notices | ✅ Integrated (ECFR, Federal Register) | — |
+| Court records | ✅ CourtListener integrated | PACER direct (paid) |
+| Global entity data | ✅ OpenCorporates, GLEIF | — |
+| **Corporate ownership trees** | ❌ Not yet | OpenOwnership, OpenCorporates ownership API, Companies House (UK) |
+| **Beneficial ownership (UBO)** | ❌ Not yet | FinCEN BOI registry (launched 2024), state UBO filings |
+| **Trade/import-export data** | ❌ Not yet | Panjiva/ImportYeti, Census trade data |
+| **News + narrative intelligence** | ❌ Not yet | NewsAPI, GDELT, OpenAlex |
+| **Political connections / donors** | ⚠️ FEC data available | Cross-entity person matching needed |
+| **Foreign government / FARA graph** | ⚠️ FARA data available | Graph traversal needed |
+| **AI report generation** | ❌ Not yet | OpenAI GPT-4o (key already in .env) |
+| **Graph / relationship DB** | ❌ Not yet | Neo4j, or PostgreSQL graph extension |
 
 ---
 
-## 5) Pending / blocked
+## 4) Pending tasks — prioritised
 
-| Item | Owner / action |
-|------|----------------|
-| **CA SOS API key (tier 1)** | Wait for CA SOS to approve `finance-platform-prod` subscription → paste Primary key into `CA_SOS_API_KEY` → `pm2 restart finance-api --update-env` |
-| **Cobalt trial cap (tier 3)** | Trial exhausted (429). Options: upgrade plan with James, or rely on BizFile (tier 2) for CA + bulk/API states for others |
-| **Re-seed CA from BizFile** | Optional — run `scripts/seed-state-registry.sh` for `us_ca` to replace Cobalt-sourced DB rows with official BizFile data |
-| **OIDC / Google Workspace SSO** | Waiting on James for `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` |
-| **E2E live re-run** | After tier 1 key active |
+### Immediate (this week)
+| # | Task | Why |
+|---|------|-----|
+| 1 | Wait for **CA SOS API key** | Emails to abhishekk@kyma.world — paste key when received |
+| 2 | **Re-seed CA** from BizFile | Replace Cobalt DB rows with official free data (scripts/seed-state-registry.sh us_ca) |
+| 3 | **Design Phase 3 data model** | Entity + relationship graph schema — needs decision before coding |
+| 4 | **Cobalt plan** — discuss with James | Trial exhausted; decide upgrade or skip |
+
+### Phase 3 — Intelligence Reports (next sprint)
+| # | Task | Effort |
+|---|------|--------|
+| P3.1 | **Graph data model** — entities + relationships + evidence sources | Medium |
+| P3.2 | **Entity resolution** — match same person/company across data sources | High |
+| P3.3 | **Ownership tree crawler** — integrate OpenOwnership/OpenCorporates ownership API | Medium |
+| P3.4 | **FinCEN BOI connector** — beneficial ownership registry (US, launched 2024) | Medium |
+| P3.5 | **Cross-entity person matching** — director/officer appears in multiple entities | Medium |
+| P3.6 | **Report template engine** — structured JSON → formatted intelligence report | Medium |
+| P3.7 | **AI narrative writer** — GPT-4o generates 1-2 page summary from structured data | Low (key exists) |
+| P3.8 | **Report UI** — render formatted report with source citations on frontend | Medium |
+| P3.9 | **Report export** — PDF + Word output (reportlab + python-docx already in deps) | Low |
+| P3.10 | **News enrichment connector** — NewsAPI / GDELT for entity mentions | Medium |
+
+### Blocked on James
+| # | Item | What's needed |
+|---|------|---------------|
+| B1 | **OIDC / Google Workspace SSO** | `OIDC_CLIENT_ID` + `OIDC_CLIENT_SECRET` from James |
+| B2 | **Cobalt plan upgrade decision** | Discuss — $0.60–$1/lookup, needed for 44 scrape-tier states |
+| B3 | **Phase 3 scope sign-off** | Which report types to build first: ownership tree? government contracts? cross-border? |
+
+---
+
+## 5) Files changed (15 Jun)
+
+| File | Change |
+|------|--------|
+| `packages/connectors/us/state_registry/api/ca.py` | BizFile scraper, 4-tier waterfall |
+| `packages/connectors/us/_common/http_helpers.py` | `ensure_playwright_platform()` for Ubuntu 26.04 |
+| `packages/connectors/us/state_registry/states/scrape_generic.py` | Platform override before Playwright |
+| `scripts/setup-playwright.sh` | One-time Playwright setup |
+| `tests/connectors/test_state_registry.py` | 6 new BizFile tests |
+| `15th_June.md` | This handoff |
 
 ---
 
@@ -118,60 +223,22 @@ curl "http://127.0.0.1:3001/registry/search?q=apple&state=us_ca&limit=3"
 
 | Key | Status | Notes |
 |-----|--------|-------|
-| `CA_SOS_API_KEY` | ⏳ Pending | calicodev.sos.ca.gov — subscriptions **Submitted** |
-| `COBALT_API_KEY` | ⚠️ Set, capped | HTTP 429 — usage cap exceeded |
+| `CA_SOS_API_KEY` | ⏳ Pending | Subscriptions submitted at calicodev.sos.ca.gov |
+| `COBALT_API_KEY` | ⚠️ Set, trial capped | HTTP 429 — upgrade needed for 44 states |
+| `OPENAI_API_KEY` | ✅ Set | Ready for Phase 3 AI narrative generation |
 | `BEA_API_USER_ID` | ✅ Set | Live |
 | 17 federal gov keys | ✅ Set | All working |
-| `OIDC_CLIENT_ID/SECRET` | Empty | Optional |
+| `OIDC_CLIENT_ID/SECRET` | ❌ Missing | Waiting on James |
 
 ---
 
-## 7) Data strategy (aligned with James)
+## 7) Message to James (suggested)
 
-```
-Free first, Cobalt last:
-
-1. Tier A/B bulk/API     → NY, CO, FL, OR, WA, TX (+ CA official API when approved)
-2. Tier 2 BizFile scrape → CA free official path — NOW LIVE on staging server
-3. Tier D scrape         → 44 states (Playwright framework; per-state SOS varies)
-4. Cobalt per-use        → Integrated but trial capped; not needed for CA while BizFile works
-```
-
-**CA is covered without tier 1 or tier 3** as long as Playwright deps remain installed.
-
----
-
-## 8) Files changed (15 Jun)
-
-| File | Change |
-|------|--------|
-| `packages/connectors/us/state_registry/api/ca.py` | BizFile scraper, 4-tier waterfall, Playwright error hints |
-| `packages/connectors/us/_common/http_helpers.py` | `ensure_playwright_platform()` for Ubuntu 26.04 |
-| `packages/connectors/us/state_registry/states/scrape_generic.py` | Use platform override before Playwright |
-| `scripts/setup-playwright.sh` | One-time Playwright + Chromium setup |
-| `tests/connectors/test_state_registry.py` | 6 BizFile parser tests |
-| `15th_June.md` | This handoff |
-
----
-
-## 9) Quick commands
-
-```bash
-# Verify BizFile tier 2 only (no CA key, no Cobalt)
-cd /home/ubuntu/Finance-Advanced-Research-Platform
-source venv/bin/activate
-ENV=production COBALT_API_KEY= CA_SOS_API_KEY= \
-  python3 -c "import sys; sys.path.insert(0,'packages/connectors'); \
-  from us.state_registry.api.ca import _bizfile_fetch; \
-  print(len(list(_bizfile_fetch(['Apple'], 10))))"
-# → 10
-
-# Run tests
-pytest tests/connectors/test_state_registry.py -q
-
-# Seed CA from BizFile (when ready)
-# scripts/seed-state-registry.sh us_ca
-```
+> Hi James, today's update:
+>
+> **Infrastructure (done):** CA BizFile scrape is now live on the current server — no new deployment needed. We get fresh official CA data free via Playwright. CA official API key still pending from the state (we applied 12 Jun). Cobalt trial has run out but we don't need it for CA anymore.
+>
+> **Phase 3 (planning):** I've reviewed both reports you sent — the Rockbridge/Bessent report and the LATAM Minerals report. I understand exactly what you want: automated intelligence reports that map ownership structures, investors, government contracts, officers, cross-border connections, and write a narrative summary. We already have most of the data sources integrated (FARA, USASpending, SEC EDGAR, FEC, OFAC, 51-state registry, court records). What we need to build next is: (1) the graph/relationship layer to connect entities across sources, (2) the report template engine, and (3) the AI narrative writer (we already have the OpenAI key). Can we get 30 min this week to align on which report type to build first?
 
 ---
 
