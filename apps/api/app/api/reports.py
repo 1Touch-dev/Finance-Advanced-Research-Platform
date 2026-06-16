@@ -43,25 +43,60 @@ def attach_claim_evidence(claim_id: int, evidence_ref_id: int, weight: int = 1, 
     db.add(ce); db.commit(); db.refresh(ce)
     return {"id": ce.id}
 
-@router.post('/claims/{claim_id}/verify')
-def verify_claim(claim_id: int, db: Session = Depends(get_db)):
-    # simple verifier: ensure attached evidence refs exist and are not contradictory by timestamp overlap (placeholder)
+def _verifier_v2(claim_id: int, db: Session) -> dict:
+    import os
+    from datetime import datetime, timezone, timedelta
+    max_age_days = int(os.getenv("SOURCE_MAX_AGE_DAYS", "365"))
     rows = db.execute(text("select evidence_ref_id from claim_evidence where claim_id=:cid"), {"cid": claim_id}).fetchall()
     if not rows:
-        db.execute(update(Claim).where(Claim.id==claim_id).values(status='needs_review'))
-        db.commit(); return {"status": "needs_review", "reason": "no evidence"}
-    # check that refs exist in evidence_refs
-    missing = []
-    for r in rows:
-        er = db.execute(text("select id from evidence_refs where id=:id"), {"id": r[0]}).fetchone()
-        if not er:
-            missing.append(r[0])
-    if missing:
-        db.execute(update(Claim).where(Claim.id==claim_id).values(status='needs_review'))
-        db.commit(); return {"status": "needs_review", "reason": f"missing refs {missing}"}
-    # mark verified
-    db.execute(update(Claim).where(Claim.id==claim_id).values(status='verified'))
-    db.commit(); return {"status": "verified"}
+        return {"status": "needs_review", "reason": "no evidence", "flags": ["missing_evidence"]}
+    flags = []
+    ref_ids = [r[0] for r in rows]
+    for rid in ref_ids:
+        row = db.execute(text("""
+            select er.id, rd.created_at, rd.source_id, s.kind
+            from evidence_refs er
+            join raw_documents rd on rd.id = er.raw_document_id
+            left join sources s on s.id = rd.source_id
+            where er.id = :id
+        """), {"id": rid}).fetchone()
+        if not row:
+            flags.append(f"missing_ref_{rid}")
+            continue
+        created = row[1]
+        if created:
+            age = datetime.now(timezone.utc) - (created if created.tzinfo else created.replace(tzinfo=timezone.utc))
+            if age > timedelta(days=max_age_days):
+                flags.append(f"stale_source_{row[3] or 'unknown'}")
+    if len(ref_ids) >= 2:
+        placeholders = ",".join(str(int(i)) for i in ref_ids)
+        excerpts = db.execute(text(f"select excerpt from evidence_refs where id in ({placeholders})")).fetchall()
+        texts = [e[0] or "" for e in excerpts]
+        for i, a in enumerate(texts):
+            for b in texts[i + 1:]:
+                if a and b and ("not " in a.lower()) != ("not " in b.lower()) and a[:40] == b[:40]:
+                    flags.append("possible_contradiction")
+    if flags:
+        return {"status": "needs_review", "reason": "verifier flags", "flags": flags}
+    return {"status": "verified", "flags": []}
+
+@router.post('/claims/{claim_id}/verify')
+def verify_claim(claim_id: int, db: Session = Depends(get_db)):
+    result = _verifier_v2(claim_id, db)
+    db.execute(update(Claim).where(Claim.id==claim_id).values(status=result["status"]))
+    db.commit()
+    return result
+
+@router.get('/{report_id}/export_ready')
+def export_ready(report_id: int, db: Session = Depends(get_db)):
+    claims = db.execute(text("select id, status from claims where report_id=:id"), {"id": report_id}).fetchall()
+    blocked = []
+    for c in claims:
+        if c[1] not in ("verified",):
+            v = _verifier_v2(c[0], db)
+            if v["status"] != "verified":
+                blocked.append({"claim_id": c[0], "status": c[1], "flags": v.get("flags", [])})
+    return {"ready": len(blocked) == 0, "blocked": blocked}
 
 @router.post('/claims/{claim_id}/contradict')
 def contradict_claim(claim_id: int, note: Optional[str] = None, db: Session = Depends(get_db)):

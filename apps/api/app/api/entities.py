@@ -105,7 +105,10 @@ def approve_merge(primary_id: int, secondary_id: int, db: Session = Depends(get_
     for r in db.query(Relationship).filter_by(dst_entity_id=secondary_id).all():
         r.dst_entity_id = primary_id
     db.add(MergeAction(primary_id=primary_id, secondary_id=secondary_id, action='merge'))
-    # mark secondary as non-canonical
+    pair = sorted([primary_id, secondary_id])
+    cand = db.query(MergeCandidate).filter_by(a_entity_id=pair[0], b_entity_id=pair[1]).first()
+    if cand:
+        cand.status = 'merged'
     sec = db.query(Entity).filter_by(id=secondary_id).first()
     if sec:
         sec.canonical = False
@@ -127,3 +130,26 @@ def unmerge(primary_id: int, secondary_id: int, db: Session = Depends(get_db)):
 def review_queue(limit: int = 50, db: Session = Depends(get_db)):
     rows = db.query(ResolutionQueue).order_by(ResolutionQueue.created_at.desc()).limit(limit).all()
     return [{"id": r.id, "entity_id": r.entity_id, "reason": r.reason, "created_at": r.created_at.isoformat() if r.created_at else None} for r in rows]
+
+@router.get('/merge/candidates')
+def merge_candidates(status: str = 'pending', limit: int = 50, db: Session = Depends(get_db)):
+    rows = db.query(MergeCandidate).filter_by(status=status).order_by(MergeCandidate.score.desc()).limit(limit).all()
+    out = []
+    for r in rows:
+        a = db.query(Entity).filter_by(id=r.a_entity_id).first()
+        b = db.query(Entity).filter_by(id=r.b_entity_id).first()
+        out.append({
+            "id": r.id, "score": r.score, "reason": r.reason, "status": r.status,
+            "a": {"id": r.a_entity_id, "name": a.name if a else None, "kind": a.kind if a else None},
+            "b": {"id": r.b_entity_id, "name": b.name if b else None, "kind": b.kind if b else None},
+        })
+    return out
+
+@router.post('/merge/reject')
+def reject_merge(candidate_id: int, db: Session = Depends(get_db)):
+    c = db.query(MergeCandidate).filter_by(id=candidate_id).first()
+    if not c:
+        raise HTTPException(404, 'not found')
+    c.status = 'rejected'
+    db.commit()
+    return {"ok": True}

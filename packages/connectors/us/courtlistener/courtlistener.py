@@ -1,29 +1,27 @@
 from typing import Iterable, Tuple, Dict, Any
-import time
 from .._common.base_us import USBaseConnector
+from .._common.http_helpers import http_get, yield_samples, env_or_creds, is_test_env
 
-import os
-import requests
 
 class CourtListenerConnector(USBaseConnector):
     name = "courtlistener"
+
     def fetch_records(self) -> Iterable[Tuple[str, Dict[str, Any]]]:
-        cl_token = self.creds.get("api_token") or os.getenv("COURTLISTENER_API_TOKEN")
+        cl_token = env_or_creds(self.creds, "api_token", "COURTLISTENER_API_TOKEN")
         if cl_token:
             try:
-                url = "https://www.courtlistener.com/api/rest/v4/dockets/?limit=5"
+                url = "https://www.courtlistener.com/api/rest/v4/dockets/"
                 headers = {"Authorization": f"Token {cl_token}"}
-                resp = requests.get(url, headers=headers, timeout=15)
-                resp.raise_for_status()
-                records = resp.json().get("results", [])
-                for r in records:
-                    yield str(r.get("id")), r
+                resp = http_get(url, headers=headers, params={"page_size": 10})
+                for r in resp.json().get("results", []):
+                    docket_id = r.get("id")
+                    if docket_id:
+                        yield str(docket_id), r
                 return
             except Exception:
-                pass
+                if not is_test_env():
+                    raise
 
-        # Fallback graceful mock samples
-        samples = [{"external_id": "docket-2:23-cv-00001", "case_name": "Example v. Example", "court": "D. Mass."}]
-        for it in samples:
-            yield it["external_id"], it
-            time.sleep(0.05)
+        yield from yield_samples([
+            {"external_id": "docket-2:23-cv-00001", "case_name": "Example v. Example", "court": "D. Mass."},
+        ])

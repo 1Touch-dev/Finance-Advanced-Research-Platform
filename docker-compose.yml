@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: mydb
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -27,6 +27,29 @@ services:
       timeout: 3s
       retries: 10
 
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    volumes:
+      - minio_data:/data
+
+  opensearch:
+    image: opensearchproject/opensearch:2.11.0
+    environment:
+      discovery.type: single-node
+      plugins.security.disabled: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+
   api:
     build:
       context: .
@@ -37,9 +60,18 @@ services:
       DATABASE_URL: postgresql+psycopg://user:password@postgres:5432/mydb
       JWT_SECRET: dev-secret-change
       ENV: local
+      OPENSEARCH_URL: http://opensearch:9200
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: enterprise-evidence
+      S3_ACCESS_KEY: minio
+      S3_SECRET_KEY: minio123
     depends_on:
       postgres:
         condition: service_healthy
+      opensearch:
+        condition: service_started
+      minio:
+        condition: service_started
     restart: unless-stopped
 
   web:
@@ -71,3 +103,5 @@ services:
 
 volumes:
   postgres_data:
+  minio_data:
+  opensearch_data:

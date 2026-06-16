@@ -10,10 +10,11 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 
 | Area | Status |
 |------|--------|
-| **Overall** | Phase 1 **foundation** — runnable locally, broad API coverage, early UI |
-| **Estimate vs full product spec** | ~35–45% (breadth strong; production depth still in progress) |
-| **Local dev** | Supported without Docker (SQLite + scripts) |
-| **Docker** | Full stack via `docker compose` (Postgres, Redis, API, Web, Admin, Worker) |
+| **Overall** | Phase 1 U.S. MVP **~75–80%** — live connectors, production ETL runner, staging deployed |
+| **Branch** | `feature/phase1-us-mvp-100pct` → PR to `integration/phase1-mvp-base` |
+| **Tests** | 31 passing (`pytest tests/ -q`) |
+| **Staging** | Web `:3003` · API `:3001` · Admin `:3002` on `184.72.123.188` |
+| **Local dev** | SQLite default; Postgres + MinIO + OpenSearch via `docker compose` |
 
 For a detailed requirement-vs-implementation breakdown, see **[docs/REQUIREMENT_GAP_ANALYSIS.md](./docs/REQUIREMENT_GAP_ANALYSIS.md)**.
 
@@ -27,8 +28,12 @@ For a detailed requirement-vs-implementation breakdown, see **[docs/REQUIREMENT_
 - **Run finance workflows** — stock analysis, DCF, comps, fundamentals (via `packages/finance`)
 - **Draft & review reports** — sections, claims, claim verification, comments, exports (Markdown/HTML/JSON)
 - **Monitor** — watchlists, portfolios (CSV import), alert rules, scan/deliver (webhook + stubs)
-- **Ingest (skeleton)** — U.S. connector modules + source registry; many connectors use sample/fixture data until production ETL is wired
-- **Skills gateway** — internal + simulated Anthropic adapters for finance skills
+- **Ingest (production ETL)** — 17 U.S. connectors with live APIs; sample data only in `ENV=test`; runner persists raw + EvidenceRef
+- **Skills gateway** — live Anthropic adapter (Claude) with OpenAI fallback; artifact persistence + cost logging
+- **Alerts** — real connector-delta scan, SendGrid email + Twilio SMS delivery, alert inbox UI
+- **Exports** — PDF, Word, Markdown, HTML, JSON + evidence CSV appendix
+- **SSO** — Google OIDC routes + JWT refresh/revocation
+- **Admin** — source health dashboard with per-source status and run history
 
 ---
 

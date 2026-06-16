@@ -8,8 +8,10 @@ const links = [
   { href: '/', label: 'Home' },
   { href: '/search', label: 'Search' },
   { href: '/graph', label: 'Graph' },
+  { href: '/entities/merge', label: 'Merge' },
   { href: '/stock', label: 'Stock' },
   { href: '/skills', label: 'Skills' },
+  { href: '/alerts', label: 'Alerts' },
 ];
 
 export default function Layout({ children }) {
