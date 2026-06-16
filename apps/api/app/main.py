@@ -18,6 +18,7 @@ from app.api.monitor import router as monitor_router
 from app.api.compliance import router as compliance_router
 from app.api.demo import router as demo_router
 from app.api.registry import router as registry_router
+from app.api.intelligence import router as intelligence_router
 from app.core.logging import logger
 
 app = FastAPI(title="Identity & Collaboration API")
@@ -54,6 +55,7 @@ app.include_router(monitor_router)
 app.include_router(compliance_router)
 app.include_router(demo_router)
 app.include_router(registry_router)
+app.include_router(intelligence_router)
 
 @app.on_event("startup")
 async def on_startup():

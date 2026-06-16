@@ -6,6 +6,7 @@ import styles from '../styles/Layout.module.css';
 
 const links = [
   { href: '/', label: 'Home' },
+  { href: '/intelligence', label: 'Intelligence' },
   { href: '/search', label: 'Search' },
   { href: '/graph', label: 'Graph' },
   { href: '/entities/merge', label: 'Merge' },
