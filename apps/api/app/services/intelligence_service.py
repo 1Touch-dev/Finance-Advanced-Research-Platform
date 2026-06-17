@@ -182,31 +182,6 @@ def _fetch_usaspending(entity_name: str) -> Dict[str, Any]:
         result["error"] = str(e)
     return result
 
-
-# ── LDA lobbying connector (entity-specific) ─────────────────────────────────
-
-def _fetch_lda(entity_name: str) -> Dict[str, Any]:
-    result = {"filings": []}
-    try:
-        resp = requests.get("https://lda.senate.gov/api/v1/filings/",
-                            params={"registrant_name": entity_name, "page_size": 10},
-                            timeout=20)
-        if resp.ok:
-            for f in resp.json().get("results", []):
-                result["filings"].append({
-                    "uuid": f.get("filing_uuid"),
-                    "registrant": (f.get("registrant") or {}).get("name"),
-                    "client": (f.get("client") or {}).get("name"),
-                    "year": f.get("filing_year"),
-                    "period": f.get("filing_period"),
-                    "income": f.get("income"),
-                    "expenses": f.get("expenses"),
-                })
-    except Exception as e:
-        result["error"] = str(e)
-    return result
-
-
 # ── OFAC sanctions check ──────────────────────────────────────────────────────
 
 def _fetch_ofac(entity_name: str) -> Dict[str, Any]:
@@ -259,33 +234,237 @@ def _fetch_courts(entity_name: str) -> Dict[str, Any]:
     return result
 
 
-# ── GPT-4o narrative writer ───────────────────────────────────────────────────
+# ── Wikipedia company background ─────────────────────────────────────────────
 
-def _generate_narrative(entity_name: str, sections: List[Dict]) -> str:
+def _fetch_wikipedia(entity_name: str) -> Dict[str, Any]:
+    result = {"summary": "", "founders": [], "founded": None, "hq": None, "url": None}
+    slug = entity_name.replace(" ", "_")
+    try:
+        resp = requests.get(
+            f"https://en.wikipedia.org/api/rest_v1/page/summary/{slug}",
+            headers={"User-Agent": "IntelPlatform/1.0 research@example.com"},
+            timeout=12)
+        if resp.ok:
+            d = resp.json()
+            result["summary"] = d.get("extract", "")[:1200]
+            result["url"] = d.get("content_urls", {}).get("desktop", {}).get("page", "")
+            result["title"] = d.get("title", "")
+    except Exception as e:
+        result["error"] = str(e)
+    return result
+
+
+# ── FundedAPI — free investor/funding data (no key needed) ────────────────────
+
+def _fetch_funded_api(entity_name: str) -> Dict[str, Any]:
+    result = {"rounds": [], "investors": [], "total_raised": 0}
+    try:
+        resp = requests.get(
+            "https://fundedapi.com/v1/startups",
+            params={"q": entity_name, "limit": 5},
+            timeout=12)
+        if resp.ok:
+            data = resp.json()
+            startups = data.get("startups", data.get("data", []))
+            for s in startups:
+                name = s.get("name", "")
+                if entity_name.lower().split()[0] in name.lower():
+                    round_info = {
+                        "name": name,
+                        "round": s.get("fundingRound"),
+                        "amount": s.get("fundingAmount"),
+                        "investors": s.get("investors", []),
+                        "date": s.get("scrapedAt", "")[:10],
+                    }
+                    result["rounds"].append(round_info)
+                    amt = float(s.get("fundingAmount") or 0)
+                    result["total_raised"] += amt
+    except Exception as e:
+        result["error"] = str(e)
+    return result
+
+
+# ── SEC Form D / institutional ownership via EDGAR full-text ─────────────────
+
+def _fetch_sec_investors(entity_name: str, cik: Optional[str] = None) -> Dict[str, Any]:
+    result = {"form_d_filings": [], "ownership_filings": [], "institutional_notes": ""}
+    headers = {"User-Agent": os.getenv("SEC_USER_AGENT", "IntelPlatform research@example.com")}
+    try:
+        # Search for SC 13G and SC 13D filings mentioning this entity
+        search_url = "https://efts.sec.gov/LATEST/search-index"
+        resp = requests.get(search_url, headers=headers,
+                            params={"q": f'"{entity_name}"',
+                                    "forms": "SC 13G,SC 13D",
+                                    "dateRange": "custom",
+                                    "startdt": "2020-01-01",
+                                    "enddt": "2030-01-01"},
+                            timeout=15)
+        if resp.ok:
+            hits = resp.json().get("hits", {}).get("hits", [])
+            for h in hits[:8]:
+                s = h.get("_source", {})
+                # EDGAR uses display_names (list) and root_forms, not entity_name/form_type
+                display = s.get("display_names", [])
+                # Filter out the subject company itself — we want the FILER
+                filer_names = [n for n in display if entity_name.split()[0].lower() not in n.lower()]
+                filer = filer_names[0] if filer_names else (display[0] if display else "Unknown")
+                # Clean up the display name (remove CIK suffix like " (CIK 000xxx)")
+                import re as _re
+                filer_clean = _re.sub(r'\s*\(CIK\s*\d+\)', '', filer).strip()
+                forms = s.get("root_forms", [s.get("form_type", "SC 13G")])
+                result["ownership_filings"].append({
+                    "entity": filer_clean,
+                    "form": forms[0] if forms else "SC 13G",
+                    "filed": s.get("file_date"),
+                    "description": s.get("file_description", ""),
+                })
+            if hits:
+                result["institutional_notes"] = f"{len(hits)} institutional ownership filing(s) found (SC 13G/13D)."
+
+        # Also check Form D (private placements) if it's a private company/fund
+        resp2 = requests.get(search_url, headers=headers,
+                             params={"q": f'"{entity_name}"',
+                                     "forms": "D",
+                                     "dateRange": "custom",
+                                     "startdt": "2005-01-01",
+                                     "enddt": "2030-01-01"},
+                             timeout=15)
+        if resp2.ok:
+            hits2 = resp2.json().get("hits", {}).get("hits", [])
+            for h in hits2[:5]:
+                s = h.get("_source", {})
+                display = s.get("display_names", [s.get("entity_name", "")])
+                forms = s.get("root_forms", ["D"])
+                result["form_d_filings"].append({
+                    "entity": display[0] if display else "Unknown",
+                    "form": forms[0] if forms else "D",
+                    "filed": s.get("file_date"),
+                })
+
+    except Exception as e:
+        result["error"] = str(e)
+    return result
+
+
+# ── LDA lobbying (FIXED — client_name + new lda.gov endpoint) ────────────────
+
+def _fetch_lda(entity_name: str) -> Dict[str, Any]:
+    result = {"filings": [], "total_count": 0, "issue_areas": [], "top_firms": []}
+    
+    # LDA API is migrating from lda.senate.gov to lda.gov after June 30 2026
+    # Try new endpoint first, fall back to old
+    for base_url in ["https://lda.gov/api/v1/filings/", "https://lda.senate.gov/api/v1/filings/"]:
+        try:
+            # FIXED: use client_name (entity as the client hiring lobbyists)
+            # also try a shorter name match for robustness
+            short_name = entity_name.split()[0] if " " in entity_name else entity_name
+            resp = requests.get(base_url,
+                                params={"client_name": entity_name, "page_size": 15},
+                                timeout=20)
+            if not resp.ok:
+                # Try with short name
+                resp = requests.get(base_url,
+                                    params={"client_name": short_name, "page_size": 15},
+                                    timeout=20)
+            if resp.ok:
+                data = resp.json()
+                result["total_count"] = data.get("count", 0)
+                issue_set = set()
+                firm_counts = {}
+                for f in data.get("results", []):
+                    registrant_name = (f.get("registrant") or {}).get("name", "")
+                    client_name_val = (f.get("client") or {}).get("name", "")
+                    activities = f.get("lobbying_activities") or []
+                    issues = [a.get("general_issue_code_display", "") for a in activities if a.get("general_issue_code_display")]
+                    issue_set.update(issues)
+                    income = f.get("income") or f.get("expenses") or 0
+                    filing = {
+                        "uuid": f.get("filing_uuid"),
+                        "registrant": registrant_name,
+                        "client": client_name_val,
+                        "year": f.get("filing_year"),
+                        "period": f.get("filing_period"),
+                        "income": income,
+                        "issues": issues[:3],
+                    }
+                    result["filings"].append(filing)
+                    if registrant_name:
+                        firm_counts[registrant_name] = firm_counts.get(registrant_name, 0) + 1
+                result["issue_areas"] = sorted(issue_set)[:12]
+                result["top_firms"] = sorted(firm_counts.items(), key=lambda x: -x[1])[:5]
+                if result["filings"]:
+                    break  # success — don't try second URL
+        except Exception as e:
+            result["error"] = str(e)
+            continue
+    return result
+
+
+# ── Enhanced GPT-4o narrative (deeper: company + parties + investors) ─────────
+
+def _generate_narrative(entity_name: str, sections: List[Dict],
+                         wiki_data: Dict = None, funded_data: Dict = None) -> str:
     api_key = os.getenv("OPENAI_API_KEY", "")
     if not api_key:
         return "[AI narrative unavailable — OPENAI_API_KEY not configured]"
 
-    # Build a concise structured prompt from the evidence
-    evidence_text = []
+    # Build rich evidence context from all sections + enrichment
+    parts = []
+
+    # Wikipedia background
+    if wiki_data and wiki_data.get("summary"):
+        parts.append(f"\n## Public Background\n{wiki_data['summary']}")
+
+    # FundedAPI investor context
+    if funded_data and funded_data.get("rounds"):
+        parts.append("\n## Funding Rounds (Public Data)")
+        for r in funded_data["rounds"][:3]:
+            parts.append(f"- {r.get('round','')} | ${float(r.get('amount') or 0):,.0f} | {r.get('date','')}")
+
+    # All evidence sections
     for s in sections:
-        if s.get("claims"):
-            evidence_text.append(f"\n## {s['name']}")
-            for c in s["claims"][:5]:
-                evidence_text.append(f"- [{c['confidence']}] {c['text']}")
+        claims = s.get("claims", [])
+        if not claims:
+            continue
+        parts.append(f"\n## {s['name']}")
+        for c in claims[:8]:
+            txt = c.get("text", "")
+            conf = c.get("confidence", "")
+            src = c.get("source", "")
+            parts.append(f"- [{conf}] {txt[:200]}")
 
-    prompt = f"""You are an intelligence analyst writing a professional cited dossier.
-Entity under analysis: {entity_name}
+    evidence_block = "\n".join(parts)
 
-Evidence gathered from public records:
-{''.join(evidence_text)}
+    prompt = f"""You are a senior intelligence analyst producing a professional Entity Network Intelligence Report — similar in depth and style to a geopolitical investment dossier.
 
-Write a concise 3-4 paragraph executive narrative for an intelligence dossier on {entity_name}.
-- Reference only the evidence provided above
-- Tag each factual claim as [DOCUMENTED], [REPORTED], or [ANALYTICAL]
-- Focus on: ownership/investors, government relationships, risk flags, network significance
-- Use formal intelligence report language (no speculation beyond evidence)
-- Do not add facts not present in the evidence above"""
+ENTITY UNDER ANALYSIS: {entity_name}
+
+EVIDENCE FROM PUBLIC RECORDS:
+{evidence_block}
+
+REQUIRED OUTPUT — write a deep intelligence narrative with the following structure:
+
+### 1. Company / Entity Overview
+Describe what {entity_name} is, its business model, founding story, market position, and strategic significance. Use the background section above.
+
+### 2. Key People & Involved Parties
+Identify the key individuals — founders, executives, board members, and major figures — and their roles. Note any cross-entity roles (board seats at other companies, political positions, fund partnerships).
+
+### 3. Investor Network & Capital Structure
+Analyze the investor ecosystem around {entity_name}. Who are the key investors, what funds are involved, what does the ownership/capital structure signal about strategic direction? Note any sovereign wealth funds, defense-sector VCs, or politically connected capital.
+
+### 4. Government & Regulatory Exposure
+Analyze the federal contract footprint, lobbying strategy (which issues, which firms were hired), and any foreign agent registrations. What does the regulatory posture reveal about business strategy?
+
+### 5. Risk Flags & Strategic Assessment
+Synthesize the risk profile: sanctions exposure, litigation, political vulnerabilities, concentration risks, cross-border exposure.
+
+RULES:
+- Tag every factual claim: [DOCUMENTED] (primary source), [REPORTED] (press/secondary), or [ANALYTICAL] (your inference)
+- Do NOT invent facts not present in the evidence above
+- Write at the depth of a professional intelligence dossier — 5-7 substantial paragraphs minimum
+- Use formal, precise intelligence report language
+- Be specific about amounts, dates, agency names where present in evidence"""
 
     try:
         resp = requests.post(
@@ -294,13 +473,13 @@ Write a concise 3-4 paragraph executive narrative for an intelligence dossier on
             json={
                 "model": "gpt-4o-mini",
                 "messages": [
-                    {"role": "system", "content": "You are an expert financial and geopolitical intelligence analyst producing evidence-first dossiers."},
+                    {"role": "system", "content": "You are a senior intelligence analyst at a professional intelligence research firm. You write deep, evidence-first dossiers at the level of Jane's Intelligence Review or Kroll/Mintz analytical reports. You are thorough, precise, and analytical."},
                     {"role": "user", "content": prompt}
                 ],
-                "temperature": 0.1,
-                "max_tokens": 800,
+                "temperature": 0.15,
+                "max_tokens": 2000,
             },
-            timeout=45,
+            timeout=60,
         )
         if resp.ok:
             return resp.json()["choices"][0]["message"]["content"]
@@ -309,50 +488,49 @@ Write a concise 3-4 paragraph executive narrative for an intelligence dossier on
         return f"[GPT narrative error: {str(e)}]"
 
 
-# ── Thiel demo seed data ───────────────────────────────────────────────────────
+# ── PayPal Mafia / Thiel demo seed data ───────────────────────────────────────
 
-THIEL_NETWORK = {
-    "Palantir Technologies": {"ticker": "PLTR", "type": "org", "note": "Defense AI flagship; Thiel co-founder"},
-    "Anduril Industries":    {"ticker": None,   "type": "org", "note": "Defense tech; Palmer Luckey; Founders Fund"},
-    "Founders Fund":         {"ticker": None,   "type": "fund","note": "Peter Thiel VC fund"},
-    "HawkEye 360":           {"ticker": None,   "type": "org", "note": "RF satellite intelligence; Ghisallo/Founders Fund"},
-    "Erebor Bank":           {"ticker": None,   "type": "org", "note": "OCC national charter; Luckey/Thiel orbit"},
-    "Redwire Corporation":   {"ticker": "RDW",  "type": "org", "note": "Space/defense manufacturing"},
+DEMO_SEEDS = {
+    # PayPal Mafia
+    "Peter Thiel":           {"ticker": "",     "type": "person", "group": "paypal_mafia"},
+    "Elon Musk":             {"ticker": "TSLA", "type": "person", "group": "paypal_mafia"},
+    "Reid Hoffman":          {"ticker": "",     "type": "person", "group": "paypal_mafia"},
+    "Max Levchin":           {"ticker": "AFRM", "type": "person", "group": "paypal_mafia"},
+    "David Sacks":           {"ticker": "",     "type": "person", "group": "paypal_mafia"},
+    # Thiel / Defense / AI portfolio
+    "Palantir Technologies": {"ticker": "PLTR", "type": "org",    "group": "thiel_portfolio"},
+    "Anduril Industries":    {"ticker": "",     "type": "org",    "group": "thiel_portfolio"},
+    "Founders Fund":         {"ticker": "",     "type": "fund",   "group": "thiel_portfolio"},
+    "HawkEye 360":           {"ticker": "",     "type": "org",    "group": "thiel_portfolio"},
+    "Redwire Corporation":   {"ticker": "RDW",  "type": "org",    "group": "thiel_portfolio"},
 }
 
 
-# ── Main orchestrator ─────────────────────────────────────────────────────────
+# ── Main orchestrator (v1.1) ──────────────────────────────────────────────────
 
 def generate_intelligence_report(db: Session, entity_name: str, entity_type: str = "org",
                                   ticker: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Full Layer 1 Entity Network Intelligence Report pipeline:
-    1. Resolve/create entity in DB
-    2. Run all federal connectors for this entity
-    3. Write relationships + evidence into graph tables
-    4. Assemble 7-section report JSON
-    5. Generate GPT-4o cited narrative
-    6. Persist report + sections to DB
-    7. Return full report JSON
-    """
     started = _now()
 
-    # 1. Ensure entity exists
+    # 1. Resolve/create entity in DB
     entity_id = _upsert_entity(db, entity_name, entity_type)
 
-    # 2. Run connectors
+    # 2. Run all connectors (existing + new enrichment)
     sec_data      = _fetch_sec(entity_name, ticker)
     fec_data      = _fetch_fec(entity_name)
     fara_data     = _fetch_fara(entity_name)
     spending_data = _fetch_usaspending(entity_name)
-    lda_data      = _fetch_lda(entity_name)
+    lda_data      = _fetch_lda(entity_name)            # FIXED: client_name + lda.gov
     ofac_data     = _fetch_ofac(entity_name)
     court_data    = _fetch_courts(entity_name)
+    wiki_data     = _fetch_wikipedia(entity_name)      # NEW: company background
+    funded_data   = _fetch_funded_api(entity_name)     # NEW: investor/funding data
+    investor_data = _fetch_sec_investors(               # NEW: SEC 13G/13D/Form D
+                        entity_name, sec_data.get("cik"))
 
     # 3. Write relationships into graph
     relationships_created = []
 
-    # SEC CIK identifier
     if sec_data.get("cik"):
         try:
             existing = db.execute(
@@ -366,173 +544,213 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
         except Exception:
             db.rollback()
 
-    # USASpending — awarded_to relationships (entity → federal agency)
     for award in spending_data.get("awards", []):
         agency_name = award.get("agency") or "Unknown Agency"
         if agency_name and award.get("amount"):
             agency_id = _upsert_entity(db, agency_name, "agency")
-            rel_id = _upsert_rel(db, entity_id, agency_id, "awarded_contract")
-            relationships_created.append({
-                "kind": "awarded_contract",
-                "entity": agency_name,
-                "amount": award.get("amount"),
-                "description": award.get("description"),
-            })
+            _upsert_rel(db, entity_id, agency_id, "awarded_contract")
+            relationships_created.append({"kind": "awarded_contract", "entity": agency_name,
+                                          "amount": award.get("amount")})
 
-    # FEC — political committee relationships
     for committee in fec_data.get("committees", []):
         if committee.get("name"):
             pac_id = _upsert_entity(db, committee["name"], "pac")
-            rel_id = _upsert_rel(db, entity_id, pac_id, "affiliated_pac")
-            relationships_created.append({
-                "kind": "affiliated_pac",
-                "entity": committee["name"],
-                "type": committee.get("type"),
-            })
+            _upsert_rel(db, entity_id, pac_id, "affiliated_pac")
+            relationships_created.append({"kind": "affiliated_pac", "entity": committee["name"]})
 
-    # FARA — foreign agent relationships
     for reg in fara_data.get("registrants", []):
         if reg.get("name"):
             fa_id = _upsert_entity(db, reg["name"], "org")
-            rel_id = _upsert_rel(db, entity_id, fa_id, "fara_registrant")
-            relationships_created.append({
-                "kind": "fara_registrant",
-                "entity": reg["name"],
-                "country": reg.get("country"),
-            })
+            _upsert_rel(db, entity_id, fa_id, "fara_registrant")
+            relationships_created.append({"kind": "fara_registrant", "entity": reg["name"]})
 
-    # 4. Assemble 7 report sections
+    # Lobbying firms as relationships
+    for firm_name, count in lda_data.get("top_firms", []):
+        if firm_name:
+            firm_id = _upsert_entity(db, firm_name, "org")
+            _upsert_rel(db, firm_id, entity_id, "lobbies_for")
+            relationships_created.append({"kind": "lobbies_for", "entity": firm_name, "filings": count})
+
+    # 4. Assemble 9 report sections (expanded from 7)
     sections = []
 
-    # Section 1: Entity Profile
+    # ── Section 1: Entity Profile ─────────────────────────────────────────────
     sec1_claims = []
+    if wiki_data.get("summary"):
+        sec1_claims.append({"text": wiki_data["summary"][:600],
+                            "confidence": "DOCUMENTED", "source": "Wikipedia"})
     if sec_data.get("cik"):
-        sec1_claims.append({"text": f"{entity_name} is registered with the SEC under CIK {sec_data['cik']}.",
-                            "confidence": "DOCUMENTED", "source": "SEC EDGAR"})
-    if sec_data.get("sic_desc"):
-        sec1_claims.append({"text": f"SIC classification: {sec_data['sic_desc']} (code {sec_data.get('sic')}).",
+        sec1_claims.append({"text": f"SEC CIK: {sec_data['cik']}. SIC: {sec_data.get('sic_desc','')} ({sec_data.get('sic','')}).",
                             "confidence": "DOCUMENTED", "source": "SEC EDGAR"})
     if sec_data.get("state_of_inc"):
-        sec1_claims.append({"text": f"State of incorporation: {sec_data['state_of_inc']}.",
-                            "confidence": "DOCUMENTED", "source": "SEC EDGAR"})
-    if sec_data.get("exchanges"):
-        sec1_claims.append({"text": f"Listed on: {', '.join(sec_data['exchanges'])}.",
+        sec1_claims.append({"text": f"Incorporated in {sec_data['state_of_inc']}; listed on {', '.join(sec_data.get('exchanges',[]))}.",
                             "confidence": "DOCUMENTED", "source": "SEC EDGAR"})
     sections.append({"name": "Entity Profile", "order": 1, "claims": sec1_claims,
-                     "data": {"cik": sec_data.get("cik"), "company": sec_data.get("company_name")}})
+                     "data": {"cik": sec_data.get("cik"), "company": sec_data.get("company_name"),
+                              "wiki_url": wiki_data.get("url",""), "sic": sec_data.get("sic_desc","")}})
 
-    # Section 2: SEC Filings (ownership / holding indicators)
+    # ── Section 2: Investors & Capital Structure ──────────────────────────────
     sec2_claims = []
+    # SEC 13G/13D institutional ownership
+    for f in investor_data.get("ownership_filings", [])[:6]:
+        sec2_claims.append({"text": f"SEC 13G/13D filing associated: {f.get('entity')} — form {f.get('form')} filed {f.get('filed','unknown')} (related filing in EDGAR).",
+                            "confidence": "DOCUMENTED", "source": "SEC EDGAR (SC 13G/13D)"})
+    if investor_data.get("institutional_notes"):
+        sec2_claims.append({"text": investor_data["institutional_notes"],
+                            "confidence": "DOCUMENTED", "source": "SEC EDGAR"})
+    # FundedAPI rounds
+    for r in funded_data.get("rounds", []):
+        if r.get("amount"):
+            investors_str = ", ".join(r.get("investors", [])[:4]) or "undisclosed"
+            sec2_claims.append({"text": f"Funding round: {r.get('round','')} — ${float(r.get('amount',0)):,.0f} ({r.get('date','')}). Investors: {investors_str}.",
+                                "confidence": "REPORTED", "source": "FundedAPI (public)"})
+    # Form D private placements
+    for f in investor_data.get("form_d_filings", [])[:3]:
+        sec2_claims.append({"text": f"SEC Form D (private placement): {f.get('entity')} filed {f.get('filed','unknown')}.",
+                            "confidence": "DOCUMENTED", "source": "SEC EDGAR (Form D)"})
+    # SEC filings as ownership indicators
     forms_seen = {}
     for f in sec_data.get("filings", []):
-        form = f.get("form", "")
+        form = f.get("form","")
         if form and form not in forms_seen:
             forms_seen[form] = f.get("date")
-    for form, date in list(forms_seen.items())[:8]:
-        sec2_claims.append({"text": f"Filed {form} on {date}.",
+    for form, date in list(forms_seen.items())[:6]:
+        sec2_claims.append({"text": f"SEC filing: {form} ({date}).",
                             "confidence": "DOCUMENTED", "source": "SEC EDGAR"})
-    sections.append({"name": "SEC Filings & Ownership Indicators", "order": 2,
-                     "claims": sec2_claims, "data": {"filing_types": list(forms_seen.keys())}})
+    if not sec2_claims:
+        sec2_claims.append({"text": "No institutional ownership or funding round data found via public sources.",
+                            "confidence": "DOCUMENTED", "source": "SEC/FundedAPI"})
+    sections.append({"name": "Investors & Capital Structure", "order": 2,
+                     "claims": sec2_claims,
+                     "data": {"institutional_filings": len(investor_data.get("ownership_filings",[])),
+                              "funding_rounds": len(funded_data.get("rounds",[])),
+                              "total_raised": funded_data.get("total_raised", 0)}})
 
-    # Section 3: Government Contracts
+    # ── Section 3: Government Contracts & Procurement ─────────────────────────
     sec3_claims = []
     for a in spending_data.get("awards", []):
         amt = a.get("amount", 0)
-        sec3_claims.append({
-            "text": f"Received ${float(amt):,.0f} federal contract from {a.get('agency')} ({a.get('type')}){(' — ' + a['description'][:80]) if a.get('description') else ''}.",
-            "confidence": "DOCUMENTED", "source": "USASpending.gov"
-        })
-    if not sec3_claims:
-        sec3_claims.append({"text": "No direct federal contract awards found in USASpending database for this entity name.",
+        sec3_claims.append({"text": f"${float(amt):,.0f} federal contract from {a.get('agency')} ({a.get('type')}){(' — ' + a['description'][:80]) if a.get('description') else ''}.",
                             "confidence": "DOCUMENTED", "source": "USASpending.gov"})
-    total = spending_data.get("total_obligated", 0)
+    if not sec3_claims:
+        sec3_claims.append({"text": "No direct federal contract awards found.",
+                            "confidence": "DOCUMENTED", "source": "USASpending.gov"})
     sections.append({"name": "Government Contracts & Procurement", "order": 3,
                      "claims": sec3_claims,
-                     "data": {"total_obligated_usd": total, "award_count": len(spending_data.get("awards", []))}})
+                     "data": {"total_obligated_usd": spending_data.get("total_obligated",0),
+                              "award_count": len(spending_data.get("awards",[]))}})
 
-    # Section 4: Political & Regulatory Exposure
+    # ── Section 4: Lobbying Activity (FIXED) ──────────────────────────────────
     sec4_claims = []
-    for c in fec_data.get("committees", []):
-        sec4_claims.append({"text": f"Affiliated political committee: {c['name']} ({c.get('type','')}, {c.get('state','')}).",
-                            "confidence": "DOCUMENTED", "source": "FEC OpenData"})
-    for f in lda_data.get("filings", []):
-        income = f.get("income") or 0
-        sec4_claims.append({"text": f"Lobbying filing ({f.get('period')} {f.get('year')}): registrant {f.get('registrant')}, client {f.get('client')}, income ${float(income):,.0f}.",
+    if lda_data.get("total_count", 0) > 0:
+        sec4_claims.append({"text": f"{entity_name} has {lda_data['total_count']} lobbying filings on record as a client (LDA database).",
+                            "confidence": "DOCUMENTED", "source": "LDA Senate / lda.gov"})
+    if lda_data.get("issue_areas"):
+        sec4_claims.append({"text": f"Lobbying issue areas covered: {', '.join(lda_data['issue_areas'][:10])}.",
                             "confidence": "DOCUMENTED", "source": "LDA Senate"})
-    for r in fara_data.get("registrants", []):
-        sec4_claims.append({"text": f"FARA registration #{r.get('reg_num')}: {r['name']} (foreign country: {r.get('country','unknown')}).",
-                            "confidence": "DOCUMENTED", "source": "FARA DOJ"})
+    for firm, count in lda_data.get("top_firms", [])[:5]:
+        sec4_claims.append({"text": f"Lobbying firm: {firm} — {count} filing(s) on behalf of {entity_name}.",
+                            "confidence": "DOCUMENTED", "source": "LDA Senate"})
+    for f in lda_data.get("filings", [])[:6]:
+        income = f.get("income") or 0
+        issues_str = ", ".join(f.get("issues",[]))
+        sec4_claims.append({"text": f"{f.get('registrant','')} lobbied for {f.get('client','')} ({f.get('period','')} {f.get('year','')}) — ${float(income):,.0f} income. Issues: {issues_str}.",
+                            "confidence": "DOCUMENTED", "source": "LDA Senate"})
     if not sec4_claims:
-        sec4_claims.append({"text": "No FEC committee, lobbying, or FARA registrations found for this entity.",
-                            "confidence": "DOCUMENTED", "source": "FEC/LDA/FARA"})
-    sections.append({"name": "Political & Regulatory Exposure", "order": 4,
-                     "claims": sec4_claims, "data": {}})
+        sec4_claims.append({"text": "No lobbying filings found as client in LDA database.",
+                            "confidence": "DOCUMENTED", "source": "LDA Senate"})
+    sections.append({"name": "Lobbying Activity", "order": 4,
+                     "claims": sec4_claims,
+                     "data": {"total_lobbying_filings": lda_data.get("total_count",0),
+                              "issue_areas": lda_data.get("issue_areas",[]),
+                              "lobbying_firms": len(lda_data.get("top_firms",[]))}})
 
-    # Section 5: Sanctions & Compliance
+    # ── Section 5: Political & Foreign Exposure ───────────────────────────────
     sec5_claims = []
+    for c in fec_data.get("committees", []):
+        sec5_claims.append({"text": f"FEC political committee: {c['name']} ({c.get('type','')}, {c.get('state','')}).",
+                            "confidence": "DOCUMENTED", "source": "FEC OpenData"})
+    for r in fara_data.get("registrants", []):
+        sec5_claims.append({"text": f"FARA registration #{r.get('reg_num')}: {r['name']} (foreign country: {r.get('country','unknown')}).",
+                            "confidence": "DOCUMENTED", "source": "FARA DOJ"})
+    if not sec5_claims:
+        sec5_claims.append({"text": "No FEC committees or FARA registrations found.",
+                            "confidence": "DOCUMENTED", "source": "FEC/FARA"})
+    sections.append({"name": "Political & Foreign Exposure", "order": 5,
+                     "claims": sec5_claims, "data": {}})
+
+    # ── Section 6: Sanctions & Compliance ────────────────────────────────────
+    sec6_claims = []
     if ofac_data.get("is_sanctioned"):
-        sec5_claims.append({"text": f"ALERT: Entity name matches {len(ofac_data['hits'])} OFAC/OpenSanctions record(s).",
+        sec6_claims.append({"text": f"ALERT: {len(ofac_data['hits'])} OFAC/OpenSanctions record(s) match this entity name.",
                             "confidence": "DOCUMENTED", "source": "OFAC/OpenSanctions"})
         for h in ofac_data.get("hits", []):
-            sec5_claims.append({"text": f"Sanctions hit: {h.get('name')} — datasets: {', '.join(h.get('datasets',[]))}.",
+            sec6_claims.append({"text": f"Match: {h.get('name')} — datasets: {', '.join(h.get('datasets',[]))}.",
                                "confidence": "DOCUMENTED", "source": "OpenSanctions"})
     else:
-        sec5_claims.append({"text": "No OFAC sanctions or OpenSanctions matches found for this entity.",
+        sec6_claims.append({"text": "No OFAC sanctions or OpenSanctions matches found.",
                             "confidence": "DOCUMENTED", "source": "OFAC/OpenSanctions"})
-    sections.append({"name": "Sanctions & Compliance Check", "order": 5,
-                     "claims": sec5_claims, "data": {"sanctioned": ofac_data.get("is_sanctioned", False)}})
+    sections.append({"name": "Sanctions & Compliance", "order": 6,
+                     "claims": sec6_claims,
+                     "data": {"sanctioned": ofac_data.get("is_sanctioned", False)}})
 
-    # Section 6: Litigation & Legal Exposure
-    sec6_claims = []
+    # ── Section 7: Litigation & Legal ────────────────────────────────────────
+    sec7_claims = []
     for c in court_data.get("cases", []):
-        sec6_claims.append({"text": f"Court docket: {c.get('case_name')} ({c.get('court')}, filed {c.get('date_filed')}) — {c.get('cause','no cause listed')}.",
+        sec7_claims.append({"text": f"{c.get('case_name')} ({c.get('court')}, filed {c.get('date_filed')}) — {c.get('cause','no cause listed')}.",
                             "confidence": "REPORTED", "source": "CourtListener"})
-    if not sec6_claims:
-        sec6_claims.append({"text": "No federal court dockets found via CourtListener for this entity.",
+    if not sec7_claims:
+        sec7_claims.append({"text": "No federal court dockets found via CourtListener.",
                             "confidence": "DOCUMENTED", "source": "CourtListener"})
-    sections.append({"name": "Litigation & Legal Exposure", "order": 6,
-                     "claims": sec6_claims, "data": {"case_count": len(court_data.get("cases", []))}})
+    sections.append({"name": "Litigation & Legal Exposure", "order": 7,
+                     "claims": sec7_claims,
+                     "data": {"case_count": len(court_data.get("cases", []))}})
 
-    # Section 7: AI Narrative (generated last, grounded in sections 1–6)
-    narrative_text = _generate_narrative(entity_name, sections)
-    sections.append({"name": "Intelligence Narrative (AI-Generated)", "order": 7,
+    # ── Section 8: Data Sources & Alternatives Reference ─────────────────────
+    sec8_claims = [
+        {"text": "Wikipedia: free company background via REST API (no key).",
+         "confidence": "DOCUMENTED", "source": "Wikipedia REST API"},
+        {"text": "FundedAPI: free startup/investor data — 60 req/hr anonymous, 100/day free tier.",
+         "confidence": "DOCUMENTED", "source": "fundedapi.com"},
+        {"text": "SEC EDGAR: SC 13G/13D (institutional ownership), Form D (private placements), company submissions — all free with User-Agent.",
+         "confidence": "DOCUMENTED", "source": "SEC EDGAR"},
+        {"text": "LDA.gov (new): lobbying disclosures by client_name — migrating from lda.senate.gov after Jun 30 2026.",
+         "confidence": "DOCUMENTED", "source": "lda.gov"},
+        {"text": "PitchBook alternative evaluated: FundedAPI (free), AIFunding.me (free AI-sector). PitchBook requires paid key from James.",
+         "confidence": "ANALYTICAL", "source": "Internal evaluation"},
+        {"text": "LinkedIn/people data: Proxycurl shut down (lawsuit). Alternatives: People Data Labs (100 free/mo), NinjaPear (post-Proxycurl). Integration pending James approval.",
+         "confidence": "ANALYTICAL", "source": "Internal evaluation"},
+    ]
+    sections.append({"name": "Data Sources & Enrichment Notes", "order": 8,
+                     "claims": sec8_claims, "data": {}})
+
+    # ── Section 9: AI Narrative (ENHANCED — company, parties, investors) ──────
+    narrative_text = _generate_narrative(entity_name, sections[:7], wiki_data, funded_data)
+    sections.append({"name": "Deep Intelligence Narrative (AI-Generated)", "order": 9,
                      "claims": [{"text": narrative_text, "confidence": "ANALYTICAL",
-                                 "source": "GPT-4o (grounded in cited evidence above)"}],
-                     "data": {"model": "gpt-4o-mini", "grounded": True}})
+                                 "source": "GPT-4o-mini (grounded in cited evidence, 5-section format)"}],
+                     "data": {"model": "gpt-4o-mini", "sections": 5, "depth": "enhanced"}})
 
     # 5. Persist report to DB
+    report_id = None
     try:
-        db.execute(text("""
-            INSERT INTO reports (title, kind, status, meta)
-            VALUES (:t, :k, 'published', :m)
-        """), {
-            "t": f"Layer 1 Intelligence Report: {entity_name}",
-            "k": INTELLIGENCE_KIND,
-            "m": None,
-        })
+        db.execute(text("INSERT INTO reports (title, kind, status) VALUES (:t, :k, 'published')"),
+                   {"t": f"Layer 1 Intelligence Report: {entity_name}", "k": INTELLIGENCE_KIND})
         db.flush()
         row = db.execute(
             text("SELECT id FROM reports WHERE kind=:k ORDER BY id DESC LIMIT 1"),
             {"k": INTELLIGENCE_KIND}).fetchone()
         report_id = row[0]
-
         for s in sections:
             content = "\n".join([c["text"] for c in s.get("claims", [])])
-            db.execute(text("""
-                INSERT INTO report_sections (report_id, name, content, "order")
-                VALUES (:r, :n, :c, :o)
-            """), {"r": report_id, "n": s["name"], "c": content, "o": s["order"]})
-
+            db.execute(text('INSERT INTO report_sections (report_id, name, content, "order") VALUES (:r,:n,:c,:o)'),
+                       {"r": report_id, "n": s["name"], "c": content, "o": s["order"]})
             for claim in s.get("claims", []):
-                db.execute(text("""
-                    INSERT INTO claims (report_id, text, status)
-                    VALUES (:r, :t, 'verified')
-                """), {"r": report_id, "t": f"[{claim['confidence']}] {claim['text'][:499]}"})
-
+                db.execute(text("INSERT INTO claims (report_id, text, status) VALUES (:r,:t,'verified')"),
+                           {"r": report_id, "t": f"[{claim['confidence']}] {claim['text'][:499]}"})
         db.commit()
-    except Exception as e:
+    except Exception:
         db.rollback()
-        report_id = None
 
     return {
         "report_id": report_id,
@@ -543,17 +761,25 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
         "generated_at": started,
         "sections": sections,
         "relationships_created": relationships_created,
+        "data_sources": {
+            "wikipedia": bool(wiki_data.get("summary")),
+            "funded_api": bool(funded_data.get("rounds")),
+            "sec_investors": len(investor_data.get("ownership_filings",[])),
+            "lda_fixed": "client_name + lda.gov",
+        },
         "summary": {
             "sec_cik": sec_data.get("cik"),
             "sec_filings": len(sec_data.get("filings", [])),
             "contracts_found": len(spending_data.get("awards", [])),
             "total_obligated_usd": spending_data.get("total_obligated", 0),
+            "lobbying_filings": lda_data.get("total_count", 0),
+            "lobbying_firms": len(lda_data.get("top_firms", [])),
             "fec_committees": len(fec_data.get("committees", [])),
-            "lobbying_filings": len(lda_data.get("filings", [])),
             "fara_registrations": len(fara_data.get("registrants", [])),
             "sanctions_hits": len(ofac_data.get("hits", [])),
             "court_cases": len(court_data.get("cases", [])),
             "relationships_written": len(relationships_created),
+            "investor_filings": len(investor_data.get("ownership_filings",[])),
         }
     }
 

@@ -3,14 +3,28 @@ import { getApiBaseUrl } from '../lib/api'
 import styles from '../src/styles/Page.module.css'
 import iStyles from '../src/styles/Intelligence.module.css'
 
-const DEMO_SEEDS = [
-  { label: 'Palantir Technologies', entity: 'Palantir Technologies', ticker: 'PLTR', type: 'org' },
-  { label: 'Anduril Industries',    entity: 'Anduril Industries',    ticker: '',      type: 'org' },
-  { label: 'Peter Thiel',           entity: 'Peter Thiel',           ticker: '',      type: 'person' },
-  { label: 'Founders Fund',         entity: 'Founders Fund',         ticker: '',      type: 'fund' },
-  { label: 'HawkEye 360',           entity: 'HawkEye 360',           ticker: '',      type: 'org' },
-  { label: 'Redwire Corporation',   entity: 'Redwire Corporation',   ticker: 'RDW',   type: 'org' },
-]
+const DEMO_SEEDS = {
+  paypal_mafia: {
+    label: '🕶 PayPal Mafia',
+    seeds: [
+      { label: 'Peter Thiel',     entity: 'Peter Thiel',     ticker: '',      type: 'person' },
+      { label: 'Elon Musk',       entity: 'Elon Musk',       ticker: 'TSLA',  type: 'person' },
+      { label: 'Reid Hoffman',    entity: 'Reid Hoffman',    ticker: '',      type: 'person' },
+      { label: 'Max Levchin',     entity: 'Max Levchin',     ticker: 'AFRM',  type: 'person' },
+      { label: 'David Sacks',     entity: 'David Sacks',     ticker: '',      type: 'person' },
+    ],
+  },
+  thiel_portfolio: {
+    label: '🛡 Thiel / AI / Defense',
+    seeds: [
+      { label: 'Palantir Technologies', entity: 'Palantir Technologies', ticker: 'PLTR', type: 'org' },
+      { label: 'Anduril Industries',    entity: 'Anduril Industries',    ticker: '',      type: 'org' },
+      { label: 'Founders Fund',         entity: 'Founders Fund',         ticker: '',      type: 'fund' },
+      { label: 'HawkEye 360',           entity: 'HawkEye 360',           ticker: '',      type: 'org' },
+      { label: 'Redwire Corporation',   entity: 'Redwire Corporation',   ticker: 'RDW',   type: 'org' },
+    ],
+  },
+}
 
 const CONFIDENCE_COLOR = {
   DOCUMENTED: '#4ade80',
@@ -43,9 +57,9 @@ function ClaimRow({ text }) {
 }
 
 function Section({ section, idx }) {
-  const [open, setOpen] = useState(idx < 3)
+  const [open, setOpen] = useState(idx < 4)
   const claims = section.claims || []
-  const isNarrative = section.order === 7 || section.name.toLowerCase().includes('narrative')
+  const isNarrative = section.order >= 9 || section.name.toLowerCase().includes('narrative')
   return (
     <div className={iStyles.section}>
       <button className={iStyles.sectionHeader} onClick={() => setOpen(o => !o)}>
@@ -87,16 +101,18 @@ function Section({ section, idx }) {
 function SummaryBar({ summary }) {
   if (!summary) return null
   const items = [
-    { label: 'SEC CIK',      value: summary.sec_cik || '—' },
-    { label: 'SEC Filings',  value: summary.sec_filings },
-    { label: 'Contracts',    value: summary.contracts_found },
-    { label: 'Obligated',    value: summary.total_obligated_usd ? `$${(summary.total_obligated_usd/1e6).toFixed(1)}M` : '$0' },
-    { label: 'FEC PACs',     value: summary.fec_committees },
-    { label: 'Lobbying',     value: summary.lobbying_filings },
-    { label: 'FARA',         value: summary.fara_registrations },
-    { label: 'OFAC Hits',    value: summary.sanctions_hits },
-    { label: 'Court Cases',  value: summary.court_cases },
-    { label: 'Graph Edges',  value: summary.relationships_written },
+    { label: 'SEC CIK',          value: summary.sec_cik || '—' },
+    { label: 'Filings',          value: summary.sec_filings },
+    { label: 'Contracts',        value: summary.contracts_found },
+    { label: 'Obligated',        value: summary.total_obligated_usd ? `$${(summary.total_obligated_usd/1e6).toFixed(1)}M` : '$0' },
+    { label: 'Lobbying Filings', value: summary.lobbying_filings },
+    { label: 'Lobby Firms',      value: summary.lobbying_firms },
+    { label: 'Investors',        value: summary.investor_filings },
+    { label: 'FEC PACs',         value: summary.fec_committees },
+    { label: 'FARA',             value: summary.fara_registrations },
+    { label: 'OFAC Hits',        value: summary.sanctions_hits },
+    { label: 'Court Cases',      value: summary.court_cases },
+    { label: 'Graph Edges',      value: summary.relationships_written },
   ]
   return (
     <div className={iStyles.summaryBar}>
@@ -178,21 +194,24 @@ export default function IntelligencePage() {
         </p>
         <h1 style={{ margin: 0 }}>Intelligence Report Generator</h1>
         <p style={{ margin: '0.5rem 0 0', color: 'var(--text-muted)', maxWidth: 72 }}>
-          Enter any entity or person to generate a cited dossier: SEC filings, government contracts,
-          FEC, lobbying (LDA), FARA, sanctions (OFAC), litigation — plus a GPT-4o narrative grounded
-          only in the evidence retrieved.
+          Enter any entity or person to generate a deep cited dossier: SEC filings + investors,
+          government contracts, FEC, lobbying (LDA — client-side, fixed), FARA, sanctions (OFAC),
+          litigation, Wikipedia background, FundedAPI investor data — plus a 5-section GPT-4o
+          narrative grounded only in the evidence retrieved.
         </p>
       </section>
 
-      {/* Demo seeds */}
-      <div className={iStyles.seedRow}>
-        <span className={iStyles.seedLabel}>Thiel / Tech / AI / Defense demo:</span>
-        {DEMO_SEEDS.map(s => (
-          <button key={s.label} className={iStyles.seedBtn} onClick={() => useSeed(s)}>
-            {s.label}
-          </button>
-        ))}
-      </div>
+      {/* Demo seeds — grouped */}
+      {Object.values(DEMO_SEEDS).map(group => (
+        <div key={group.label} className={iStyles.seedRow}>
+          <span className={iStyles.seedLabel}>{group.label}:</span>
+          {group.seeds.map(s => (
+            <button key={s.label} className={iStyles.seedBtn} onClick={() => useSeed(s)}>
+              {s.label}
+            </button>
+          ))}
+        </div>
+      ))}
 
       <div className={styles.grid2}>
         {/* LEFT: controls + history */}
@@ -229,8 +248,8 @@ export default function IntelligencePage() {
               </div>
               {err && <p className={styles.dangerText}>{err}</p>}
               <p className={styles.subtle}>
-                Runs all federal connectors live: SEC, FEC, FARA, USASpending, LDA, OFAC, CourtListener.
-                Takes 10–30 seconds.
+                Runs 9 sections live: SEC, FEC, FARA, USASpending, LDA (client), OFAC,
+                CourtListener, Wikipedia, FundedAPI investor data. Takes 15–45 seconds.
               </p>
             </div>
           </div>
@@ -257,8 +276,10 @@ export default function IntelligencePage() {
           {!report && !loading && (
             <div className={styles.panel}>
               <p className={styles.empty}>
-                Select a demo entity above or enter any name, then click Generate.
-                The report will appear here with 7 cited sections.
+                Select a demo entity above — try the <strong>PayPal Mafia</strong> group (Peter Thiel,
+                Elon Musk, Reid Hoffman…) or the <strong>Thiel / AI / Defense</strong> group (Palantir, Anduril…).
+                Report includes 9 sections: Entity Profile, Investors, Contracts, Lobbying (fixed),
+                Political Exposure, Sanctions, Litigation, Data Sources, and a Deep AI Narrative.
               </p>
             </div>
           )}
@@ -266,8 +287,9 @@ export default function IntelligencePage() {
             <div className={styles.panel}>
               <p className={iStyles.loadingMsg}>
                 Running connectors for <strong>{entityName}</strong>...
-                <br/>SEC EDGAR — FEC — FARA — USASpending — LDA — OFAC — CourtListener
-                <br/>Generating GPT-4o narrative...
+                <br/>SEC EDGAR · FEC · FARA · USASpending · LDA (client) · OFAC · CourtListener
+                <br/>Wikipedia background · FundedAPI investor data · SEC 13G/Form D...
+                <br/>Generating deep GPT-4o intelligence narrative (5-section format)...
               </p>
             </div>
           )}
