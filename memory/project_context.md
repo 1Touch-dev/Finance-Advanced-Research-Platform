@@ -21,20 +21,20 @@ The platform provides **evidence-first** public-record intelligence, investor re
 - James Thunder Marketing (client)
 - Investors, analysts, enterprise clients
 
-## Current State (16 June 2026)
+## Current State (17 June 2026)
 
 | Phase | Status |
 |-------|--------|
 | **Phase 1 U.S. MVP** | ~95% — core platform operational on staging |
 | **Phase 2 Registry** | Complete — 51 jurisdictions, BEA, BizFile CA scrape |
-| **Phase 3 Layer 1** | **v1 shipped** — intelligence report pipeline + UI live |
+| **Phase 3 Layer 1** | **v1.1 shipped** — 9-section dossiers, LDA fix, PayPal Mafia, deep narrative |
 
 **Staging:** http://184.72.123.188:3003 · Intelligence: http://184.72.123.188:3003/intelligence
 
-**Active workstream:** Layer 1 v2 — full Thiel network, PDF export, ownership trees, officer matching
+**Active workstream:** Layer 1 v2 — multi-node PayPal Mafia graph, PDF export, PitchBook/PDL integration (pending James), ownership trees
 
 **Deferred:** CA SOS API key, Cobalt upgrade (per client direction)
 
 **Branch:** `feature/us-50-state-registry-api` · PR #2
 
-**Latest handoff:** [16th_June.md](../16th_June.md)
+**Latest handoff:** [17th_June.md](../17th_June.md)

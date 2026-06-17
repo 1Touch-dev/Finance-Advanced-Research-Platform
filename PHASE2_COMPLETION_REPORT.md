@@ -1,6 +1,8 @@
 # Phase 2 Completion Report — U.S. 50-State Registry + BEA + Licensable API
 
-> **Update (16 Jun 2026):** Phase 3 Layer 1 Entity Network Intelligence Reports shipped. See [16th_June.md](./16th_June.md) and [README.md](./README.md#phase-3--layer-1-entity-network-intelligence-reports-16-june-2026).
+> **Update (17 Jun 2026):** Phase 3 Layer 1 **v1.1** shipped — LDA fix, deep narrative, PayPal Mafia seeds, E2E verified. See [17th_June.md](./17th_June.md) and [README.md](./README.md#phase-3--layer-1-entity-network-intelligence-reports-v11--17-june-2026).
+>
+> **Update (16 Jun 2026):** Phase 3 Layer 1 Entity Network Intelligence Reports v1 shipped. See [16th_June.md](./16th_June.md).
 
 **Date:** 2026-06-11 (updated 2026-06-12 — Cobalt + CA)
 **Branch:** `feature/us-50-state-registry-api`

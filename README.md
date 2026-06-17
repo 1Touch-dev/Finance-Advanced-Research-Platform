@@ -15,7 +15,8 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 | **Daily log** | [17th_June.md](./17th_June.md) · [16th_June.md](./16th_June.md) · [15th_June.md](./15th_June.md) |
 | **E2E report** | [E2E_LIVE_VERIFICATION_REPORT.md](./E2E_LIVE_VERIFICATION_REPORT.md) — 38 FULL / 8 PARTIAL / 0 FAIL (11 Jun) |
 | **Branch** | `feature/us-50-state-registry-api` → [PR #2](https://github.com/1Touch-dev/Finance-Advanced-Research-Platform/pull/2) |
-| **Last push** | `a4ef7e7` — intelligence v1.1: LDA fix, deeper narrative, PayPal Mafia, free enrichment APIs |
+| **Last push** | `a2e834e` — v1.1 code + docs; E2E browser verified on staging |
+| **E2E (Layer 1 v1.1)** | ✅ Palantir + Peter Thiel flows pass — 9 sections, 504 lobbying filings, deep narrative |
 | **Tests** | **79 passing** (`pytest tests/ -q`) |
 | **Staging** | Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002` |
 | **Layer 1 Intelligence** | ✅ Live — 9-section dossier · `POST /intelligence/generate` · UI at `/intelligence` |
@@ -84,7 +85,8 @@ Every claim tagged **DOCUMENTED** / **REPORTED** / **ANALYTICAL**.
 | Lobbying filings | 10 ❌ (registrant_name bug) | **504** ✅ (client_name fixed) |
 | Lobbying issue areas | — | Defense · Homeland Security · Intelligence · Financial |
 | FEC | 1 PAC | 1 PAC |
-| Investor filings (13G) | — | 8 institutional filings |
+| Investor filings (13G) | — | 34 institutional filings (BlackRock, etc.) |
+| Peter Thiel (person demo) | — | ✅ Wikipedia bio, Founders Fund Form D, Palantir 13G links |
 | Wikipedia background | — | ✅ |
 | Narrative sections | 3-4 paragraphs | **5 deep sections** (Company, People, Investors, Gov, Risks) |
 | Graph edges | 11 | 13 |
@@ -102,6 +104,25 @@ Every claim tagged **DOCUMENTED** / **REPORTED** / **ANALYTICAL**.
 | **FundedAPI** | Startup funding rounds, investors | Free — 60 req/hr / 100/day |
 | **SEC EDGAR (SC 13G/13D, Form D)** | Institutional ownership + private placements | Free with User-Agent |
 | **LDA.gov** | Lobbying by client_name; replaces lda.senate.gov Jun 30 | Free |
+
+### Layer 1 code (v1.1)
+
+| File | Role |
+|------|------|
+| `apps/api/app/api/intelligence.py` | REST router — generate, list, retrieve |
+| `apps/api/app/services/intelligence_service.py` | Orchestrator + 10 connectors (SEC, FEC, FARA, USASpending, LDA, OFAC, courts, Wikipedia, FundedAPI, SEC investors) |
+| `apps/web/pages/intelligence.js` | Report generator UI — PayPal Mafia + Thiel/Defense seeds, 9-section viewer |
+| `apps/web/src/styles/Intelligence.module.css` | Intelligence page styles |
+
+### E2E verified (17 Jun 2026)
+
+| Flow | Result |
+|------|--------|
+| `/intelligence` page load + nav | ✅ |
+| PayPal Mafia seeds → Peter Thiel report | ✅ 9 sections, ~45 sec |
+| Thiel/Defense seeds → Palantir report | ✅ 504 lobbying filings, $1.72B contracts |
+| Home → Intelligence navigation | ✅ |
+| `GET /intelligence/` | ✅ 10+ reports persisted |
 
 ### Still pending (Layer 1 v2)
 
@@ -175,7 +196,7 @@ bash scripts/seed-state-registry.sh us_ny us_co  # specific states
 
 ## What it does today
 
-- **Generate Layer 1 intelligence reports** — enter entity/person → live SEC, USASpending, FEC, FARA, LDA, OFAC, CourtListener → 7-section cited dossier + GPT narrative (`/intelligence`)
+- **Generate Layer 1 intelligence reports** — enter entity/person → live Wikipedia, SEC, USASpending, FEC, FARA, LDA (client), OFAC, CourtListener, FundedAPI → **9-section** cited dossier + deep GPT narrative (`/intelligence`)
 - **Resolve & search** entities (companies, people, agencies) with aliases and identifiers
 - **Store evidence** — raw documents, hashes, and `EvidenceRef` citations
 - **Build relationship graphs** — expand, pathfind, related-party scoring; intelligence reports write edges per run
@@ -257,7 +278,8 @@ Finance-Advanced-Research-Platform/
 │   └── docker-up.ps1
 ├── docs/             # Setup, gap analysis, demo data, Phase 1 readiness
 ├── memory/           # Project context & architecture notes
-├── 16th_June.md      # Latest daily handoff (Layer 1 ship status)
+├── 17th_June.md      # Latest daily handoff (Layer 1 v1.1 — lobbying fix, PayPal Mafia, E2E)
+├── 16th_June.md      # Layer 1 v1 ship status
 ├── tests/            # API + connector tests
 ├── docker-compose.yml
 ├── SETUP.md
@@ -270,7 +292,7 @@ Finance-Advanced-Research-Platform/
 
 | Module | Prefix | Notes |
 |--------|--------|--------|
-| **Intelligence (Layer 1)** | `/intelligence` | Entity network dossiers — generate, list, retrieve |
+| **Intelligence (Layer 1)** | `/intelligence` | 9-section entity network dossiers — generate, list, retrieve; PayPal Mafia seeds |
 | Identity & workspace | `/`, `/auth`, `/orgs`, `/workspaces` | Orgs, roles, projects, cases, audit |
 | **Registry** | `/registry` | 51 jurisdictions, search, entity detail, API keys |
 | Evidence vault | `/evidence` | Raw upload, refs, file storage |
@@ -297,7 +319,7 @@ Interactive API docs (when API is running): **http://localhost:3001/docs**
 
 SEC EDGAR, FEC, LDA, FARA, Congress.gov, GovInfo, Federal Register, Regulations.gov, eCFR, RegInfo/OIRA, USAspending, SAM.gov, IRS 990, CourtListener, OFAC, OpenCorporates, GLEIF.
 
-**Layer 1 intelligence service** runs entity-specific queries against SEC, FEC, FARA, USASpending, LDA, OFAC, and CourtListener per report generation (see `apps/api/app/services/intelligence_service.py`).
+**Layer 1 intelligence service** runs entity-specific queries against Wikipedia, SEC (incl. 13G/13D/Form D), FEC, FARA, USASpending, LDA (`client_name` via lda.gov), OFAC, CourtListener, and FundedAPI per report generation (see `apps/api/app/services/intelligence_service.py`).
 
 **51 state registry connectors** + **BEA** — bulk/API/scrape tiers; CA BizFile Playwright scrape as interim free official source.
 
@@ -310,7 +332,7 @@ Source contracts (YAML) are under `packages/connectors/us/*/source_contract.yml`
 | Route | Purpose |
 |-------|---------|
 | `/` | Home + navigation cards |
-| **`/intelligence`** | **Layer 1 Entity Network Report generator** — demo seeds, 7-section cited dossier viewer |
+| **`/intelligence`** | **Layer 1 Entity Network Report generator** — PayPal Mafia + Thiel/Defense seeds, 9-section cited dossier viewer |
 | `/search` | Global search |
 | `/graph` | Graph visualization (entity ID) |
 | `/registry` | U.S. 50-state company registry search (51 jurisdictions) |
@@ -386,7 +408,7 @@ curl.exe -X POST http://127.0.0.1:3001/demo/seed
 
 Then try:
 
-- http://localhost:3000/intelligence → click **Palantir Technologies** → **Generate Intelligence Report**
+- http://localhost:3000/intelligence → click **Palantir Technologies** or **Peter Thiel** → **Generate Intelligence Report**
 - http://localhost:3000/search → query `apple`
 - http://localhost:3000/entities/1
 - http://localhost:3000/graph → entity ID `1`
@@ -459,7 +481,8 @@ Coverage is **minimal** today (health stubs + connector sample runs). See gap an
 
 | Document | Description |
 |----------|-------------|
-| [16th_June.md](./16th_June.md) | **Latest** — Layer 1 ship status, Palantir demo, pending tasks |
+| [17th_June.md](./17th_June.md) | **Latest** — v1.1 ship: LDA fix, deep narrative, PayPal Mafia, E2E results, API research |
+| [16th_June.md](./16th_June.md) | Layer 1 v1 ship status, Palantir demo, James sign-off |
 | [15th_June.md](./15th_June.md) | Phase 3 planning, 15 intelligence PDF review, BizFile |
 | [12th_June.md](./12th_June.md) | Cobalt + CA SOS registry work |
 | [PHASE2_COMPLETION_REPORT.md](./PHASE2_COMPLETION_REPORT.md) | 50-state registry completion |
@@ -473,13 +496,15 @@ Coverage is **minimal** today (health stubs + connector sample runs). See gap an
 
 ## Known limitations
 
-**Layer 1 (current)**
+**Layer 1 (v1.1 — current)**
 - No PDF export for intelligence dossiers yet (UI + JSON only)
-- Single-entity reports only — full multi-node network (Thiel ecosystem) not wired
+- Single-entity reports only — full multi-node PayPal Mafia graph not wired
+- PitchBook + LinkedIn/people enrichment pending James approval (PDL evaluated)
 - No ownership tree crawler (OpenOwnership / FinCEN BOI)
 - Officer cross-entity matching not implemented
 - Registry not yet used as intelligence report entry point
 - OFAC name matching can produce false positives (needs tuning)
+- SEC 13G search returns related filings in EDGAR full-text (not always direct holders of subject entity)
 
 **Platform (general)**
 - Claim verification and legacy review flows are basic, not full enterprise governance

@@ -6,7 +6,9 @@
 
 **Staging:** Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002`  
 **Branch:** `feature/us-50-state-registry-api` · **PR #2**  
-**Last push:** `fac8070` — README/docs updated, 79 tests passing
+**Last push:** `a2e834e` — intelligence v1.1 code + docs; E2E browser verified on staging
+
+**Status:** ✅ **SHIPPED (v1.1)** — James feedback addressed; awaiting James re-review
 
 ---
 
@@ -24,9 +26,8 @@
 | **PitchBook evaluation** | 🔲 Requires paid key from James. FundedAPI (free) integrated as alternative |
 | **LinkedIn/people** | 🔲 Proxycurl shutdown. Alternatives: PDL (100 free/mo), NinjaPear — pending James approval |
 | **CA / Cobalt** | ⏸️ Still deferred |
-| **Last push** | `a4ef7e7` — intelligence v1.1 |
-
-**Staging live:** http://184.72.123.188:3003/intelligence — E2E browser tested ✅
+| **Last push** | `a2e834e` — v1.1 code + docs; E2E browser verified |
+| **E2E (17 Jun)** | ✅ Palantir + Peter Thiel flows pass on staging browser |
 
 ---
 
@@ -75,34 +76,32 @@ Layer 1 shipped on staging. Palantir demo: SEC CIK, $1.72B contracts, 10 LDA fil
 
 ---
 
-## 4) Root cause analysis — lobbying filings issue
+## 4) Root cause analysis — lobbying filings issue ✅ RESOLVED
 
-James flagged lobbying as incorrect. Likely causes in current implementation (`intelligence_service.py` → `_fetch_lda`):
+James flagged lobbying as incorrect. Root cause and fix in `intelligence_service.py` → `_fetch_lda`:
 
-| Issue | Current behavior | Fix direction |
-|-------|------------------|---------------|
-| **Wrong LDA filter field** | Queries `registrant_name=Palantir Technologies` | Lobbying firms are **registrants**; companies are **clients**. Search by `client_name` (and aliases), not registrant |
-| **No client/registrant distinction in claims** | Claims may show wrong party as lobbyist vs client | Separate "Palantir as client" vs "firm lobbying on behalf of Palantir" |
-| **Pagination / limit** | `page_size=10` only | Paginate or filter by year; show totals and issue areas if API supports |
-| **Name matching** | Exact entity name string | Try variants: "Palantir", "Palantir Technologies Inc.", ticker-linked names |
-| **Bulk connector vs entity query** | Bulk LDA connector fetches random recent filings | Entity-specific path must use correct LDA Senate API params |
+| Issue | v1 behavior | v1.1 fix |
+|-------|-------------|----------|
+| **Wrong LDA filter field** | `registrant_name=Palantir` (63 filings — Palantir as lobbying firm) | `client_name=Palantir` (**504 filings** — firms lobbying *for* Palantir) |
+| **Client vs registrant in claims** | Mixed / wrong party shown | Claims now say "X lobbied for Palantir" with issue areas + firm breakdown |
+| **Pagination / limit** | `page_size=10` only | `page_size=15` + `total_count` from API (504) in summary |
+| **Endpoint** | `lda.senate.gov` only | `lda.gov` primary, `lda.senate.gov` fallback (Senate site decommissions Jun 30 2026) |
+| **Graph edges** | None for lobbying | `lobbies_for` edges written for top lobbying firms |
 
-**Action:** Spike LDA API with Palantir — compare staging output vs https://lda.senate.gov system of record; fix query + claim text before next James demo.
+**Verified:** Live API + staging browser — Palantir §4 shows 504 filings, Defense/Homeland Security/Intelligence issue areas, Morgan & Cunningham LLC (14 filings).
 
 ---
 
-## 5) Narrative depth — James requirements vs v1 gap
+## 5) Narrative depth — James requirements vs v1.1 delivered
 
-### What James wants in the narrative
-
-| Dimension | v1 (today) | Required (v1.1+) |
-|-----------|------------|------------------|
-| **Company research** | SEC profile + filings list | Business model, products, market position, key events, competitive context |
-| **Involved parties** | Contract agencies, PAC names | Officers, directors, board, political links, cross-entity roles |
-| **Involved investors** | Not covered | VC/PE rounds, cap table signals, fund relationships, co-investors |
-| **People network** | Not covered | Founders, alumni networks, shared board seats |
-| **Employee / education signals** | Not covered | LinkedIn-sourced roles, schools, career paths (James request) |
-| **Narrative length/depth** | ~3–4 paragraphs from claims | Multi-section analytical dossier like ARG / Asia Defense examples |
+| Dimension | v1 (16 Jun) | v1.1 (17 Jun) ✅ |
+|-----------|-------------|------------------|
+| **Company research** | SEC profile + filings list | Wikipedia REST background + SEC profile + products/market in GPT narrative |
+| **Involved parties** | Contract agencies, PAC names | §9 narrative "Key People & Involved Parties" — founders, executives, board |
+| **Involved investors** | Not covered | §2 Investors & Capital Structure — SEC 13G/13D, Form D, FundedAPI |
+| **People network** | Not covered | PayPal Mafia seeds; Peter Thiel report links Palantir + Founders Fund via SEC |
+| **Employee / education signals** | Not covered | 🔲 Pending — PDL or PitchBook (needs James approval) |
+| **Narrative length/depth** | ~3–4 paragraphs | **5-section deep dossier** — GPT max_tokens 2000, `###` headings |
 
 ### New data sources (James request)
 
@@ -145,17 +144,19 @@ James asked to use **PayPal Mafia** as the example — a **person/network-centri
 
 ---
 
-## 7) Layer 1 v1.1 — revised report sections (proposed)
+## 7) Layer 1 v1.1 — report sections (shipped)
 
-| # | Section | Sources (current + new) |
-|---|---------|------------------------|
-| 1 | Entity / Network Profile | SEC, registry, PitchBook (new) |
-| 2 | Ownership, Investors & Cap Table | SEC 13F/13D/Form D, PitchBook (new) |
-| 3 | Key People & Alumni Network | SEC officers, LinkedIn (new), FEC |
-| 4 | Government Contracts & Procurement | USASpending |
-| 5 | Lobbying & Political Exposure | **LDA (fixed)**, FEC, FARA |
-| 6 | Sanctions, Litigation & Compliance | OFAC, CourtListener |
-| 7 | **Deep Intelligence Narrative** | GPT-4o — expanded prompt, multi-section, parties + investors |
+| # | Section | Sources |
+|---|---------|---------|
+| 1 | Entity Profile | Wikipedia REST + SEC EDGAR |
+| 2 | Investors & Capital Structure | SEC SC 13G/13D, Form D, FundedAPI |
+| 3 | Government Contracts & Procurement | USASpending |
+| 4 | Lobbying Activity **(fixed)** | LDA `client_name`, lda.gov |
+| 5 | Political & Foreign Exposure | FEC, FARA |
+| 6 | Sanctions & Compliance | OFAC / OpenSanctions |
+| 7 | Litigation & Legal Exposure | CourtListener |
+| 8 | Data Sources & Enrichment Notes | API alternatives reference |
+| 9 | Deep Intelligence Narrative (AI-Generated) | GPT-4o — 5-section deep format |
 
 ---
 
@@ -202,7 +203,7 @@ James asked to use **PayPal Mafia** as the example — a **person/network-centri
 | L1.16 | LinkedIn / people enrichment | — | 🔲 **Needs James approval / vendor decision** |
 | L1.7 | Full PayPal Mafia multi-node graph report | — | 🔲 Next sprint |
 | L1.9 | PDF export matching James doc style | — | 🔲 Next sprint |
-| L1.10 | James review of v1.1 on staging | — | 🟡 Send update to James |
+| L1.10 | James review of v1.1 on staging | — | 🟡 **Ready — send update to James** |
 | Ownership trees (OpenOwnership / FinCEN BOI) | — | 🔲 |
 | Officer cross-entity matching | — | 🔲 |
 
@@ -216,7 +217,7 @@ CA SOS API · Cobalt · Type B kill chain · Type C thematic dossiers · OIDC SS
 
 | Key | Status | Notes |
 |-----|--------|-------|
-| `OPENAI_API_KEY` | ✅ Set | Narrative — needs deeper prompt v1.1 |
+| `OPENAI_API_KEY` | ✅ Set | Deep 5-section narrative (2000 tokens) |
 | 17 federal gov keys | ✅ Set | LDA fix in code, not keys |
 | `PITCHBOOK_API_KEY` | ❌ Not set | Ask James |
 | LinkedIn / enrichment | ❌ Not set | Approach TBD |
@@ -225,14 +226,65 @@ CA SOS API · Cobalt · Type B kill chain · Type C thematic dossiers · OIDC SS
 
 ---
 
-## 11) Files to change (17 Jun work)
+## 11) Files changed (17 Jun — shipped)
 
-| File | Planned change |
-|------|----------------|
-| `apps/api/app/services/intelligence_service.py` | Fix `_fetch_lda`; expand `_generate_narrative`; SEC investor fetch |
-| `apps/web/pages/intelligence.js` | PayPal Mafia demo seeds |
-| `tests/` | LDA client-name query tests |
-| `17th_June.md` | This handoff |
+| File | Change | Status |
+|------|--------|--------|
+| `apps/api/app/services/intelligence_service.py` | `_fetch_lda` fix; `_fetch_wikipedia`, `_fetch_funded_api`, `_fetch_sec_investors`; deep `_generate_narrative`; 9-section orchestrator | ✅ |
+| `apps/web/pages/intelligence.js` | PayPal Mafia + Thiel/Defense seed groups; summary bar; 9-section UI | ✅ |
+| `README.md` | v1.1 status, demo results, API alternatives | ✅ |
+| `17th_June.md` | This handoff | ✅ |
+| `SETUP.md`, `docs/REQUIREMENT_GAP_ANALYSIS.md`, `memory/*` | Cross-references updated | ✅ |
+| `tests/` | LDA client-name query tests | 🔲 Deferred |
+
+---
+
+## 12) Live E2E verification — 17 Jun (staging browser)
+
+**URL:** http://184.72.123.188:3003/intelligence
+
+### UI checks — all pass ✅
+
+| Check | Result |
+|-------|--------|
+| Page loads, nav bar works | ✅ |
+| PayPal Mafia seeds (5 people) | ✅ Thiel, Musk, Hoffman, Levchin, Sacks |
+| Thiel / AI / Defense seeds (5 orgs) | ✅ Palantir, Anduril, Founders Fund, HawkEye 360, Redwire |
+| Home → Intelligence nav link | ✅ |
+| Home Intelligence Reports card | ✅ |
+| Generate → loading state (~45 sec) | ✅ |
+| Recent Reports history | ✅ |
+
+### Palantir Technologies (PLTR) — Report #11+
+
+| Metric | Result |
+|--------|--------|
+| Sections | **9/9** ✅ |
+| Wikipedia in §1 | ✅ Founders: Thiel, Cohen, Lonsdale, Karp, Gettings |
+| §2 Investors | 13 claims — BlackRock 13G, Form D (2013/2016/2020), 34 institutional filings |
+| §3 Contracts | 10 awards — $1.72B total (DoD, DHS, VA, USDA) |
+| §4 Lobbying | **504 filings** — Defense, Homeland Security, Intelligence, Financial, Law Enforcement |
+| Lobbying firms | Morgan & Cunningham LLC (14), ATS Communications (1) |
+| §9 Narrative | 5 headings: Company · People · Investors · Gov · Risks |
+| Graph edges | 13 |
+
+### Peter Thiel (PayPal Mafia person) — Report #12
+
+| Metric | Result |
+|--------|--------|
+| Seed pre-fill | ✅ Name: Peter Thiel · Type: Person · Ticker: cleared |
+| Sections | **9/9** ✅ |
+| Wikipedia in §1 | ✅ "German-American entrepreneur... co-founder of PayPal, Palantir, Founders Fund" |
+| §2 Investors | Palantir PLTR 13G, Founders Fund VII/VI/VIII Form D |
+| §4 Lobbying | ✅ Correctly "No lobbying filings" (person, not company client) |
+| §9 Narrative | ✅ Deep 5-section format generated |
+
+### API checks — all pass ✅
+
+```
+GET  /intelligence/          → 10+ reports in DB
+POST /intelligence/generate → 200 OK (~30–45 sec)
+```
 
 ---
 
@@ -294,4 +346,4 @@ PitchBook requires his credentials. LinkedIn enrichment via PDL (free 100/mo) ca
 
 ---
 
-*End of 17 June handoff — Layer 1 v1.1 shipped; awaiting James review*
+*End of 17 June handoff — Layer 1 v1.1 shipped + E2E verified; awaiting James review*

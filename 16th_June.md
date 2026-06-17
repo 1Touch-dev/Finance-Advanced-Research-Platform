@@ -2,6 +2,8 @@
 
 **Purpose:** Daily handoff after James confirmed Phase 3 **Layer 1 Entity Network Report** scope and first demo theme. CA/Cobalt deferred; intelligence report pipeline is the active workstream.
 
+> **Follow-up (17 Jun):** James reviewed v1 and requested lobbying fix + deeper narrative + PayPal Mafia demo. **v1.1 shipped and E2E verified** — see [17th_June.md](./17th_June.md).
+
 **Prior docs:** `15th_June.md` (BizFile + all 15 PDFs reviewed) · `12th_June.md` (Cobalt + CA SOS) · `PHASE2_COMPLETION_REPORT.md`
 
 **Staging:** Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002`  

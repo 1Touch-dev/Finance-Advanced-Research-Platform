@@ -1,6 +1,17 @@
 # Platform Progress
 
-## 16 June 2026 — Phase 3 Layer 1 shipped
+## 17 June 2026 — Phase 3 Layer 1 v1.1 shipped
+
+- **James feedback addressed:** LDA lobbying fix, deeper narrative, PayPal Mafia demo
+- **LDA fix:** `client_name` query — Palantir 504 filings (was 10); lda.gov endpoint
+- **Narrative:** 5-section deep GPT format (Company, People, Investors, Gov, Risks); 2000 tokens
+- **9 report sections** (was 7): adds Investors & Capital Structure, Data Sources
+- **New connectors:** Wikipedia REST, FundedAPI, SEC 13G/13D/Form D (all free, no extra keys)
+- **UI:** PayPal Mafia seeds (Thiel, Musk, Hoffman, Levchin, Sacks) + Thiel/Defense org group
+- **E2E verified:** Palantir + Peter Thiel flows pass on staging browser
+- Handoff: `17th_June.md`
+
+## 16 June 2026 — Phase 3 Layer 1 v1 shipped
 
 - **Layer 1 Entity Network Intelligence Reports** live on staging
 - API: `POST /intelligence/generate`, `GET /intelligence/`, `GET /intelligence/{id}`
