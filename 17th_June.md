@@ -6,7 +6,7 @@
 
 **Staging:** Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002`  
 **Branch:** `feature/us-50-state-registry-api` · **PR #2**  
-**Last push:** `a2e834e` — intelligence v1.1 code + docs; E2E browser verified on staging
+**Last push:** `80a8427` — v1.1 code + docs + E2E cross-verification
 
 **Status:** ✅ **SHIPPED (v1.1)** — James feedback addressed; awaiting James re-review
 
@@ -26,7 +26,7 @@
 | **PitchBook evaluation** | 🔲 Requires paid key from James. FundedAPI (free) integrated as alternative |
 | **LinkedIn/people** | 🔲 Proxycurl shutdown. Alternatives: PDL (100 free/mo), NinjaPear — pending James approval |
 | **CA / Cobalt** | ⏸️ Still deferred |
-| **Last push** | `a2e834e` — v1.1 code + docs; E2E browser verified |
+| **Last push** | `80a8427` — docs + E2E cross-verification |
 | **E2E (17 Jun)** | ✅ Palantir + Peter Thiel flows pass on staging browser |
 
 ---
@@ -60,6 +60,48 @@ Layer 1 shipped on staging. Palantir demo: SEC CIK, $1.72B contracts, 10 LDA fil
 | **New sources** | PitchBook + LinkedIn (employees, education) — evaluate and integrate |
 | **Demo anchor** | **PayPal Mafia** network — not just single company (Palantir) |
 | **CA / Cobalt** | Unchanged — still deferred |
+
+---
+
+## 2.4 James requirements cross-verification (16–17 Jun WhatsApp)
+
+**Live re-check (17 Jun):** Palantir API run — 9 sections · 504 lobbying · $1.72B contracts · 13 investor claims · narrative ~6,400 chars with 5 `###` headings.
+
+### A) What we promised James (16 Jun message) — v1 baseline
+
+| Promised (16 Jun) | Required? | Delivered? | Notes |
+|-------------------|-----------|------------|-------|
+| Layer 1 on staging `/intelligence` | Yes | ✅ | http://184.72.123.188:3003/intelligence |
+| SEC, USASpending, FEC, LDA, FARA, OFAC, CourtListener | Yes | ✅ | All live per report |
+| 7-section cited dossier + confidence tags | Yes | ✅ **Exceeded → 9 sections** | Added Investors + Data Sources |
+| Graph relationship edges | Yes | ✅ | 13 edges (Palantir v1.1) |
+| GPT narrative grounded in evidence | Yes | ✅ **Deepened in v1.1** | Was short; now 5-section format |
+| Palantir demo: CIK, $1.72B contracts, FEC PAC | Yes | ✅ | Unchanged — still correct |
+| Palantir demo: **10 LDA filings** | Yes | ❌ **Was wrong in v1** | James caught this — **fixed to 504** in v1.1 |
+| Thiel/tech/AI/defense demo seeds | Yes | ✅ **Expanded** | PayPal Mafia group + Thiel/Defense group |
+| CA / Cobalt deferred | Yes | ✅ | Still deferred |
+| Next: multi-entity graph, PDF, ownership trees | Future | 🔲 | Not in 17 Jun scope — still pending |
+
+### B) James feedback (17 Jun) — item-by-item
+
+| James said (17 Jun) | Interpretation | Status | Evidence |
+|---------------------|----------------|--------|----------|
+| *"lobbying fillings does seem correct, lets please revise that"* | Lobbying data **not** correct — fix LDA | ✅ **DONE** | `client_name` not `registrant_name`; **504** Palantir filings; issue areas + firms in §4 |
+| *"intelligence narrative needs a much deeper dive… company, involved parties, involved investors"* | Deeper multi-section narrative | ✅ **DONE** | §9: Company · People · Investors · Gov · Risks; ~6,400 chars; Wikipedia + SEC in prompt |
+| *"add things like pitchbook"* | Investor / funding enrichment | 🟡 **PARTIAL** | FundedAPI + SEC Form D/13G integrated (free); **PitchBook not integrated** — needs James API key |
+| *"linkedin scraping (employee information, education information)"* | People / education data | 🔲 **NOT DONE** | Proxycurl shut down; PDL evaluated — **blocked on James approval** |
+| *"Lets use Paypal Mafia, as an example"* | PayPal Mafia as demo anchor | 🟡 **PARTIAL** | **Seeds live** (5 people + 5 orgs); Peter Thiel individual dossier works; **no single multi-entity network report** yet |
+
+### C) Overall verdict
+
+| Category | Count |
+|----------|-------|
+| ✅ Fully done | Lobbying fix, deeper narrative, free enrichment (Wiki/SEC/FundedAPI), 9-section report, E2E verified, PayPal Mafia seeds |
+| 🟡 Partially done | PayPal Mafia (seeds only, not full network graph); PitchBook (free alternatives only) |
+| 🔲 Blocked / not done | PitchBook API (no key), LinkedIn/employee/education (no vendor approval), multi-entity graph report, PDF export, ownership trees |
+| ⏸️ Correctly deferred | CA SOS API, Cobalt |
+
+**Bottom line for James:** Both **P0 items from his 17 Jun review are fixed and verified live**. PitchBook, LinkedIn/education, and a **unified PayPal Mafia network dossier** are the honest gaps — need his input or a follow-up sprint.
 
 ---
 
@@ -160,25 +202,24 @@ James asked to use **PayPal Mafia** as the example — a **person/network-centri
 
 ---
 
-## 8) Today's tasks — 17 Jun (standup MOM)
+## 8) Standup MOM — 17 Jun (completed) / 18 Jun (next)
 
-### James feedback locked 🔴 → ✅ COMPLETED
-- ✅ Lobbying filings wrong → **fixed LDA query to `client_name`; 504 filings now shown**
-- ✅ Narrative too shallow → **5-section deep narrative shipped (Company, People, Investors, Gov, Risks)**
-- ✅ New sources: **Wikipedia REST + FundedAPI + SEC 13G/13D integrated (free)**
-- ✅ Demo: **PayPal Mafia seeds live (Thiel, Musk, Hoffman, Levchin, Sacks)**
+### ✅ Done today (17 Jun) — send James update
+1. LDA lobbying fixed — 504 Palantir filings (`client_name`)
+2. Deep narrative — 5 sections, company + parties + investors
+3. PayPal Mafia seeds live — Thiel, Musk, Hoffman, Levchin, Sacks
+4. Free APIs: Wikipedia, FundedAPI, SEC 13G/Form D
+5. E2E browser + API verified on staging
+6. Docs updated (README, 17th_June, gap analysis)
 
-### Remaining / blocked
-| # | Task | Priority | Status |
-|---|------|----------|--------|
-| 1 | Fix LDA lobbying | P0 | ✅ Done — `client_name` + `lda.gov` endpoint |
-| 2 | Spike LDA API | P0 | ✅ Done — 504 Palantir filings confirmed |
-| 3 | Expand narrative prompt | P0 | ✅ Done — 5-section, 2000 tokens, wiki+funded context |
-| 4 | PayPal Mafia seed list | P1 | ✅ Done — two seed groups live |
-| 5 | PitchBook evaluation | P1 | 🔲 Requires paid key from James — FundedAPI (free) integrated as interim |
-| 6 | LinkedIn approach | P1 | 🔲 Proxycurl shut down. PDL (100/mo free) or NinjaPear — pending James approval |
-| 7 | SEC investor enrichment | P1 | ✅ Done — SC 13G/13D + Form D integrated |
-| 8 | Re-generate Palantir on staging | P1 | ✅ Done — E2E browser tested, 9 sections confirmed |
+### 🔲 Next standup (18 Jun+) — needs James or next sprint
+1. **Send James v1.1 WhatsApp** — link staging + ask PitchBook key + PDL approval
+2. **PitchBook connector** — blocked until James provides credentials
+3. **PDL / people enrichment** — employee + education fields — blocked until James approves vendor
+4. **PayPal Mafia multi-entity report** — one report linking Thiel → Palantir → Founders Fund → Musk (graph + narrative)
+5. **PDF export** — match James doc style
+6. **LDA unit tests** — `client_name` vs `registrant_name`
+7. CA SOS API — still waiting calicodev.sos.ca.gov
 
 ---
 
