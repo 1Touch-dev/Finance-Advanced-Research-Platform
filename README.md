@@ -16,7 +16,7 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 | **E2E report** | [E2E_LIVE_VERIFICATION_REPORT.md](./E2E_LIVE_VERIFICATION_REPORT.md) — 38 FULL / 8 PARTIAL / 0 FAIL (11 Jun) |
 | **Branch** | `feature/us-50-state-registry-api` → [PR #2](https://github.com/1Touch-dev/Finance-Advanced-Research-Platform/pull/2) |
 | **Last push** | `29ae9c7` — Layer 1 intelligence pipeline + UI + handoff docs |
-| **Tests** | **74+ passing** (`pytest tests/ -q`) |
+| **Tests** | **79 passing** (`pytest tests/ -q`) |
 | **Staging** | Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002` |
 | **Layer 1 Intelligence** | ✅ Live — `POST /intelligence/generate` · UI at `/intelligence` |
 | **Registry** | `GET /registry/search`, `GET /registry/jurisdictions`, `GET /registry/entity/{jur}/{eid}` — 202 records, 51 jurisdictions |
