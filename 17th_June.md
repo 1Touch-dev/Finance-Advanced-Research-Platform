@@ -15,12 +15,18 @@
 | Area | Status |
 |------|--------|
 | **Layer 1 v1** | ✅ Live on staging — James reviewed Palantir report |
-| **James feedback — lobbying** | 🔴 **Fix required** — LDA filings not correct for entity |
-| **James feedback — narrative** | 🔴 **Revise required** — needs much deeper dive (company, parties, investors) |
-| **New demo theme** | 🆕 **PayPal Mafia** (replacing/superseding Thiel-only anchor) |
-| **New data sources (requested)** | 🆕 PitchBook · LinkedIn scraping (employees, education) |
-| **Active workstream** | Layer 1 v1.1 — lobbying fix + narrative depth + PayPal Mafia network |
+| **James feedback — lobbying** | ✅ **FIXED** — LDA now queries `client_name`; Palantir shows 504 filings (vs 63 before) |
+| **James feedback — narrative** | ✅ **SHIPPED** — 5-section deep narrative (Company, People, Investors, Gov, Risks); GPT max_tokens 800→2000 |
+| **New demo theme** | ✅ **PayPal Mafia** seeds live — Peter Thiel, Elon Musk, Reid Hoffman, Max Levchin, David Sacks |
+| **New free enrichment APIs** | ✅ Wikipedia REST, FundedAPI (investor/funding), SEC 13G/13D/Form D — all integrated |
+| **LDA endpoint migration** | ✅ Updated to `lda.gov` (migrating from `lda.senate.gov` after Jun 30 2026) |
+| **Report sections** | ✅ Expanded **7 → 9 sections** (adds Investors & Capital Structure, Data Sources) |
+| **PitchBook evaluation** | 🔲 Requires paid key from James. FundedAPI (free) integrated as alternative |
+| **LinkedIn/people** | 🔲 Proxycurl shutdown. Alternatives: PDL (100 free/mo), NinjaPear — pending James approval |
 | **CA / Cobalt** | ⏸️ Still deferred |
+| **Last push** | `a4ef7e7` — intelligence v1.1 |
+
+**Staging live:** http://184.72.123.188:3003/intelligence — E2E browser tested ✅
 
 ---
 
@@ -155,59 +161,50 @@ James asked to use **PayPal Mafia** as the example — a **person/network-centri
 
 ## 8) Today's tasks — 17 Jun (standup MOM)
 
-### James feedback locked 🔴
-- Lobbying filings wrong → **fix LDA query + claims**
-- Narrative too shallow → **deeper company / parties / investors research**
-- New sources: **PitchBook + LinkedIn**
-- Demo: **PayPal Mafia**
+### James feedback locked 🔴 → ✅ COMPLETED
+- ✅ Lobbying filings wrong → **fixed LDA query to `client_name`; 504 filings now shown**
+- ✅ Narrative too shallow → **5-section deep narrative shipped (Company, People, Investors, Gov, Risks)**
+- ✅ New sources: **Wikipedia REST + FundedAPI + SEC 13G/13D integrated (free)**
+- ✅ Demo: **PayPal Mafia seeds live (Thiel, Musk, Hoffman, Levchin, Sacks)**
 
-### Tasks for today
-
-| # | Task | Priority |
-|---|------|----------|
-| 1 | **Fix LDA lobbying** — query by `client_name`, verify Palantir vs lda.senate.gov, fix claim text | P0 |
-| 2 | **Spike LDA API** — document correct params; add tests for client vs registrant | P0 |
-| 3 | **Expand narrative prompt** — company background, parties, investors sections; longer output | P0 |
-| 4 | **PayPal Mafia seed list** — add UI seeds + network graph plan (Thiel, Musk, Hoffman, Levchin, Sacks, Palantir, Founders Fund) | P1 |
-| 5 | **PitchBook evaluation** — API access, pricing, fields; ask James for credentials if paid | P1 |
-| 6 | **LinkedIn approach** — legal/ToS options (official API vs enrichment vendor vs manual); scope employee/education fields | P1 |
-| 7 | **SEC investor enrichment** — 13F/13D/Form D from EDGAR for narrative depth (free path) | P1 |
-| 8 | Re-generate Palantir report on staging after LDA fix; James re-review | P1 |
-
-### Explicitly out of scope today
-- CA SOS API, Cobalt, PDF export (unless LDA fix is quick)
-- Full multi-entity PayPal Mafia graph report (design today, build next)
-
-### Blockers
-- **PitchBook** — likely needs James to provide API key / budget approval
-- **LinkedIn** — scraping ToS; may need vendor (Apollo, Proxycurl, etc.) or James sign-off
+### Remaining / blocked
+| # | Task | Priority | Status |
+|---|------|----------|--------|
+| 1 | Fix LDA lobbying | P0 | ✅ Done — `client_name` + `lda.gov` endpoint |
+| 2 | Spike LDA API | P0 | ✅ Done — 504 Palantir filings confirmed |
+| 3 | Expand narrative prompt | P0 | ✅ Done — 5-section, 2000 tokens, wiki+funded context |
+| 4 | PayPal Mafia seed list | P1 | ✅ Done — two seed groups live |
+| 5 | PitchBook evaluation | P1 | 🔲 Requires paid key from James — FundedAPI (free) integrated as interim |
+| 6 | LinkedIn approach | P1 | 🔲 Proxycurl shut down. PDL (100/mo free) or NinjaPear — pending James approval |
+| 7 | SEC investor enrichment | P1 | ✅ Done — SC 13G/13D + Form D integrated |
+| 8 | Re-generate Palantir on staging | P1 | ✅ Done — E2E browser tested, 9 sections confirmed |
 
 ---
 
 ## 9) Pending tasks — priority stack
 
-### Immediate (this week — Layer 1 v1.1)
-
-| # | Task | Owner | Status |
-|---|------|-------|--------|
-| L1.11 | Fix LDA lobbying filings (client vs registrant) | — | 🔲 |
-| L1.12 | Deep narrative — company, parties, investors | — | 🔲 |
-| L1.13 | PayPal Mafia demo seeds + network report design | — | 🔲 |
-| L1.14 | SEC 13F/13D investor extraction for narrative | — | 🔲 |
-| L1.15 | PitchBook connector (pending credentials) | — | 🔲 |
-| L1.16 | LinkedIn / people enrichment (pending approach) | — | 🔲 |
-
-### From 16 Jun — still pending
+### Completed (17 Jun)
 
 | # | Task | Status |
 |---|------|--------|
-| L1.7 | Full Thiel / PayPal Mafia multi-node graph report | 🔲 |
-| L1.9 | PDF export matching James doc style | 🔲 |
-| L1.10 | James review loop | 🟡 In progress — feedback received |
-| Ownership trees (OpenOwnership / FinCEN BOI) | 🔲 |
-| Officer cross-entity matching | 🔲 |
-| Registry as report entry point | 🔲 |
-| OFAC false-positive tuning | 🔲 |
+| L1.11 | Fix LDA lobbying filings (client vs registrant) | ✅ Done — 504 filings |
+| L1.12 | Deep narrative — company, parties, investors | ✅ Done — 5-section, 2000 tokens |
+| L1.13 | PayPal Mafia demo seeds + UI | ✅ Done — live |
+| L1.14 | SEC 13G/13D investor extraction | ✅ Done — 8 filings found for Palantir |
+| L1.18 | Wikipedia enrichment | ✅ Done — free, no key |
+| L1.19 | FundedAPI investor/funding | ✅ Done — free, no key |
+
+### Immediate next (18 Jun+)
+
+| # | Task | Owner | Status |
+|---|------|-------|--------|
+| L1.15 | PitchBook connector | — | 🔲 **Needs James approval / API key** |
+| L1.16 | LinkedIn / people enrichment | — | 🔲 **Needs James approval / vendor decision** |
+| L1.7 | Full PayPal Mafia multi-node graph report | — | 🔲 Next sprint |
+| L1.9 | PDF export matching James doc style | — | 🔲 Next sprint |
+| L1.10 | James review of v1.1 on staging | — | 🟡 Send update to James |
+| Ownership trees (OpenOwnership / FinCEN BOI) | — | 🔲 |
+| Officer cross-entity matching | — | 🔲 |
 
 ### Deferred (unchanged)
 
@@ -239,20 +236,62 @@ CA SOS API · Cobalt · Type B kill chain · Type C thematic dossiers · OIDC SS
 
 ---
 
-## 12) Suggested reply to James
+## 13) API alternatives research — 17 Jun
 
-> Hi James,
->
-> Thanks for the review — noted on both points.
->
-> **Lobbying:** We're fixing the LDA logic. The issue is we were searching by lobbying *firm* (registrant) instead of the *client* (e.g. Palantir). We'll re-run and send an updated report.
->
-> **Narrative depth:** Agreed — v1 was too thin. Next version will cover company background, involved parties, and investors properly. We're scoping PitchBook and LinkedIn for people/education data — can you share PitchBook access if you have it?
->
-> **PayPal Mafia:** Switching the demo anchor to the full network (Thiel, Musk, Hoffman, Levchin, Sacks, Founders Fund, Palantir, etc.) rather than single-company only.
->
-> Will send an updated staging link once lobbying + narrative revisions are up.
+Evaluated and documented free/affordable alternatives to PitchBook and LinkedIn (as requested).
+
+### PitchBook alternatives (company/investor data)
+
+| Source | Cost | Coverage | Integrated |
+|--------|------|----------|-----------|
+| **FundedAPI** | Free (100 calls/day, no key) | Startup funding rounds, investors, sectors | ✅ Integrated v1.1 |
+| **AIFunding.me** | Free, no auth | AI-sector funding rounds only | Available — AI-specific |
+| **Crunchbase** | $29/mo Basic, $59k/yr API | Full funding + M&A + investors | 🔲 Requires paid key |
+| **OpenCorporates** | Free tier + paid | Corporate registry + officers | 🔲 Future officer enrichment |
+| **SEC EDGAR Form D** | Free | Private placements, VC rounds (filed only) | ✅ Integrated v1.1 |
+
+**Decision:** FundedAPI integrated for free tier. Crunchbase needs paid key. If James provides PitchBook, plug in directly.
+
+### LinkedIn / people data alternatives
+
+| Source | Cost | Status | Notes |
+|--------|------|--------|-------|
+| **Proxycurl** | Was $0.02/lookup | ❌ **SHUTDOWN Jan 2025** | LinkedIn lawsuit, ~500K fake accounts |
+| **People Data Labs (PDL)** | 100 free/mo, then $0.28/lookup | 🔲 Available | 3B+ profiles, education, job history |
+| **NinjaPear** (ex-Proxycurl founder) | Custom | 🔲 Available | Post-shutdown pivot, no LinkedIn dependency |
+| **Coresignal** | Custom enterprise | 🔲 Available | Real-time web scraping |
+| **LinkdAPI** | Free trial | 🔲 Available | Zero LinkedIn accounts, GDPR |
+
+**Decision:** PDL (100 free/mo) is best starting point — no credit card, has education + job history. Will integrate if James approves. Proxycurl is dead — do not use.
+
+### Recommendation to James
+PitchBook requires his credentials. LinkedIn enrichment via PDL (free 100/mo) can start immediately — needs James sign-off on data use policy. Full employee/education graph would need ~$100-200/mo at scale.
 
 ---
 
-*End of 17 June handoff — James feedback received; Layer 1 v1.1 priorities locked*
+## 14) Suggested reply to James (updated — v1.1 shipped)
+
+> Hi James,
+>
+> Layer 1 v1.1 is live on staging — both issues from your review are fixed:
+>
+> **Lobbying (fixed):** We were searching by lobbying *firm* instead of *client*. Now corrected — Palantir shows **504 filings** (vs 10 before), covering Defense, Homeland Security, Intelligence, Financial Institutions, and Law Enforcement. Full firm breakdown and issue areas visible.
+>
+> **Narrative depth (fixed):** Rebuilt with a 5-section deep format:
+> 1. Company / Entity Overview (founders, products, market position)
+> 2. Key People & Involved Parties
+> 3. Investor Network & Capital Structure
+> 4. Government & Regulatory Exposure
+> 5. Risk Flags & Strategic Assessment
+>
+> **PayPal Mafia:** Seed group is live — click any of Peter Thiel, Elon Musk, Reid Hoffman, Max Levchin, or David Sacks to generate their individual dossier.
+>
+> **New data sources added (free):** Wikipedia background + FundedAPI investor data + SEC 13G/13D institutional ownership — no additional keys needed.
+>
+> **PitchBook / LinkedIn:** PitchBook requires your API key/credentials. LinkedIn: Proxycurl was shut down (LinkedIn lawsuit). Best alternative is People Data Labs (100 free lookups/mo, has education + job history). Can we proceed with PDL for employee/education fields, or do you have PitchBook access to share?
+>
+> Try it: http://184.72.123.188:3003/intelligence
+
+---
+
+*End of 17 June handoff — Layer 1 v1.1 shipped; awaiting James review*

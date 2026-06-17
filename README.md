@@ -10,15 +10,15 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 
 | Area | Status |
 |------|--------|
-| **Overall** | **Phase 3 Layer 1 Intelligence Reports (v1 shipped)** + Phase 2 registry foundation |
-| **Active workstream** | Entity Network Intelligence Reports — cited dossiers from live federal sources + GPT narrative |
+| **Overall** | **Phase 3 Layer 1 Intelligence Reports (v1.1 shipped — 17 Jun)** |
+| **Active workstream** | Entity Network Intelligence Reports — 9 sections, deep GPT narrative, PayPal Mafia demo |
 | **Daily log** | [17th_June.md](./17th_June.md) · [16th_June.md](./16th_June.md) · [15th_June.md](./15th_June.md) |
 | **E2E report** | [E2E_LIVE_VERIFICATION_REPORT.md](./E2E_LIVE_VERIFICATION_REPORT.md) — 38 FULL / 8 PARTIAL / 0 FAIL (11 Jun) |
 | **Branch** | `feature/us-50-state-registry-api` → [PR #2](https://github.com/1Touch-dev/Finance-Advanced-Research-Platform/pull/2) |
-| **Last push** | `29ae9c7` — Layer 1 intelligence pipeline + UI + handoff docs |
+| **Last push** | `a4ef7e7` — intelligence v1.1: LDA fix, deeper narrative, PayPal Mafia, free enrichment APIs |
 | **Tests** | **79 passing** (`pytest tests/ -q`) |
 | **Staging** | Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002` |
-| **Layer 1 Intelligence** | ✅ Live — `POST /intelligence/generate` · UI at `/intelligence` |
+| **Layer 1 Intelligence** | ✅ Live — 9-section dossier · `POST /intelligence/generate` · UI at `/intelligence` |
 | **Registry** | `GET /registry/search`, `GET /registry/jurisdictions`, `GET /registry/entity/{jur}/{eid}` — 202 records, 51 jurisdictions |
 | **Connectors** | 17 federal gov connectors + 51 state registry + BEA = **69 total** |
 | **BEA** | **Live** — 429 records; `/economics` page |
@@ -28,9 +28,16 @@ For a detailed requirement-vs-implementation breakdown, see **[docs/REQUIREMENT_
 
 ---
 
-## Phase 3 — Layer 1 Entity Network Intelligence Reports (16 June 2026)
+## Phase 3 — Layer 1 Entity Network Intelligence Reports (v1.1 — 17 June 2026)
 
-James confirmed **Type A — Entity Network Intelligence Report** as the first deliverable: ownership, investors, government contracts, officers, risk flags, and a cited AI narrative. Demo theme: **Peter Thiel / tech / AI / defense**. CA and Cobalt are deferred; Layer 1 runs on live federal sources.
+James confirmed **Type A — Entity Network Intelligence Report** as the first deliverable. v1 shipped 16 Jun; v1.1 shipped 17 Jun with lobbying fix, deeper narrative, PayPal Mafia seeds, and free enrichment APIs.
+
+**Feedback addressed (17 Jun):**
+- **Lobbying fixed** — `client_name` query on LDA: Palantir shows 504 filings (vs 10 before), with issue areas and firm breakdown
+- **Narrative deepened** — 5-section format: Company Overview · Key People · Investor Network · Government Exposure · Risk Flags
+- **PayPal Mafia demo** — seeds for Thiel, Musk, Hoffman, Levchin, Sacks all live
+- **Free enrichment** — Wikipedia REST + FundedAPI + SEC 13G/13D/Form D integrated (no extra keys)
+- **LDA endpoint** — migrated to `lda.gov` (lda.senate.gov decommissions Jun 30 2026)
 
 ### Try it on staging
 
@@ -40,7 +47,7 @@ James confirmed **Type A — Entity Network Intelligence Report** as the first d
 | **Home** | http://184.72.123.188:3003 |
 | **API docs** | http://184.72.123.188:3001/docs |
 
-Click **Palantir Technologies** → **Generate Intelligence Report** (~15–25 seconds).
+Click any **PayPal Mafia** or **Thiel / AI / Defense** seed → **Generate Intelligence Report** (~20–45 seconds).
 
 ### Intelligence API (`/intelligence/*`)
 
@@ -50,54 +57,62 @@ GET  /intelligence/                                               # list recent 
 GET  /intelligence/{report_id}                                    # retrieve saved report
 ```
 
-**Pipeline:** entity name/ticker → live connectors (SEC, USASpending, FEC, FARA, LDA, OFAC, CourtListener) → relationship graph edges → 7-section report JSON → GPT-4o narrative (grounded in cited claims only) → persist to DB.
+**Pipeline (v1.1):** entity name/ticker → live connectors (Wikipedia, SEC, USASpending, FEC, FARA, LDA, OFAC, CourtListener, FundedAPI, SEC 13G) → relationship graph edges → **9-section** report JSON → GPT-4o deep narrative (5-section format, 2000 tokens) → persist to DB.
 
-### Report sections (James-style)
+### Report sections (v1.1 — 9 sections)
 
 | # | Section | Sources |
 |---|---------|---------|
-| 1 | Entity Profile | SEC EDGAR (CIK, SIC, exchange) |
-| 2 | SEC Filings & Ownership Indicators | SEC EDGAR recent filings |
+| 1 | Entity Profile | Wikipedia REST + SEC EDGAR (CIK, SIC, exchange) |
+| 2 | Investors & Capital Structure | SEC SC 13G/13D, Form D, FundedAPI (rounds) |
 | 3 | Government Contracts & Procurement | USASpending.gov |
-| 4 | Political & Regulatory Exposure | FEC, LDA, FARA |
-| 5 | Sanctions & Compliance Check | OFAC / OpenSanctions |
-| 6 | Litigation & Legal Exposure | CourtListener |
-| 7 | Intelligence Narrative (AI-Generated) | GPT-4o — claims-only |
+| 4 | Lobbying Activity **(fixed)** | LDA (client_name, lda.gov) — issues + firms |
+| 5 | Political & Foreign Exposure | FEC, FARA |
+| 6 | Sanctions & Compliance Check | OFAC / OpenSanctions |
+| 7 | Litigation & Legal Exposure | CourtListener |
+| 8 | Data Sources & Enrichment Notes | API alternatives reference |
+| 9 | Deep Intelligence Narrative (AI-Generated) | GPT-4o — 5-section deep format |
 
 Every claim tagged **DOCUMENTED** / **REPORTED** / **ANALYTICAL**.
 
-### First live demo — Palantir Technologies (PLTR)
+### Live demo results — Palantir Technologies (PLTR) — v1.1
 
-| Metric | Result |
-|--------|--------|
-| SEC CIK | `0001321655` |
-| Federal contracts | **$1.72B** across 10 awards (DoD, DHS, VA, USDA) |
-| Lobbying (LDA) | 10 filings |
-| FEC | 1 PAC |
-| Graph edges | 11 relationships written |
-| GPT narrative | Generated from cited evidence |
+| Metric | v1 | v1.1 |
+|--------|----|------|
+| SEC CIK | `0001321655` | `0001321655` |
+| Federal contracts | $1.72B / 10 awards | $1.72B / 10 awards |
+| Lobbying filings | 10 ❌ (registrant_name bug) | **504** ✅ (client_name fixed) |
+| Lobbying issue areas | — | Defense · Homeland Security · Intelligence · Financial |
+| FEC | 1 PAC | 1 PAC |
+| Investor filings (13G) | — | 8 institutional filings |
+| Wikipedia background | — | ✅ |
+| Narrative sections | 3-4 paragraphs | **5 deep sections** (Company, People, Investors, Gov, Risks) |
+| Graph edges | 11 | 13 |
 
-### Demo seeds (UI one-click)
+### Demo seeds (v1.1 — two groups)
 
-Palantir Technologies · Anduril Industries · Peter Thiel · Founders Fund · HawkEye 360 · Redwire Corporation
+**PayPal Mafia:** Peter Thiel · Elon Musk · Reid Hoffman · Max Levchin · David Sacks  
+**Thiel / AI / Defense:** Palantir Technologies · Anduril Industries · Founders Fund · HawkEye 360 · Redwire Corporation
 
-### Layer 1 code
+### Free enrichment APIs integrated (no extra keys)
 
-| File | Role |
-|------|------|
-| `apps/api/app/api/intelligence.py` | REST router |
-| `apps/api/app/services/intelligence_service.py` | Orchestrator + entity-specific connectors |
-| `apps/web/pages/intelligence.js` | Report generator UI |
+| API | What it adds | Cost |
+|-----|-------------|------|
+| **Wikipedia REST** | Company background, founders, products | Free, no key |
+| **FundedAPI** | Startup funding rounds, investors | Free — 60 req/hr / 100/day |
+| **SEC EDGAR (SC 13G/13D, Form D)** | Institutional ownership + private placements | Free with User-Agent |
+| **LDA.gov** | Lobbying by client_name; replaces lda.senate.gov Jun 30 | Free |
 
 ### Still pending (Layer 1 v2)
 
 - PDF export matching James doc style
-- Full 10-node Thiel network graph report
+- Multi-entity PayPal Mafia network graph report (cross-entity linking)
+- PitchBook connector (requires James API key)
+- LinkedIn / people enrichment (PDL free tier or NinjaPear — needs James approval)
 - Ownership tree crawler (OpenOwnership / FinCEN BOI)
 - Officer cross-entity matching
-- Registry lookup as report entry point
 
-Full handoff: **[16th_June.md](./16th_June.md)**
+Full handoffs: **[17th_June.md](./17th_June.md)** · **[16th_June.md](./16th_June.md)**
 
 ---
 
