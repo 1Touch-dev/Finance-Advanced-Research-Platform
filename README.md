@@ -12,7 +12,7 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 |------|--------|
 | **Overall** | **Phase 3 Layer 1 Intelligence Reports (v1 shipped)** + Phase 2 registry foundation |
 | **Active workstream** | Entity Network Intelligence Reports — cited dossiers from live federal sources + GPT narrative |
-| **Daily log** | [16th_June.md](./16th_June.md) · [15th_June.md](./15th_June.md) · [12th_June.md](./12th_June.md) |
+| **Daily log** | [17th_June.md](./17th_June.md) · [16th_June.md](./16th_June.md) · [15th_June.md](./15th_June.md) |
 | **E2E report** | [E2E_LIVE_VERIFICATION_REPORT.md](./E2E_LIVE_VERIFICATION_REPORT.md) — 38 FULL / 8 PARTIAL / 0 FAIL (11 Jun) |
 | **Branch** | `feature/us-50-state-registry-api` → [PR #2](https://github.com/1Touch-dev/Finance-Advanced-Research-Platform/pull/2) |
 | **Last push** | `29ae9c7` — Layer 1 intelligence pipeline + UI + handoff docs |
