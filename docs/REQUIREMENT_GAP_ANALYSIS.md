@@ -1,5 +1,17 @@
 # Requirement vs Repo Gap Analysis
 
+## Update — 16 June 2026 (Phase 3 Layer 1)
+
+**Layer 1 Entity Network Intelligence Reports shipped (v1):**
+- `POST /intelligence/generate` — live SEC, USASpending, FEC, FARA, LDA, OFAC, CourtListener per entity
+- 7-section cited dossier + GPT-4o narrative; UI at `/intelligence`
+- First demo: Palantir (PLTR) — $1.72B contracts, 11 graph edges
+- Still partial: PDF export, ownership trees, officer cross-entity, multi-node network reports
+
+See [16th_June.md](../16th_June.md) and [README.md](../README.md) for current status.
+
+---
+
 ## Context
 This document compares your target specification ("Enterprise Intelligence & Investment Research Platform") against the current implementation in this repository.
 
@@ -143,7 +155,7 @@ Gaps:
 - no strong cost accounting/quotas/policies per run
 
 ### 9) Report Generation & Review
-Status: `Partial`
+Status: `Partial` — **Layer 1 intelligence pipeline added 16 Jun 2026**
 
 What exists:
 - report/section/bundle/claim models and APIs
@@ -151,12 +163,14 @@ What exists:
 - basic claim verification states
 - comments/suggestions/version diff
 - export stubs (markdown/html/json/csv)
+- **Layer 1 intelligence reports** (`/intelligence/*`) — entity-specific federal source queries, 7-section JSON dossier, DOCUMENTED/REPORTED/ANALYTICAL tags, GPT narrative, graph edge writes, UI at `/intelligence`
 
 Gaps:
 - verifier is still simplistic
-- no rich editor workflow in frontend
+- no rich editor workflow in frontend (legacy `/review`)
 - no robust contradiction analysis
 - no full approval gates + policy routing for sensitive outputs
+- **Layer 1 gaps:** no PDF export, no ownership tree crawler, no officer cross-entity matching, single-entity only (no multi-node network report)
 
 ### 10) Alerts, Monitoring, Portfolios
 Status: `Partial`

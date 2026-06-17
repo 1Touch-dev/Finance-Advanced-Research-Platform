@@ -6,7 +6,7 @@
 
 **Staging:** Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002`  
 **Branch:** `feature/us-50-state-registry-api` · **PR #2**  
-**Last push:** `afe37fe` — Layer 1 intelligence report pipeline + UI live
+**Last push:** `29ae9c7` — Layer 1 intelligence pipeline + UI live + docs updated
 
 ---
 

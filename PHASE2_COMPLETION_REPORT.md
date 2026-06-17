@@ -1,5 +1,7 @@
 # Phase 2 Completion Report — U.S. 50-State Registry + BEA + Licensable API
 
+> **Update (16 Jun 2026):** Phase 3 Layer 1 Entity Network Intelligence Reports shipped. See [16th_June.md](./16th_June.md) and [README.md](./README.md#phase-3--layer-1-entity-network-intelligence-reports-16-june-2026).
+
 **Date:** 2026-06-11 (updated 2026-06-12 — Cobalt + CA)
 **Branch:** `feature/us-50-state-registry-api`
 **Base:** `feature/phase1-us-mvp-100pct`
