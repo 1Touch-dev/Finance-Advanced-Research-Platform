@@ -195,3 +195,53 @@
   text-align: center;
   padding: 1.5rem;
 }
+
+/* ── Entity chip — clickable names in claim text ──── */
+.entityChip {
+  display: inline;
+  color: #93c5fd;
+  cursor: pointer;
+  border-bottom: 1px dashed rgba(147, 197, 253, 0.5);
+  transition: color 0.12s, border-color 0.12s;
+}
+.entityChip:hover {
+  color: #60a5fa;
+  border-bottom-color: #60a5fa;
+}
+
+/* ── Apify source badge ─────────────────────────── */
+.apifyBadge {
+  display: inline-block;
+  background: rgba(22, 163, 74, 0.15);
+  border: 1px solid rgba(22, 163, 74, 0.4);
+  color: #4ade80;
+  border-radius: 4px;
+  padding: 1px 7px;
+  font-size: 0.71rem;
+  font-weight: 700;
+}
+
+/* ── Embedded Cytoscape graph ───────────────────── */
+.graphEmbed {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: 0.7rem;
+  background: rgba(8, 13, 26, 0.85);
+}
+.graphEmbedHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.55rem 0.9rem;
+  background: rgba(14, 20, 37, 0.9);
+  border-bottom: 1px solid var(--line);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #c7d2fe;
+}
+.graphMeta {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}

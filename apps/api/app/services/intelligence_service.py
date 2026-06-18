@@ -1,5 +1,5 @@
 """
-Intelligence Report Service - Layer 1 Entity Network Report
+Intelligence Report Service - Layer 1 Entity Network Report (v1.2)
 """
 import os
 import requests
@@ -10,6 +10,20 @@ from sqlalchemy import text
 from app.models.reports import Report, ReportSection, Claim, ClaimEvidence
 from app.models.entities import Entity, EntityIdentifier, Relationship, RelationshipEvidence
 from app.models.base import Base
+
+# Apify enrichment connectors
+try:
+    from app.connectors.apify_connector import (
+        fetch_linkedin_by_name,
+        fetch_pitchbook_company,
+        fetch_news,
+    )
+    APIFY_AVAILABLE = bool(os.getenv("APIFY_API_TOKEN", ""))
+except ImportError:
+    APIFY_AVAILABLE = False
+    def fetch_linkedin_by_name(n, c=""): return {"education": [], "experience": [], "source": "unavailable"}
+    def fetch_pitchbook_company(n): return {"investors": [], "funding_rounds": [], "source": "unavailable"}
+    def fetch_news(q, max_articles=8): return []
 
 
 INTELLIGENCE_KIND = "entity_network_intel"
@@ -346,23 +360,34 @@ def _fetch_sec_investors(entity_name: str, cik: Optional[str] = None) -> Dict[st
     return result
 
 
-# ── LDA lobbying (FIXED — client_name + new lda.gov endpoint) ────────────────
+# ── LDA lobbying — BOTH SIDES: client_name AND registrant_name ───────────────
 
 def _fetch_lda(entity_name: str) -> Dict[str, Any]:
-    result = {"filings": [], "total_count": 0, "issue_areas": [], "top_firms": []}
-    
-    # LDA API is migrating from lda.senate.gov to lda.gov after June 30 2026
-    # Try new endpoint first, fall back to old
+    """Fetch LDA filings with two-sided disclosure:
+    - As CLIENT (company hiring lobbyists) — the primary view
+    - As REGISTRANT (lobbying firm working for clients) — the other side
+    Both are returned separately so the report can show the full picture.
+    """
+    result = {
+        "filings": [],
+        "total_count": 0,
+        "issue_areas": [],
+        "top_firms": [],
+        # Two-sided disclosure additions
+        "as_registrant_filings": [],
+        "as_registrant_count": 0,
+        "as_registrant_clients": [],
+    }
+
     for base_url in ["https://lda.gov/api/v1/filings/", "https://lda.senate.gov/api/v1/filings/"]:
         try:
-            # FIXED: use client_name (entity as the client hiring lobbyists)
-            # also try a shorter name match for robustness
             short_name = entity_name.split()[0] if " " in entity_name else entity_name
+
+            # ── SIDE A: entity AS CLIENT (hiring lobbying firms) ──────────────
             resp = requests.get(base_url,
                                 params={"client_name": entity_name, "page_size": 15},
                                 timeout=20)
             if not resp.ok:
-                # Try with short name
                 resp = requests.get(base_url,
                                     params={"client_name": short_name, "page_size": 15},
                                     timeout=20)
@@ -386,14 +411,48 @@ def _fetch_lda(entity_name: str) -> Dict[str, Any]:
                         "period": f.get("filing_period"),
                         "income": income,
                         "issues": issues[:3],
+                        "side": "client",
                     }
                     result["filings"].append(filing)
                     if registrant_name:
                         firm_counts[registrant_name] = firm_counts.get(registrant_name, 0) + 1
                 result["issue_areas"] = sorted(issue_set)[:12]
                 result["top_firms"] = sorted(firm_counts.items(), key=lambda x: -x[1])[:5]
-                if result["filings"]:
-                    break  # success — don't try second URL
+
+            # ── SIDE B: entity AS REGISTRANT (lobbying firm acting for clients) ─
+            resp2 = requests.get(base_url,
+                                 params={"registrant_name": entity_name, "page_size": 10},
+                                 timeout=20)
+            if not resp2.ok:
+                resp2 = requests.get(base_url,
+                                     params={"registrant_name": short_name, "page_size": 10},
+                                     timeout=20)
+            if resp2 and resp2.ok:
+                data2 = resp2.json()
+                result["as_registrant_count"] = data2.get("count", 0)
+                client_set = {}
+                for f in data2.get("results", []):
+                    client_name_val = (f.get("client") or {}).get("name", "")
+                    income = f.get("income") or f.get("expenses") or 0
+                    activities = f.get("lobbying_activities") or []
+                    issues = [a.get("general_issue_code_display", "") for a in activities if a.get("general_issue_code_display")]
+                    filing2 = {
+                        "uuid": f.get("filing_uuid"),
+                        "client": client_name_val,
+                        "registrant": (f.get("registrant") or {}).get("name", entity_name),
+                        "year": f.get("filing_year"),
+                        "period": f.get("filing_period"),
+                        "income": income,
+                        "issues": issues[:3],
+                        "side": "registrant",
+                    }
+                    result["as_registrant_filings"].append(filing2)
+                    if client_name_val:
+                        client_set[client_name_val] = client_set.get(client_name_val, 0) + 1
+                result["as_registrant_clients"] = sorted(client_set.items(), key=lambda x: -x[1])[:5]
+
+            if result["filings"] or result["as_registrant_filings"]:
+                break  # success — don't try second URL
         except Exception as e:
             result["error"] = str(e)
             continue
@@ -506,11 +565,12 @@ DEMO_SEEDS = {
 }
 
 
-# ── Main orchestrator (v1.1) ──────────────────────────────────────────────────
+# ── Main orchestrator (v1.2 — Apify LinkedIn + PitchBook + News + Two-sided) ──
 
 def generate_intelligence_report(db: Session, entity_name: str, entity_type: str = "org",
                                   ticker: Optional[str] = None) -> Dict[str, Any]:
     started = _now()
+    is_person = entity_type == "person"
 
     # 1. Resolve/create entity in DB
     entity_id = _upsert_entity(db, entity_name, entity_type)
@@ -520,13 +580,22 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
     fec_data      = _fetch_fec(entity_name)
     fara_data     = _fetch_fara(entity_name)
     spending_data = _fetch_usaspending(entity_name)
-    lda_data      = _fetch_lda(entity_name)            # FIXED: client_name + lda.gov
+    lda_data      = _fetch_lda(entity_name)            # TWO-SIDED: client + registrant
     ofac_data     = _fetch_ofac(entity_name)
     court_data    = _fetch_courts(entity_name)
-    wiki_data     = _fetch_wikipedia(entity_name)      # NEW: company background
-    funded_data   = _fetch_funded_api(entity_name)     # NEW: investor/funding data
-    investor_data = _fetch_sec_investors(               # NEW: SEC 13G/13D/Form D
-                        entity_name, sec_data.get("cik"))
+    wiki_data     = _fetch_wikipedia(entity_name)
+    funded_data   = _fetch_funded_api(entity_name)
+    investor_data = _fetch_sec_investors(entity_name, sec_data.get("cik"))
+
+    # Apify enrichment (LinkedIn + PitchBook + News)
+    apify_linkedin   = {}
+    apify_pitchbook  = {}
+    apify_news       = []
+    if APIFY_AVAILABLE:
+        if is_person:
+            apify_linkedin = fetch_linkedin_by_name(entity_name)
+        apify_pitchbook = fetch_pitchbook_company(entity_name)
+        apify_news = fetch_news(entity_name, max_articles=8)
 
     # 3. Write relationships into graph
     relationships_created = []
@@ -640,30 +709,48 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
                      "data": {"total_obligated_usd": spending_data.get("total_obligated",0),
                               "award_count": len(spending_data.get("awards",[]))}})
 
-    # ── Section 4: Lobbying Activity (FIXED) ──────────────────────────────────
+    # ── Section 4: Lobbying Activity — BOTH SIDES ────────────────────────────
     sec4_claims = []
+
+    # SIDE A — entity AS CLIENT (hiring lobbyists)
     if lda_data.get("total_count", 0) > 0:
-        sec4_claims.append({"text": f"{entity_name} has {lda_data['total_count']} lobbying filings on record as a client (LDA database).",
-                            "confidence": "DOCUMENTED", "source": "LDA Senate / lda.gov"})
+        sec4_claims.append({"text": f"[AS CLIENT] {entity_name} has {lda_data['total_count']} lobbying filings on record as the client hiring lobbying firms (LDA database).",
+                            "confidence": "DOCUMENTED", "source": "LDA / lda.gov"})
     if lda_data.get("issue_areas"):
-        sec4_claims.append({"text": f"Lobbying issue areas covered: {', '.join(lda_data['issue_areas'][:10])}.",
-                            "confidence": "DOCUMENTED", "source": "LDA Senate"})
+        sec4_claims.append({"text": f"Lobbying issue areas (as client): {', '.join(lda_data['issue_areas'][:10])}.",
+                            "confidence": "DOCUMENTED", "source": "LDA"})
     for firm, count in lda_data.get("top_firms", [])[:5]:
-        sec4_claims.append({"text": f"Lobbying firm: {firm} — {count} filing(s) on behalf of {entity_name}.",
-                            "confidence": "DOCUMENTED", "source": "LDA Senate"})
-    for f in lda_data.get("filings", [])[:6]:
+        sec4_claims.append({"text": f"[CLIENT SIDE] Lobbying firm {firm} filed {count} disclosure(s) on behalf of {entity_name}.",
+                            "confidence": "DOCUMENTED", "source": "LDA"})
+    for f in lda_data.get("filings", [])[:5]:
         income = f.get("income") or 0
-        issues_str = ", ".join(f.get("issues",[]))
-        sec4_claims.append({"text": f"{f.get('registrant','')} lobbied for {f.get('client','')} ({f.get('period','')} {f.get('year','')}) — ${float(income):,.0f} income. Issues: {issues_str}.",
-                            "confidence": "DOCUMENTED", "source": "LDA Senate"})
+        issues_str = ", ".join(f.get("issues", []))
+        sec4_claims.append({"text": f"[CLIENT SIDE] {f.get('registrant','')} → Client: {f.get('client','')} | Period: {f.get('period','')} {f.get('year','')} | Income: ${float(income):,.0f} | Issues: {issues_str}.",
+                            "confidence": "DOCUMENTED", "source": "LDA"})
+
+    # SIDE B — entity AS REGISTRANT (lobbying firm acting for clients)
+    if lda_data.get("as_registrant_count", 0) > 0:
+        sec4_claims.append({"text": f"[AS LOBBYING FIRM] {entity_name} also appears as a registered lobbying firm in {lda_data['as_registrant_count']} filings — acting on behalf of other clients.",
+                            "confidence": "DOCUMENTED", "source": "LDA"})
+    for client_name, count in lda_data.get("as_registrant_clients", [])[:3]:
+        sec4_claims.append({"text": f"[REGISTRANT SIDE] {entity_name} lobbied on behalf of: {client_name} ({count} filing(s)).",
+                            "confidence": "DOCUMENTED", "source": "LDA"})
+    for f in lda_data.get("as_registrant_filings", [])[:3]:
+        income = f.get("income") or 0
+        sec4_claims.append({"text": f"[REGISTRANT SIDE] {f.get('registrant','')} lobbied for client {f.get('client','')} | Period: {f.get('period','')} {f.get('year','')} | Income: ${float(income):,.0f}.",
+                            "confidence": "DOCUMENTED", "source": "LDA"})
+
     if not sec4_claims:
-        sec4_claims.append({"text": "No lobbying filings found as client in LDA database.",
-                            "confidence": "DOCUMENTED", "source": "LDA Senate"})
-    sections.append({"name": "Lobbying Activity", "order": 4,
+        sec4_claims.append({"text": "No lobbying filings found (neither as client nor as registrant) in LDA database.",
+                            "confidence": "DOCUMENTED", "source": "LDA"})
+
+    sections.append({"name": "Lobbying Activity (Both Sides)", "order": 4,
                      "claims": sec4_claims,
-                     "data": {"total_lobbying_filings": lda_data.get("total_count",0),
-                              "issue_areas": lda_data.get("issue_areas",[]),
-                              "lobbying_firms": len(lda_data.get("top_firms",[]))}})
+                     "data": {
+                         "total_lobbying_filings": lda_data.get("total_count", 0),
+                         "as_registrant_count": lda_data.get("as_registrant_count", 0),
+                         "issue_areas": lda_data.get("issue_areas", []),
+                         "lobbying_firms": len(lda_data.get("top_firms", []))}})
 
     # ── Section 5: Political & Foreign Exposure ───────────────────────────────
     sec5_claims = []
@@ -679,6 +766,46 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
     sections.append({"name": "Political & Foreign Exposure", "order": 5,
                      "claims": sec5_claims, "data": {}})
 
+    # ── Section 5b: People & Education (Apify LinkedIn — persons only) ────────
+    if is_person and APIFY_AVAILABLE:
+        sec5b_claims = []
+        if apify_linkedin.get("headline"):
+            sec5b_claims.append({"text": f"LinkedIn Headline: {apify_linkedin['headline']}",
+                                 "confidence": "DOCUMENTED", "source": "LinkedIn (via Apify)"})
+        if apify_linkedin.get("about"):
+            sec5b_claims.append({"text": apify_linkedin["about"][:400],
+                                 "confidence": "DOCUMENTED", "source": "LinkedIn (via Apify)"})
+        if apify_linkedin.get("location"):
+            sec5b_claims.append({"text": f"Location: {apify_linkedin['location']}",
+                                 "confidence": "DOCUMENTED", "source": "LinkedIn (via Apify)"})
+        for ed in apify_linkedin.get("education", [])[:5]:
+            school  = ed.get("school") or "Unknown school"
+            degree  = ed.get("degree") or ""
+            field   = ed.get("field") or ""
+            years   = f"{ed.get('start','')}–{ed.get('end','')}" if ed.get("start") else ""
+            sec5b_claims.append({"text": f"Education: {school} — {degree} {field} {years}".strip(" —"),
+                                 "confidence": "DOCUMENTED", "source": "LinkedIn (via Apify)"})
+        for ex in apify_linkedin.get("experience", [])[:5]:
+            company = ex.get("company") or "Unknown org"
+            title   = ex.get("title") or ""
+            start   = ex.get("start") or ""
+            end     = ex.get("end") or "Present"
+            sec5b_claims.append({"text": f"Career: {title} at {company} ({start}–{end}).",
+                                 "confidence": "DOCUMENTED", "source": "LinkedIn (via Apify)"})
+        if apify_linkedin.get("note"):
+            sec5b_claims.append({"text": f"Note: {apify_linkedin['note']}",
+                                 "confidence": "ANALYTICAL", "source": "Apify"})
+        if not sec5b_claims:
+            sec5b_claims.append({"text": f"LinkedIn profile not found for {entity_name} via public URL slug.",
+                                 "confidence": "DOCUMENTED", "source": "Apify/LinkedIn"})
+        sections.append({"name": "People & Education (LinkedIn)", "order": 6,
+                         "claims": sec5b_claims,
+                         "data": {
+                             "education_entries": len(apify_linkedin.get("education", [])),
+                             "experience_entries": len(apify_linkedin.get("experience", [])),
+                             "source": "Apify/LinkedIn",
+                         }})
+
     # ── Section 6: Sanctions & Compliance ────────────────────────────────────
     sec6_claims = []
     if ofac_data.get("is_sanctioned"):
@@ -690,7 +817,7 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
     else:
         sec6_claims.append({"text": "No OFAC sanctions or OpenSanctions matches found.",
                             "confidence": "DOCUMENTED", "source": "OFAC/OpenSanctions"})
-    sections.append({"name": "Sanctions & Compliance", "order": 6,
+    sections.append({"name": "Sanctions & Compliance", "order": 7,
                      "claims": sec6_claims,
                      "data": {"sanctioned": ofac_data.get("is_sanctioned", False)}})
 
@@ -702,11 +829,66 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
     if not sec7_claims:
         sec7_claims.append({"text": "No federal court dockets found via CourtListener.",
                             "confidence": "DOCUMENTED", "source": "CourtListener"})
-    sections.append({"name": "Litigation & Legal Exposure", "order": 7,
+    sections.append({"name": "Litigation & Legal Exposure", "order": 8,
                      "claims": sec7_claims,
                      "data": {"case_count": len(court_data.get("cases", []))}})
 
-    # ── Section 8: Data Sources & Alternatives Reference ─────────────────────
+    # ── Section 8: PitchBook & Investor Intelligence (Apify) ─────────────────
+    if APIFY_AVAILABLE and (apify_pitchbook.get("description") or apify_pitchbook.get("investors")):
+        sec_pb_claims = []
+        if apify_pitchbook.get("description"):
+            sec_pb_claims.append({"text": apify_pitchbook["description"][:400],
+                                  "confidence": "REPORTED", "source": "PitchBook (via Apify)"})
+        if apify_pitchbook.get("stage"):
+            sec_pb_claims.append({"text": f"Stage: {apify_pitchbook['stage']}",
+                                  "confidence": "REPORTED", "source": "PitchBook (via Apify)"})
+        if apify_pitchbook.get("total_raised"):
+            sec_pb_claims.append({"text": f"Total raised: {apify_pitchbook['total_raised']}",
+                                  "confidence": "REPORTED", "source": "PitchBook (via Apify)"})
+        if apify_pitchbook.get("founded"):
+            sec_pb_claims.append({"text": f"Founded: {apify_pitchbook['founded']}",
+                                  "confidence": "DOCUMENTED", "source": "PitchBook (via Apify)"})
+        for inv in apify_pitchbook.get("investors", [])[:8]:
+            sec_pb_claims.append({"text": f"Investor: {inv}",
+                                  "confidence": "REPORTED", "source": "PitchBook (via Apify)"})
+        for rnd in apify_pitchbook.get("funding_rounds", [])[:5]:
+            sec_pb_claims.append({"text": f"Funding round: {rnd.get('type','')} — {rnd.get('amount','')} ({rnd.get('date','')})",
+                                  "confidence": "REPORTED", "source": "PitchBook (via Apify)"})
+        for comp in apify_pitchbook.get("competitors", [])[:4]:
+            sec_pb_claims.append({"text": f"Competitor: {comp}",
+                                  "confidence": "ANALYTICAL", "source": "PitchBook (via Apify)"})
+        if sec_pb_claims:
+            sections.append({"name": "PitchBook & Investor Intelligence", "order": 9,
+                             "claims": sec_pb_claims,
+                             "data": {
+                                 "pb_investors": len(apify_pitchbook.get("investors", [])),
+                                 "pb_rounds": len(apify_pitchbook.get("funding_rounds", [])),
+                                 "source": "Apify/PitchBook",
+                             }})
+
+    # ── Section 9: News & Media Timeline (Apify) ─────────────────────────────
+    if APIFY_AVAILABLE and apify_news:
+        sec_news_claims = []
+        for article in apify_news[:8]:
+            date_str = f" ({article['published']})" if article.get("published") else ""
+            src_str  = f" [{article['source']}]" if article.get("source") else ""
+            snippet  = f" — {article['snippet'][:150]}" if article.get("snippet") else ""
+            url_str  = f" {article['url']}" if article.get("url") else ""
+            sec_news_claims.append({
+                "text": f"{article.get('title','')}{date_str}{src_str}{snippet}{url_str}",
+                "confidence": "REPORTED",
+                "source": f"Google News via Apify ({article.get('source','')})",
+            })
+        if sec_news_claims:
+            sections.append({"name": "News & Media Timeline", "order": 10,
+                             "claims": sec_news_claims,
+                             "data": {"articles_found": len(apify_news), "source": "Apify/Google News"}})
+
+    # ── Section N-1: Data Sources ─────────────────────────────────────────────
+    apify_status = f"Apify enrichment: {'active' if APIFY_AVAILABLE else 'inactive (no token)'}. " \
+                   f"LinkedIn: {'profile fetched' if apify_linkedin.get('headline') else 'slug-based lookup attempted'}. " \
+                   f"PitchBook: {len(apify_pitchbook.get('investors', []))} investors. " \
+                   f"News: {len(apify_news)} articles."
     sec8_claims = [
         {"text": "Wikipedia: free company background via REST API (no key).",
          "confidence": "DOCUMENTED", "source": "Wikipedia REST API"},
@@ -714,19 +896,20 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
          "confidence": "DOCUMENTED", "source": "fundedapi.com"},
         {"text": "SEC EDGAR: SC 13G/13D (institutional ownership), Form D (private placements), company submissions — all free with User-Agent.",
          "confidence": "DOCUMENTED", "source": "SEC EDGAR"},
-        {"text": "LDA.gov (new): lobbying disclosures by client_name — migrating from lda.senate.gov after Jun 30 2026.",
+        {"text": "LDA.gov: lobbying disclosures — both client_name AND registrant_name queries (two-sided disclosure).",
          "confidence": "DOCUMENTED", "source": "lda.gov"},
-        {"text": "PitchBook alternative evaluated: FundedAPI (free), AIFunding.me (free AI-sector). PitchBook requires paid key from James.",
-         "confidence": "ANALYTICAL", "source": "Internal evaluation"},
-        {"text": "LinkedIn/people data: Proxycurl shut down (lawsuit). Alternatives: People Data Labs (100 free/mo), NinjaPear (post-Proxycurl). Integration pending James approval.",
-         "confidence": "ANALYTICAL", "source": "Internal evaluation"},
+        {"text": apify_status,
+         "confidence": "DOCUMENTED", "source": "Apify platform"},
+        {"text": "Apify actors: automation-lab/linkedin-profile-scraper (~$0.003/profile), mdataset/pitchbook-scraper (~$0.0035/lookup), brilliant_gum/google-news-scraper (~$0.03/article).",
+         "confidence": "ANALYTICAL", "source": "Apify Store"},
     ]
-    sections.append({"name": "Data Sources & Enrichment Notes", "order": 8,
+    last_order = max((s["order"] for s in sections), default=10) + 1
+    sections.append({"name": "Data Sources & Enrichment", "order": last_order,
                      "claims": sec8_claims, "data": {}})
 
-    # ── Section 9: AI Narrative (ENHANCED — company, parties, investors) ──────
-    narrative_text = _generate_narrative(entity_name, sections[:7], wiki_data, funded_data)
-    sections.append({"name": "Deep Intelligence Narrative (AI-Generated)", "order": 9,
+    # ── Final section: AI Narrative ───────────────────────────────────────────
+    narrative_text = _generate_narrative(entity_name, sections[:-1], wiki_data, funded_data)
+    sections.append({"name": "Deep Intelligence Narrative (AI-Generated)", "order": last_order + 1,
                      "claims": [{"text": narrative_text, "confidence": "ANALYTICAL",
                                  "source": "GPT-4o-mini (grounded in cited evidence, 5-section format)"}],
                      "data": {"model": "gpt-4o-mini", "sections": 5, "depth": "enhanced"}})
@@ -764,8 +947,11 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
         "data_sources": {
             "wikipedia": bool(wiki_data.get("summary")),
             "funded_api": bool(funded_data.get("rounds")),
-            "sec_investors": len(investor_data.get("ownership_filings",[])),
-            "lda_fixed": "client_name + lda.gov",
+            "sec_investors": len(investor_data.get("ownership_filings", [])),
+            "lda_both_sides": "client_name + registrant_name",
+            "apify_linkedin": bool(apify_linkedin.get("headline")),
+            "apify_pitchbook": bool(apify_pitchbook.get("description") or apify_pitchbook.get("investors")),
+            "apify_news": len(apify_news),
         },
         "summary": {
             "sec_cik": sec_data.get("cik"),
@@ -773,13 +959,16 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
             "contracts_found": len(spending_data.get("awards", [])),
             "total_obligated_usd": spending_data.get("total_obligated", 0),
             "lobbying_filings": lda_data.get("total_count", 0),
+            "lobbying_as_registrant": lda_data.get("as_registrant_count", 0),
             "lobbying_firms": len(lda_data.get("top_firms", [])),
             "fec_committees": len(fec_data.get("committees", [])),
             "fara_registrations": len(fara_data.get("registrants", [])),
             "sanctions_hits": len(ofac_data.get("hits", [])),
             "court_cases": len(court_data.get("cases", [])),
             "relationships_written": len(relationships_created),
-            "investor_filings": len(investor_data.get("ownership_filings",[])),
+            "investor_filings": len(investor_data.get("ownership_filings", [])),
+            "news_articles": len(apify_news),
+            "linkedin_education": len(apify_linkedin.get("education", [])),
         }
     }
 
