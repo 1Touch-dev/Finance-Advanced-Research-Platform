@@ -10,34 +10,54 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 
 | Area | Status |
 |------|--------|
-| **Overall** | **Phase 3 Layer 1 Intelligence Reports (v1.1 shipped — 17 Jun)** |
-| **Active workstream** | Entity Network Intelligence Reports — 9 sections, deep GPT narrative, PayPal Mafia demo |
-| **Daily log** | [17th_June.md](./17th_June.md) · [16th_June.md](./16th_June.md) · [15th_June.md](./15th_June.md) |
+| **Overall** | **Phase 3 Layer 1 v1.2 live on staging — 22 Jun 2026** |
+| **Active workstream** | Layer 2: Apify enrichment (News ✅, LinkedIn ✅, PitchBook ⚠️), browser research agent next |
+| **Latest handoff** | [22nd_June.md](./22nd_June.md) · [james_requirements.md](./james_requirements.md) (v2.0 requirements) |
+| **Prior logs** | [18th_June.md](./18th_June.md) · [17th_June.md](./17th_June.md) |
 | **E2E report** | [E2E_LIVE_VERIFICATION_REPORT.md](./E2E_LIVE_VERIFICATION_REPORT.md) — 38 FULL / 8 PARTIAL / 0 FAIL (11 Jun) |
 | **Branch** | `feature/us-50-state-registry-api` → [PR #2](https://github.com/1Touch-dev/Finance-Advanced-Research-Platform/pull/2) |
-| **Last push** | `a2e834e` — v1.1 code + docs; E2E browser verified on staging |
-| **E2E (Layer 1 v1.1)** | ✅ Palantir + Peter Thiel flows pass — 9 sections, 504 lobbying filings, deep narrative |
+| **Last push** | `d2432f1` — Layer 1 v1.2 (Apify connector, two-sided LDA, Cytoscape graph embed) |
+| **Apify** | ✅ Unblocked (22 Jun) — News + LinkedIn live; PitchBook pending actor permission approval |
+| **E2E (Layer 1 v1.2)** | ✅ Peter Thiel + Palantir: 9–12 sections, Google News articles, LinkedIn headline, GPT narrative |
 | **Tests** | **79 passing** (`pytest tests/ -q`) |
 | **Staging** | Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002` |
-| **Layer 1 Intelligence** | ✅ Live — 9-section dossier · `POST /intelligence/generate` · UI at `/intelligence` |
-| **Registry** | `GET /registry/search`, `GET /registry/jurisdictions`, `GET /registry/entity/{jur}/{eid}` — 202 records, 51 jurisdictions |
-| **Connectors** | 17 federal gov connectors + 51 state registry + BEA = **69 total** |
-| **BEA** | **Live** — 429 records; `/economics` page |
-| **California** | BizFile scrape ✅ (~150/run); CA SOS API ⏸️ pending; Cobalt ⏸️ deferred |
+| **Layer 1 Intelligence** | ✅ Live — 12-section dossier · `POST /intelligence/generate` · UI at `/intelligence` |
+| **Registry** | 51 jurisdictions, 202 records |
+| **Connectors** | 17 federal + 51 state + BEA + Apify (News, LinkedIn, PitchBook) = **70+ total** |
+| **BEA** | ✅ Live — 429 records; `/economics` page |
+| **California** | BizFile scrape ✅; CA SOS API ⏸️ pending; Cobalt ⏸️ deferred |
 
-For a detailed requirement-vs-implementation breakdown, see **[docs/REQUIREMENT_GAP_ANALYSIS.md](./docs/REQUIREMENT_GAP_ANALYSIS.md)**.
+For a detailed requirement-vs-implementation breakdown, see **[docs/REQUIREMENT_GAP_ANALYSIS.md](./docs/REQUIREMENT_GAP_ANALYSIS.md)**.  
+For all James's requirements (v2.0 features, Jarvis Nexus, agent team), see **[james_requirements.md](./james_requirements.md)**.
 
 ---
 
-## Phase 3 — Layer 1 Entity Network Intelligence Reports (v1.1 — 17 June 2026)
+## Layer 1 v1.2 — What's live (22 Jun 2026)
 
-James confirmed **Type A — Entity Network Intelligence Report** as the first deliverable. v1 shipped 16 Jun; v1.1 shipped 17 Jun with lobbying fix, deeper narrative, PayPal Mafia seeds, and free enrichment APIs.
+| # | Feature | Status |
+|---|---------|--------|
+| 1 | 12-section intelligence dossier (SEC, FEC, FARA, USASpending, LDA, OFAC, Courts, Wikipedia, investors, LinkedIn, PitchBook, News) | ✅ Live |
+| 2 | Two-sided lobbying disclosure — `[CLIENT SIDE]` + `[REGISTRANT SIDE]` | ✅ Live |
+| 3 | Embedded Cytoscape relationship graph | ✅ Live |
+| 4 | Apify Google News enrichment — 47–81 articles per query | ✅ Live |
+| 5 | Apify LinkedIn profile enrichment | ✅ Live |
+| 6 | Apify PitchBook | ⚠️ Needs actor permission approval |
+| 7 | GPT-4o deep narrative (5-section) | ✅ Live |
+| 8 | PayPal Mafia demo seeds (Thiel, Musk, Hoffman, Levchin, Sacks) | ✅ Live |
+| 9 | US State Registry — 51 jurisdictions | ✅ Live |
+| 10 | BEA Economics page | ✅ Live |
 
-**Feedback addressed (17 Jun):**
-- **Lobbying fixed** — `client_name` query on LDA: Palantir shows 504 filings (vs 10 before), with issue areas and firm breakdown
-- **Narrative deepened** — 5-section format: Company Overview · Key People · Investor Network · Government Exposure · Risk Flags
-- **PayPal Mafia demo** — seeds for Thiel, Musk, Hoffman, Levchin, Sacks all live
-- **Free enrichment** — Wikipedia REST + FundedAPI + SEC 13G/13D/Form D integrated (no extra keys)
+## Layer 2 — What's next
+
+See [james_requirements.md](./james_requirements.md) for the full prioritised backlog. Top items:
+
+1. KPI strip + filter bar + tables on intelligence reports (James 22 Jun ask)
+2. Fix click-to-investigate in report claim text
+3. Browser research agent for uncovered jurisdictions (Argentina etc.)
+4. Contracts two-sided disclosure
+5. Apollo email intelligence pipeline (v2.0 Block A)
+6. Per-entity RAG chat with pgvector + Claude (v2.0 Block C)
+7. Tracking dashboard + daily digest (v2.0 Block E)
 - **LDA endpoint** — migrated to `lda.gov` (lda.senate.gov decommissions Jun 30 2026)
 
 ### Try it on staging

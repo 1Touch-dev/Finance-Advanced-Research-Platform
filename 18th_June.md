@@ -6,9 +6,9 @@
 
 **Staging:** Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002`  
 **Branch:** `feature/us-50-state-registry-api` · **PR #2**  
-**Last push:** `4dba953` — James cross-verification in 17th_June.md
+**Last push:** `d2432f1` — Layer 1 v1.2 (Apify connector, two-sided LDA, graph embed, clickable entities)
 
-**Status:** 🟡 **Layer 1 v1.1 live** — James 18 Jun feedback = **new Layer 2 backlog**. Apify token available locally; **no Apify integration coded yet**.
+**Status:** ✅ **Layer 1 v1.2 shipped 18 Jun PM** — Phase 1.2 complete. Apify **integrated in code**; enrichment **blocked** until monthly credits reset / top-up (see §16).
 
 ---
 
@@ -16,17 +16,17 @@
 
 | Area | Status |
 |------|--------|
-| **Layer 1 v1.1** | ✅ Shipped 17 Jun — lobbying fix, deep narrative, PayPal Mafia seeds, 9 sections, E2E verified |
-| **James v1.1 review** | 🟡 Sent WhatsApp 17 Jun PM — James replied 18 Jun AM with **new requirements** |
-| **Two-sided disclosure** | 🟡 Partial — lobbying claims name client+firm; contracts one-sided; no registrant-side LDA |
-| **Relationship map / visualizers** | 🔲 Not on `/intelligence` — `/graph` exists separately, not wired |
-| **Key people → auto-expand** | 🔲 Not built |
-| **Media (interviews, YouTube, books)** | 🔲 Not built — Wikipedia only |
-| **LinkedIn / education / colleges** | 🔲 Not built — **Apify path unblocked** (`APIFY_API_TOKEN` in `.env`) |
-| **Click entity → profile** | 🟡 Backend `/entities/{id}` exists; not linked from intelligence reports |
-| **Person timeline (news + social)** | 🔲 Not built — Apify news/YouTube actors identified |
-| **PitchBook** | 🔲 Not integrated — **Apify `mdataset/pitchbook-scraper`** available (~$3.50/1K, no James key) |
-| **Project plan for James** | 🟡 Drafted below — **send today** |
+| **Layer 1 v1.2** | ✅ Shipped 18 Jun PM — Apify connector wired, two-sided LDA, graph embed, clickable entities |
+| **James v1.1 review** | ✅ WhatsApp sent 17 Jun PM — James replied 18 Jun AM with **Layer 2 scope** |
+| **Two-sided disclosure** | ✅ Lobbying: `client_name` + `registrant_name` LDA queries; `[CLIENT SIDE]` / `[REGISTRANT SIDE]` claims |
+| **Relationship map / visualizers** | ✅ Cytoscape graph embedded on `/intelligence`; click node → investigate |
+| **Key people → auto-expand** | 🔲 Not built — graph shows existing DB edges only |
+| **Media (interviews, YouTube, books)** | 🟡 News section wired (Apify); YouTube/books 🔲 |
+| **LinkedIn / education / colleges** | 🟡 **Code integrated** — §6 People & Education section; **empty until Apify credits** |
+| **Click entity → profile** | ✅ Entity names in report trigger new investigation; graph nodes clickable |
+| **Person timeline (news + social)** | 🔲 News articles in §9 when Apify active; no chronological timeline UI yet |
+| **PitchBook** | 🟡 **Code integrated** — §8 PitchBook section; **empty until Apify credits** |
+| **Project plan for James** | ✅ Drafted §8–§9; **WhatsApp update sent 18 Jun PM** |
 | **CA / Cobalt** | ⏸️ Still deferred |
 
 ---
@@ -66,23 +66,24 @@ v1.1 update: LDA fix (504 filings), 5-section narrative, PayPal Mafia seeds, fre
 
 | James said | Interpretation | Status | Evidence / gap |
 |------------|----------------|--------|----------------|
-| **Both sides** (lobbying, contracts, etc.) | Every factor shows both parties explicitly | 🟡 **PARTIAL** | Lobbying claims: "X lobbied for Palantir" + `lobbies_for` edges. Contracts: agency → recipient only. No LDA query when entity is **registrant** (lobbying firm). No unified two-sided UI block. |
-| **Key people → related parties → relationship map** | Auto-investigate named people; build graph | 🔲 **NOT DONE** | Narrative lists people from Wikipedia/SEC. Graph edges written to DB. No auto-expansion; no map on report page. |
-| **Bios, interviews, books, articles, documentaries, YouTube** | Rich media / public record depth | 🔲 **NOT DONE** | Wikipedia summary only in §1. No news, YouTube, books, interviews pipeline. |
-| **Visualizers** | Charts / relationship map on dossier | 🔲 **NOT DONE** | `/intelligence` = text sections + summary bar. `/graph` (Cytoscape) exists at separate URL, not embedded. |
-| **LinkedIn — colleges, related parties** | Education + career + network | 🔲 **NOT DONE** | Proxycurl shut down. PDL evaluated 17 Jun. **Apify path now available** — see §6. |
-| **Person timeline** (news, social mentions) | Chronological life/career + media | 🔲 **NOT DONE** | `/search/entities/{id}/timeline` exists for generic entities but not wired to intelligence person reports or news/social. |
-| **Click any entity → profile + relationships** | Interactive entity explorer | 🟡 **PARTIAL** | `GET /search/entities/{id}` + `/entities/[id]` page (JSON). Names in intelligence report **not clickable**. |
-| **Project plan, timelines, delivery expectations** | Formal Layer 2 roadmap | 🟡 **IN THIS DOC** | §8–§10 below — send to James today. |
+| **Both sides** (lobbying, contracts, etc.) | Every factor shows both parties explicitly | ✅ **LOBBYING DONE** | LDA queries both `client_name` and `registrant_name`. Claims tagged `[CLIENT SIDE]` / `[REGISTRANT SIDE]`. Contracts still agency → recipient only. |
+| **Key people → related parties → relationship map** | Auto-investigate named people; build graph | 🟡 **PARTIAL** | Embedded Cytoscape on dossier; click node to investigate. No auto-expand from narrative names yet. |
+| **Bios, interviews, books, articles, documentaries, YouTube** | Rich media / public record depth | 🟡 **PARTIAL** | Wikipedia §1 + News §9 (Apify) wired; YouTube/books 🔲. Apify credits exhausted — news empty for now. |
+| **Visualizers** | Charts / relationship map on dossier | ✅ **DONE** | Cytoscape graph embedded on `/intelligence` after report generate. |
+| **LinkedIn — colleges, related parties** | Education + career + network | 🟡 **CODE DONE** | §6 People & Education via `apify_connector.py`. **Blocked:** Apify monthly credit limit. |
+| **Person timeline** (news, social mentions) | Chronological life/career + media | 🔲 **NOT DONE** | News list in §9 when Apify active; no chronological timeline UI. |
+| **Click any entity → profile + relationships** | Interactive entity explorer | ✅ **DONE** | Click entity name in report or graph node → new investigation. `/entities/[id]` still raw JSON. |
+| **Project plan, timelines, delivery expectations** | Formal Layer 2 roadmap | ✅ **SENT** | §8–§9 + WhatsApp to James 18 Jun PM. |
 
 ### Overall verdict (18 Jun)
 
 | Category | Items |
 |----------|-------|
-| ✅ Done (17 Jun, still valid) | LDA fix, deep narrative, 9-section report, PayPal Mafia seeds, free federal + Wikipedia enrichment, E2E verified |
-| 🟡 Partial | Two-sided lobbying text; entity profile API exists but not linked; graph backend exists but not on dossier |
-| 🔲 Not done (James 18 Jun) | Full two-sided disclosure, relationship map visualizer, key-people auto-expand, media layer, LinkedIn/education, person timeline, clickable entities, network dossier, PDF |
-| 🔓 **Unblocked today** | Apify token in `.env` — can spike LinkedIn + PitchBook + news + YouTube without waiting on James for PDL/PitchBook keys |
+| ✅ Done (18 Jun v1.2) | Apify connector, two-sided LDA, Cytoscape embed, clickable entities, §6 LinkedIn + §8 PitchBook + §9 News sections, E2E Peter Thiel on staging, pushed `d2432f1` |
+| ✅ Done (17 Jun, still valid) | LDA fix, deep narrative, PayPal Mafia seeds, free federal + Wikipedia enrichment |
+| 🟡 Partial | Apify enrichment (code live, credits exhausted); contracts one-sided; key-people auto-expand; person timeline UI; YouTube/books |
+| 🔲 Not done (James 18 Jun) | Key-people auto-expand, chronological person timeline, YouTube/books, network dossier, PDF, polished `/entities/[id]` UI |
+| ⚠️ **Apify blocker** | Account `james97deller` STARTER plan — monthly credits exhausted (`platform-feature-disabled`). Top up at console.apify.com or wait for billing cycle reset. |
 
 ---
 
@@ -103,13 +104,13 @@ See [17th_June.md](./17th_June.md) §1–§12. Key facts:
 James wants an **ARG / Asia Defense–style network dossier** — not just a single-entity federal pull:
 
 ```
-James vision                          Today (v1.1)
+James vision                          Today (v1.2 — 18 Jun PM)
 ─────────────────────────────────────────────────────────────
-Click any name → full profile         Raw JSON at /entities/{id}, not linked
-Relationship map on report            Separate /graph page only
-Both parties on every factor          Partial on lobbying only
-LinkedIn colleges + related parties   Not built
-Person timeline + news + social       Not built
+Click any name → full profile         Click in report/graph → new investigation (profile page still raw JSON)
+Relationship map on report            ✅ Cytoscape embedded on /intelligence
+Both parties on every factor          ✅ Lobbying both sides; contracts still one-sided
+LinkedIn colleges + related parties   🟡 §6 wired — empty until Apify credits
+Person timeline + news + social       🟡 News §9 wired — no timeline UI yet
 YouTube / interviews / books          Not built
 PayPal Mafia as ONE network report    Individual seeds only
 PDF export                            Not built
@@ -142,7 +143,7 @@ Authorization: Bearer {APIFY_API_TOKEN}
 # Poll run → GET /v2/datasets/{datasetId}/items
 ```
 
-Python: `apify-client` package. Planned connector: `apps/api/app/connectors/apify_client.py`.
+Python: `apify-client` package. **Connector shipped:** `apps/api/app/connectors/apify_connector.py` (18 Jun).
 
 ### 6.3 Cost estimate — PayPal Mafia demo spike
 
@@ -207,8 +208,8 @@ flowchart LR
 
 | Phase | Dates (est.) | Deliverable | James sees |
 |-------|--------------|-------------|------------|
-| **1.2** | 18–24 Jun (~1 wk) | Two-sided disclosure; clickable entities in report; Cytoscape graph embed on dossier | Click Palantir → see agencies + lobbying firms on map |
-| **2.0** | 25 Jun – 8 Jul (~2 wk) | Apify LinkedIn + PitchBook connectors; education/colleges; related parties; key-people auto-expand | Peter Thiel report shows Stanford, PayPal alumni, Founders Fund links |
+| **1.2** | 18 Jun ✅ | Two-sided disclosure; clickable entities in report; Cytoscape graph embed on dossier | ✅ Shipped — Peter Thiel report shows graph + both-sides lobbying section |
+| **2.0** | 18 Jun 🟡 code done | Apify LinkedIn + PitchBook + News connectors; education/colleges section | **Blocked on Apify credits** — needs top-up for live LinkedIn/PitchBook/News data |
 | **2.1** | 9–22 Jul (~2 wk) | Person timeline service — career + filings + news + contracts chronologically | Thiel timeline: PayPal → Palantir → news hits |
 | **2.2** | 23 Jul – 5 Aug (~2 wk) | Media layer — Apify news + YouTube; books/articles where public | § Media & Public Record with cited links |
 | **2.3** | 6–26 Aug (~3 wk) | Full PayPal Mafia **network dossier** (one linked report); PDF export | Single multi-entity report matching ARG style |
@@ -235,32 +236,33 @@ flowchart LR
 
 ## 10) Pending tasks — priority stack
 
-### P0 — This week (Phase 1.2)
+### P0 — This week (Phase 1.2) — ✅ DONE 18 Jun
 
 | # | Task | Owner | Status |
 |---|------|-------|--------|
-| L2.1 | Two-sided disclosure — lobbying (client + registrant LDA), contracts, FEC | — | 🔲 |
-| L2.2 | Clickable entity names in intelligence report → `/entities/{id}` | — | 🔲 |
-| L2.3 | Embed Cytoscape relationship graph on `/intelligence` (reuse `/graph/export`) | — | 🔲 |
-| L2.4 | Send James project plan + Apify approach WhatsApp | — | 🟡 **Today** |
+| L2.1 | Two-sided disclosure — lobbying (client + registrant LDA), contracts, FEC | — | ✅ Lobbying both sides |
+| L2.2 | Clickable entity names in intelligence report → investigate | — | ✅ |
+| L2.3 | Embed Cytoscape relationship graph on `/intelligence` (reuse `/graph/export`) | — | ✅ |
+| L2.4 | Send James project plan + Apify approach WhatsApp | — | ✅ Sent 18 Jun PM |
 | L2.5 | James sign-off on Apify scraping policy (LinkedIn + PitchBook) | James | 🔲 |
+| L2.5b | **Apify account top-up** — monthly credits exhausted | James | ⚠️ **Blocker** |
 
-### P1 — Next 2 weeks (Phase 2.0 — Apify)
+### P1 — Phase 2.0 (Apify) — 🟡 Code shipped, data blocked
 
 | # | Task | Owner | Status |
 |---|------|-------|--------|
-| L2.6 | `apify_client.py` connector + `APIFY_API_TOKEN` in `.env.example` | — | 🔲 |
-| L2.7 | Apify LinkedIn profile scraper — education + experience for `entity_type=person` | — | 🔲 |
+| L2.6 | `apify_connector.py` + `APIFY_API_TOKEN` in `.env.example` | — | ✅ |
+| L2.7 | Apify LinkedIn profile scraper — education + experience for `entity_type=person` | — | ✅ code; ⏸️ credits |
 | L2.8 | Apify company employees → key people for org reports | — | 🔲 |
-| L2.9 | Apify PitchBook scraper — funding rounds + investors | — | 🔲 |
+| L2.9 | Apify PitchBook scraper — funding rounds + investors | — | ✅ code; ⏸️ credits |
 | L2.10 | Key people extractor → auto-fetch related entities → graph edges | — | 🔲 |
-| L2.11 | Spike: Peter Thiel LinkedIn URL on staging | — | 🔲 |
+| L2.11 | Spike: Peter Thiel LinkedIn URL on staging | — | ⏸️ credits |
 
 ### P2 — Layer 2 media + network
 
 | # | Task | Status |
 |---|------|--------|
-| L2.12 | Apify Google News — person/company timeline events | 🔲 |
+| L2.12 | Apify Google News — person/company timeline events | ✅ code; ⏸️ credits |
 | L2.13 | Apify YouTube — interviews, documentaries | 🔲 |
 | L2.14 | Person timeline UI (merge career + filings + news) | 🔲 |
 | L2.15 | Full PayPal Mafia multi-entity network report | 🔲 |
@@ -294,7 +296,7 @@ flowchart LR
 | Federal connector keys | ✅ Set | SEC, FEC, LDA, USASpending, etc. |
 | `ANTHROPIC_API_KEY` | ✅ Set | Skills (Claude) |
 | `BEA_API_USER_ID` | ✅ Set | BEA economic data |
-| **`APIFY_API_TOKEN`** | ✅ **Set locally** | LinkedIn, PitchBook, news, YouTube via Apify — **not wired in code yet** |
+| **`APIFY_API_TOKEN`** | ✅ Set · ⚠️ **credits exhausted** | LinkedIn, PitchBook, news via `apify_connector.py` — **wired; returns empty until top-up** |
 | `PITCHBOOK_API_KEY` | ❌ Not needed if Apify path | Official API optional |
 | PDL API key | ❌ Not set | Fallback to Apify |
 | `CA_SOS_API_KEY` | ⏸️ Deferred | James to provide |
@@ -303,20 +305,22 @@ flowchart LR
 
 ---
 
-## 12) What we are doing today (18 Jun) — planning day
-
-**No code today** — planning, documentation, alignment, James comms.
+## 12) What we did today (18 Jun) — planning AM + build PM
 
 | # | Activity | Output |
 |---|----------|--------|
-| 1 | Create this handoff (`18th_June.md`) | ✅ |
-| 2 | Consolidate all James 18 Jun messages + cross-verify vs codebase | ✅ §3 |
-| 3 | Document Apify actor matrix + revised Layer 2 plan | ✅ §6–§9 |
-| 4 | Prepare standup MOM + James WhatsApp (project plan + Apify) | §13–§14 |
-| 5 | Get James sign-off on Apify scraping policy before production scale | 🔲 Send today |
-| 6 | Update README pointer to `18th_June.md` as latest handoff | 🔲 Optional after James reply |
+| 1 | Create this handoff (`18th_June.md`) | ✅ AM |
+| 2 | Consolidate James 18 Jun messages + cross-verify | ✅ §3 |
+| 3 | Document Apify actor matrix + Layer 2 plan | ✅ §6–§9 |
+| 4 | **Build `apify_connector.py`** — LinkedIn, PitchBook, Google News | ✅ |
+| 5 | **Two-sided LDA** — `client_name` + `registrant_name` in `intelligence_service.py` | ✅ |
+| 6 | **Intelligence UI v1.2** — clickable entities, Cytoscape embed, Apify badges | ✅ |
+| 7 | E2E test Peter Thiel on staging — report #15, graph 2 nodes | ✅ |
+| 8 | Commit + push `d2432f1` to `feature/us-50-state-registry-api` | ✅ |
+| 9 | WhatsApp update to James (v1.2 shipped + Apify credit note) | ✅ PM |
+| 10 | James Apify top-up / scraping policy sign-off | 🔲 |
 
-**Code starts next** (after today): Phase 1.2 — two-sided disclosure, clickable entities, graph embed — then Apify spike on Peter Thiel.
+**Next:** Top up Apify credits → re-run Peter Thiel / Palantir for live LinkedIn + PitchBook + News data. Then L2.8 company employees + L2.10 key-people auto-expand.
 
 ---
 
@@ -335,20 +339,21 @@ flowchart LR
 - E2E verified on staging
 - Apify Store research complete (LinkedIn, PitchBook, news, YouTube actors)
 
-### Today (18 Jun) — planning & comms 📋
-1. **`18th_June.md`** — full handoff with James messages, gaps, Apify plan, timelines
-2. **Send James** — project plan + honest status on visualizers/media/LinkedIn + Apify proposal
-3. **Align internally** — Phase 1.2 scope for rest of week (no code until plan approved)
-4. **Legal flag** — Apify LinkedIn/PitchBook scraping needs James OK before production
+### Done today (18 Jun PM) ✅
+1. **Layer 1 v1.2 shipped** — Apify connector, two-sided LDA, graph embed, clickable entities
+2. **E2E verified** — Peter Thiel report on staging (10 sections, embedded graph)
+3. **Pushed** `d2432f1` to GitHub
+4. **WhatsApp to James** — v1.2 summary + Apify credit limit note
 
-### Next (19 Jun+) — build 🔨
-1. Phase 1.2: two-sided disclosure + clickable entities + graph on dossier
-2. Apify connector spike: Peter Thiel LinkedIn profile (education)
-3. Apify PitchBook: Palantir funding history
-4. Wire key-people → graph expansion
+### Next (19 Jun+) 🔨
+1. James tops up Apify credits → verify LinkedIn §6, PitchBook §8, News §9 populate
+2. Apify company employees scraper (L2.8) + key-people auto-expand (L2.10)
+3. Person timeline UI (L2.14)
+4. Contracts two-sided disclosure (agency + contractor explicit block)
 
 ### Blockers
-- James sign-off on Apify scraping policy (can spike on free tier meanwhile)
+- ⚠️ **Apify monthly credits exhausted** — `platform-feature-disabled` on all actor runs
+- James sign-off on Apify scraping policy + budget for ongoing enrichment (~$50–100/mo demo scale)
 - CA SOS / Cobalt / OIDC — still deferred
 
 ---
@@ -383,17 +388,38 @@ flowchart LR
 
 ---
 
-## 15) Files to create / change (upcoming — not today)
+## 15) Files changed (18 Jun PM — v1.2)
+
+| File | Change |
+|------|--------|
+| `apps/api/app/connectors/apify_connector.py` | ✅ **NEW** — LinkedIn, PitchBook, Google News actors |
+| `apps/api/app/connectors/__init__.py` | ✅ **NEW** |
+| `apps/api/app/services/intelligence_service.py` | ✅ Apify wiring; two-sided LDA; §6/§8/§9 sections |
+| `apps/web/pages/intelligence.js` | ✅ Clickable entities; Cytoscape embed; v1.2 UI |
+| `apps/web/src/styles/Intelligence.module.css` | ✅ entityChip, apifyBadge, graphEmbed styles |
+| `apps/api/pyproject.toml` | ✅ `apify-client>=3.0` |
+| `.env.example` | ✅ `APIFY_API_TOKEN` documented |
+
+**Still upcoming:**
 
 | File | Planned change |
 |------|----------------|
-| `apps/api/app/connectors/apify_client.py` | Apify REST wrapper |
-| `apps/api/app/services/intelligence_service.py` | Apify fetchers; two-sided LDA; key-people expand |
-| `apps/web/pages/intelligence.js` | Clickable entities; Cytoscape embed |
-| `.env.example` | `APIFY_API_TOKEN` |
-| `README.md` | Point to 18th_June.md; Layer 2 status |
+| `README.md` | Point to 18th_June.md; v1.2 status |
 | `tests/` | Apify mock tests; LDA registrant-side tests |
 
 ---
 
-*End of 18 June handoff — Layer 2 planning; Apify path unblocked; awaiting James sign-off on scraping policy*
+## 16) Apify credit limit (18 Jun PM)
+
+| Item | Detail |
+|------|--------|
+| **Account** | `james97deller` · STARTER plan ($39/mo, $39 usage credits) |
+| **Error** | `platform-feature-disabled` — "Monthly usage hard limit exceeded" |
+| **Spend observed** | ~$2.05 across 50 recent runs (prior Google search/image scraper tests) |
+| **Impact** | LinkedIn, PitchBook, News actors return empty; report still generates with all free sources |
+| **Fix** | Top up at [console.apify.com](https://console.apify.com) or wait for billing cycle reset |
+| **Graceful fallback** | `apify_connector.py` logs warning and returns `[]` — no report failure |
+
+---
+
+*End of 18 June handoff — Layer 1 v1.2 shipped; Apify integrated; credits exhausted pending James top-up*

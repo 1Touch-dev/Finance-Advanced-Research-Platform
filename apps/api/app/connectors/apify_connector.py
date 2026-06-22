@@ -55,7 +55,7 @@ def _run_actor(actor_id: str, input_data: dict, wait_secs: int = 120) -> List[di
 
         items_resp = requests.get(
             f"{APIFY_BASE}/datasets/{dataset_id}/items",
-            params={"token": APIFY_TOKEN, "clean": True, "format": "json"},
+            params={"token": APIFY_TOKEN, "clean": "true", "format": "json"},
             timeout=30,
         )
         if not items_resp.ok:
@@ -131,10 +131,10 @@ def fetch_linkedin_by_name(person_name: str, company_hint: str = "") -> Dict[str
     ]
     slug_variants = [s for s in slug_variants if s]
 
-    for slug in slug_variants[:2]:
+    for slug in slug_variants[:3]:
         url = f"https://www.linkedin.com/in/{slug}/"
         result = fetch_linkedin_profile(url)
-        if result.get("name"):
+        if result.get("headline") or result.get("education") or result.get("experience"):
             return result
 
     return {
