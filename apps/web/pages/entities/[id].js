@@ -38,8 +38,13 @@ function Stat({ label, value, sub }) {
 }
 
 function RelCard({ rel, entityId, onInvestigate }) {
-  const isSource = rel.source_entity_id === Number(entityId)
-  const partner  = isSource ? rel.target_entity_name : rel.source_entity_name
+  // Handle both API shapes: {src, dst, kind} and {source_entity_id, target_entity_id, ...}
+  const srcId    = rel.source_entity_id ?? rel.src
+  const dstId    = rel.target_entity_id ?? rel.dst
+  const isSource = srcId === Number(entityId)
+  const partner  = isSource
+    ? (rel.target_entity_name || rel.target_name || `Entity #${dstId}`)
+    : (rel.source_entity_name || rel.source_name || `Entity #${srcId}`)
   const arrow    = isSource ? '→' : '←'
   const colors   = {
     employs:          '#60a5fa',
@@ -108,10 +113,10 @@ export default function EntityProfile() {
   const { data: related,  error: relErr    } = useSWR(id ? `${API}/graph/related?entity_id=${id}` : null, fetcher)
 
   const entity    = profile?.entity || profile || {}
-  const relList   = (rels?.relationships || rels || []).slice(0, 50)
-  const evList    = (evidence?.evidence  || evidence || []).slice(0, 30)
-  const tlList    = (timeline?.timeline  || timeline || []).slice(0, 40)
-  const relatedList = (related?.entities || related?.nodes || []).slice(0, 20)
+  const relList   = (rels?.relationships || (Array.isArray(rels) ? rels : [])).slice(0, 50)
+  const evList    = (evidence?.evidence  || (Array.isArray(evidence) ? evidence : [])).slice(0, 30)
+  const tlList    = (timeline?.items || timeline?.timeline || (Array.isArray(timeline) ? timeline : [])).slice(0, 40)
+  const relatedList = (related?.related || related?.entities || related?.nodes || (Array.isArray(related) ? related : [])).slice(0, 20)
 
   const entityKind = entity.entity_type || entity.kind || 'entity'
   const entityName = entity.name || entity.entity_name || `Entity #${id}`
@@ -121,6 +126,18 @@ export default function EntityProfile() {
   }
 
   const tabs = ['overview', 'relationships', 'evidence', 'timeline', 'related']
+
+  // Next.js: router.query is empty on first SSR render; wait for hydration
+  if (!router.isReady) {
+    return (
+      <main className={styles.page}>
+        <section className={styles.hero}>
+          <h1>Entity Profile</h1>
+          <p style={{ color: 'var(--text-muted)' }}>Loading…</p>
+        </section>
+      </main>
+    )
+  }
 
   if (!id) {
     return (
@@ -208,7 +225,17 @@ export default function EntityProfile() {
               <div key={k} className={eStyles.detailRow}>
                 <span className={eStyles.detailKey}>{k.replace(/_/g, ' ')}</span>
                 <span className={eStyles.detailVal}>
-                  {typeof v === 'object' ? JSON.stringify(v).slice(0, 120) : String(v ?? '—')}
+                  {Array.isArray(v)
+                    ? v.map((item, i) => (
+                        <span key={i} style={{ display: 'inline-block', marginRight: '0.4rem', background: 'rgba(255,255,255,0.08)', borderRadius: '4px', padding: '1px 6px', fontSize: '0.78rem' }}>
+                          {typeof item === 'object'
+                            ? Object.entries(item).map(([ik,iv]) => `${ik}: ${iv}`).join(' · ')
+                            : String(item)}
+                        </span>
+                      ))
+                    : typeof v === 'object' && v !== null
+                      ? JSON.stringify(v).slice(0, 120)
+                      : String(v ?? '—')}
                 </span>
               </div>
             ))}

@@ -101,8 +101,8 @@ def enrich_organization(domain: str = "", name: str = "") -> dict:
 def search_organization(name: str) -> dict:
     """
     Search Apollo for an org by name. Returns the top matching org's profile.
-    Preferred over domain-guessing for accuracy.
-    NOTE: Returns search result directly — no domain re-enrichment to avoid mismatches.
+    NOTE: Org search consumes credits (100/month on free tier).
+    Falls back to domain-based enrichment when credits are exhausted.
     """
     data = _post("/organizations/search", {
         "q_organization_name": name,
@@ -111,9 +111,14 @@ def search_organization(name: str) -> dict:
     })
     orgs = data.get("organizations") or []
 
-    # Free plan error handling
-    if data.get("error") and "free plan" in str(data.get("error", "")).lower():
-        logger.info("Apollo org search requires paid plan")
+    # Handle credit exhaustion or free plan limitations
+    error = str(data.get("error", ""))
+    if data.get("error"):
+        if "insufficient credits" in error.lower() or "free plan" in error.lower():
+            logger.info("Apollo search credits exhausted — falling back to domain enrich for %s", name)
+            # Fall back to domain-based enrichment
+            slug = name.lower().replace(" ", "").replace(".", "").replace(",", "").replace("&", "and")
+            return enrich_organization(domain=f"{slug}.com") or {}
         return {}
 
     if not orgs:

@@ -697,6 +697,17 @@ export default function IntelligencePage() {
   const [chatInput, setChatInput]   = useState('')
   const [chatLoading, setChatLoading] = useState(false)
 
+  // Pre-fill from URL query params: ?entity=Name&type=org&ticker=PLTR
+  useEffect(() => {
+    if (!router.isReady) return
+    const { entity, type, ticker: t } = router.query
+    if (entity) {
+      setEntityName(decodeURIComponent(entity))
+      if (type) setEntityType(type)
+      if (t) setTicker(t)
+    }
+  }, [router.isReady, router.query])
+
   const useSeed = (seed) => {
     setEntityName(seed.entity)
     setTicker(seed.ticker)

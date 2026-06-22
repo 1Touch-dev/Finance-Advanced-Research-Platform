@@ -1212,36 +1212,43 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
 
     if tw.get("name") or tw.get("followers"):
         verif = " ✓ Verified" if tw.get("verified") else ""
+        tw_followers  = int(tw.get("followers") or 0)
+        tw_following  = int(tw.get("following") or 0)
+        tw_tweets     = int(tw.get("tweets_count") or 0)
         social_claims.append({
             "text": f"[TWITTER/X] @{tw.get('username','')}{verif} — {tw.get('name','')} — "
-                    f"{tw.get('followers',0):,} followers · {tw.get('following',0):,} following · "
-                    f"{tw.get('tweets_count',0):,} tweets · Bio: {(tw.get('bio') or '')[:200]}",
+                    f"{tw_followers:,} followers · {tw_following:,} following · "
+                    f"{tw_tweets:,} tweets · Bio: {(tw.get('bio') or '')[:200]}",
             "confidence": "DOCUMENTED", "source": "Apify/Twitter",
         })
         for t in tw.get("recent_tweets", [])[:3]:
             social_claims.append({
-                "text": f"[TWEET] {(t.get('text') or '')[:200]} (❤ {t.get('likes',0)} 🔁 {t.get('retweets',0)})",
+                "text": f"[TWEET] {(t.get('text') or '')[:200]} (❤ {int(t.get('likes') or 0):,} 🔁 {int(t.get('retweets') or 0):,})",
                 "confidence": "DOCUMENTED", "source": "Twitter",
             })
 
     if ig.get("name") or ig.get("followers"):
         verif = " ✓ Verified" if ig.get("verified") else ""
+        ig_followers  = int(ig.get("followers") or 0)
+        ig_posts      = int(ig.get("posts_count") or 0)
         social_claims.append({
             "text": f"[INSTAGRAM] @{ig.get('username','')}{verif} — {ig.get('name','')} — "
-                    f"{ig.get('followers',0):,} followers · {ig.get('posts_count',0):,} posts · "
+                    f"{ig_followers:,} followers · {ig_posts:,} posts · "
                     f"Bio: {(ig.get('bio') or '')[:200]}",
             "confidence": "DOCUMENTED", "source": "Apify/Instagram",
         })
 
     if yt.get("channel_name") or yt.get("subscribers"):
+        subs     = int(yt.get("subscribers") or 0)
+        vid_cnt  = int(yt.get("video_count") or 0)
         social_claims.append({
             "text": f"[YOUTUBE] {yt.get('channel_name','')} — "
-                    f"{yt.get('subscribers',0):,} subscribers · {yt.get('video_count',0):,} videos",
+                    f"{subs:,} subscribers · {vid_cnt:,} videos",
             "confidence": "DOCUMENTED", "source": "Apify/YouTube",
         })
         for v in yt.get("recent_videos", [])[:3]:
             social_claims.append({
-                "text": f"[VIDEO] {v.get('title','')} — {v.get('views',0):,} views",
+                "text": f"[VIDEO] {v.get('title','')} — {int(v.get('views') or 0):,} views",
                 "confidence": "DOCUMENTED", "source": "YouTube",
             })
 
@@ -1357,10 +1364,11 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
     if apollo_org or apollo_people_list:
         apollo_claims = []
         if apollo_org.get("name"):
+            apollo_headcount = int(apollo_org.get("headcount") or apollo_org.get("headcount_range") or 0)
             apollo_claims.append({
                 "text": f"[APOLLO ORG] {apollo_org['name']} — "
                         f"Industry: {apollo_org.get('industry','N/A')} · "
-                        f"Headcount: {apollo_org.get('headcount',0):,} · "
+                        f"Headcount: {apollo_headcount:,} · "
                         f"Revenue range: {apollo_org.get('revenue_range','N/A')} · "
                         f"Founded: {apollo_org.get('founded_year','N/A')} · "
                         f"HQ: {apollo_org.get('city','')}, {apollo_org.get('country','')}.",
@@ -1518,16 +1526,57 @@ def get_intelligence_report(db: Session, report_id: int) -> Optional[Dict[str, A
         {"id": report_id, "k": INTELLIGENCE_KIND}).fetchone()
     if not row:
         return None
-    sections = db.execute(
+
+    sections_raw = db.execute(
         text('SELECT name, content, "order" FROM report_sections WHERE report_id=:id ORDER BY "order"'),
         {"id": report_id}).fetchall()
-    claims = db.execute(
+    claims_raw = db.execute(
         text("SELECT text, status FROM claims WHERE report_id=:id"),
         {"id": report_id}).fetchall()
+
+    # Flat claims list (for RAG chat)
+    flat_claims = [{"text": c[0], "status": c[1]} for c in claims_raw]
+
+    # Rebuild sections with claims nested — split content back into claim lines
+    sections = []
+    for s in sections_raw:
+        sec_name    = s[0]
+        sec_content = s[1] or ""
+        sec_order   = s[2]
+        # Each line in content = one claim text (matching how we stored them)
+        line_claims = []
+        for line in sec_content.split("\n"):
+            line = line.strip()
+            if line:
+                # Strip leading confidence tag if present [HIGH], [MEDIUM], [LOW], [DOCUMENTED]
+                import re as _re
+                clean = _re.sub(r'^\[(?:HIGH|MEDIUM|LOW|DOCUMENTED|VERIFIED|FLAGGED)\]\s*', '', line)
+                line_claims.append({
+                    "text":       clean,
+                    "source":     sec_name,
+                    "confidence": "DOCUMENTED",
+                })
+        sections.append({
+            "name":    sec_name,
+            "content": sec_content,
+            "order":   sec_order,
+            "claims":  line_claims,
+        })
+
+    # Try to extract entity_name from title
+    import re as _re
+    title     = row[1] or ""
+    ename_m   = _re.search(r'Intelligence Report:\s+(.+)$', title)
+    entity_name = ename_m.group(1).strip() if ename_m else None
+
     return {
-        "report_id": row[0], "title": row[1], "kind": row[2], "status": row[3],
-        "sections": [{"name": s[0], "content": s[1], "order": s[2]} for s in sections],
-        "claims": [{"text": c[0], "status": c[1]} for c in claims],
+        "report_id":   row[0],
+        "title":       title,
+        "entity_name": entity_name,
+        "kind":        row[2],
+        "status":      row[3],
+        "sections":    sections,
+        "claims":      flat_claims,
     }
 
 

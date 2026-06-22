@@ -99,16 +99,18 @@ def _call_openai(messages: List[Dict]) -> str:
 
 def answer_question(
     question: str,
-    report: Dict[str, Any],
+    report: Optional[Dict[str, Any]],
     chat_history: Optional[List[Dict]] = None,
+    entity_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Answer a natural-language question about an entity using its report as context.
 
     Args:
         question:     User's question string.
-        report:       Full intelligence report dict (with sections and claims).
+        report:       Full intelligence report dict (with sections and claims). Can be None.
         chat_history: Optional list of { role, content } for multi-turn conversation.
+        entity_name:  Fallback entity name if no report provided.
 
     Returns:
         {
@@ -117,20 +119,39 @@ def answer_question(
           "context_used": int,  # number of claims in context
         }
     """
+    resolved_entity = entity_name or (report.get('entity_name') if report else None) or 'this entity'
+
     # Flatten all claims from all sections
     all_claims = []
-    for sec in (report.get('sections') or []):
-        for claim in (sec.get('claims') or []):
-            if isinstance(claim, dict):
-                all_claims.append(claim)
-            elif isinstance(claim, str):
-                all_claims.append({"text": claim, "source": sec.get("name",""), "confidence": ""})
+    if report:
+        for sec in (report.get('sections') or []):
+            for claim in (sec.get('claims') or []):
+                if isinstance(claim, dict):
+                    all_claims.append(claim)
+                elif isinstance(claim, str):
+                    all_claims.append({"text": claim, "source": sec.get("name",""), "confidence": ""})
 
     if not all_claims:
+        # No report — answer from general knowledge with a disclaimer
+        if not _OPENAI_KEY:
+            return {
+                "answer":       f"No intelligence report generated yet for {resolved_entity}. Generate a report first to enable cited Q&A.",
+                "sources":      [],
+                "context_used": 0,
+            }
+        # Use OpenAI general knowledge as fallback
+        fallback_messages = [
+            {"role": "system", "content": f"You are an expert intelligence analyst. The user is asking about {resolved_entity}. No specific database report is available — answer from general knowledge and be transparent about that."},
+        ]
+        for turn in (chat_history or [])[-4:]:
+            fallback_messages.append({"role": turn["role"], "content": turn["content"]})
+        fallback_messages.append({"role": "user", "content": question})
+        answer_text = _call_openai(fallback_messages)
         return {
-            "answer":       "No evidence available for this entity yet. Generate an intelligence report first.",
+            "answer":       answer_text,
             "sources":      [],
             "context_used": 0,
+            "note":         "No report data — answered from general knowledge. Generate a report for cited evidence.",
         }
 
     # Retrieve relevant claims
@@ -139,10 +160,9 @@ def answer_question(
         top_claims = all_claims[:_TOP_K]
 
     context = _build_context(top_claims)
-    entity_name = report.get('entity_name') or 'this entity'
 
     system_prompt = (
-        f"You are an expert intelligence analyst answering questions about {entity_name}. "
+        f"You are an expert intelligence analyst answering questions about {resolved_entity}. "
         "You have access to cited evidence from government databases, public filings, news, and commercial data. "
         "Answer the user's question based ONLY on the evidence provided. "
         "Cite your sources by referencing the claim number [1], [2], etc. "
@@ -157,7 +177,7 @@ def answer_question(
         messages.append({"role": turn["role"], "content": turn["content"]})
 
     user_message = (
-        f"Evidence about {entity_name}:\n\n{context}\n\n"
+        f"Evidence about {resolved_entity}:\n\n{context}\n\n"
         f"Question: {question}"
     )
     messages.append({"role": "user", "content": user_message})
@@ -168,7 +188,7 @@ def answer_question(
         "answer":       answer,
         "sources":      top_claims,
         "context_used": len(top_claims),
-        "entity_name":  entity_name,
+        "entity_name":  resolved_entity,
     }
 
 

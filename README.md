@@ -10,32 +10,47 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 
 | Area | Status |
 |------|--------|
-| **Overall** | **v2.0 — 22 Jun 2026 — ALL 14 PENDING TASKS SHIPPED** |
-| **Active workstream** | v2.0: all P1–P3 tasks complete (see below) |
+| **Overall** | **v2.0 — 22 Jun 2026 — ALL 14 TASKS SHIPPED + E2E VERIFIED** |
+| **Active workstream** | v2.0 complete; bug fixes applied post live test session |
 | **Latest handoff** | [22nd_June.md](./22nd_June.md) · [james_requirements.md](./james_requirements.md) |
 | **Branch** | `feature/layer2-kpi-filters-clickable-browser` |
-| **Apify** | ✅ Unblocked (22 Jun) — News ✅ LinkedIn ✅ PitchBook ✅ Twitter/Instagram/YouTube ✅ |
+| **Apify** | ✅ $500 plan (22 Jun) — News ✅ LinkedIn ✅ PitchBook ✅ Twitter/Instagram/YouTube ✅ |
+| **Apollo** | ✅ `APOLLO_API_KEY` added — org enrichment live; people search needs paid plan |
 | **Staging** | Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002` |
 | **Tests** | **79 passing** (`pytest tests/ -q`) |
 
-### ✅ v2.0 Features Shipped (22 Jun)
+### ✅ v2.0 Features Shipped + Verified (22 Jun)
 
 | # | Feature | Details |
 |---|---------|---------|
 | 1 | KPI Dashboard View | Toggle between Full Report and KPI Dashboard on intelligence reports |
-| 2 | Apollo email pipeline | `GET /intelligence/apollo/org`, `/people`, `/orgchart`, `POST /apollo/enrich` |
+| 2 | Apollo org enrichment | `GET /intelligence/apollo/org`, `POST /apollo/enrich`; name-based search, credit-exhaustion fallback |
 | 3 | Apify social footprint | Twitter/X, Instagram, YouTube scrapers + social section in every report |
 | 4 | Private company intel | OpenCorporates (global registry) + GLEIF (LEI) + FinCEN + FDIC |
-| 5 | Per-entity RAG chat | Floating chat panel on reports — cited Q&A via `POST /chat/ask` |
-| 6 | Tracking dashboard | Watchlist + daily digest worker + SendGrid/Twilio alerts `/tracking` |
-| 7 | Polished `/entities/[id]` | Tabs: Overview, Relationships, Evidence, Timeline, Related. No more raw JSON |
+| 5 | Per-entity RAG chat | Floating chat panel on reports — cited Q&A via `POST /chat/ask`; works without report too |
+| 6 | Tracking dashboard | Watchlist + daily digest worker + SendGrid/Twilio alerts at `/tracking` |
+| 7 | Polished `/entities/[id]` | Tabs: Overview, Relationships, Evidence, Timeline, Related. Aliases/identifiers as chips |
 | 8 | Person timeline | `/timeline` page — vertical + card view, 3 demo entities, filter by category |
 | 9 | FEC/FARA two-sided | FEC as registrant + as contributor; FARA as registrant + as foreign principal |
 | 10 | Comparison page | `/compare` — up to 5 entities, radar chart, KPI table, shared-entity overlap |
 | 11 | Apify key people | Company employee scraper → Key People section + auto graph edges |
 | 12 | PDF export | `GET /intelligence/{id}/pdf` — polished multi-page ReportLab PDF + ⬇ PDF button |
 | 13 | Graph export | PNG (Cytoscape) + JSON export buttons on embedded graph |
-| 14 | FEC two-sided | Contributor schedule A queries on FEC connector |
+| 14 | Report reconstruction | `get_intelligence_report` rebuilds nested claims-per-section from DB storage |
+
+### Bug fixes applied (22 Jun E2E test session)
+
+| Bug | Fix |
+|-----|-----|
+| `/chat/ask` rejected `null` report_id | `report_id` now Optional; GPT general-knowledge fallback when no report |
+| Apollo matched wrong company via domain-guess | Name-based search first; no domain re-enrichment loop |
+| Apollo credits exhausted silently | Detects "insufficient credits" error; falls back to domain enrichment |
+| `/entities/[id]` crash on `timeline.slice` | Fixed destructuring for all API shapes (`items`, `timeline`, plain array) |
+| Entity profile "No entity ID" on load | Added `router.isReady` guard (Next.js hydration fix) |
+| Aliases/identifiers shown as raw JSON | Rendered as inline badge chips |
+| YouTube/Instagram/Twitter `None` count crash | Cast all social counts to `int(x or 0)` before `:,` formatting |
+| Fetched reports had empty `claims` arrays | `get_intelligence_report` now parses content lines back into claim objects |
+| `/intelligence?entity=` didn't pre-fill form | Added `useEffect` watching `router.query` to pre-fill name/type/ticker |
 
 ### New pages
 

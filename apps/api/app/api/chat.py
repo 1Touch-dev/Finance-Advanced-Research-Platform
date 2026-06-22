@@ -30,8 +30,9 @@ class ChatMessage(BaseModel):
 
 
 class AskRequest(BaseModel):
-    report_id: int
+    report_id: Optional[int] = None
     question:  str
+    entity_name: Optional[str] = None
     history:   Optional[List[ChatMessage]] = None
 
 
@@ -39,17 +40,21 @@ class AskRequest(BaseModel):
 def chat_ask(payload: AskRequest, db: Session = Depends(get_db)):
     """
     Ask a natural-language question about an intelligence report.
+    - If report_id is provided: answers from that specific report's data.
+    - If entity_name only: builds a stub context and answers from general knowledge + entity name.
     Returns a cited answer with supporting evidence sources.
     """
     if not _RAG_OK:
         raise HTTPException(503, "RAG chat service not available")
 
-    report = get_intelligence_report(db, payload.report_id)
-    if not report:
-        raise HTTPException(404, f"Report #{payload.report_id} not found")
+    report = None
+    if payload.report_id:
+        report = get_intelligence_report(db, payload.report_id)
+        if not report:
+            raise HTTPException(404, f"Report #{payload.report_id} not found")
 
     history = [{"role": m.role, "content": m.content} for m in (payload.history or [])]
-    result  = answer_question(payload.question, report, chat_history=history)
+    result  = answer_question(payload.question, report, chat_history=history, entity_name=payload.entity_name)
     return result
 
 
