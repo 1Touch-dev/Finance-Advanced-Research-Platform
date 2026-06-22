@@ -6,10 +6,10 @@
 **Full requirements:** [james_requirements.md](./james_requirements.md) — all James asks in one place
 
 **Staging:** Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002`  
-**Branch:** `feature/us-50-state-registry-api` · **PR #2**  
-**Last push:** `d2432f1` — Layer 1 v1.2 (Apify connector, two-sided LDA, graph embed)
+**Branch:** `feature/layer2-kpi-filters-clickable-browser` (active, 5 commits) · base: `feature/us-50-state-registry-api` · **PR #2**  
+**Last push:** `4eff7b7` — Layer 2 tasks 1–4 complete (KPI strip, filters, click-to-investigate, contracts two-sided, browser agent)
 
-**Status:** 🟢 **Apify UNBLOCKED** (22 Jun 10:30 — James topped up) · News ✅ working · LinkedIn ✅ working · PitchBook ⚠️ needs actor permission · Layer 2 ~**45%** · Browser research agent **not built yet** · v2.0 docs received from James
+**Status:** 🟢 **Layer 2 tasks 1–4 SHIPPED today** · Apify ✅ all 3 connectors working · Layer 2 ~**65%** · v2.0 features (Apollo, RAG, social, tracking) next
 
 ---
 
@@ -36,43 +36,51 @@
 
 **Key clarification:** James was confused between two products. The "KPIs and insights" comment (10:38) refers to the **Financial Intelligence Platform** reports. The Jarvis Nexus doc covers a separate executive dashboard product. Both are documented in [james_requirements.md](./james_requirements.md).
 
-**Apify status after top-up (confirmed working):**
+**Apify status after top-up (all working 22 Jun):**
 - ✅ Google News: 47–81 articles per query (Palantir, Peter Thiel tested)
 - ✅ LinkedIn: Peter Thiel profile data (headline, experience, education)
-- ⚠️ PitchBook: `full-permission-actor-not-approved` — needs one-time approval at https://console.apify.com/actors/lsfMbqR3SfAud3Cx9?approvePermissions=true
+- ✅ PitchBook: switched to `mdataset/pitchbook-realtime-scraper` — no permission needed, Palantir data confirmed (4,395 employees, description, founded 2003)
 
 **Bug fixed (22 Jun):** `apify_connector.py` — `clean=True` (boolean) → `clean="true"` (string) in dataset fetch. Was causing HTTP 400 errors after every successful actor run.
 
 ---
 
-## 1) Executive summary — 22 Jun
+## 1) Executive summary — 22 Jun (updated 1:25 PM)
 
 | Area | Status |
 |------|--------|
-| **Layer 1 (US federal dossier)** | ✅ ~100% — 9–12 sections, all free connectors, GPT narrative, PayPal Mafia seeds |
-| **Layer 1 v1.2 (18 Jun)** | ✅ Shipped — two-sided LDA, Cytoscape embed, Apify connector code |
-| **Layer 2 (James 18 Jun asks)** | 🟡 ~45% — see §4 for honest item-by-item |
-| **Apify live enrichment** | ✅ **UNBLOCKED** — James topped up 22 Jun 10:30; News + LinkedIn working |
-| **PitchBook (Apify)** | ⚠️ `full-permission-actor-not-approved` — one-time approval needed from James |
-| **Browser research fallback** | 🔲 **Not built** — promised to James 19–20 Jun; high priority |
-| **International (e.g. Argentina)** | 🔲 No connector, no browser agent — registry is US-only (51 jurisdictions) |
-| **Click entity in report** | 🟡 **Partial** — graph nodes pre-fill form; claim text names NOT clickable (see §5) |
-| **Entity profile page** | 🟡 API exists; `/entities/[id]` is raw JSON only |
-| **v2.0 requirements received** | 📄 Enterprise Platform v2.0 doc + Jarvis Nexus UI spec — see [james_requirements.md](./james_requirements.md) |
-| **KPIs doc (Platform)** | ⏸️ James said he hasn't sent it yet (22 Jun 10:22) |
+| **Layer 1 (US federal dossier)** | ✅ 100% — 9–12 sections, all free connectors, GPT narrative, PayPal Mafia seeds |
+| **Layer 1 v1.2 (18 Jun)** | ✅ Shipped — two-sided LDA, Cytoscape embed, Apify connector |
+| **Apify — Google News** | ✅ Live — 47–81 articles per query |
+| **Apify — LinkedIn** | ✅ Live — headline, education, experience |
+| **Apify — PitchBook** | ✅ Live — switched to realtime-scraper, no permission needed |
+| **KPI strip on reports** | ✅ Shipped 22 Jun — contracts value, lobbying spend, court risk, sanctions, news, confidence |
+| **Filter bar on reports** | ✅ Shipped 22 Jun — category / source / confidence / text search |
+| **Section category labels** | ✅ Shipped 22 Jun — Financial / Government / Legal / Intelligence / Social |
+| **Sortable tables + CSV export** | ✅ Shipped 22 Jun — pagination 10/page, CSV download per section |
+| **Click-to-investigate (claim text)** | ✅ Shipped 22 Jun — any capitalized entity name clickable + auto-generates report |
+| **Contracts two-sided disclosure** | ✅ Shipped 22 Jun — [RECIPIENT SIDE] + [AGENCY SIDE] |
+| **Browser research agent** | ✅ Shipped 22 Jun — `POST /intelligence/browser-research`, 8 jurisdictions, Argentina spike tested |
+| **Entity profile page** | 🟡 API exists; `/entities/[id]` still raw JSON — polish pending |
+| **v2.0 requirements** | 📄 Received from James (Enterprise v2.0 doc + Jarvis Nexus spec) |
+| **KPIs doc for platform** | ⏸️ James hasn't sent yet |
 | **CA SOS / Cobalt / OIDC** | ⏸️ Deferred |
 
-### Progress percentages (honest — updated 22 Jun)
+### Progress percentages (honest — updated 22 Jun 1:25 PM)
 
 | Scope | Done | Pending |
 |-------|------|---------|
-| Layer 1 core dossier (US) | **~95–100%** | Minor polish |
-| Layer 2 overall (James full vision) | **~45%** | ~55% |
-| Phase 1.2 (two-sided LDA, graph) | **~90%** | Fix click-in-report gap |
-| Phase 2.0 (Apify enrichment — News + LinkedIn) | **✅ ~75%** | PitchBook permission + employees scraper |
-| Phase 2.4 (browser research — NEW) | **0%** | Full build |
-| v2.0 new features (Apollo, RAG chat, social, comparison, tracking) | **0%** | Full build |
-| 10-week Layer 2 roadmap | **~30%** | Phases 2.1–2.3 + browser layer + v2.0 features |
+| Layer 1 core dossier (US) | **100%** | — |
+| Layer 1 v1.2 (two-sided LDA, graph, Apify) | **100%** | — |
+| **Layer 2 — James 18 Jun asks** | **~65%** | See task table below |
+| Phase 2.0 Apify (News + LinkedIn + PitchBook) | **✅ 90%** | Employees scraper + social actors |
+| Phase 2.4 browser research | **✅ 70%** | Deep-dive mode, more jurisdiction coverage |
+| KPIs / filters / tables / labels | **✅ 100%** | — |
+| Click-to-investigate | **✅ 100%** | — |
+| Contracts two-sided | **✅ 100%** | — |
+| v2.0 new features (Apollo, RAG, social, tracking, comparison) | **0%** | Full build — next sprint |
+| Jarvis Nexus Dashboard | **0%** | Separate product — after v2.0 |
+| AI Agent Team + Central Suite | **0%** | Future — after Jarvis |
 
 ---
 
@@ -383,51 +391,73 @@ Intelligence generate
 
 ---
 
-## 13) Recommended next actions — updated 22 Jun
+## 13) Full task tracker — 22 Jun
 
-1. ✅ **Apify topped up** — News and LinkedIn live
-2. ✅ **PitchBook switched** to `mdataset/pitchbook-realtime-scraper` — no permissions needed, working
-3. ✅ **KPI strip + filter bar + sortable tables + section labels** — Task 1 shipped on `feature/layer2-kpi-filters-clickable-browser`
-4. ✅ **Click-to-investigate** — entity names in report text clickable + auto-generate report — Task 2 shipped
-5. ✅ **Contracts two-sided disclosure** — [RECIPIENT SIDE] + [AGENCY SIDE] — Task 3 shipped
-6. ✅ **Browser research agent** — `POST /intelligence/browser-research`, Argentina spike working — Task 4 shipped
-7. **Apollo email pipeline** (v2.0 Block A) — next
-8. **Apify social footprint** (Twitter, Instagram, YouTube — v2.0 Block B) — next
-9. **Per-entity RAG chat** (pgvector + Claude — v2.0 Block C) — next
-10. **Tracking dashboard + daily digest** (v2.0 Block E) — next
-11. **Apify company employees** + key-people auto-expand
-12. **Person timeline UI**
+### ✅ Done today (22 Jun)
 
-**Active branch:** `feature/layer2-kpi-filters-clickable-browser` (4 commits, all pushed)
+| # | Task | Commit | Notes |
+|---|------|--------|-------|
+| T1 | KPI strip (6 cards: contracts, lobbying spend, court risk, sanctions, news, confidence) | `0586ad2` | Live on staging |
+| T2 | Filter bar (category / source / confidence / text search) | `0586ad2` | URL-synced filters, clear button |
+| T3 | Section category labels (Financial / Government / Legal / Intelligence / Social) | `0586ad2` | Color-coded badges |
+| T4 | Sortable tables + CSV export + pagination (10/page) per section | `0586ad2` | Download button on every section |
+| T5 | Click-to-investigate in claim text (auto-generate, not just pre-fill) | `fbb48fa` | Any capitalized entity name clickable |
+| T6 | Contracts two-sided: [RECIPIENT SIDE] + [AGENCY SIDE] | `4ab8dc7` | Same pattern as lobbying both-sides |
+| T7 | Browser research agent (`POST /intelligence/browser-research`) | `2dd9537` | 8 jurisdictions, Argentina tested |
+| T8 | PitchBook switched to `pitchbook-realtime-scraper` (no permissions needed) | `5442839` | Palantir 4,395 employees confirmed |
+| T9 | Apify poll loop fix (READY→SUCCEEDED) | `5442839` | All 3 Apify connectors stable |
+| T10 | `james_requirements.md` created | `7757083` | All 3 products documented |
+| T11 | `22nd_June.md` + `README.md` updated | `4eff7b7` | Reflects full current state |
+
+### 🔲 Pending — next sprint (v2.0 features)
+
+| # | Task | Priority | Source |
+|---|------|----------|--------|
+| P1 | Apollo email pipeline — find employees, reverse WHOIS, breach check | P1 | v2.0 Block A |
+| P2 | Apify social — Twitter/X, Instagram, YouTube, username finder | P1 | v2.0 Block B |
+| P3 | Per-entity RAG chat (pgvector + Claude, cited Q&A, PDF export) | P1 | v2.0 Block C |
+| P4 | Tracking dashboard + daily digest (6 AM UTC, email + SMS) | P1 | v2.0 Block E |
+| P5 | Private company intelligence (OpenCorporates, GLEIF, FinCEN BOI) | P1 | v2.0 Block F |
+| P6 | Comparison page — up to 5 entities, radar/Sankey/board overlap | P2 | v2.0 Block D |
+| P7 | Apify company employees scraper → key people on org reports | P2 | Layer 2 |
+| P8 | Key people auto-expand → graph edges | P2 | Layer 2 |
+| P9 | Person timeline UI (career + filings + news chronologically) | P2 | Layer 2 |
+| P10 | Polished `/entities/[id]` profile page (replace raw JSON) | P2 | Layer 2 |
+| P11 | Full PayPal Mafia network dossier (one linked multi-entity report) | P3 | Demo |
+| P12 | PDF export matching James's desired style | P3 | v2.0 |
+| P13 | FEC/FARA two-sided disclosure | P3 | Layer 2 |
+| P14 | Graph export (PNG/JSON) | P3 | Layer 2 |
+
+### ⏸️ Waiting on James
+
+| Item | Status |
+|------|--------|
+| KPIs doc for Financial Intelligence Platform | Not received yet (22 Jun 10:22) |
+| CA SOS API key | Deferred |
+| Cobalt Intelligence | Deferred |
+| OIDC Google SSO credentials | Deferred |
+
+### 🏗 Future products (not this sprint)
+
+| Product | Status |
+|---------|--------|
+| Jarvis Nexus Dashboard (executive operating system) | Spec received, not started |
+| AI Agent Team (B2B/B2C outreach, GTM, founder mode) | Concept discussed, not started |
+| Centralised Management Suite (all software/websites/social) | Concept discussed, not started |
 
 ---
 
-## 14) New requirements received (22 Jun) — summary
+## 14) Recommended next actions
 
-**Enterprise Intelligence Platform v2.0 doc** added:
-- Apollo email pipeline (employee discovery, reverse WHOIS, breach checks)
-- Apify social media intelligence (Twitter, Instagram, YouTube, cross-platform username)
-- Per-entity RAG chat (pgvector + Claude, cited answers, PDF export)
-- Multi-entity comparison page (radar chart, Sankey, board overlap)
-- Tracking dashboard + daily digest (6 AM UTC, email + SMS alerts)
-- Private company intelligence (OpenCorporates, GLEIF, FinCEN BOI, global Apify registry)
+1. **Start v2.0 Block A** — Apollo email pipeline (`POST /intelligence/apollo`)
+2. **Start v2.0 Block B** — Apify social footprint (Twitter, Instagram, YouTube)
+3. **Start v2.0 Block C** — Per-entity RAG chat (pgvector + Claude)
+4. **Merge PR** — `feature/layer2-kpi-filters-clickable-browser` → `feature/us-50-state-registry-api`
+5. **Polish `/entities/[id]`** — replace raw JSON with proper profile page
+6. **Person timeline UI** — career + filings + news chronologically
 
-**Jarvis Nexus Dashboard spec** — separate executive operating system:
-- Portfolio / Business / Department / Agent / System scopes
-- KPI strips (MRR, burn, runway, experiments, win rate)
-- AI recommendations + concerns feed
-- Approval queue with risk scores
-- Agent grid with cost, latency, KPI attribution
-- Services health heatmap
-
-**Agent Team + Central Suite** (James 22 Jun 10:43 — future):
-- B2B/B2C outreach agents
-- Founder mode in Claude
-- GTM + release agents
-- Centralised view of all software, websites, social media, agents
-
-All details in [james_requirements.md](./james_requirements.md).
+See [james_requirements.md](./james_requirements.md) for the full prioritised build stack.
 
 ---
 
-*End of 22 June handoff — v1.2 live; Apify unblocked; v2.0 requirements received; browser agent next; click-in-report gap still open*
+*End of 22 June handoff — Layer 2 tasks 1–4 shipped; Apify all 3 connectors working; v2.0 features next*
