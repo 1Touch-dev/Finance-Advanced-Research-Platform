@@ -11,6 +11,12 @@ from typing import Optional, Dict, Any, List
 from app.db.session import get_db
 from app.services.intelligence_service import generate_intelligence_report, get_intelligence_report, list_intelligence_reports
 
+try:
+    from app.connectors.browser_research_agent import research_entity_browser, detect_jurisdiction
+    _BROWSER_AVAILABLE = True
+except ImportError:
+    _BROWSER_AVAILABLE = False
+
 router = APIRouter(prefix="/intelligence")
 
 
@@ -30,6 +36,35 @@ def generate_report(
     """
     report = generate_intelligence_report(db, entity_name=entity_name, entity_type=entity_type, ticker=ticker)
     return report
+
+
+@router.post("/browser-research")
+def browser_research(
+    entity_name: str,
+    jurisdiction: Optional[str] = None,
+    context: str = "",
+    deep_dive: bool = False,
+):
+    """
+    Run browser-based research on an entity using public registries, news, and
+    government sources for any jurisdiction (used as fallback for non-US entities
+    or for deep dives on holding companies, vehicles, financials).
+
+    Examples:
+      POST /intelligence/browser-research?entity_name=Aeropuertos+Argentina+2000&jurisdiction=argentina
+      POST /intelligence/browser-research?entity_name=Mercado+Libre&deep_dive=true
+    """
+    if not _BROWSER_AVAILABLE:
+        raise HTTPException(503, "Browser research agent not available")
+    detected_jur = jurisdiction or detect_jurisdiction(entity_name, context)
+    result = research_entity_browser(
+        entity_name,
+        jurisdiction=detected_jur,
+        context=context,
+        max_sources=6 if deep_dive else 4,
+        deep_dive=deep_dive,
+    )
+    return result
 
 
 @router.get("/")

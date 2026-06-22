@@ -25,6 +25,20 @@ except ImportError:
     def fetch_pitchbook_company(n): return {"investors": [], "funding_rounds": [], "source": "unavailable"}
     def fetch_news(q, max_articles=8): return []
 
+# Browser research agent (fallback for uncovered jurisdictions)
+try:
+    from app.connectors.browser_research_agent import (
+        research_entity_browser,
+        detect_jurisdiction,
+        is_us_entity,
+    )
+    BROWSER_AGENT_AVAILABLE = True
+except ImportError:
+    BROWSER_AGENT_AVAILABLE = False
+    def research_entity_browser(n, **kw): return {"findings": [], "summary": "", "jurisdiction": "unknown", "source": "unavailable"}
+    def detect_jurisdiction(n, c=""): return "default"
+    def is_us_entity(n, t="org"): return True
+
 
 INTELLIGENCE_KIND = "entity_network_intel"
 
@@ -651,6 +665,15 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
         apify_pitchbook = fetch_pitchbook_company(entity_name)
         apify_news = fetch_news(entity_name, max_articles=8)
 
+    # Browser research agent (non-US entities or deep dive)
+    browser_research = {}
+    jurisdiction = detect_jurisdiction(entity_name) if BROWSER_AGENT_AVAILABLE else "default"
+    run_browser_agent = (
+        BROWSER_AGENT_AVAILABLE
+        and jurisdiction not in ("default",)  # Only run when jurisdiction is known non-US
+        and not is_us_entity(entity_name, entity_type)
+    )
+
     # 3. Write relationships into graph
     relationships_created = []
 
@@ -975,6 +998,44 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
             sections.append({"name": "News & Media Timeline", "order": 10,
                              "claims": sec_news_claims,
                              "data": {"articles_found": len(apify_news), "source": "Apify/Google News"}})
+
+    # ── Section 10: Browser Research (non-US jurisdictions) ──────────────────
+    if run_browser_agent:
+        browser_research = research_entity_browser(
+            entity_name, jurisdiction=jurisdiction, max_sources=4
+        )
+        if browser_research.get("findings") or browser_research.get("summary"):
+            br_claims = []
+            br_claims.append({
+                "text": f"[BROWSER RESEARCH] Jurisdiction detected: {browser_research.get('jurisdiction', 'unknown').upper()}. Sources checked: {', '.join(browser_research.get('sources_checked', []))}. Data found in {browser_research.get('sources_with_data', 0)} source(s). Confidence: {browser_research.get('confidence', 'LOW')}.",
+                "confidence": "DOCUMENTED", "source": "Browser Research Agent",
+            })
+            for finding in browser_research.get("findings", [])[:12]:
+                if finding:
+                    br_claims.append({
+                        "text": finding,
+                        "confidence": "REPORTED",
+                        "source": f"Browser Research ({browser_research.get('jurisdiction', 'int').upper()})",
+                    })
+            if browser_research.get("summary") and not browser_research["findings"]:
+                # Fallback: include raw summary as a narrative
+                br_claims.append({
+                    "text": browser_research["summary"][:1500],
+                    "confidence": "REPORTED",
+                    "source": f"Browser Research ({browser_research.get('jurisdiction', 'int').upper()})",
+                })
+            if br_claims:
+                sections.append({
+                    "name": f"International Research — {browser_research.get('jurisdiction', 'Int').title()} (Browser)",
+                    "order": max((s["order"] for s in sections), default=10) + 1,
+                    "claims": br_claims,
+                    "data": {
+                        "jurisdiction": browser_research.get("jurisdiction"),
+                        "sources_checked": len(browser_research.get("sources_checked", [])),
+                        "sources_with_data": browser_research.get("sources_with_data", 0),
+                        "confidence": browser_research.get("confidence", "LOW"),
+                    }
+                })
 
     # ── Section N-1: Data Sources ─────────────────────────────────────────────
     apify_status = f"Apify enrichment: {'active' if APIFY_AVAILABLE else 'inactive (no token)'}. " \
