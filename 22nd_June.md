@@ -408,34 +408,29 @@ Intelligence generate
 | T9 | Apify poll loop fix (READY→SUCCEEDED) | `5442839` | All 3 Apify connectors stable |
 | T10 | `james_requirements.md` created | `7757083` | All 3 products documented |
 | T11 | `22nd_June.md` + `README.md` updated | `4eff7b7` | Reflects full current state |
+| T12 | KPI Dashboard View mode (📄/📊 toggle) | pending push | Full 4-card dashboard with metrics |
+| T13 | Apollo email pipeline | pending push | `/intelligence/apollo/*` routes + org chart |
+| T14 | Apify social footprint (Twitter, Instagram, YouTube) | pending push | Scrapers + social section in reports |
+| T15 | Private company intel (OpenCorporates, GLEIF, FinCEN, FDIC) | pending push | Free APIs, all work in pipeline |
+| T16 | FEC/FARA two-sided (contributor side + foreign principal side) | pending push | Both sides now covered |
+| T17 | Apify key people scraper + auto graph edges | pending push | Employee org chart auto-expands graph |
+| T18 | Polished `/entities/[id]` profile page | pending push | 5 tabs: overview, rels, evidence, timeline, related |
+| T19 | Person timeline UI (`/timeline`) | pending push | Vertical + cards; 3 demo entities; category filter |
+| T20 | Comparison page (`/compare`) | pending push | Radar chart + KPI table + shared entity overlap; up to 5 entities |
+| T21 | PDF export (`/intelligence/{id}/pdf`) | pending push | ReportLab multi-page PDF; ⬇ button in UI |
+| T22 | Graph export PNG/JSON | pending push | Cytoscape PNG + JSON download buttons |
+| T23 | Per-entity RAG chat | pending push | Floating 💬 chat on reports; `POST /chat/ask`; cited answers |
+| T24 | Tracking dashboard + daily digest worker | pending push | `/tracking` page; watchlist CRUD; email+SMS digest |
 
-### 🔲 Pending — next sprint (v2.0 features)
+### 🔲 Pending — waiting on James
 
 | # | Task | Priority | Source |
 |---|------|----------|--------|
-| P1 | Apollo email pipeline — find employees, reverse WHOIS, breach check | P1 | v2.0 Block A |
-| P2 | Apify social — Twitter/X, Instagram, YouTube, username finder | P1 | v2.0 Block B |
-| P3 | Per-entity RAG chat (pgvector + Claude, cited Q&A, PDF export) | P1 | v2.0 Block C |
-| P4 | Tracking dashboard + daily digest (6 AM UTC, email + SMS) | P1 | v2.0 Block E |
-| P5 | Private company intelligence (OpenCorporates, GLEIF, FinCEN BOI) | P1 | v2.0 Block F |
-| P6 | Comparison page — up to 5 entities, radar/Sankey/board overlap | P2 | v2.0 Block D |
-| P7 | Apify company employees scraper → key people on org reports | P2 | Layer 2 |
-| P8 | Key people auto-expand → graph edges | P2 | Layer 2 |
-| P9 | Person timeline UI (career + filings + news chronologically) | P2 | Layer 2 |
-| P10 | Polished `/entities/[id]` profile page (replace raw JSON) | P2 | Layer 2 |
-| P11 | Full PayPal Mafia network dossier (one linked multi-entity report) | P3 | Demo |
-| P12 | PDF export matching James's desired style | P3 | v2.0 |
-| P13 | FEC/FARA two-sided disclosure | P3 | Layer 2 |
-| P14 | Graph export (PNG/JSON) | P3 | Layer 2 |
-
-### ⏸️ Waiting on James
-
-| Item | Status |
-|------|--------|
-| KPIs doc for Financial Intelligence Platform | Not received yet (22 Jun 10:22) |
-| CA SOS API key | Deferred |
-| Cobalt Intelligence | Deferred |
-| OIDC Google SSO credentials | Deferred |
+| W1 | CA SOS API key | P1 | James to provide |
+| W2 | Cobalt Intelligence approval | P2 | James to provide |
+| W3 | OIDC Google SSO credentials | P3 | James to provide |
+| W4 | Apollo API key (free tier limited) | P1 | Add APOLLO_API_KEY to .env |
+| W5 | `DIGEST_RECIPIENT_EMAIL` + `DIGEST_RECIPIENT_PHONE` | P1 | Add to .env for daily digest notifications |
 
 ### 🏗 Future products (not this sprint)
 
@@ -449,15 +444,16 @@ Intelligence generate
 
 ## 14) Recommended next actions
 
-1. **Start v2.0 Block A** — Apollo email pipeline (`POST /intelligence/apollo`)
-2. **Start v2.0 Block B** — Apify social footprint (Twitter, Instagram, YouTube)
-3. **Start v2.0 Block C** — Per-entity RAG chat (pgvector + Claude)
+1. **Add `APOLLO_API_KEY`** to `.env` — enables org enrichment + key people pipeline
+2. **Add `DIGEST_RECIPIENT_EMAIL` + `DIGEST_RECIPIENT_PHONE`** — activates daily digest notifications
+3. **Set up cron / PM2 scheduler** — auto-trigger `POST /tracking/digest/run` at 6 AM UTC
 4. **Merge PR** — `feature/layer2-kpi-filters-clickable-browser` → `feature/us-50-state-registry-api`
-5. **Polish `/entities/[id]`** — replace raw JSON with proper profile page
-6. **Person timeline UI** — career + filings + news chronologically
+5. **PayPal Mafia dossier** — one linked multi-entity report for full demo package
+6. **Start Jarvis Nexus Dashboard** — per spec in `Jarvis Nexus Dashboard UI Spec (2).docx`
 
 See [james_requirements.md](./james_requirements.md) for the full prioritised build stack.
 
 ---
 
-*End of 22 June handoff — Layer 2 tasks 1–4 shipped; Apify all 3 connectors working; v2.0 features next*
+*End of 22 June handoff — ALL 14 v2.0 features shipped: KPI dashboard, Apollo, social footprint, OpenCorporates/GLEIF/FinCEN, RAG chat, tracking/digest, entity profile, timeline, compare page, PDF export, graph export, FEC/FARA two-sided, key-people scraper. API + frontend restarted and healthy.*
+

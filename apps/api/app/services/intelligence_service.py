@@ -17,10 +17,14 @@ try:
         fetch_linkedin_by_name,
         fetch_pitchbook_company,
         fetch_news,
+        fetch_social_footprint,
+        fetch_key_people,
     )
     APIFY_AVAILABLE = bool(os.getenv("APIFY_API_TOKEN", ""))
 except ImportError:
     APIFY_AVAILABLE = False
+    def fetch_social_footprint(name, **kw): return {}
+    def fetch_key_people(name, **kw): return []
     def fetch_linkedin_by_name(n, c=""): return {"education": [], "experience": [], "source": "unavailable"}
     def fetch_pitchbook_company(n): return {"investors": [], "funding_rounds": [], "source": "unavailable"}
     def fetch_news(q, max_articles=8): return []
@@ -38,6 +42,26 @@ except ImportError:
     def research_entity_browser(n, **kw): return {"findings": [], "summary": "", "jurisdiction": "unknown", "source": "unavailable"}
     def detect_jurisdiction(n, c=""): return "default"
     def is_us_entity(n, t="org"): return True
+
+# Apollo connector
+try:
+    from app.connectors.apollo_connector import (
+        search_organization as apollo_search_org,
+        fetch_org_chart as apollo_org_chart,
+    )
+    APOLLO_AVAILABLE = True
+except ImportError:
+    APOLLO_AVAILABLE = False
+    def apollo_search_org(name): return {}
+    def apollo_org_chart(org): return []
+
+# Private company intelligence
+try:
+    from app.connectors.private_company_connector import fetch_private_company_intel
+    PRIVATE_CO_AVAILABLE = True
+except ImportError:
+    PRIVATE_CO_AVAILABLE = False
+    def fetch_private_company_intel(name, **kw): return {}
 
 
 INTELLIGENCE_KIND = "entity_network_intel"
@@ -129,37 +153,77 @@ def _fetch_sec(entity_name: str, ticker: Optional[str]) -> Dict[str, Any]:
 
 def _fetch_fec(entity_name: str) -> Dict[str, Any]:
     fec_key = os.getenv("FEC_API_KEY", "")
-    result = {"committees": [], "contributions": [], "disbursements": []}
+    result = {
+        "committees": [],
+        "contributions": [],
+        "disbursements": [],
+        # Two-sided disclosure
+        "as_contributor": [],    # individual or PAC contributions to other committees
+        "as_recipient": [],      # committees receiving money linked to entity
+    }
     if not fec_key:
         return result
     try:
-        resp = requests.get("https://api.open.fec.gov/v1/committees/",
-                            params={"api_key": fec_key, "q": entity_name, "per_page": 5},
-                            timeout=15)
+        # Side A — entity as a registered committee / PAC
+        resp = requests.get(
+            "https://api.open.fec.gov/v1/committees/",
+            params={"api_key": fec_key, "q": entity_name, "per_page": 5},
+            timeout=15,
+        )
         if resp.ok:
             for c in resp.json().get("results", []):
                 result["committees"].append({
-                    "name": c.get("name"),
-                    "id": c.get("committee_id"),
-                    "type": c.get("committee_type_full"),
+                    "name":  c.get("name"),
+                    "id":    c.get("committee_id"),
+                    "type":  c.get("committee_type_full"),
                     "party": c.get("party_full"),
                     "state": c.get("state"),
+                    "side":  "REGISTRANT (entity is the committee)",
                 })
     except Exception as e:
         result["error"] = str(e)
+
+    try:
+        # Side B — individual contributions from people linked to entity
+        resp2 = requests.get(
+            "https://api.open.fec.gov/v1/schedules/schedule_a/",
+            params={
+                "api_key":    fec_key,
+                "contributor_name": entity_name,
+                "per_page":   10,
+                "sort":       "-contribution_receipt_date",
+            },
+            timeout=15,
+        )
+        if resp2.ok:
+            for item in resp2.json().get("results", [])[:10]:
+                result["as_contributor"].append({
+                    "contributor":  item.get("contributor_name", ""),
+                    "amount":       item.get("contribution_receipt_amount", 0),
+                    "date":         item.get("contribution_receipt_date", ""),
+                    "recipient":    item.get("committee", {}).get("name", ""),
+                    "side":         "CONTRIBUTOR (entity donated to a committee)",
+                })
+    except Exception as e:
+        pass  # Non-fatal; FEC schedule A can be slow
+
     return result
 
 
-# ── FARA connector (entity-specific) ─────────────────────────────────────────
+# ── FARA connector (entity-specific, two-sided) ───────────────────────────────
 
 def _fetch_fara(entity_name: str) -> Dict[str, Any]:
-    result = {"registrants": [], "foreign_principals": []}
+    result = {
+        "registrants":        [],   # entity as the lobbyist/registrant
+        "foreign_principals": [],   # entity as the foreign principal being lobbied for
+    }
     try:
+        # Side A: Entity is the registrant (lobbying on behalf of a foreign principal)
         resp = requests.get("https://efile.fara.gov/api/v1/Registrants/json/Active", timeout=20)
         if resp.ok:
-            data = resp.json()
+            data  = resp.json()
             items = data.get("REGISTRANTS_ACTIVE", {})
-            rows = items.get("ROW", []) if isinstance(items, dict) else items
+            rows  = items.get("ROW", []) if isinstance(items, dict) else items
             if isinstance(rows, dict):
                 rows = [rows]
             name_lower = entity_name.lower()
@@ -167,12 +231,37 @@ def _fetch_fara(entity_name: str) -> Dict[str, Any]:
                 rname = str(r.get("Registrant_Name") or r.get("registrant_name") or "")
                 if name_lower[:6] in rname.lower():
                     result["registrants"].append({
-                        "name": rname,
+                        "name":    rname,
                         "reg_num": r.get("Registration_Number"),
                         "country": r.get("Foreign_Principal_Country"),
+                        "side":    "REGISTRANT (entity is the FARA-registered lobbyist)",
                     })
     except Exception as e:
         result["error"] = str(e)
+
+    try:
+        # Side B: Entity is the foreign principal (being represented by a FARA registrant)
+        resp2 = requests.get("https://efile.fara.gov/api/v1/ForeignPrincipals/json/Active", timeout=20)
+        if resp2.ok:
+            data2  = resp2.json()
+            items2 = data2.get("FOREIGN_PRINCIPALS_ACTIVE", {})
+            rows2  = items2.get("ROW", []) if isinstance(items2, dict) else items2
+            if isinstance(rows2, dict):
+                rows2 = [rows2]
+            name_lower = entity_name.lower()
+            for r in rows2:
+                fp_name = str(r.get("Foreign_Principal_Name") or r.get("foreign_principal_name") or "")
+                if name_lower[:6] in fp_name.lower():
+                    result["foreign_principals"].append({
+                        "foreign_principal":  fp_name,
+                        "registrant":         r.get("Registrant_Name", ""),
+                        "country":            r.get("Country_of_Principal_Representation", ""),
+                        "reg_num":            r.get("Registration_Number", ""),
+                        "side":               "FOREIGN PRINCIPAL (entity has a FARA-registered lobbyist)",
+                    })
+    except Exception as e:
+        pass  # Non-fatal
+
     return result
 
 
@@ -655,15 +744,26 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
     funded_data   = _fetch_funded_api(entity_name)
     investor_data = _fetch_sec_investors(entity_name, sec_data.get("cik"))
 
-    # Apify enrichment (LinkedIn + PitchBook + News)
+    # Apify enrichment (LinkedIn + PitchBook + News + Social)
     apify_linkedin   = {}
     apify_pitchbook  = {}
     apify_news       = []
+    apify_social     = {}
+    apify_key_people = []
     if APIFY_AVAILABLE:
         if is_person:
             apify_linkedin = fetch_linkedin_by_name(entity_name)
+        else:
+            try:
+                apify_key_people = fetch_key_people(entity_name, limit=15)
+            except Exception as _kpe:
+                logger.warning("Key people scrape failed: %s", _kpe)
         apify_pitchbook = fetch_pitchbook_company(entity_name)
         apify_news = fetch_news(entity_name, max_articles=8)
+        try:
+            apify_social = fetch_social_footprint(entity_name)
+        except Exception as _se:
+            logger.warning("Social footprint fetch failed: %s", _se)
 
     # Browser research agent (non-US entities or deep dive)
     browser_research = {}
@@ -869,17 +969,48 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
 
     # ── Section 5: Political & Foreign Exposure ───────────────────────────────
     sec5_claims = []
+    # ── FEC: Side A — entity as a registered PAC/committee ──
     for c in fec_data.get("committees", []):
-        sec5_claims.append({"text": f"FEC political committee: {c['name']} ({c.get('type','')}, {c.get('state','')}).",
-                            "confidence": "DOCUMENTED", "source": "FEC OpenData"})
+        sec5_claims.append({
+            "text": f"[FEC COMMITTEE — REGISTRANT SIDE] {c['name']} ({c.get('type','')}, {c.get('state','')}) — "
+                    f"Entity is the registered political committee.",
+            "confidence": "DOCUMENTED", "source": "FEC OpenData",
+        })
+    # ── FEC: Side B — entity as a donor/contributor ──
+    for contrib in fec_data.get("as_contributor", [])[:5]:
+        sec5_claims.append({
+            "text": f"[FEC CONTRIBUTOR SIDE] {contrib.get('contributor','')} donated "
+                    f"${contrib.get('amount',0):,.0f} on {contrib.get('date','')} "
+                    f"to {contrib.get('recipient','')}.",
+            "confidence": "DOCUMENTED", "source": "FEC Schedule A",
+        })
+
+    # ── FARA: Side A — entity as the registered lobbyist ──
     for r in fara_data.get("registrants", []):
-        sec5_claims.append({"text": f"FARA registration #{r.get('reg_num')}: {r['name']} (foreign country: {r.get('country','unknown')}).",
-                            "confidence": "DOCUMENTED", "source": "FARA DOJ"})
+        sec5_claims.append({
+            "text": f"[FARA REGISTRANT SIDE] FARA registration #{r.get('reg_num')}: "
+                    f"{r['name']} registered as foreign agent (foreign country: {r.get('country','unknown')}).",
+            "confidence": "DOCUMENTED", "source": "FARA DOJ",
+        })
+    # ── FARA: Side B — entity as the foreign principal ──
+    for fp in fara_data.get("foreign_principals", []):
+        sec5_claims.append({
+            "text": f"[FARA FOREIGN PRINCIPAL SIDE] {fp.get('foreign_principal','')} "
+                    f"is represented in the US by FARA registrant {fp.get('registrant','')} "
+                    f"(reg #{fp.get('reg_num','')}) on behalf of {fp.get('country','unknown')}.",
+            "confidence": "DOCUMENTED", "source": "FARA DOJ",
+        })
+
     if not sec5_claims:
-        sec5_claims.append({"text": "No FEC committees or FARA registrations found.",
+        sec5_claims.append({"text": "No FEC committees, FEC contributions, or FARA registrations found.",
                             "confidence": "DOCUMENTED", "source": "FEC/FARA"})
-    sections.append({"name": "Political & Foreign Exposure", "order": 5,
-                     "claims": sec5_claims, "data": {}})
+    sections.append({"name": "Political & Foreign Exposure (FEC + FARA — Both Sides)", "order": 5,
+                     "claims": sec5_claims, "data": {
+                         "fec_committees":    len(fec_data.get("committees", [])),
+                         "fec_contributions": len(fec_data.get("as_contributor", [])),
+                         "fara_registrant":   len(fara_data.get("registrants", [])),
+                         "fara_fp_side":      len(fara_data.get("foreign_principals", [])),
+                     }})
 
     # ── Section 5b: People & Education (Apify LinkedIn — persons only) ────────
     if is_person and APIFY_AVAILABLE:
@@ -921,7 +1052,41 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
                              "source": "Apify/LinkedIn",
                          }})
 
-    # ── Section 6: Sanctions & Compliance ────────────────────────────────────
+    # ── Section: Key People & Org Chart (companies only) ─────────────────────
+    if not is_person and APIFY_AVAILABLE and apify_key_people:
+        kp_claims = []
+        for person in apify_key_people[:15]:
+            name_str    = person.get("name", "")
+            title_str   = person.get("title", "")
+            loc_str     = person.get("location", "")
+            li_url      = person.get("linkedin_url", "")
+            tenure_str  = f" · Tenure: {person.get('tenure_months','')}mo" if person.get("tenure_months") else ""
+            kp_claims.append({
+                "text": f"[KEY PERSON] {name_str} — {title_str} | {loc_str}{tenure_str}"
+                        + (f" | {li_url}" if li_url else ""),
+                "confidence": "DOCUMENTED",
+                "source": "Apify/LinkedIn Company",
+            })
+            # Auto-create graph edge: company → person
+            if name_str:
+                try:
+                    person_id = _upsert_entity(db, name_str, "person", {})
+                    _upsert_rel(db, entity_id, person_id, "employs")
+                    relationships_created.append({"kind": "employs", "entity": name_str})
+                except Exception as _kpe_graph:
+                    pass  # Non-fatal
+
+        if kp_claims:
+            sections.append({
+                "name": "Key People & Org Chart (LinkedIn Company Employees)",
+                "order": max((s["order"] for s in sections if isinstance(s.get("order"), int)), default=10) + 1,
+                "claims": kp_claims,
+                "data": {
+                    "total_people": len(apify_key_people),
+                    "source": "Apify/LinkedIn Company Scraper",
+                },
+            })
+
     sec6_claims = []
     if ofac_data.get("is_sanctioned"):
         sec6_claims.append({"text": f"ALERT: {len(ofac_data['hits'])} OFAC/OpenSanctions record(s) match this entity name.",
@@ -1036,6 +1201,189 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
                         "confidence": browser_research.get("confidence", "LOW"),
                     }
                 })
+
+    # ── Section: Social Footprint (Twitter, Instagram, YouTube) ──────────────
+    social_claims = []
+    tw = apify_social.get("twitter", {})
+    ig = apify_social.get("instagram", {})
+    yt = apify_social.get("youtube", {})
+
+    if tw.get("name") or tw.get("followers"):
+        verif = " ✓ Verified" if tw.get("verified") else ""
+        social_claims.append({
+            "text": f"[TWITTER/X] @{tw.get('username','')}{verif} — {tw.get('name','')} — "
+                    f"{tw.get('followers',0):,} followers · {tw.get('following',0):,} following · "
+                    f"{tw.get('tweets_count',0):,} tweets · Bio: {(tw.get('bio') or '')[:200]}",
+            "confidence": "DOCUMENTED", "source": "Apify/Twitter",
+        })
+        for t in tw.get("recent_tweets", [])[:3]:
+            social_claims.append({
+                "text": f"[TWEET] {(t.get('text') or '')[:200]} (❤ {t.get('likes',0)} 🔁 {t.get('retweets',0)})",
+                "confidence": "DOCUMENTED", "source": "Twitter",
+            })
+
+    if ig.get("name") or ig.get("followers"):
+        verif = " ✓ Verified" if ig.get("verified") else ""
+        social_claims.append({
+            "text": f"[INSTAGRAM] @{ig.get('username','')}{verif} — {ig.get('name','')} — "
+                    f"{ig.get('followers',0):,} followers · {ig.get('posts_count',0):,} posts · "
+                    f"Bio: {(ig.get('bio') or '')[:200]}",
+            "confidence": "DOCUMENTED", "source": "Apify/Instagram",
+        })
+
+    if yt.get("channel_name") or yt.get("subscribers"):
+        social_claims.append({
+            "text": f"[YOUTUBE] {yt.get('channel_name','')} — "
+                    f"{yt.get('subscribers',0):,} subscribers · {yt.get('video_count',0):,} videos",
+            "confidence": "DOCUMENTED", "source": "Apify/YouTube",
+        })
+        for v in yt.get("recent_videos", [])[:3]:
+            social_claims.append({
+                "text": f"[VIDEO] {v.get('title','')} — {v.get('views',0):,} views",
+                "confidence": "DOCUMENTED", "source": "YouTube",
+            })
+
+    if social_claims:
+        sections.append({
+            "name": "Social Media Footprint (Twitter · Instagram · YouTube)",
+            "order": max((s["order"] for s in sections), default=10) + 1,
+            "claims": social_claims,
+            "data": {
+                "twitter":   tw,
+                "instagram": ig,
+                "youtube":   yt,
+            },
+        })
+
+    # ── Section: Private Company Intelligence (OpenCorporates, GLEIF, FinCEN) ──
+    priv_co = {}
+    if PRIVATE_CO_AVAILABLE and not is_person:
+        try:
+            priv_co = fetch_private_company_intel(entity_name) or {}
+        except Exception as exc:
+            logger.warning("Private company intel failed: %s", exc)
+
+    priv_claims = []
+    for match in (priv_co.get("opencorporates_matches") or [])[:3]:
+        priv_claims.append({
+            "text": f"[OPENCORPORATES] {match['name']} — {match.get('jurisdiction','').upper()} · "
+                    f"Type: {match.get('company_type','N/A')} · Status: {match.get('status','N/A')} · "
+                    f"Incorporated: {match.get('incorporation_date','N/A')} · "
+                    f"Address: {match.get('registered_address','N/A')}",
+            "confidence": "DOCUMENTED",
+            "source": "OpenCorporates",
+        })
+
+    oc_detail = priv_co.get("opencorporates_detail", {})
+    for off in (oc_detail.get("officers") or [])[:8]:
+        status_str = " [INACTIVE]" if off.get("inactive") else ""
+        priv_claims.append({
+            "text": f"[OFFICER] {off.get('name','N/A')}{status_str} — Role: {off.get('role','N/A')} "
+                    f"(since {off.get('start','?')})",
+            "confidence": "DOCUMENTED",
+            "source": "OpenCorporates",
+        })
+
+    for gl in (priv_co.get("gleif_matches") or [])[:2]:
+        priv_claims.append({
+            "text": f"[GLEIF LEI] {gl.get('name','')} — LEI: {gl.get('lei','')} · "
+                    f"Status: {gl.get('status','')} · Jurisdiction: {gl.get('jurisdiction','')} · "
+                    f"Registered: {gl.get('registered_at','')} · Address: {gl.get('registered_address','')}",
+            "confidence": "DOCUMENTED",
+            "source": "GLEIF",
+        })
+
+    rels = priv_co.get("gleif_relationships", {})
+    if rels.get("ultimate_parent") or rels.get("direct_parent"):
+        up = rels.get("ultimate_parent", {})
+        dp = rels.get("direct_parent", {})
+        priv_claims.append({
+            "text": f"[GLEIF STRUCTURE] Ultimate parent: {up.get('id','N/A')} · "
+                    f"Direct parent: {dp.get('id','N/A')}",
+            "confidence": "DOCUMENTED",
+            "source": "GLEIF Relationships",
+        })
+
+    for fc in (priv_co.get("fincen_records") or [])[:3]:
+        priv_claims.append({
+            "text": f"[FINCEN] {fc.get('name','')} — Type: {fc.get('type','')} · "
+                    f"Status: {fc.get('status','')} · {fc.get('city','')}, {fc.get('state','')}, {fc.get('country','')} · "
+                    f"Registered: {fc.get('reg_date','')}",
+            "confidence": "DOCUMENTED",
+            "source": "FinCEN",
+        })
+
+    for bank in (priv_co.get("fdic_records") or [])[:2]:
+        priv_claims.append({
+            "text": f"[FDIC] {bank.get('name','')} — Cert: {bank.get('cert','')} · "
+                    f"Active: {'Yes' if bank.get('active') else 'No'} · "
+                    f"Established: {bank.get('established','')} · "
+                    f"Assets: ${bank.get('total_assets_k',0):,}K",
+            "confidence": "DOCUMENTED",
+            "source": "FDIC BankFind",
+        })
+
+    if priv_claims:
+        sections.append({
+            "name": "Private Company Intelligence (OpenCorporates · GLEIF · FinCEN)",
+            "order": max((s["order"] for s in sections), default=10) + 1,
+            "claims": priv_claims,
+            "data": {
+                "opencorporates_matches": len(priv_co.get("opencorporates_matches", [])),
+                "gleif_matches":          len(priv_co.get("gleif_matches", [])),
+                "fincen_records":         len(priv_co.get("fincen_records", [])),
+                "fdic_records":           len(priv_co.get("fdic_records", [])),
+                "officers":               len(oc_detail.get("officers", [])),
+            },
+        })
+
+    # ── Section: Apollo enrichment ────────────────────────────────────────────    apollo_org   = {}
+    apollo_people_list = []
+    if APOLLO_AVAILABLE:
+        try:
+            apollo_org         = apollo_search_org(entity_name) or {}
+            apollo_people_list = apollo_org_chart(entity_name) or []
+        except Exception as exc:
+            logger.warning("Apollo enrichment failed: %s", exc)
+
+    if apollo_org or apollo_people_list:
+        apollo_claims = []
+        if apollo_org.get("name"):
+            apollo_claims.append({
+                "text": f"[APOLLO ORG] {apollo_org['name']} — "
+                        f"Industry: {apollo_org.get('industry','N/A')} · "
+                        f"Headcount: {apollo_org.get('headcount',0):,} · "
+                        f"Revenue range: {apollo_org.get('revenue_range','N/A')} · "
+                        f"Founded: {apollo_org.get('founded_year','N/A')} · "
+                        f"HQ: {apollo_org.get('city','')}, {apollo_org.get('country','')}.",
+                "confidence": "DOCUMENTED",
+                "source": "Apollo.io",
+            })
+            if apollo_org.get("technologies"):
+                apollo_claims.append({
+                    "text": f"[APOLLO TECH STACK] {', '.join(apollo_org['technologies'][:12])}.",
+                    "confidence": "DOCUMENTED",
+                    "source": "Apollo.io",
+                })
+        for p in apollo_people_list[:15]:
+            email_str = f" <{p['email']}>" if p.get("email") else ""
+            apollo_claims.append({
+                "text": f"[APOLLO PERSON] {p['name']}{email_str} — {p.get('title','N/A')} | {p.get('department','')}"
+                        f" | Seniority: {p.get('seniority','N/A')} | {p.get('city','')}, {p.get('country','')}.",
+                "confidence": "DOCUMENTED",
+                "source": "Apollo.io",
+            })
+        if apollo_claims:
+            sections.append({
+                "name": "Apollo.io — Org Intelligence & Key People",
+                "order": max((s["order"] for s in sections), default=10) + 1,
+                "claims": apollo_claims,
+                "data": {
+                    "org": apollo_org,
+                    "key_people": apollo_people_list[:15],
+                    "total_people": len(apollo_people_list),
+                },
+            })
 
     # ── Section N-1: Data Sources ─────────────────────────────────────────────
     apify_status = f"Apify enrichment: {'active' if APIFY_AVAILABLE else 'inactive (no token)'}. " \

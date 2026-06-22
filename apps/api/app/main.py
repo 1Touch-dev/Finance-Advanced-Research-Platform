@@ -21,6 +21,12 @@ from app.api.registry import router as registry_router
 from app.api.intelligence import router as intelligence_router
 from app.core.logging import logger
 
+try:
+    from app.api.chat import router as chat_router
+    _CHAT_ROUTER = True
+except ImportError:
+    _CHAT_ROUTER = False
+
 app = FastAPI(title="Identity & Collaboration API")
 app.add_middleware(
     CORSMiddleware,
@@ -56,6 +62,14 @@ app.include_router(compliance_router)
 app.include_router(demo_router)
 app.include_router(registry_router)
 app.include_router(intelligence_router)
+if _CHAT_ROUTER:
+    app.include_router(chat_router)
+
+try:
+    from app.api.tracking import router as tracking_router
+    app.include_router(tracking_router)
+except Exception:
+    pass
 
 @app.on_event("startup")
 async def on_startup():

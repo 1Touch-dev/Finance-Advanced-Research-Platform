@@ -5,9 +5,11 @@ GET  /intelligence/{report_id} — retrieve a generated intelligence report
 GET  /intelligence/            — list recent intelligence reports
 """
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import Optional, Dict, Any, List
+import io
 from app.db.session import get_db
 from app.services.intelligence_service import generate_intelligence_report, get_intelligence_report, list_intelligence_reports
 
@@ -16,6 +18,31 @@ try:
     _BROWSER_AVAILABLE = True
 except ImportError:
     _BROWSER_AVAILABLE = False
+
+try:
+    from app.connectors.apollo_connector import (
+        search_people, enrich_organization, fetch_org_chart, search_organization,
+    )
+    _APOLLO_AVAILABLE = True
+except ImportError:
+    _APOLLO_AVAILABLE = False
+
+try:
+    from app.connectors.private_company_connector import (
+        fetch_private_company_intel,
+        search_opencorporates,
+        search_gleif,
+        search_fincen_entities,
+    )
+    _PRIV_CO_AVAILABLE = True
+except ImportError:
+    _PRIV_CO_AVAILABLE = False
+
+try:
+    from app.services.pdf_service import generate_report_pdf
+    _PDF_AVAILABLE = True
+except ImportError:
+    _PDF_AVAILABLE = False
 
 router = APIRouter(prefix="/intelligence")
 
@@ -72,9 +99,137 @@ def list_reports(limit: int = 20, db: Session = Depends(get_db)):
     return list_intelligence_reports(db, limit=limit)
 
 
+@router.get("/apollo/org")
+def apollo_org(name: str, domain: str = ""):
+    """
+    Enrich an organization using Apollo.io.
+    Returns headcount, revenue range, technologies, founding year, etc.
+    """
+    if not _APOLLO_AVAILABLE:
+        raise HTTPException(503, "Apollo connector not available")
+    result = enrich_organization(domain=domain, name=name) if (domain or name) else {}
+    if not result and name:
+        result = search_organization(name)
+    return result or {"message": "No Apollo data found — check APOLLO_API_KEY"}
+
+
+@router.get("/apollo/people")
+def apollo_people(organization: str, limit: int = 20):
+    """
+    Fetch key executives and employees of an organization via Apollo.io.
+    Returns up to `limit` people with name, title, email, LinkedIn URL.
+    """
+    if not _APOLLO_AVAILABLE:
+        raise HTTPException(503, "Apollo connector not available")
+    return search_people(organization=organization, limit=limit)
+
+
+@router.get("/apollo/orgchart")
+def apollo_orgchart(organization: str):
+    """
+    Fetch the C-suite + VP-level org chart for an organization via Apollo.io.
+    """
+    if not _APOLLO_AVAILABLE:
+        raise HTTPException(503, "Apollo connector not available")
+    return fetch_org_chart(organization)
+
+
+@router.post("/apollo/enrich")
+def apollo_enrich(
+    entity_name: str,
+    domain: str = "",
+    include_people: bool = True,
+):
+    """
+    Full Apollo enrichment: org profile + executives + key people search.
+    Use this as the main Apollo endpoint for intelligence pipeline.
+    """
+    if not _APOLLO_AVAILABLE:
+        raise HTTPException(503, "Apollo connector not available — set APOLLO_API_KEY in .env")
+
+    org_data = {}
+    if domain:
+        org_data = enrich_organization(domain=domain)
+    if not org_data:
+        org_data = search_organization(entity_name)
+
+    people_data = []
+    if include_people:
+        people_data = fetch_org_chart(entity_name)
+
+    return {
+        "entity_name":  entity_name,
+        "organization": org_data,
+        "key_people":   people_data,
+        "total_people": len(people_data),
+    }
+
+
+@router.get("/private-co/search")
+def private_co_search(name: str, jurisdiction: str = ""):
+    """
+    Full private company enrichment: OpenCorporates + GLEIF + FinCEN + FDIC.
+    """
+    if not _PRIV_CO_AVAILABLE:
+        raise HTTPException(503, "Private company connector not available")
+    return fetch_private_company_intel(name, jurisdiction=jurisdiction)
+
+
+@router.get("/private-co/opencorporates")
+def oc_search(name: str, jurisdiction: str = "", limit: int = 5):
+    """Search OpenCorporates for company registrations globally."""
+    if not _PRIV_CO_AVAILABLE:
+        raise HTTPException(503, "Private company connector not available")
+    return search_opencorporates(name, jurisdiction=jurisdiction, limit=limit)
+
+
+@router.get("/private-co/gleif")
+def gleif_search(name: str, limit: int = 3):
+    """Search GLEIF for Legal Entity Identifiers."""
+    if not _PRIV_CO_AVAILABLE:
+        raise HTTPException(503, "Private company connector not available")
+    return search_gleif(name, limit=limit)
+
+
+@router.get("/private-co/fincen")
+def fincen_search(name: str):
+    """Search FinCEN financial institution registry."""
+    if not _PRIV_CO_AVAILABLE:
+        raise HTTPException(503, "Private company connector not available")
+    return search_fincen_entities(name)
+
+
 @router.get("/{report_id}")
 def get_report(report_id: int, db: Session = Depends(get_db)):
     report = get_intelligence_report(db, report_id)
     if not report:
         raise HTTPException(404, "Intelligence report not found")
     return report
+
+
+@router.get("/{report_id}/pdf")
+def download_report_pdf(report_id: int, db: Session = Depends(get_db)):
+    """
+    Download an intelligence report as a polished PDF.
+    Returns a binary PDF file suitable for direct browser download.
+    """
+    if not _PDF_AVAILABLE:
+        raise HTTPException(503, "PDF export unavailable — install reportlab")
+
+    report = get_intelligence_report(db, report_id)
+    if not report:
+        raise HTTPException(404, "Intelligence report not found")
+
+    try:
+        pdf_bytes = generate_report_pdf(report)
+    except Exception as exc:
+        raise HTTPException(500, f"PDF generation failed: {exc}")
+
+    entity_slug = (report.get("entity_name") or "report").lower().replace(" ", "_")[:40]
+    filename    = f"intel_{entity_slug}_{report_id}.pdf"
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

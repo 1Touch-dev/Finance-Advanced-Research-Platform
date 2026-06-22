@@ -527,17 +527,152 @@ function EmbeddedGraph({ entityId, entityName, onNodeClick }) {
 
   if (!entityId) return null
 
+  const exportGraphPng = () => {
+    if (!cyRef.current) return
+    try {
+      const png64 = cyRef.current.png({ full: true, scale: 2, bg: '#080d1a' })
+      const a = document.createElement('a')
+      a.href = png64
+      a.download = `graph_${entityName?.replace(/[^a-z0-9]/gi,'_')}.png`
+      a.click()
+    } catch(e) { console.error('PNG export failed', e) }
+  }
+
+  const exportGraphJson = () => {
+    if (!cyRef.current) return
+    const json = {
+      nodes: cyRef.current.nodes().map(n => ({ id: n.id(), label: n.data('label'), kind: n.data('kind') })),
+      edges: cyRef.current.edges().map(e => ({ source: e.data('source'), target: e.data('target'), kind: e.data('label') })),
+      entity: entityName,
+      exported_at: new Date().toISOString(),
+    }
+    const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `graph_${entityName?.replace(/[^a-z0-9]/gi,'_')}.json`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
   return (
     <div className={iStyles.graphEmbed}>
       <div className={iStyles.graphEmbedHeader}>
         <span>🕸 Relationship Graph — {entityName}</span>
-        <span className={iStyles.graphMeta}>{nodeCount} nodes · {edgeCount} edges · click node to investigate</span>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <span className={iStyles.graphMeta}>{nodeCount} nodes · {edgeCount} edges · click node to investigate</span>
+          <button className={iStyles.graphExportBtn} onClick={exportGraphPng} title="Export PNG">⬇ PNG</button>
+          <button className={iStyles.graphExportBtn} onClick={exportGraphJson} title="Export JSON">⬇ JSON</button>
+        </div>
       </div>
       {loading && <p style={{ color: 'var(--text-muted)', padding: '1rem' }}>Loading graph...</p>}
       <div
         ref={containerRef}
         style={{ width: '100%', height: 380, background: 'rgba(8,13,26,0.8)', borderRadius: 8 }}
       />
+    </div>
+  )
+}
+
+// ── KPI Dashboard View ────────────────────────────────────────────────────────
+function KpiDashboardView({ report, onInvestigate }) {
+  const s = report.summary || {}
+  const sections = report.sections || []
+
+  // Extract structured data from sections
+  const contractSection = sections.find(sec => sec.name?.toLowerCase().includes('contract'))
+  const lobbySection    = sections.find(sec => sec.name?.toLowerCase().includes('lobbying'))
+  const legalSection    = sections.find(sec => sec.name?.toLowerCase().includes('litigation'))
+  const newsSection     = sections.find(sec => sec.name?.toLowerCase().includes('news'))
+  const investorSection = sections.find(sec => sec.name?.toLowerCase().includes('investor') || sec.name?.toLowerCase().includes('capital'))
+  const pbSection       = sections.find(sec => sec.name?.toLowerCase().includes('pitchbook'))
+  const linkedInSection = sections.find(sec => sec.name?.toLowerCase().includes('linkedin'))
+
+  const metric = (label, value, sub, color = '#c7d2fe') => (
+    <div className={iStyles.dashMetric}>
+      <span className={iStyles.dashMetricVal} style={{ color }}>{value}</span>
+      <span className={iStyles.dashMetricLabel}>{label}</span>
+      {sub && <span className={iStyles.dashMetricSub}>{sub}</span>}
+    </div>
+  )
+
+  const riskBadge = (val) => {
+    const color = val === 'HIGH' ? '#f87171' : val === 'MEDIUM' ? '#fbbf24' : val === 'CLEAR' ? '#4ade80' : '#4ade80'
+    return <span style={{ color, fontWeight: 800 }}>{val}</span>
+  }
+
+  const topClaims = (section, n = 4) =>
+    (section?.claims || []).slice(0, n).map((c, i) => (
+      <div key={i} className={iStyles.dashClaimRow}>
+        <SmartText text={(c.text || c || '').replace(/^\[(DOCUMENTED|REPORTED|ANALYTICAL)\]\s*/, '')} onInvestigate={onInvestigate} />
+      </div>
+    ))
+
+  return (
+    <div className={iStyles.dashView}>
+      {/* Row 1 — headline numbers */}
+      <div className={iStyles.dashRow}>
+        <div className={iStyles.dashCard}>
+          <div className={iStyles.dashCardTitle}>💰 Government Contracts</div>
+          <div className={iStyles.dashMetricGrid}>
+            {metric('Total Obligated', s.total_obligated_usd ? `$${(s.total_obligated_usd/1e6).toFixed(1)}M` : '$0', `${s.contracts_found||0} awards`, '#60a5fa')}
+            {metric('Lobbying Spend', s.kpi_lobbying_spend ? `$${(s.kpi_lobbying_spend/1e3).toFixed(0)}K` : '$0', `${s.lobbying_filings||0} filings`, '#f97316')}
+            {metric('Lobbying Firms', s.lobbying_firms || 0, 'as client', '#fb923c')}
+            {metric('As Registrant', s.lobbying_as_registrant || 0, 'filings', '#fdba74')}
+          </div>
+          <div className={iStyles.dashClaimList}>{topClaims(contractSection)}</div>
+        </div>
+
+        <div className={iStyles.dashCard}>
+          <div className={iStyles.dashCardTitle}>⚖️ Legal & Compliance</div>
+          <div className={iStyles.dashMetricGrid}>
+            {metric('Court Cases', s.court_cases || 0, 'CourtListener', '#f87171')}
+            {metric('Court Risk', riskBadge(s.kpi_court_risk || 'LOW'), '', '#f87171')}
+            {metric('OFAC/Sanctions', riskBadge(s.kpi_sanctions_risk || 'CLEAR'), `${s.sanctions_hits||0} hits`, '#4ade80')}
+            {metric('FARA Regs', s.fara_registrations || 0, 'foreign agent', '#fb7185')}
+          </div>
+          <div className={iStyles.dashClaimList}>{topClaims(legalSection)}</div>
+        </div>
+      </div>
+
+      {/* Row 2 — financial + media */}
+      <div className={iStyles.dashRow}>
+        <div className={iStyles.dashCard}>
+          <div className={iStyles.dashCardTitle}>📈 Investors & Capital</div>
+          <div className={iStyles.dashMetricGrid}>
+            {metric('SEC Filings', s.sec_filings || 0, 'EDGAR', '#818cf8')}
+            {metric('Investor Filings', s.investor_filings || 0, '13G/13D/D', '#a78bfa')}
+            {metric('FEC PACs', s.fec_committees || 0, 'committees', '#c084fc')}
+            {metric('Graph Edges', s.relationships_written || 0, 'mapped', '#e879f9')}
+          </div>
+          {pbSection && (
+            <div className={iStyles.dashClaimList}>{topClaims(pbSection, 3)}</div>
+          )}
+          {!pbSection && <div className={iStyles.dashClaimList}>{topClaims(investorSection, 3)}</div>}
+        </div>
+
+        <div className={iStyles.dashCard}>
+          <div className={iStyles.dashCardTitle}>📰 News & Intelligence</div>
+          <div className={iStyles.dashMetricGrid}>
+            {metric('News Articles', s.news_articles || 0, 'Google News', '#fbbf24')}
+            {metric('Data Confidence', `${s.kpi_data_confidence||0}%`, `${s.kpi_sources_active||0}/8 sources`, '#34d399')}
+            {linkedInSection && metric('LinkedIn Edu', s.linkedin_education || 0, 'entries', '#0a66c2')}
+            {metric('SEC CIK', s.sec_cik || '—', 'EDGAR ID', '#94a3b8')}
+          </div>
+          <div className={iStyles.dashClaimList}>{topClaims(newsSection, 4)}</div>
+        </div>
+      </div>
+
+      {/* Row 3 — lobbying issue areas */}
+      {(s.lobbying_issue_areas || []).length > 0 && (
+        <div className={iStyles.dashCard} style={{ gridColumn: '1/-1' }}>
+          <div className={iStyles.dashCardTitle}>🏛 Lobbying Issue Areas</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.5rem' }}>
+            {(s.lobbying_issue_areas || []).map((area, i) => (
+              <span key={i} className={iStyles.issueTag}>{area}</span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -556,6 +691,11 @@ export default function IntelligencePage() {
   const [graphEntityId, setGraphEntityId] = useState(null)
   const [graphEntityName, setGraphEntityName] = useState('')
   const [filters, setFilters] = useState({ category: 'All', source: 'All', confidence: 'All', search: '' })
+  const [viewMode, setViewMode] = useState('report') // 'report' | 'dashboard'
+  const [chatOpen, setChatOpen]   = useState(false)
+  const [chatHistory, setChatHistory] = useState([])
+  const [chatInput, setChatInput]   = useState('')
+  const [chatLoading, setChatLoading] = useState(false)
 
   const useSeed = (seed) => {
     setEntityName(seed.entity)
@@ -635,6 +775,35 @@ export default function IntelligencePage() {
       setErr(e.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const askChat = async () => {
+    if (!chatInput.trim() || !report?.report_id) return
+    const question = chatInput.trim()
+    setChatInput('')
+    setChatHistory(h => [...h, { role: 'user', content: question }])
+    setChatLoading(true)
+    try {
+      const r = await fetch(`${API}/chat/ask`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          report_id: report.report_id,
+          question,
+          history: chatHistory.slice(-6),
+        }),
+      })
+      const data = r.ok ? await r.json() : { answer: `Error ${r.status}`, sources: [] }
+      setChatHistory(h => [...h, {
+        role:    'assistant',
+        content: data.answer || 'No answer returned.',
+        sources: (data.sources || []).slice(0, 3),
+      }])
+    } catch(e) {
+      setChatHistory(h => [...h, { role: 'assistant', content: `Error: ${e.message}` }])
+    } finally {
+      setChatLoading(false)
     }
   }
 
@@ -766,8 +935,27 @@ export default function IntelligencePage() {
                         {report.data_sources.apify_news > 0 && <span className={iStyles.apifyBadge}>News ({report.data_sources.apify_news}) ✓</span>}
                       </>
                     )}
+                    {report.report_id && (
+                      <a
+                        href={`${API}/intelligence/${report.report_id}/pdf`}
+                        target="_blank" rel="noopener noreferrer"
+                        className={iStyles.pdfDownloadBtn}
+                        title="Download PDF"
+                      >⬇ PDF</a>
+                    )}
                   </div>
                 </div>
+              </div>
+
+              <div className={iStyles.viewToggleBar}>
+                <button
+                  className={`${iStyles.viewToggleBtn} ${viewMode === 'report' ? iStyles.viewToggleActive : ''}`}
+                  onClick={() => setViewMode('report')}
+                >📄 Full Report</button>
+                <button
+                  className={`${iStyles.viewToggleBtn} ${viewMode === 'dashboard' ? iStyles.viewToggleActive : ''}`}
+                  onClick={() => setViewMode('dashboard')}
+                >📊 KPI Dashboard</button>
               </div>
 
               <SummaryBar summary={report.summary} />
@@ -775,12 +963,14 @@ export default function IntelligencePage() {
               {/* KPI strip */}
               <KpiStrip summary={report.summary} />
 
-              {/* Filter bar */}
-              <FilterBar
-                sections={report.sections || []}
-                filters={filters}
-                setFilters={setFilters}
-              />
+              {/* Filter bar — only in report mode */}
+              {viewMode === 'report' && (
+                <FilterBar
+                  sections={report.sections || []}
+                  filters={filters}
+                  setFilters={setFilters}
+                />
+              )}
 
               {/* Embedded relationship graph */}
               {graphEntityId && (
@@ -791,15 +981,70 @@ export default function IntelligencePage() {
                 />
               )}
 
+              {/* KPI Dashboard view */}
+              {viewMode === 'dashboard' && (
+                <KpiDashboardView report={report} onInvestigate={investigate} />
+              )}
+
+              {viewMode === 'report' && (
               <div className={iStyles.sectionsWrap}>
                 {(report.sections || []).map((s, i) => (
                   <Section key={i} section={s} idx={i} onInvestigate={investigate} filters={filters} />
                 ))}
               </div>
+              )}
             </div>
           )}
         </section>
       </div>
+
+      {/* ── Floating RAG Chat Panel ─────────────────────────────────────── */}
+      {report && (
+        <div className={iStyles.chatFab} onClick={() => setChatOpen(o => !o)} title="Ask AI about this report">
+          {chatOpen ? '✕' : '💬'}
+        </div>
+      )}
+      {report && chatOpen && (
+        <div className={iStyles.chatPanel}>
+          <div className={iStyles.chatHeader}>
+            <span>🤖 Ask about {report.entity_name}</span>
+            <button className={iStyles.chatClose} onClick={() => setChatOpen(false)}>✕</button>
+          </div>
+          <div className={iStyles.chatMessages}>
+            {chatHistory.length === 0 && (
+              <div className={iStyles.chatEmpty}>
+                Ask anything about this entity — contracts, court cases, lobbying, people, financials...
+              </div>
+            )}
+            {chatHistory.map((msg, i) => (
+              <div key={i} className={`${iStyles.chatMsg} ${msg.role === 'user' ? iStyles.chatUser : iStyles.chatBot}`}>
+                <div className={iStyles.chatMsgText}>{msg.content}</div>
+                {msg.sources && msg.sources.length > 0 && (
+                  <div className={iStyles.chatSources}>
+                    {msg.sources.slice(0,2).map((s, j) => (
+                      <span key={j} className={iStyles.chatSource}>
+                        {(s.source || '')} · {(s.text || '').slice(0, 60)}…
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            {chatLoading && <div className={iStyles.chatLoading}>Thinking…</div>}
+          </div>
+          <div className={iStyles.chatInputRow}>
+            <input
+              className={iStyles.chatInput}
+              value={chatInput}
+              onChange={e => setChatInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && askChat()}
+              placeholder="Ask a question…"
+              disabled={chatLoading}
+            />
+            <button className={iStyles.chatSend} onClick={askChat} disabled={chatLoading || !chatInput.trim()}>→</button>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

@@ -294,3 +294,205 @@ def fetch_news(query: str, max_articles: int = 8) -> List[Dict[str, Any]]:
             "snippet":   (item.get("snippet") or item.get("description") or "")[:300],
         })
     return articles
+
+
+# ── Social Footprint (Twitter/X, Instagram, YouTube) ─────────────────────────
+
+def fetch_twitter_profile(username: str) -> Dict[str, Any]:
+    """
+    Scrape a Twitter/X public profile via Apify.
+    Actor: apidojo/twitter-user-scraper (public profile stats + recent tweets).
+    """
+    result = {
+        "username": username, "name": None, "bio": None,
+        "followers": None, "following": None, "tweets_count": None,
+        "verified": False, "created_at": None,
+        "recent_tweets": [], "source": "Apify/Twitter",
+    }
+    items = _run_actor("apidojo/twitter-user-scraper", {
+        "twitterHandles": [username.lstrip("@")],
+        "maxItems": 10,
+    }, wait_secs=90)
+    if not items:
+        return result
+
+    p = items[0] if items else {}
+    user = p.get("author") or p.get("user") or p
+    result["name"]         = user.get("name") or user.get("displayName")
+    result["bio"]          = user.get("description") or user.get("bio")
+    result["followers"]    = user.get("followersCount") or user.get("followers")
+    result["following"]    = user.get("followingCount") or user.get("following")
+    result["tweets_count"] = user.get("statusesCount") or user.get("tweetCount")
+    result["verified"]     = bool(user.get("verified") or user.get("isVerified") or user.get("isBlueVerified"))
+    result["created_at"]   = user.get("createdAt")
+
+    # Collect recent tweets (up to 10)
+    for item in items[:10]:
+        tweet_text = item.get("fullText") or item.get("text") or ""
+        if tweet_text:
+            result["recent_tweets"].append({
+                "text":       tweet_text[:280],
+                "likes":      item.get("likeCount") or item.get("favoriteCount"),
+                "retweets":   item.get("retweetCount"),
+                "created_at": item.get("createdAt"),
+                "url":        item.get("url"),
+            })
+
+    return result
+
+
+def fetch_instagram_profile(username: str) -> Dict[str, Any]:
+    """
+    Scrape an Instagram public profile via Apify.
+    Actor: apify/instagram-profile-scraper.
+    """
+    result = {
+        "username": username, "name": None, "bio": None,
+        "followers": None, "following": None, "posts_count": None,
+        "verified": False, "recent_posts": [], "source": "Apify/Instagram",
+    }
+    items = _run_actor("apify/instagram-profile-scraper", {
+        "usernames": [username.lstrip("@")],
+    }, wait_secs=90)
+    if not items:
+        return result
+
+    p = items[0] if items else {}
+    result["name"]        = p.get("fullName") or p.get("name")
+    result["bio"]         = p.get("biography") or p.get("bio")
+    result["followers"]   = p.get("followersCount") or p.get("followers")
+    result["following"]   = p.get("followingCount") or p.get("following")
+    result["posts_count"] = p.get("postsCount") or p.get("igtvVideoCount")
+    result["verified"]    = bool(p.get("verified") or p.get("isVerified"))
+
+    for post in (p.get("latestPosts") or p.get("posts") or [])[:8]:
+        result["recent_posts"].append({
+            "caption":    (post.get("caption") or "")[:200],
+            "likes":      post.get("likesCount"),
+            "comments":   post.get("commentsCount"),
+            "timestamp":  post.get("timestamp"),
+            "url":        post.get("url"),
+        })
+
+    return result
+
+
+def fetch_youtube_channel(channel_name: str) -> Dict[str, Any]:
+    """
+    Scrape a YouTube channel via Apify.
+    Actor: streamers/youtube-scraper — channel info + recent videos.
+    """
+    result = {
+        "channel_name": channel_name, "description": None,
+        "subscribers": None, "total_views": None, "video_count": None,
+        "recent_videos": [], "source": "Apify/YouTube",
+    }
+    items = _run_actor("streamers/youtube-scraper", {
+        "searchKeywords": channel_name,
+        "maxResults":     5,
+        "type":           "channel",
+    }, wait_secs=90)
+    if not items:
+        return result
+
+    ch = items[0] if items else {}
+    result["description"] = ch.get("description") or ch.get("aboutChannelRenderer", {}).get("description", {}).get("simpleText")
+    result["subscribers"]  = ch.get("numberOfSubscribers") or ch.get("subscriberCount")
+    result["video_count"]  = ch.get("videoCount")
+
+    for vid in (ch.get("videos") or items[:5]):
+        result["recent_videos"].append({
+            "title":     vid.get("title"),
+            "views":     vid.get("viewCount"),
+            "published": vid.get("publishedAt") or vid.get("date"),
+            "url":       vid.get("url"),
+            "duration":  vid.get("duration"),
+        })
+
+    return result
+
+
+def discover_social_usernames(entity_name: str) -> Dict[str, str]:
+    """
+    Heuristic: guess Twitter, Instagram, YouTube handles from entity name.
+    Returns { "twitter": "@handle", "instagram": "@handle", "youtube": "channel" }.
+    """
+    slug = entity_name.lower().replace(" ", "").replace(".", "").replace(",", "")
+    slug_dash = entity_name.lower().replace(" ", "-")[:40]
+    return {
+        "twitter":   f"@{slug[:30]}",
+        "instagram": f"@{slug[:30]}",
+        "youtube":   entity_name[:60],
+        "_slug":     slug,
+    }
+
+
+def fetch_social_footprint(entity_name: str,
+                            twitter_handle: str = "",
+                            instagram_handle: str = "",
+                            youtube_channel: str = "") -> Dict[str, Any]:
+    """
+    Fetch Twitter, Instagram, YouTube social footprint for an entity.
+    Falls back to heuristic handle discovery if handles are not provided.
+    """
+    guessed = discover_social_usernames(entity_name)
+    tw  = twitter_handle   or guessed["twitter"]
+    ig  = instagram_handle or guessed["instagram"]
+    yt  = youtube_channel  or guessed["youtube"]
+
+    twitter   = fetch_twitter_profile(tw)
+    instagram = fetch_instagram_profile(ig)
+    youtube   = fetch_youtube_channel(yt)
+
+    return {
+        "twitter":   twitter,
+        "instagram": instagram,
+        "youtube":   youtube,
+        "guessed_handles": guessed,
+    }
+
+
+# ── Company Employee Scraper (LinkedIn company employees) ────────────────────
+
+def fetch_company_employees(company_name: str, company_linkedin_url: str = "",
+                            limit: int = 20) -> List[dict]:
+    """
+    Scrape employees of a company from LinkedIn using Apify.
+    Actor: brightdata/linkedin-company-employee-search (or fallback to
+    proxycurl-style Apify actors).
+
+    Returns list of { name, title, linkedin_url, location, tenure_months }.
+    """
+    # Try the most popular LinkedIn company employee Apify actor
+    actor_id = "curious_coder/linkedin-company-employees-scraper"
+
+    # Resolve company LinkedIn URL if not provided
+    if not company_linkedin_url:
+        slug = company_name.lower().replace(" ", "-").replace(",", "").replace(".", "")
+        company_linkedin_url = f"https://www.linkedin.com/company/{slug}/"
+
+    items = _run_actor(actor_id, {
+        "companyUrl": company_linkedin_url,
+        "count":      min(limit, 25),
+    }, wait_secs=120)
+
+    employees = []
+    for item in items[:limit]:
+        employees.append({
+            "name":          item.get("name") or item.get("fullName", ""),
+            "title":         item.get("headline") or item.get("title", ""),
+            "linkedin_url":  item.get("profileUrl") or item.get("linkedinUrl", ""),
+            "location":      item.get("location", ""),
+            "tenure_months": item.get("tenureMonths"),
+            "connection_degree": item.get("connectionDegree"),
+        })
+
+    return employees
+
+
+def fetch_key_people(entity_name: str, limit: int = 15) -> List[dict]:
+    """
+    Fetch key people (executives + board) for a company.
+    First tries Apollo org chart; falls back to LinkedIn company scraper.
+    """
+    return fetch_company_employees(entity_name, limit=limit)

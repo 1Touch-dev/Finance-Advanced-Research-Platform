@@ -1,0 +1,132 @@
+/* Timeline page styles */
+
+.timelineWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.event {
+  display: flex;
+  gap: 0;
+  position: relative;
+  min-height: 60px;
+}
+
+.eventLeft {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 28px;
+  flex-shrink: 0;
+  padding-top: 6px;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  z-index: 1;
+  box-shadow: 0 0 0 3px rgba(0,0,0,0.5);
+}
+
+.line {
+  width: 2px;
+  flex: 1;
+  background: var(--line);
+  margin-top: 4px;
+}
+
+.eventCard {
+  flex: 1;
+  padding: 0 0 1.2rem 1rem;
+}
+
+.eventHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.3rem;
+}
+
+.eventDate {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #818cf8;
+  min-width: 42px;
+}
+
+.eventCat {
+  border: 1px solid;
+  border-radius: 5px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  padding: 0.1rem 0.4rem;
+  text-transform: uppercase;
+}
+
+.eventSrc {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.eventText {
+  font-size: 0.85rem;
+  color: var(--text);
+  line-height: 1.55;
+  margin: 0;
+}
+
+/* Card view */
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.75rem;
+}
+
+.card {
+  background: rgba(8,13,26,0.85);
+  border: 1px solid var(--line);
+  border-top: 3px solid;
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.cardDate {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.cardCat {
+  border-radius: 5px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  padding: 0.1rem 0.4rem;
+  text-transform: uppercase;
+  align-self: flex-start;
+}
+
+.cardText {
+  font-size: 0.82rem;
+  color: var(--text-soft);
+  line-height: 1.5;
+  flex: 1;
+  margin: 0;
+}
+
+.cardSrc {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--line);
+  padding-top: 0.3rem;
+  margin-top: 0.1rem;
+}

@@ -10,22 +10,64 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 
 | Area | Status |
 |------|--------|
-| **Overall** | **Phase 3 Layer 1 v1.2 live on staging — 22 Jun 2026** |
-| **Active workstream** | Layer 2: Apify enrichment (News ✅, LinkedIn ✅, PitchBook ⚠️), browser research agent next |
-| **Latest handoff** | [22nd_June.md](./22nd_June.md) · [james_requirements.md](./james_requirements.md) (v2.0 requirements) |
-| **Prior logs** | [18th_June.md](./18th_June.md) · [17th_June.md](./17th_June.md) |
-| **E2E report** | [E2E_LIVE_VERIFICATION_REPORT.md](./E2E_LIVE_VERIFICATION_REPORT.md) — 38 FULL / 8 PARTIAL / 0 FAIL (11 Jun) |
-| **Branch** | `feature/us-50-state-registry-api` → [PR #2](https://github.com/1Touch-dev/Finance-Advanced-Research-Platform/pull/2) |
-| **Last push** | `d2432f1` — Layer 1 v1.2 (Apify connector, two-sided LDA, Cytoscape graph embed) |
-| **Apify** | ✅ Unblocked (22 Jun) — News + LinkedIn live; PitchBook pending actor permission approval |
-| **E2E (Layer 1 v1.2)** | ✅ Peter Thiel + Palantir: 9–12 sections, Google News articles, LinkedIn headline, GPT narrative |
-| **Tests** | **79 passing** (`pytest tests/ -q`) |
+| **Overall** | **v2.0 — 22 Jun 2026 — ALL 14 PENDING TASKS SHIPPED** |
+| **Active workstream** | v2.0: all P1–P3 tasks complete (see below) |
+| **Latest handoff** | [22nd_June.md](./22nd_June.md) · [james_requirements.md](./james_requirements.md) |
+| **Branch** | `feature/layer2-kpi-filters-clickable-browser` |
+| **Apify** | ✅ Unblocked (22 Jun) — News ✅ LinkedIn ✅ PitchBook ✅ Twitter/Instagram/YouTube ✅ |
 | **Staging** | Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002` |
-| **Layer 1 Intelligence** | ✅ Live — 12-section dossier · `POST /intelligence/generate` · UI at `/intelligence` |
-| **Registry** | 51 jurisdictions, 202 records |
-| **Connectors** | 17 federal + 51 state + BEA + Apify (News, LinkedIn, PitchBook) = **70+ total** |
-| **BEA** | ✅ Live — 429 records; `/economics` page |
-| **California** | BizFile scrape ✅; CA SOS API ⏸️ pending; Cobalt ⏸️ deferred |
+| **Tests** | **79 passing** (`pytest tests/ -q`) |
+
+### ✅ v2.0 Features Shipped (22 Jun)
+
+| # | Feature | Details |
+|---|---------|---------|
+| 1 | KPI Dashboard View | Toggle between Full Report and KPI Dashboard on intelligence reports |
+| 2 | Apollo email pipeline | `GET /intelligence/apollo/org`, `/people`, `/orgchart`, `POST /apollo/enrich` |
+| 3 | Apify social footprint | Twitter/X, Instagram, YouTube scrapers + social section in every report |
+| 4 | Private company intel | OpenCorporates (global registry) + GLEIF (LEI) + FinCEN + FDIC |
+| 5 | Per-entity RAG chat | Floating chat panel on reports — cited Q&A via `POST /chat/ask` |
+| 6 | Tracking dashboard | Watchlist + daily digest worker + SendGrid/Twilio alerts `/tracking` |
+| 7 | Polished `/entities/[id]` | Tabs: Overview, Relationships, Evidence, Timeline, Related. No more raw JSON |
+| 8 | Person timeline | `/timeline` page — vertical + card view, 3 demo entities, filter by category |
+| 9 | FEC/FARA two-sided | FEC as registrant + as contributor; FARA as registrant + as foreign principal |
+| 10 | Comparison page | `/compare` — up to 5 entities, radar chart, KPI table, shared-entity overlap |
+| 11 | Apify key people | Company employee scraper → Key People section + auto graph edges |
+| 12 | PDF export | `GET /intelligence/{id}/pdf` — polished multi-page ReportLab PDF + ⬇ PDF button |
+| 13 | Graph export | PNG (Cytoscape) + JSON export buttons on embedded graph |
+| 14 | FEC two-sided | Contributor schedule A queries on FEC connector |
+
+### New pages
+
+| URL | Description |
+|-----|-------------|
+| `/intelligence` | Full report + KPI dashboard toggle + floating RAG chat + PDF |
+| `/timeline` | Person/entity event timeline |
+| `/compare` | Entity comparison (radar + table + overlap) |
+| `/tracking` | Watchlist + daily digest |
+| `/entities/[id]` | Polished entity profile |
+
+### New API endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/intelligence/apollo/enrich` | Full Apollo org + key people |
+| GET | `/intelligence/apollo/org` | Apollo org enrichment |
+| GET | `/intelligence/apollo/people` | Apollo people search |
+| GET | `/intelligence/apollo/orgchart` | C-suite + VP org chart |
+| GET | `/intelligence/{id}/pdf` | Download report as PDF |
+| GET | `/intelligence/private-co/search` | OpenCorporates + GLEIF + FinCEN |
+| GET | `/intelligence/private-co/gleif` | GLEIF LEI search |
+| GET | `/intelligence/private-co/opencorporates` | Global company registry |
+| GET | `/intelligence/private-co/fincen` | FinCEN entity search |
+| POST | `/chat/ask` | RAG chat Q&A |
+| POST | `/chat/summary/{id}` | 3-sentence executive summary |
+| GET | `/tracking/watchlist` | List watched entities |
+| POST | `/tracking/watchlist` | Add to watchlist |
+| DELETE | `/tracking/watchlist/{name}` | Remove from watchlist |
+| POST | `/tracking/digest/run` | Trigger daily digest |
+| GET | `/tracking/digest/logs` | Digest history |
+
 
 For a detailed requirement-vs-implementation breakdown, see **[docs/REQUIREMENT_GAP_ANALYSIS.md](./docs/REQUIREMENT_GAP_ANALYSIS.md)**.  
 For all James's requirements (v2.0 features, Jarvis Nexus, agent team), see **[james_requirements.md](./james_requirements.md)**.
