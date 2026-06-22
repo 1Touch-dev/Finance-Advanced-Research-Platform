@@ -1,48 +1,19 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getApiBaseUrl } from '../lib/api'
 import styles from '../src/styles/Page.module.css'
 
-function GraphView({data}){
-  // simple radial layout
-  if(!data) return null
-  const nodes = data.nodes||[]
-  const edges = data.edges||[]
-  const W=880,H=560, cx=W/2, cy=H/2
-  const positions = {}
-  const R = Math.min(W,H)/2 - 60
-  nodes.forEach((n,i)=>{
-    const a = (i/nodes.length)*Math.PI*2
-    positions[n.id] = {x: cx + R*Math.cos(a), y: cy + R*Math.sin(a)}
-  })
-  return (
-    <svg width={W} height={H} style={{border:'1px solid var(--line)', borderRadius: 12, background:'rgba(8,13,26,0.75)'}}>
-      {edges.map((e,i)=>{
-        const s = positions[e.src]||{x:cx,y:cy}
-        const d = positions[e.dst]||{x:cx,y:cy}
-        return <g key={i}>
-          <line x1={s.x} y1={s.y} x2={d.x} y2={d.y} stroke="rgba(148,163,184,0.65)" strokeWidth={1.1}/>
-        </g>
-      })}
-      {nodes.map((n,i)=>{
-        const p = positions[n.id]
-        return <g key={n.id}>
-          <circle cx={p.x} cy={p.y} r={12} fill="#6ea8fe"/>
-          <text x={p.x+14} y={p.y+4} fontSize={12} fill="#dbeafe">{n.name}</text>
-        </g>
-      })}
-    </svg>
-  )
-}
-
-export default function GraphPage(){
+export default function GraphPage() {
   const API = getApiBaseUrl()
-  const [entityId,setEntityId]=useState('');
-  const [data,setData]=useState(null);
-  const [err,setErr]=useState('');
-  const run=async()=>{
-    setErr('');
+  const cyRef = useRef(null)
+  const containerRef = useRef(null)
+  const [entityId, setEntityId] = useState('1')
+  const [data, setData] = useState(null)
+  const [err, setErr] = useState('')
+
+  const run = async () => {
+    setErr('')
     try {
-      const r=await fetch(`${API}/graph/export?entity_id=${encodeURIComponent(entityId)}&depth=2`)
+      const r = await fetch(`${API}/graph/export?entity_id=${encodeURIComponent(entityId)}&depth=2`)
       if (!r.ok) throw new Error(`API returned ${r.status}`)
       setData(await r.json())
     } catch (e) {
@@ -50,26 +21,74 @@ export default function GraphPage(){
       setErr(`Request failed: ${e.message}`)
     }
   }
+
+  useEffect(() => {
+    if (!data || !containerRef.current) return
+    const script = document.createElement('script')
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js'
+    script.onload = () => {
+      if (cyRef.current) cyRef.current.destroy()
+      const elements = []
+      ;(data.nodes || []).forEach((n) => {
+        elements.push({ data: { id: String(n.id), label: n.name || String(n.id) } })
+      })
+      ;(data.edges || []).forEach((e, i) => {
+        elements.push({ data: { id: `e${i}`, source: String(e.src), target: String(e.dst), label: e.kind || '' } })
+      })
+      cyRef.current = window.cytoscape({
+        container: containerRef.current,
+        elements,
+        style: [
+          { selector: 'node', style: { 'background-color': '#6ea8fe', label: 'data(label)', color: '#dbeafe', 'font-size': 10 } },
+          { selector: 'edge', style: { width: 2, 'line-color': '#94a3b8', 'target-arrow-color': '#94a3b8', 'target-arrow-shape': 'triangle', label: 'data(label)', 'font-size': 8, color: '#cbd5e1' } },
+        ],
+        layout: { name: 'cose', animate: false },
+        wheelSensitivity: 0.2,
+      })
+      cyRef.current.on('tap', 'node', (evt) => {
+        const id = evt.target.id()
+        setEntityId(id)
+      })
+    }
+    document.body.appendChild(script)
+    return () => { if (cyRef.current) cyRef.current.destroy() }
+  }, [data])
+
+  const exportJson = () => {
+    if (!data) return
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `graph-${entityId}.json`
+    a.click()
+  }
+
+  const exportPng = () => {
+    if (!cyRef.current) return
+    const png = cyRef.current.png({ scale: 2 })
+    const a = document.createElement('a')
+    a.href = png
+    a.download = `graph-${entityId}.png`
+    a.click()
+  }
+
   return (
     <main className={styles.page}>
       <section className={styles.hero}>
         <h1>Intelligence Graph</h1>
-        <p>Expand relationship edges for a target entity and visually inspect linked nodes.</p>
+        <p>Interactive Cytoscape graph with expand-on-click, zoom/pan, and export.</p>
       </section>
       <section className={styles.grid2}>
         <aside className={styles.panel}>
           <div className={styles.controls}>
             <label className={styles.label}>
               Entity ID
-              <input
-                className={styles.input}
-                value={entityId}
-                onChange={e=>setEntityId(e.target.value)}
-                placeholder="Entity ID (example: 1)"
-              />
+              <input className={styles.input} value={entityId} onChange={(e) => setEntityId(e.target.value)} placeholder="Entity ID (example: 1)" />
             </label>
             <div className={styles.buttonRow}>
               <button className={styles.button} onClick={run}>Expand Graph</button>
+              <button className={styles.button} onClick={exportJson} disabled={!data}>Export JSON</button>
+              <button className={styles.button} onClick={exportPng} disabled={!data}>Export PNG</button>
             </div>
             {err ? <p className={styles.dangerText}>{err}</p> : null}
             <div className={styles.metaRow}>
@@ -80,7 +99,8 @@ export default function GraphPage(){
         </aside>
         <section className={styles.panel}>
           <h2>Graph Canvas</h2>
-          {data ? <GraphView data={data}/> : <p className={styles.empty}>Run expansion to render the graph.</p>}
+          <div ref={containerRef} style={{ width: '100%', height: 560, border: '1px solid var(--line)', borderRadius: 12, background: 'rgba(8,13,26,0.75)' }} />
+          {!data && <p className={styles.empty}>Run expansion to render the graph.</p>}
         </section>
       </section>
     </main>

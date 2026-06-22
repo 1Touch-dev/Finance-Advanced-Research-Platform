@@ -1,5 +1,31 @@
 # Requirement vs Repo Gap Analysis
 
+## Update — 17 June 2026 (Phase 3 Layer 1 v1.1)
+
+**Layer 1 v1.1 shipped — James feedback addressed:**
+- LDA lobbying **fixed** — `client_name` query; Palantir shows 504 filings (vs 10 in v1)
+- Narrative **deepened** — 5-section GPT format (Company, People, Investors, Gov, Risks)
+- **9 report sections** (was 7) — adds Investors & Capital Structure, Data Sources
+- **PayPal Mafia demo seeds** — Thiel, Musk, Hoffman, Levchin, Sacks + Thiel/Defense orgs
+- **Free enrichment:** Wikipedia REST, FundedAPI, SEC 13G/13D/Form D
+- **E2E verified** on staging browser (Palantir + Peter Thiel flows)
+
+Still partial: PDF export, ownership trees, officer cross-entity, multi-node network report, PitchBook, LinkedIn/PDL.
+
+See [17th_June.md](../17th_June.md) and [README.md](../README.md) for current status.
+
+## Update — 16 June 2026 (Phase 3 Layer 1)
+
+**Layer 1 Entity Network Intelligence Reports shipped (v1):**
+- `POST /intelligence/generate` — live SEC, USASpending, FEC, FARA, LDA, OFAC, CourtListener per entity
+- 7-section cited dossier + GPT-4o narrative; UI at `/intelligence`
+- First demo: Palantir (PLTR) — $1.72B contracts, 11 graph edges
+- Still partial: PDF export, ownership trees, officer cross-entity, multi-node network reports
+
+See [16th_June.md](../16th_June.md) and [README.md](../README.md) for current status.
+
+---
+
 ## Context
 This document compares your target specification ("Enterprise Intelligence & Investment Research Platform") against the current implementation in this repository.
 
@@ -143,7 +169,7 @@ Gaps:
 - no strong cost accounting/quotas/policies per run
 
 ### 9) Report Generation & Review
-Status: `Partial`
+Status: `Partial` — **Layer 1 intelligence pipeline v1.1 (17 Jun 2026)**
 
 What exists:
 - report/section/bundle/claim models and APIs
@@ -151,12 +177,15 @@ What exists:
 - basic claim verification states
 - comments/suggestions/version diff
 - export stubs (markdown/html/json/csv)
+- **Layer 1 intelligence reports** (`/intelligence/*`) — entity-specific federal source queries, **9-section** JSON dossier, DOCUMENTED/REPORTED/ANALYTICAL tags, deep GPT narrative (5 sections), graph edge writes, PayPal Mafia seeds, UI at `/intelligence`
+- **Enrichment connectors:** Wikipedia REST, FundedAPI, SEC 13G/13D/Form D (no extra keys)
 
 Gaps:
 - verifier is still simplistic
-- no rich editor workflow in frontend
+- no rich editor workflow in frontend (legacy `/review`)
 - no robust contradiction analysis
 - no full approval gates + policy routing for sensitive outputs
+- **Layer 1 gaps:** no PDF export, no ownership tree crawler, no officer cross-entity matching, single-entity only (no multi-node network report), PitchBook/LinkedIn pending James approval
 
 ### 10) Alerts, Monitoring, Portfolios
 Status: `Partial`

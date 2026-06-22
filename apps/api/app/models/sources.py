@@ -45,6 +45,26 @@ class SourceRecordMeta(Base):
     run_id = Column(Integer, ForeignKey('source_runs.id'), nullable=True)
     external_id = Column(String, nullable=False)
     hash = Column(String, nullable=True)
+    normalized = Column(JSON, nullable=True)
+    evidence_ref_id = Column(Integer, nullable=True)
     first_seen_at = Column(DateTime(timezone=True), server_default=func.now())
     last_ingested_at = Column(DateTime(timezone=True), server_default=func.now())
     __table_args__ = (UniqueConstraint('source_id','external_id', name='uq_src_external'),)
+
+class SourceDeadLetter(Base):
+    __tablename__ = 'source_dead_letters'
+    id = Column(Integer, primary_key=True)
+    run_id = Column(Integer, ForeignKey('source_runs.id'), nullable=False)
+    external_id = Column(String, nullable=True)
+    error = Column(Text, nullable=False)
+    payload = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class SourceCheckpoint(Base):
+    __tablename__ = 'source_checkpoints'
+    id = Column(Integer, primary_key=True)
+    source_id = Column(Integer, ForeignKey('sources.id'), nullable=False)
+    cursor_key = Column(String, nullable=False, default='default')
+    state = Column(JSON, nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    __table_args__ = (UniqueConstraint('source_id','cursor_key', name='uq_src_checkpoint'),)

@@ -40,8 +40,30 @@ Stop everything:
 | Service | URL |
 |---------|-----|
 | Web | http://localhost:3000 |
+| **Intelligence (Layer 1)** | http://localhost:3000/intelligence |
 | API | http://localhost:3001 |
 | Admin | http://localhost:3002 |
+
+**Staging (EC2):** Web `http://184.72.123.188:3003` · Intelligence `http://184.72.123.188:3003/intelligence` · API `:3001`
+
+### Try Layer 1 intelligence report (v1.1)
+
+1. Ensure API is running with connector keys in `.env` (`OPENAI_API_KEY`, `FEC_API_KEY`, `SEC_USER_AGENT`, etc.)
+2. Open http://localhost:3000/intelligence (staging: http://184.72.123.188:3003/intelligence)
+3. Click a demo seed:
+   - **PayPal Mafia:** Peter Thiel, Elon Musk, Reid Hoffman, Max Levchin, David Sacks
+   - **Thiel / AI / Defense:** Palantir Technologies, Anduril Industries, Founders Fund, etc.
+4. Click **Generate Intelligence Report** (~20–45 seconds)
+5. Report includes **9 sections:** Entity Profile, Investors, Contracts, Lobbying (client-side LDA), Political, Sanctions, Litigation, Data Sources, Deep AI Narrative
+
+Or via API:
+
+```bash
+curl -X POST "http://localhost:3001/intelligence/generate?entity_name=Palantir%20Technologies&entity_type=org&ticker=PLTR"
+curl -X POST "http://localhost:3001/intelligence/generate?entity_name=Peter%20Thiel&entity_type=person"
+```
+
+See [17th_June.md](./17th_June.md) for v1.1 changes (LDA fix, deep narrative, E2E results).
 
 ### Manual start (same stack)
 
@@ -170,4 +192,5 @@ Copy `.env.example` to `.env` in the repo root if you use env files with your to
 - `apps/admin` — React admin dashboard
 - `apps/worker` — Bull queue worker
 - `packages/finance` — DCF, comps, technicals (Python)
-- `packages/connectors` — US public-data connectors
+- `packages/connectors` — US public-data connectors (17 federal + 51 state registry + BEA)
+- `apps/api/app/services/intelligence_service.py` — Layer 1 report orchestrator

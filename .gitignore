@@ -22,7 +22,12 @@ venv/
 
 # Local runtime / secrets
 .env
+.env.local
+.env.*.local
 apps/admin/.env
+**/credentials*
+**/*credentials*
+**/secrets*
 
 # Confidential planning docs, credentials, and PDFs (never commit)
 *.pdf

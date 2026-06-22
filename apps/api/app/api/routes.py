@@ -3,7 +3,16 @@ from sqlalchemy.orm import Session
 from typing import Optional
 from app.db.session import get_db
 from app.models.models import Base, Organization, Workspace, User, Role, Permission, RolePermission, Membership, Project, Case, Invitation, AuditLog
-from app.auth.security import hash_password, verify_password, create_token
+from app.auth.security import (
+    hash_password,
+    verify_password,
+    create_token,
+    create_refresh_token,
+    exchange_refresh_token,
+    revoke_token,
+)
+from app.auth.oidc import oidc_provider
+import secrets
 from app.rbac.permissions import require_permission, Current
 
 router = APIRouter()
@@ -36,14 +45,92 @@ def register(email: str, password: str, name: Optional[str]=None, db: Session = 
     return {"id": u.id, "email": u.email}
 
 @router.post('/auth/login')
-def login(email: str, password: str, db: Session = Depends(get_db)):
+def login(email: str, password: str, mfa_code: Optional[str] = None, db: Session = Depends(get_db)):
     u = db.query(User).filter_by(email=email).first()
     if not u or not u.password_hash or not verify_password(password, u.password_hash):
         raise HTTPException(401, 'invalid credentials')
+    if u.mfa_enabled and u.mfa_secret:
+        from app.auth.mfa import verify_totp
+        if not mfa_code or not verify_totp(u.mfa_secret, mfa_code):
+            raise HTTPException(401, 'mfa required')
     tok = create_token(u.id, u.email)
+    refresh = create_refresh_token(u.id, u.email)
     db.add(AuditLog(user_id=u.id, action='auth.login', entity_type='user', entity_id=str(u.id)))
     db.commit()
-    return {"token": tok}
+    return {"token": tok, "refresh_token": refresh}
+
+@router.post('/auth/mfa/enroll')
+def mfa_enroll(user_id: int, db: Session = Depends(get_db)):
+    from app.auth.mfa import generate_totp_secret
+    u = db.query(User).filter_by(id=user_id).first()
+    if not u:
+        raise HTTPException(404, 'user not found')
+    data = generate_totp_secret(u.email)
+    u.mfa_secret = data['secret']
+    db.commit()
+    return {"qr_png_base64": data["qr_png_base64"], "provisioning_uri": data["provisioning_uri"]}
+
+@router.post('/auth/mfa/verify')
+def mfa_verify(user_id: int, code: str, enable: bool = True, db: Session = Depends(get_db)):
+    from app.auth.mfa import verify_totp
+    u = db.query(User).filter_by(id=user_id).first()
+    if not u or not u.mfa_secret:
+        raise HTTPException(400, 'enroll first')
+    if not verify_totp(u.mfa_secret, code):
+        raise HTTPException(401, 'invalid mfa code')
+    u.mfa_enabled = enable
+    db.add(AuditLog(user_id=u.id, action='auth.mfa_enabled' if enable else 'auth.mfa_disabled', entity_type='user', entity_id=str(u.id)))
+    db.commit()
+    return {"ok": True, "mfa_enabled": u.mfa_enabled}
+
+@router.post('/auth/mfa/require')
+def mfa_require(user_id: int, required: bool = True, db: Session = Depends(get_db)):
+    u = db.query(User).filter_by(id=user_id).first()
+    if not u:
+        raise HTTPException(404, 'user not found')
+    u.mfa_required = required
+    db.commit()
+    return {"ok": True, "mfa_required": required}
+
+@router.post('/auth/refresh')
+def refresh_auth(refresh_token: str):
+    result = exchange_refresh_token(refresh_token)
+    if not result:
+        raise HTTPException(401, 'invalid refresh token')
+    return result
+
+@router.post('/auth/logout')
+def logout(token: str):
+    revoke_token(token)
+    return {"ok": True}
+
+@router.get('/auth/oidc/login')
+def oidc_login():
+    if not oidc_provider.configured():
+        raise HTTPException(501, 'OIDC not configured — set OIDC_CLIENT_ID and OIDC_CLIENT_SECRET')
+    state = secrets.token_urlsafe(16)
+    return {"authorization_url": oidc_provider.authorization_url(state), "state": state}
+
+@router.get('/auth/oidc/callback')
+def oidc_callback(code: str, db: Session = Depends(get_db)):
+    if not oidc_provider.configured():
+        raise HTTPException(501, 'OIDC not configured')
+    tokens = oidc_provider.exchange_code(code)
+    userinfo = oidc_provider.get_userinfo(tokens["access_token"])
+    email = userinfo.get("email")
+    if not email:
+        raise HTTPException(400, 'no email from OIDC provider')
+    u = db.query(User).filter_by(email=email).first()
+    if not u:
+        u = User(email=email, name=userinfo.get("name"), password_hash=None)
+        db.add(u)
+        db.commit()
+        db.refresh(u)
+    tok = create_token(u.id, u.email)
+    refresh = create_refresh_token(u.id, u.email)
+    db.add(AuditLog(user_id=u.id, action='auth.oidc_login', entity_type='user', entity_id=str(u.id)))
+    db.commit()
+    return {"token": tok, "refresh_token": refresh, "email": email}
 
 @router.post('/orgs')
 def create_org(name: str, curr: Current = Depends(require_permission('org:create')), db: Session = Depends(get_db)):

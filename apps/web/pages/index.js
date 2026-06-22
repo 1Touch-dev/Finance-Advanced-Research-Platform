@@ -4,6 +4,12 @@ import styles from '../src/styles/Home.module.css';
 
 const cards = [
   {
+    href: '/intelligence',
+    title: 'Intelligence Reports',
+    desc: 'Layer 1: cited entity network dossiers — SEC, contracts, FEC, FARA, sanctions, courts + AI narrative.',
+    highlight: true,
+  },
+  {
     href: '/search',
     title: 'Global search',
     desc: 'Query entities and documents against the API.',
@@ -51,8 +57,8 @@ export default function Home() {
       <div className={styles.grid}>
         {cards.map((c) => (
           <Link href={c.href} key={c.href}>
-            <a className={styles.card}>
-              <h2 className={styles.cardTitle}>{c.title}</h2>
+            <a className={styles.card} style={c.highlight ? {borderColor:'rgba(129,140,248,0.55)', background:'rgba(19,18,51,0.92)'} : {}}>
+              <h2 className={styles.cardTitle}>{c.title}{c.highlight ? ' ✦' : ''}</h2>
               <p className={styles.cardDesc}>{c.desc}</p>
               <div className={styles.cardArrow}>Open →</div>
             </a>

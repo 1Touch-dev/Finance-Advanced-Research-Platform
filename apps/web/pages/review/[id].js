@@ -18,6 +18,8 @@ export default function Review(){
   const addComment=async()=>{ await fetch(`${API}/review/comments`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({report_id:Number(id),section_id:sectionId?Number(sectionId):null,text:comment})}); setComment(''); }
   const suggest=async()=>{ await fetch(`${API}/review/suggest`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({report_id:Number(id),section_id:Number(sectionId),proposed:sectionText})}); setSectionText('') }
   const exportMd=async()=>{ const r=await fetch(`${API}/review/export/${id}/markdown`); setNotice(`Exported: ${(await r.json()).path}`)}
+  const exportPdf=async()=>{ const r=await fetch(`${API}/review/export/${id}/pdf`); setNotice(`Exported PDF: ${(await r.json()).path}`)}
+  const exportDocx=async()=>{ const r=await fetch(`${API}/review/export/${id}/docx`); setNotice(`Exported Word: ${(await r.json()).path}`)}
   const safeAddComment = async () => {
     setErr(''); setNotice('')
     try { await addComment(); setNotice('Comment added.'); }
@@ -79,6 +81,8 @@ export default function Review(){
             <h3>Exports</h3>
             <div className={styles.buttonRow}>
               <button className={styles.button} onClick={safeExport}>Export Markdown</button>
+              <button className={styles.button} onClick={async()=>{ try{await exportPdf()}catch(e){setErr(e.message)}}}>Export PDF</button>
+              <button className={styles.button} onClick={async()=>{ try{await exportDocx()}catch(e){setErr(e.message)}}}>Export Word</button>
             </div>
             {notice ? <p className={styles.subtle}>{notice}</p> : null}
             {err ? <p className={styles.dangerText}>{err}</p> : null}

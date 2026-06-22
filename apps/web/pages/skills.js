@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { getApiBaseUrl } from '../lib/api'
 import styles from '../src/styles/Page.module.css'
 export default function SkillsGateway(){
@@ -7,6 +7,8 @@ export default function SkillsGateway(){
   const [input,setInput]=useState('{"fcf":[10,11,12,13,14],"wacc":0.1,"terminal_growth":0.02}');
   const [data,setData]=useState(null);
   const [err,setErr]=useState('');
+  const [status,setStatus]=useState(null);
+  useEffect(()=>{ fetch(`${API}/skills/status`).then(r=>r.json()).then(setStatus).catch(()=>{}) }, [API]);
   const run=async()=>{
     setErr('');
     try {
@@ -29,6 +31,12 @@ export default function SkillsGateway(){
       <section className={styles.hero}>
         <h1>Finance Skills Gateway</h1>
         <p>Execute approved skills with explicit inputs and inspect structured outputs.</p>
+        {status && (
+          <p className={styles.subtle}>
+            AI providers: Anthropic {status.anthropic?.configured ? `(live · ${status.anthropic.model})` : '(not configured)'}
+            {' · '}OpenAI {status.openai?.configured ? '(fallback ready)' : '(not configured)'}
+          </p>
+        )}
       </section>
       <section className={styles.grid2}>
         <aside className={styles.panel}>
@@ -57,7 +65,7 @@ export default function SkillsGateway(){
           </div>
         </aside>
         <section className={styles.panel}>
-          <h2>Skill Run Output</h2>
+          <h2>Skill Run Output{data?.output?.provider ? ` · ${data.output.provider}` : ''}</h2>
           <pre className={styles.mono}>{data?JSON.stringify(data,null,2):'No run yet.'}</pre>
         </section>
       </section>

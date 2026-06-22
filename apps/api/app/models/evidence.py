@@ -15,6 +15,8 @@ class RawDocument(Base):
     source_run_id = Column(Integer, nullable=True)
     uploader_user_id = Column(Integer, nullable=True)
     meta = Column(JSON, nullable=True)
+    legal_hold = Column(Integer, default=0)  # 0=no, 1=hold active
+    retention_until = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class EvidenceRef(Base):
