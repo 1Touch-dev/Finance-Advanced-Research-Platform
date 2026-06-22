@@ -47,14 +47,16 @@ function EntityChip({ name, onInvestigate }) {
   )
 }
 
-// ── Parse claim text and make capitalized names clickable ────────────────────
+// ── Parse claim text: highlight tags + make capitalized names clickable ───────
 function SmartText({ text, onInvestigate }) {
   if (!text || !onInvestigate) return <span>{text}</span>
-  // Match [CLIENT SIDE], [AS CLIENT], [REGISTRANT SIDE] tags + entity names
-  const parts = text.split(/(\[(?:CLIENT|AS CLIENT|REGISTRANT|AS LOBBYING FIRM|DOCUMENTED|REPORTED|ANALYTICAL)[^\]]*\])/)
+
+  // Step 1 — split on bracket tags first
+  const tagParts = text.split(/(\[(?:CLIENT|AS CLIENT|REGISTRANT|AS LOBBYING FIRM|DOCUMENTED|REPORTED|ANALYTICAL)[^\]]*\])/)
+
   return (
     <span>
-      {parts.map((part, i) => {
+      {tagParts.map((part, i) => {
         if (part.match(/^\[/)) {
           const tag = part.replace(/^\[|\]$/g, '')
           const color =
@@ -71,7 +73,24 @@ function SmartText({ text, onInvestigate }) {
             </span>
           )
         }
-        return <span key={i}>{part}</span>
+
+        // Step 2 — within plain text, find capitalized multi-word entity names
+        // Match: 2+ consecutive words starting with uppercase (e.g. "Peter Thiel", "Palantir Technologies")
+        const nameParts = part.split(/(\b[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)+\b)/)
+        if (nameParts.length === 1) return <span key={i}>{part}</span>
+
+        return (
+          <span key={i}>
+            {nameParts.map((chunk, j) => {
+              if (/^[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)+$/.test(chunk) && chunk.length > 4) {
+                return (
+                  <EntityChip key={j} name={chunk} onInvestigate={onInvestigate} />
+                )
+              }
+              return <span key={j}>{chunk}</span>
+            })}
+          </span>
+        )
       })}
     </span>
   )
@@ -548,14 +567,29 @@ export default function IntelligencePage() {
   }
 
   const investigate = (name) => {
-    // Click any entity name in the report → generate report for it
+    // Click any entity name in the report → immediately generate a new report
     setEntityName(name)
     setTicker('')
     setEntityType('org')
     setReport(null)
     setErr('')
     setGraphEntityId(null)
+    setFilters({ category: 'All', source: 'All', confidence: 'All', search: '' })
     window.scrollTo({ top: 0, behavior: 'smooth' })
+    // Auto-trigger generation
+    setTimeout(() => {
+      const params = new URLSearchParams({ entity_name: name, entity_type: 'org' })
+      setLoading(true)
+      fetch(`${API}/intelligence/generate?${params}`, { method: 'POST' })
+        .then(r => r.ok ? r.json() : r.text().then(t => { throw new Error(`API ${r.status}: ${t.slice(0, 200)}`) }))
+        .then(data => {
+          setReport(data)
+          setHistory(h => [{ id: data.report_id, entity: name, ts: new Date().toLocaleTimeString() }, ...h.slice(0, 9)])
+          if (data.entity_id) { setGraphEntityId(data.entity_id); setGraphEntityName(name) }
+        })
+        .catch(e => setErr(e.message))
+        .finally(() => setLoading(false))
+    }, 50)
   }
 
   const generate = async () => {
