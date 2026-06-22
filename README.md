@@ -38,26 +38,34 @@ For all James's requirements (v2.0 features, Jarvis Nexus, agent team), see **[j
 |---|---------|--------|
 | 1 | 12-section intelligence dossier (SEC, FEC, FARA, USASpending, LDA, OFAC, Courts, Wikipedia, investors, LinkedIn, PitchBook, News) | ✅ Live |
 | 2 | Two-sided lobbying disclosure — `[CLIENT SIDE]` + `[REGISTRANT SIDE]` | ✅ Live |
-| 3 | Embedded Cytoscape relationship graph | ✅ Live |
-| 4 | Apify Google News enrichment — 47–81 articles per query | ✅ Live |
-| 5 | Apify LinkedIn profile enrichment | ✅ Live |
-| 6 | Apify PitchBook | ⚠️ Needs actor permission approval |
-| 7 | GPT-4o deep narrative (5-section) | ✅ Live |
-| 8 | PayPal Mafia demo seeds (Thiel, Musk, Hoffman, Levchin, Sacks) | ✅ Live |
-| 9 | US State Registry — 51 jurisdictions | ✅ Live |
-| 10 | BEA Economics page | ✅ Live |
+| 3 | Two-sided contracts — `[RECIPIENT SIDE]` + `[AGENCY SIDE]` | ✅ Live (22 Jun) |
+| 4 | Embedded Cytoscape relationship graph | ✅ Live |
+| 5 | KPI strip — Gov Contracts, Lobbying Spend, Court Risk, Sanctions, News, Data Confidence | ✅ Live (22 Jun) |
+| 6 | Filter bar — by category, source, confidence, free text | ✅ Live (22 Jun) |
+| 7 | Section category labels (Financial / Government / Legal / Intelligence / Social) | ✅ Live (22 Jun) |
+| 8 | Sortable tables + CSV export per section, pagination (10/page) | ✅ Live (22 Jun) |
+| 9 | Click-to-investigate — any capitalized entity name in report text is clickable + auto-generates new report | ✅ Live (22 Jun) |
+| 10 | Apify Google News enrichment — 47–81 articles per query | ✅ Live |
+| 11 | Apify LinkedIn profile enrichment | ✅ Live |
+| 12 | Apify PitchBook (realtime-scraper, no permission needed) | ✅ Live (22 Jun) |
+| 13 | Browser Research Agent — `POST /intelligence/browser-research` | ✅ Live (22 Jun) |
+| 14 | Argentina spike — Mercado Libre / Argentina: 4 sources, MEDIUM confidence | ✅ Tested (22 Jun) |
+| 15 | GPT-4o deep narrative (5-section) | ✅ Live |
+| 16 | PayPal Mafia demo seeds | ✅ Live |
+| 17 | US State Registry — 51 jurisdictions | ✅ Live |
+
+**Active branch:** `feature/layer2-kpi-filters-clickable-browser` · 4 commits today
 
 ## Layer 2 — What's next
 
-See [james_requirements.md](./james_requirements.md) for the full prioritised backlog. Top items:
+See [james_requirements.md](./james_requirements.md) for the full prioritised backlog. Next items:
 
-1. KPI strip + filter bar + tables on intelligence reports (James 22 Jun ask)
-2. Fix click-to-investigate in report claim text
-3. Browser research agent for uncovered jurisdictions (Argentina etc.)
-4. Contracts two-sided disclosure
-5. Apollo email intelligence pipeline (v2.0 Block A)
-6. Per-entity RAG chat with pgvector + Claude (v2.0 Block C)
-7. Tracking dashboard + daily digest (v2.0 Block E)
+1. Apollo email intelligence pipeline (v2.0 Block A)
+2. Apify social footprint — Twitter, Instagram, YouTube (v2.0 Block B)
+3. Per-entity RAG chat with pgvector + Claude (v2.0 Block C)
+4. Tracking dashboard + daily digest (v2.0 Block E)
+5. Private company intelligence — OpenCorporates, GLEIF, FinCEN BOI (v2.0 Block F)
+6. Comparison page — up to 5 entities (v2.0 Block D)
 - **LDA endpoint** — migrated to `lda.gov` (lda.senate.gov decommissions Jun 30 2026)
 
 ### Try it on staging

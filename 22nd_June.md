@@ -386,21 +386,19 @@ Intelligence generate
 ## 13) Recommended next actions — updated 22 Jun
 
 1. ✅ **Apify topped up** — News and LinkedIn live
-2. **Approve Apify PitchBook actor permissions** (James action — 5 min): https://console.apify.com/actors/lsfMbqR3SfAud3Cx9?approvePermissions=true
-3. **KPI strip + filter bar + tables on intelligence reports** — James's "missing" 22 Jun ask
-4. **Fix clickable entities** — wire `EntityChip`, auto-generate report on click
-5. **Design + build browser research agent** — James's 19–20 Jun ask
-6. **Argentina spike** — prove international fallback (Aeropuertos Argentina 2000 or Mercado Libre)
-7. **Apify company employees** + key-people auto-expand
-8. **Contracts two-sided** disclosure
-9. **Apollo email pipeline** (v2.0 Block A)
-10. **Apify social footprint** (Twitter, Instagram, YouTube — v2.0 Block B)
-11. **Per-entity RAG chat** (pgvector + Claude — v2.0 Block C)
-12. **Tracking dashboard + daily digest** (v2.0 Block E)
-13. **Person timeline UI**
-14. **Update README**
+2. ✅ **PitchBook switched** to `mdataset/pitchbook-realtime-scraper` — no permissions needed, working
+3. ✅ **KPI strip + filter bar + sortable tables + section labels** — Task 1 shipped on `feature/layer2-kpi-filters-clickable-browser`
+4. ✅ **Click-to-investigate** — entity names in report text clickable + auto-generate report — Task 2 shipped
+5. ✅ **Contracts two-sided disclosure** — [RECIPIENT SIDE] + [AGENCY SIDE] — Task 3 shipped
+6. ✅ **Browser research agent** — `POST /intelligence/browser-research`, Argentina spike working — Task 4 shipped
+7. **Apollo email pipeline** (v2.0 Block A) — next
+8. **Apify social footprint** (Twitter, Instagram, YouTube — v2.0 Block B) — next
+9. **Per-entity RAG chat** (pgvector + Claude — v2.0 Block C) — next
+10. **Tracking dashboard + daily digest** (v2.0 Block E) — next
+11. **Apify company employees** + key-people auto-expand
+12. **Person timeline UI**
 
-See [james_requirements.md](./james_requirements.md) for the full prioritised build stack.
+**Active branch:** `feature/layer2-kpi-filters-clickable-browser` (4 commits, all pushed)
 
 ---
 
