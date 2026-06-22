@@ -961,6 +961,7 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
             "lobbying_filings": lda_data.get("total_count", 0),
             "lobbying_as_registrant": lda_data.get("as_registrant_count", 0),
             "lobbying_firms": len(lda_data.get("top_firms", [])),
+            "lobbying_issue_areas": lda_data.get("issue_areas", []),
             "fec_committees": len(fec_data.get("committees", [])),
             "fara_registrations": len(fara_data.get("registrants", [])),
             "sanctions_hits": len(ofac_data.get("hits", [])),
@@ -969,6 +970,35 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
             "investor_filings": len(investor_data.get("ownership_filings", [])),
             "news_articles": len(apify_news),
             "linkedin_education": len(apify_linkedin.get("education", [])),
+            # KPI fields
+            "kpi_contracts_value_usd": spending_data.get("total_obligated", 0),
+            "kpi_lobbying_spend": sum(
+                float(f.get("income") or 0) for f in lda_data.get("filings", [])
+            ),
+            "kpi_court_risk": "HIGH" if len(court_data.get("cases", [])) >= 3
+                              else "MEDIUM" if len(court_data.get("cases", [])) >= 1
+                              else "LOW",
+            "kpi_sanctions_risk": "HIGH" if ofac_data.get("is_sanctioned") else "CLEAR",
+            "kpi_data_confidence": round(
+                100 * sum([
+                    bool(wiki_data.get("summary")),
+                    bool(sec_data.get("cik")),
+                    bool(spending_data.get("awards")),
+                    bool(lda_data.get("total_count")),
+                    bool(apify_news),
+                ]) / 5
+            ),
+            "kpi_sources_active": sum([
+                bool(wiki_data.get("summary")),
+                bool(sec_data.get("cik")),
+                bool(spending_data.get("awards")),
+                bool(lda_data.get("filings")),
+                bool(court_data.get("cases")),
+                bool(apify_news),
+                bool(apify_linkedin.get("headline")),
+                bool(apify_pitchbook.get("description")),
+            ]),
+            "kpi_top_lobbying_firms": [f[0] for f in lda_data.get("top_firms", [])[:3]],
         }
     }
 

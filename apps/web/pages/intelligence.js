@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/router'
 import { getApiBaseUrl } from '../lib/api'
 import styles from '../src/styles/Page.module.css'
@@ -109,7 +109,7 @@ function ClaimRow({ text, onInvestigate }) {
   )
 }
 
-function Section({ section, idx, onInvestigate }) {
+function Section({ section, idx, onInvestigate, filters }) {
   const [open, setOpen] = useState(idx < 4)
   const claims = section.claims || []
   const isNarrative = (section.order >= 11) || section.name.toLowerCase().includes('narrative')
@@ -118,45 +118,69 @@ function Section({ section, idx, onInvestigate }) {
   const isPitchBook  = section.name.toLowerCase().includes('pitchbook')
   const isLobbying   = section.name.toLowerCase().includes('lobbying')
 
+  const category = SECTION_CATEGORY[section.name] || 'Intelligence'
+  const catColor = CATEGORY_COLOR[category] || '#94a3b8'
+
   const sectionAccentColor =
     isLinkedIn  ? '#0a66c2' :
     isNews      ? '#f59e0b' :
     isPitchBook ? '#16a34a' :
     isLobbying  ? '#f97316' :
-    undefined
+    catColor
+
+  // Apply filters to claims
+  const filteredClaims = useMemo(() => {
+    if (!filters) return claims
+    return claims.filter(c => {
+      const text = (c.text || c || '').toLowerCase()
+      const conf = c.confidence || ''
+      const src  = (c.source || '').toLowerCase()
+      if (filters.confidence !== 'All' && conf !== filters.confidence) return false
+      if (filters.source !== 'All' && !src.includes(filters.source.toLowerCase())) return false
+      if (filters.search && !text.includes(filters.search.toLowerCase())) return false
+      return true
+    })
+  }, [claims, filters])
+
+  // Apply category filter at section level
+  if (filters && filters.category !== 'All' && category !== filters.category) return null
 
   return (
-    <div className={iStyles.section} style={sectionAccentColor ? { borderLeft: `3px solid ${sectionAccentColor}` } : {}}>
+    <div className={iStyles.section} style={{ borderLeft: `3px solid ${sectionAccentColor}` }}>
       <button className={iStyles.sectionHeader} onClick={() => setOpen(o => !o)}>
         <span className={iStyles.sectionNum}>§{section.order || idx + 1}</span>
         <span className={iStyles.sectionName}>{section.name}</span>
-        <span className={iStyles.sectionCount}>{claims.length} claim{claims.length !== 1 ? 's' : ''}</span>
-        {sectionAccentColor && (
+        <span
+          className={iStyles.sectionCatBadge}
+          style={{ background: `${catColor}22`, color: catColor, border: `1px solid ${catColor}44` }}
+        >{category}</span>
+        <span className={iStyles.sectionCount}>{filteredClaims.length}/{claims.length}</span>
+        {sectionAccentColor && (isLinkedIn || isNews || isPitchBook || isLobbying) && (
           <span style={{ fontSize: '0.65rem', color: sectionAccentColor, marginLeft: 4, fontWeight: 700 }}>
-            {isLinkedIn ? 'LinkedIn' : isNews ? 'News' : isPitchBook ? 'PitchBook' : isLobbying ? 'Both Sides' : ''}
+            {isLinkedIn ? 'LinkedIn' : isNews ? 'News' : isPitchBook ? 'PitchBook' : 'Both Sides'}
           </span>
         )}
         <span className={iStyles.chevron}>{open ? '▲' : '▼'}</span>
       </button>
       {open && (
         <div className={iStyles.sectionBody}>
-          {isNarrative && claims.length > 0 ? (
+          {isNarrative && filteredClaims.length > 0 ? (
             <div className={iStyles.narrative}>
-              {claims[0].text.split('\n').map((line, i) => (
+              {filteredClaims[0].text.split('\n').map((line, i) => (
                 <p key={i} style={{ margin: '0 0 0.65rem' }}>{line}</p>
               ))}
             </div>
           ) : (
-            <ul className={iStyles.claimList}>
-              {claims.map((c, i) => (
-                <ClaimRow key={i} text={c.text || c} onInvestigate={onInvestigate} />
-              ))}
-            </ul>
+            <SortableTable
+              claims={filteredClaims}
+              sectionName={section.name}
+              onInvestigate={onInvestigate}
+            />
           )}
           {section.data && Object.keys(section.data).length > 0 && (
             <div className={iStyles.dataRow}>
               {Object.entries(section.data).map(([k, v]) =>
-                v !== null && v !== undefined && v !== '' ? (
+                v !== null && v !== undefined && v !== '' && !Array.isArray(v) ? (
                   <span key={k} className={iStyles.dataChip}>
                     {k.replace(/_/g, ' ')}: <strong>{typeof v === 'number' ? v.toLocaleString() : String(v)}</strong>
                   </span>
@@ -164,6 +188,179 @@ function Section({ section, idx, onInvestigate }) {
               )}
             </div>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── KPI strip ─────────────────────────────────────────────────────────────────
+function KpiStrip({ summary }) {
+  if (!summary) return null
+  const contractsVal = summary.kpi_contracts_value_usd
+    ? `$${(summary.kpi_contracts_value_usd / 1e6).toFixed(1)}M`
+    : '$0'
+  const lobbySpend = summary.kpi_lobbying_spend
+    ? `$${(summary.kpi_lobbying_spend / 1e3).toFixed(0)}K`
+    : '$0'
+  const courtRisk = summary.kpi_court_risk || 'LOW'
+  const sanctionsRisk = summary.kpi_sanctions_risk || 'CLEAR'
+  const confidence = summary.kpi_data_confidence ?? 0
+  const sourcesActive = summary.kpi_sources_active ?? 0
+
+  const riskColor = r => r === 'HIGH' ? '#f87171' : r === 'MEDIUM' ? '#fbbf24' : r === 'CLEAR' ? '#4ade80' : '#4ade80'
+
+  const kpis = [
+    { label: 'Gov Contracts', value: contractsVal, sub: `${summary.contracts_found || 0} awards`, color: '#60a5fa' },
+    { label: 'Lobbying Spend', value: lobbySpend, sub: `${summary.lobbying_filings || 0} filings`, color: '#f97316' },
+    { label: 'Court Risk', value: courtRisk, sub: `${summary.court_cases || 0} cases`, color: riskColor(courtRisk) },
+    { label: 'Sanctions', value: sanctionsRisk, sub: `${summary.sanctions_hits || 0} hits`, color: riskColor(sanctionsRisk) },
+    { label: 'News Coverage', value: summary.news_articles || 0, sub: 'articles found', color: '#fbbf24' },
+    { label: 'Data Confidence', value: `${confidence}%`, sub: `${sourcesActive}/8 sources`, color: '#a78bfa' },
+  ]
+
+  return (
+    <div className={iStyles.kpiStrip}>
+      {kpis.map(k => (
+        <div key={k.label} className={iStyles.kpiCard}>
+          <span className={iStyles.kpiValue} style={{ color: k.color }}>{k.value}</span>
+          <span className={iStyles.kpiLabel}>{k.label}</span>
+          <span className={iStyles.kpiSub}>{k.sub}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Filter bar ────────────────────────────────────────────────────────────────
+function FilterBar({ sections, filters, setFilters }) {
+  const categories = ['All', 'Financial', 'Government', 'Legal', 'Intelligence', 'Social']
+  const sources    = ['All', 'SEC', 'LDA', 'FEC', 'FARA', 'USASpending', 'CourtListener', 'LinkedIn', 'PitchBook', 'News', 'Wikipedia']
+
+  return (
+    <div className={iStyles.filterBar}>
+      <div className={iStyles.filterGroup}>
+        <span className={iStyles.filterLabel}>Category</span>
+        <div className={iStyles.filterChips}>
+          {categories.map(c => (
+            <button
+              key={c}
+              className={`${iStyles.filterChip} ${filters.category === c ? iStyles.filterChipActive : ''}`}
+              onClick={() => setFilters(f => ({ ...f, category: c }))}
+            >{c}</button>
+          ))}
+        </div>
+      </div>
+      <div className={iStyles.filterGroup}>
+        <span className={iStyles.filterLabel}>Source</span>
+        <select
+          className={iStyles.filterSelect}
+          value={filters.source}
+          onChange={e => setFilters(f => ({ ...f, source: e.target.value }))}
+        >
+          {sources.map(s => <option key={s}>{s}</option>)}
+        </select>
+      </div>
+      <div className={iStyles.filterGroup}>
+        <span className={iStyles.filterLabel}>Confidence</span>
+        <div className={iStyles.filterChips}>
+          {['All', 'DOCUMENTED', 'REPORTED', 'ANALYTICAL'].map(c => (
+            <button
+              key={c}
+              className={`${iStyles.filterChip} ${filters.confidence === c ? iStyles.filterChipActive : ''}`}
+              onClick={() => setFilters(f => ({ ...f, confidence: c }))}
+            >{c}</button>
+          ))}
+        </div>
+      </div>
+      <div className={iStyles.filterGroup}>
+        <span className={iStyles.filterLabel}>Search</span>
+        <input
+          className={iStyles.filterSearch}
+          placeholder="Filter claims..."
+          value={filters.search}
+          onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
+        />
+      </div>
+      {(filters.category !== 'All' || filters.source !== 'All' || filters.confidence !== 'All' || filters.search) && (
+        <button
+          className={iStyles.filterReset}
+          onClick={() => setFilters({ category: 'All', source: 'All', confidence: 'All', search: '' })}
+        >✕ Clear</button>
+      )}
+    </div>
+  )
+}
+
+// ── Section category map ──────────────────────────────────────────────────────
+const SECTION_CATEGORY = {
+  'Entity Profile': 'Intelligence',
+  'Investors & Capital Structure': 'Financial',
+  'Government Contracts & Procurement': 'Government',
+  'Lobbying Activity (Both Sides)': 'Government',
+  'Political & Foreign Exposure': 'Government',
+  'People & Education (LinkedIn)': 'Social',
+  'Sanctions & Compliance': 'Legal',
+  'Litigation & Legal Exposure': 'Legal',
+  'PitchBook & Investor Intelligence': 'Financial',
+  'News & Media Timeline': 'Intelligence',
+  'Data Sources & Enrichment': 'Intelligence',
+  'Deep Intelligence Narrative (AI-Generated)': 'Intelligence',
+}
+
+const CATEGORY_COLOR = {
+  Financial:     '#34d399',
+  Government:    '#60a5fa',
+  Legal:         '#f87171',
+  Intelligence:  '#a78bfa',
+  Social:        '#f59e0b',
+}
+
+// ── Sortable table ─────────────────────────────────────────────────────────────
+function SortableTable({ claims, sectionName, onInvestigate }) {
+  const [sortCol, setSortCol] = useState(null)
+  const [sortDir, setSortDir] = useState('asc')
+  const [page, setPage] = useState(0)
+  const PAGE = 10
+
+  // Try to detect if claims look like tabular data (lobbying, contracts)
+  const isLobbying   = sectionName?.toLowerCase().includes('lobbying')
+  const isContracts  = sectionName?.toLowerCase().includes('contract')
+  const isNews       = sectionName?.toLowerCase().includes('news')
+  const isInvestors  = sectionName?.toLowerCase().includes('investor') || sectionName?.toLowerCase().includes('capital')
+
+  const exportCsv = () => {
+    const rows = [['#', 'Confidence', 'Text', 'Source']]
+    claims.forEach((c, i) => {
+      const m = (c.text || '').match(/^\[(DOCUMENTED|REPORTED|ANALYTICAL)\]\s*(.*)$/)
+      rows.push([i + 1, m ? m[1] : '', m ? m[2] : (c.text || ''), c.source || ''])
+    })
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const a = document.createElement('a')
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv)
+    a.download = `${sectionName?.replace(/[^a-z0-9]/gi, '_')}.csv`
+    a.click()
+  }
+
+  const paginated = claims.slice(page * PAGE, (page + 1) * PAGE)
+  const totalPages = Math.ceil(claims.length / PAGE)
+
+  return (
+    <div>
+      <div className={iStyles.tableToolbar}>
+        <span className={iStyles.tableCount}>{claims.length} item{claims.length !== 1 ? 's' : ''}</span>
+        <button className={iStyles.csvBtn} onClick={exportCsv} title="Export CSV">⬇ CSV</button>
+      </div>
+      <ul className={iStyles.claimList}>
+        {paginated.map((c, i) => (
+          <ClaimRow key={i} text={c.text || c} onInvestigate={onInvestigate} />
+        ))}
+      </ul>
+      {totalPages > 1 && (
+        <div className={iStyles.pagination}>
+          <button className={iStyles.pageBtn} disabled={page === 0} onClick={() => setPage(p => p - 1)}>‹ Prev</button>
+          <span className={iStyles.pageInfo}>{page + 1} / {totalPages}</span>
+          <button className={iStyles.pageBtn} disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Next ›</button>
         </div>
       )}
     </div>
@@ -339,6 +536,7 @@ export default function IntelligencePage() {
   const [history,    setHistory]    = useState([])
   const [graphEntityId, setGraphEntityId] = useState(null)
   const [graphEntityName, setGraphEntityName] = useState('')
+  const [filters, setFilters] = useState({ category: 'All', source: 'All', confidence: 'All', search: '' })
 
   const useSeed = (seed) => {
     setEntityName(seed.entity)
@@ -540,6 +738,16 @@ export default function IntelligencePage() {
 
               <SummaryBar summary={report.summary} />
 
+              {/* KPI strip */}
+              <KpiStrip summary={report.summary} />
+
+              {/* Filter bar */}
+              <FilterBar
+                sections={report.sections || []}
+                filters={filters}
+                setFilters={setFilters}
+              />
+
               {/* Embedded relationship graph */}
               {graphEntityId && (
                 <EmbeddedGraph
@@ -551,7 +759,7 @@ export default function IntelligencePage() {
 
               <div className={iStyles.sectionsWrap}>
                 {(report.sections || []).map((s, i) => (
-                  <Section key={i} section={s} idx={i} onInvestigate={investigate} />
+                  <Section key={i} section={s} idx={i} onInvestigate={investigate} filters={filters} />
                 ))}
               </div>
             </div>

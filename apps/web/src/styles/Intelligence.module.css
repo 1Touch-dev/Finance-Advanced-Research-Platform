@@ -245,3 +245,197 @@
   font-weight: 400;
   color: var(--text-muted);
 }
+
+/* ── KPI strip ──────────────────────────────────── */
+.kpiStrip {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: 0.7rem;
+  background: rgba(8, 13, 26, 0.85);
+}
+@media (max-width: 900px) {
+  .kpiStrip { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 560px) {
+  .kpiStrip { grid-template-columns: repeat(2, 1fr); }
+}
+.kpiCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.75rem 0.5rem;
+  border-right: 1px solid var(--line);
+  gap: 0.15rem;
+}
+.kpiCard:last-child { border-right: none; }
+.kpiValue {
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+.kpiLabel {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  text-align: center;
+}
+.kpiSub {
+  font-size: 0.65rem;
+  color: var(--text-soft);
+  text-align: center;
+}
+
+/* ── Filter bar ─────────────────────────────────── */
+.filterBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: rgba(14, 20, 37, 0.9);
+  margin-bottom: 0.7rem;
+}
+.filterGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.filterLabel {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.filterChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.filterChip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.6rem;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.filterChip:hover {
+  border-color: #818cf8;
+  color: #c7d2fe;
+}
+.filterChipActive {
+  background: rgba(129, 140, 248, 0.2);
+  border-color: #818cf8;
+  color: #c7d2fe;
+  font-weight: 700;
+}
+.filterSelect {
+  background: rgba(8,13,26,0.9);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+}
+.filterSearch {
+  background: rgba(8,13,26,0.9);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.25rem 0.55rem;
+  min-width: 160px;
+}
+.filterSearch::placeholder { color: var(--text-soft); }
+.filterReset {
+  border: 1px solid rgba(248,113,113,0.4);
+  border-radius: 999px;
+  background: rgba(248,113,113,0.08);
+  color: #fca5a5;
+  font: inherit;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.65rem;
+  cursor: pointer;
+  margin-left: auto;
+}
+.filterReset:hover { background: rgba(248,113,113,0.18); }
+
+/* ── Section category badge ─────────────────────── */
+.sectionCatBadge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* ── Table toolbar & pagination ─────────────────── */
+.tableToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+.tableCount {
+  font-size: 0.73rem;
+  color: var(--text-muted);
+}
+.csvBtn {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.72rem;
+  padding: 0.2rem 0.55rem;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.csvBtn:hover {
+  border-color: #4ade80;
+  color: #4ade80;
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-top: 0.6rem;
+}
+.pageBtn {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.2rem 0.65rem;
+  cursor: pointer;
+}
+.pageBtn:hover:not(:disabled) { border-color: #818cf8; color: #c7d2fe; }
+.pageBtn:disabled { opacity: 0.35; cursor: default; }
+.pageInfo {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  min-width: 50px;
+  text-align: center;
+}
