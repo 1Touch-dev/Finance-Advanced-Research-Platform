@@ -165,33 +165,87 @@ def _fetch_fara(entity_name: str) -> Dict[str, Any]:
 # ── USASpending connector (entity-specific) ──────────────────────────────────
 
 def _fetch_usaspending(entity_name: str) -> Dict[str, Any]:
-    result = {"awards": [], "total_obligated": 0}
+    """Fetch USASpending data with two-sided disclosure:
+    - As RECIPIENT (company receiving federal contracts) — primary view
+    - As AWARDING AGENCY (agency awarding contracts to others) — secondary view
+    """
+    result = {
+        "awards": [],
+        "total_obligated": 0,
+        # Two-sided additions
+        "as_agency_awards": [],
+        "as_agency_total": 0,
+        "top_agencies": [],
+        "top_recipients": [],
+    }
     try:
+        # ── SIDE A: entity AS RECIPIENT (receiving contracts) ─────────────────
         payload = {
             "filters": {
                 "recipient_search_text": [entity_name],
-                "award_type_codes": ["A","B","C","D"],
+                "award_type_codes": ["A", "B", "C", "D"],
             },
-            "fields": ["Award ID","Recipient Name","Award Amount","Awarding Agency",
-                       "Award Type","Start Date","End Date","Description"],
+            "fields": ["Award ID", "Recipient Name", "Award Amount", "Awarding Agency",
+                       "Award Type", "Start Date", "End Date", "Description"],
             "page": 1, "limit": 10, "sort": "Award Amount", "order": "desc"
         }
         resp = requests.post("https://api.usaspending.gov/api/v2/search/spending_by_award/",
                              json=payload, timeout=20)
         if resp.ok:
-            data = resp.json()
-            for a in data.get("results", []):
-                amt = a.get("Award Amount") or 0
+            agency_counts: Dict[str, float] = {}
+            for a in resp.json().get("results", []):
+                amt = float(a.get("Award Amount") or 0)
+                agency = a.get("Awarding Agency") or "Unknown Agency"
                 result["awards"].append({
                     "id": a.get("Award ID"),
                     "recipient": a.get("Recipient Name"),
                     "amount": amt,
-                    "agency": a.get("Awarding Agency"),
+                    "agency": agency,
                     "type": a.get("Award Type"),
                     "start": a.get("Start Date"),
                     "description": a.get("Description"),
+                    "side": "recipient",
                 })
-                result["total_obligated"] += float(amt or 0)
+                result["total_obligated"] += amt
+                agency_counts[agency] = agency_counts.get(agency, 0) + amt
+            result["top_agencies"] = sorted(agency_counts.items(), key=lambda x: -x[1])[:5]
+
+        # ── SIDE B: entity AS AWARDING AGENCY (giving contracts to others) ────
+        # Search for awards where awarding_agency_name matches entity
+        payload2 = {
+            "filters": {
+                "keywords": [entity_name],
+                "award_type_codes": ["A", "B", "C", "D"],
+            },
+            "fields": ["Award ID", "Recipient Name", "Award Amount", "Awarding Agency",
+                       "Award Type", "Start Date", "Description"],
+            "page": 1, "limit": 10, "sort": "Award Amount", "order": "desc"
+        }
+        resp2 = requests.post("https://api.usaspending.gov/api/v2/search/spending_by_award/",
+                              json=payload2, timeout=20)
+        if resp2.ok:
+            recipient_counts: Dict[str, float] = {}
+            for a in resp2.json().get("results", []):
+                awarding = a.get("Awarding Agency") or ""
+                # Only include if entity is the awarding agency, not just keyword match
+                if entity_name.split()[0].lower() not in awarding.lower():
+                    continue
+                amt = float(a.get("Award Amount") or 0)
+                recipient = a.get("Recipient Name") or "Unknown Recipient"
+                result["as_agency_awards"].append({
+                    "id": a.get("Award ID"),
+                    "recipient": recipient,
+                    "amount": amt,
+                    "agency": awarding,
+                    "type": a.get("Award Type"),
+                    "start": a.get("Start Date"),
+                    "description": a.get("Description"),
+                    "side": "awarding_agency",
+                })
+                result["as_agency_total"] += amt
+                recipient_counts[recipient] = recipient_counts.get(recipient, 0) + amt
+            result["top_recipients"] = sorted(recipient_counts.items(), key=lambda x: -x[1])[:5]
+
     except Exception as e:
         result["error"] = str(e)
     return result
@@ -695,19 +749,57 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
                               "funding_rounds": len(funded_data.get("rounds",[])),
                               "total_raised": funded_data.get("total_raised", 0)}})
 
-    # ── Section 3: Government Contracts & Procurement ─────────────────────────
+    # ── Section 3: Government Contracts & Procurement — BOTH SIDES ───────────
     sec3_claims = []
+
+    # SIDE A — entity AS RECIPIENT (receiving contracts)
+    if spending_data.get("awards"):
+        sec3_claims.append({
+            "text": f"[AS RECIPIENT] {entity_name} received {len(spending_data['awards'])} federal contract award(s) totaling ${spending_data.get('total_obligated', 0):,.0f} from USASpending.gov.",
+            "confidence": "DOCUMENTED", "source": "USASpending.gov"
+        })
+    for agency, amt in spending_data.get("top_agencies", [])[:3]:
+        sec3_claims.append({
+            "text": f"[RECIPIENT SIDE] Top awarding agency: {agency} — ${amt:,.0f} obligated.",
+            "confidence": "DOCUMENTED", "source": "USASpending.gov"
+        })
     for a in spending_data.get("awards", []):
         amt = a.get("amount", 0)
-        sec3_claims.append({"text": f"${float(amt):,.0f} federal contract from {a.get('agency')} ({a.get('type')}){(' — ' + a['description'][:80]) if a.get('description') else ''}.",
-                            "confidence": "DOCUMENTED", "source": "USASpending.gov"})
+        desc = (' — ' + a['description'][:80]) if a.get('description') else ''
+        sec3_claims.append({
+            "text": f"[RECIPIENT SIDE] ${float(amt):,.0f} from {a.get('agency')} ({a.get('type')}){desc}. Start: {a.get('start', 'unknown')}.",
+            "confidence": "DOCUMENTED", "source": "USASpending.gov"
+        })
+
+    # SIDE B — entity AS AWARDING AGENCY (giving contracts to others)
+    if spending_data.get("as_agency_awards"):
+        sec3_claims.append({
+            "text": f"[AS AWARDING AGENCY] {entity_name} appears as awarding agency in {len(spending_data['as_agency_awards'])} contract(s) totaling ${spending_data.get('as_agency_total', 0):,.0f}.",
+            "confidence": "DOCUMENTED", "source": "USASpending.gov"
+        })
+    for recipient, amt in spending_data.get("top_recipients", [])[:3]:
+        sec3_claims.append({
+            "text": f"[AGENCY SIDE] Top recipient of contracts from {entity_name}: {recipient} — ${amt:,.0f}.",
+            "confidence": "DOCUMENTED", "source": "USASpending.gov"
+        })
+    for a in spending_data.get("as_agency_awards", [])[:3]:
+        amt = a.get("amount", 0)
+        sec3_claims.append({
+            "text": f"[AGENCY SIDE] {entity_name} awarded ${float(amt):,.0f} to {a.get('recipient')} ({a.get('type')}). Start: {a.get('start', 'unknown')}.",
+            "confidence": "DOCUMENTED", "source": "USASpending.gov"
+        })
+
     if not sec3_claims:
-        sec3_claims.append({"text": "No direct federal contract awards found.",
+        sec3_claims.append({"text": "No direct federal contract awards found (neither as recipient nor as awarding agency).",
                             "confidence": "DOCUMENTED", "source": "USASpending.gov"})
     sections.append({"name": "Government Contracts & Procurement", "order": 3,
                      "claims": sec3_claims,
-                     "data": {"total_obligated_usd": spending_data.get("total_obligated",0),
-                              "award_count": len(spending_data.get("awards",[]))}})
+                     "data": {
+                         "total_obligated_usd": spending_data.get("total_obligated", 0),
+                         "award_count": len(spending_data.get("awards", [])),
+                         "as_agency_count": len(spending_data.get("as_agency_awards", [])),
+                         "as_agency_total_usd": spending_data.get("as_agency_total", 0),
+                     }})
 
     # ── Section 4: Lobbying Activity — BOTH SIDES ────────────────────────────
     sec4_claims = []
