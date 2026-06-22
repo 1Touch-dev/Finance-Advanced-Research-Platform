@@ -48,12 +48,14 @@ try:
     from app.connectors.apollo_connector import (
         search_organization as apollo_search_org,
         fetch_org_chart as apollo_org_chart,
+        enrich_organization as apollo_enrich_org,
     )
     APOLLO_AVAILABLE = True
 except ImportError:
     APOLLO_AVAILABLE = False
     def apollo_search_org(name): return {}
     def apollo_org_chart(org): return []
+    def apollo_enrich_org(domain="", name=""): return {}
 
 # Private company intelligence
 try:
@@ -1337,11 +1339,17 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
             },
         })
 
-    # ── Section: Apollo enrichment ────────────────────────────────────────────    apollo_org   = {}
+    # ── Section: Apollo enrichment ────────────────────────────────────────────
+    apollo_org   = {}
     apollo_people_list = []
-    if APOLLO_AVAILABLE:
+    if APOLLO_AVAILABLE and not is_person:
         try:
-            apollo_org         = apollo_search_org(entity_name) or {}
+            # Name-based search first (most accurate — resolves to correct domain internally)
+            apollo_org = apollo_search_org(entity_name) or {}
+            # Fall back to domain guess only if search came back empty
+            if not apollo_org.get("name"):
+                slug = entity_name.lower().replace(" ", "").replace(".", "").replace(",", "")
+                apollo_org = apollo_enrich_org(domain=f"{slug}.com") or {}
             apollo_people_list = apollo_org_chart(entity_name) or []
         except Exception as exc:
             logger.warning("Apollo enrichment failed: %s", exc)

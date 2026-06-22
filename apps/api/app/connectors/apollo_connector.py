@@ -50,42 +50,59 @@ def enrich_organization(domain: str = "", name: str = "") -> dict:
     Enrich a company by domain or name.
     Returns: { name, website, industry, founded_year, headcount, revenue_range,
                technologies, short_description, linkedin_url }
+    Domain-based enrichment is always preferred — much more accurate.
     """
     payload = {}
     if domain:
         payload["domain"] = domain
     elif name:
-        payload["name"] = name
+        # Try to derive a domain from the name as a best-effort
+        slug = name.lower().replace(" ", "").replace(".", "").replace(",", "")
+        payload["domain"] = f"{slug}.com"
     else:
         return {}
 
     data = _post("/organizations/enrich", payload)
     org = data.get("organization") or {}
+
+    # If domain-based failed, fall back to name-based
+    if not org and name and not domain:
+        payload = {"name": name}
+        data = _post("/organizations/enrich", payload)
+        org = data.get("organization") or {}
+
     if not org:
         return {}
 
     return {
-        "name":             org.get("name", ""),
-        "website":          org.get("website_url", ""),
-        "industry":         org.get("industry", ""),
-        "founded_year":     org.get("founded_year"),
-        "headcount":        org.get("num_employees", 0),
-        "headcount_range":  org.get("employees_employees_employees_employees_size_range", ""),
-        "revenue_range":    org.get("revenue_range", ""),
-        "technologies":     [t.get("name","") for t in (org.get("technologies") or [])[:15]],
+        "name":              org.get("name", ""),
+        "website":           org.get("website_url", "") or org.get("primary_domain", ""),
+        "industry":          org.get("industry", ""),
+        "founded_year":      org.get("founded_year"),
+        "headcount":         org.get("num_employees", 0),
+        "headcount_range":   org.get("employee_count") or org.get("estimated_num_employees", ""),
+        "revenue_range":     org.get("revenue_range", ""),
+        "annual_revenue":    org.get("annual_revenue"),
+        "technologies":      [t.get("name","") for t in (org.get("technologies") or [])[:15]],
         "short_description": org.get("short_description", ""),
-        "linkedin_url":     org.get("linkedin_url", ""),
-        "keywords":         org.get("keywords") or [],
-        "country":          org.get("country", ""),
-        "city":             org.get("city", ""),
-        "alexa_rank":       org.get("alexa_ranking"),
-        "seo_description":  org.get("seo_description", ""),
+        "linkedin_url":      org.get("linkedin_url", ""),
+        "keywords":          org.get("keywords") or [],
+        "country":           org.get("country", ""),
+        "city":              org.get("city", ""),
+        "state":             org.get("state", ""),
+        "alexa_rank":        org.get("alexa_ranking"),
+        "seo_description":   org.get("seo_description", ""),
+        "facebook_url":      org.get("facebook_url", ""),
+        "twitter_url":       org.get("twitter_url", ""),
+        "source":            "Apollo.io",
     }
 
 
 def search_organization(name: str) -> dict:
     """
-    Search Apollo for an org by name. Returns the top matching org's enriched profile.
+    Search Apollo for an org by name. Returns the top matching org's profile.
+    Preferred over domain-guessing for accuracy.
+    NOTE: Returns search result directly — no domain re-enrichment to avoid mismatches.
     """
     data = _post("/organizations/search", {
         "q_organization_name": name,
@@ -93,18 +110,38 @@ def search_organization(name: str) -> dict:
         "per_page": 1,
     })
     orgs = data.get("organizations") or []
+
+    # Free plan error handling
+    if data.get("error") and "free plan" in str(data.get("error", "")).lower():
+        logger.info("Apollo org search requires paid plan")
+        return {}
+
     if not orgs:
         return {}
     top = orgs[0]
-    domain = top.get("primary_domain", "") or top.get("website_url", "")
-    if domain:
-        return enrich_organization(domain=domain.replace("https://", "").replace("http://", "").split("/")[0])
+
+    # Return search result fields directly (don't re-enrich — it can match wrong domain)
     return {
-        "name":         top.get("name", ""),
-        "industry":     top.get("industry", ""),
-        "headcount":    top.get("num_employees", 0),
-        "linkedin_url": top.get("linkedin_url", ""),
-        "website":      top.get("website_url", ""),
+        "name":              top.get("name", ""),
+        "website":           top.get("website_url", ""),
+        "industry":          top.get("industry", ""),
+        "founded_year":      top.get("founded_year"),
+        "headcount":         top.get("num_employees") or top.get("estimated_num_employees") or 0,
+        "headcount_range":   top.get("estimated_num_employees") or "",
+        "revenue_range":     top.get("revenue_range", "") or "",
+        "annual_revenue":    top.get("annual_revenue"),
+        "technologies":      [t.get("name","") for t in (top.get("technologies") or [])[:15]],
+        "short_description": top.get("short_description", ""),
+        "linkedin_url":      top.get("linkedin_url", ""),
+        "keywords":          top.get("keywords") or [],
+        "country":           top.get("country", ""),
+        "city":              top.get("city", ""),
+        "state":             top.get("state", ""),
+        "alexa_rank":        top.get("alexa_ranking"),
+        "seo_description":   top.get("seo_description", ""),
+        "facebook_url":      top.get("facebook_url", ""),
+        "twitter_url":       top.get("twitter_url", ""),
+        "source":            "Apollo.io",
     }
 
 
@@ -119,6 +156,7 @@ def search_people(
     """
     Search for people at an organization.
     Returns a list of { name, title, email, linkedin, seniority, department }.
+    NOTE: /people/search requires Apollo paid plan. Returns [] on free tier with a note.
     """
     payload = {
         "page": 1,
@@ -132,6 +170,12 @@ def search_people(
         payload["person_titles"] = title_keywords
 
     data = _post("/people/search", payload)
+
+    # Free plan returns an error — surface it gracefully
+    if data.get("error") and "free plan" in str(data.get("error", "")).lower():
+        logger.info("Apollo people search requires paid plan — returning empty list")
+        return []
+
     people = data.get("people") or []
 
     results = []

@@ -104,13 +104,26 @@ def apollo_org(name: str, domain: str = ""):
     """
     Enrich an organization using Apollo.io.
     Returns headcount, revenue range, technologies, founding year, etc.
+
+    Strategy: name-based search first (uses Apollo's internal domain resolution),
+    then direct domain enrichment if domain is explicitly provided.
     """
     if not _APOLLO_AVAILABLE:
         raise HTTPException(503, "Apollo connector not available")
-    result = enrich_organization(domain=domain, name=name) if (domain or name) else {}
+
+    result = {}
+    # Explicit domain takes priority
+    if domain:
+        result = enrich_organization(domain=domain)
+    # Name-based search is most accurate (Apollo resolves to the correct entity)
     if not result and name:
         result = search_organization(name)
-    return result or {"message": "No Apollo data found — check APOLLO_API_KEY"}
+    # Last resort: guess domain
+    if not result and name:
+        slug = name.lower().replace(" ", "").replace(".", "").replace(",", "")
+        result = enrich_organization(domain=f"{slug}.com")
+
+    return result or {"message": "No Apollo data found", "hint": "Check APOLLO_API_KEY and try adding domain= parameter"}
 
 
 @router.get("/apollo/people")
@@ -142,26 +155,42 @@ def apollo_enrich(
 ):
     """
     Full Apollo enrichment: org profile + executives + key people search.
-    Use this as the main Apollo endpoint for intelligence pipeline.
+
+    Free plan: org enrichment only (by domain preferred).
+    Paid plan: + people/org chart search.
     """
     if not _APOLLO_AVAILABLE:
         raise HTTPException(503, "Apollo connector not available — set APOLLO_API_KEY in .env")
 
+    # Domain lookup first (most accurate on free tier)
     org_data = {}
     if domain:
         org_data = enrich_organization(domain=domain)
     if not org_data:
+        # Try to derive domain from name
+        slug = entity_name.lower().replace(" ", "").replace(".", "").replace(",", "")
+        org_data = enrich_organization(domain=f"{slug}.com")
+    if not org_data:
         org_data = search_organization(entity_name)
 
     people_data = []
+    people_plan_note = ""
     if include_people:
         people_data = fetch_org_chart(entity_name)
+        if not people_data:
+            people_plan_note = "People search requires Apollo paid plan (free tier: org enrichment only)"
 
     return {
-        "entity_name":  entity_name,
-        "organization": org_data,
-        "key_people":   people_data,
-        "total_people": len(people_data),
+        "entity_name":       entity_name,
+        "organization":      org_data,
+        "key_people":        people_data,
+        "total_people":      len(people_data),
+        "plan_note":         people_plan_note or None,
+        "data_coverage":     {
+            "org_enrichment":  bool(org_data),
+            "people_search":   bool(people_data),
+            "free_tier_only":  not bool(people_data),
+        },
     }
 
 
