@@ -107,23 +107,26 @@ function Badge({ label }) {
   )
 }
 
-function ClaimRow({ text, onInvestigate }) {
+function ClaimRow({ text, onInvestigate, searchTerm }) {
   const match = text.match(/^\[(DOCUMENTED|REPORTED|ANALYTICAL)\]\s*(.*)$/)
+  const highlightText = (t) => {
+    if (!searchTerm) return <SmartText text={t} onInvestigate={onInvestigate} />
+    const parts = t.split(new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'))
+    return <span>{parts.map((p, i) => p.toLowerCase() === searchTerm.toLowerCase()
+      ? <mark key={i} style={{ background:'rgba(251,191,36,0.35)', color:'#fbbf24', borderRadius:2 }}>{p}</mark>
+      : <span key={i}>{p}</span>)}</span>
+  }
   if (match) {
     return (
       <li className={iStyles.claimRow}>
         <Badge label={match[1]} />
-        <span className={iStyles.claimText}>
-          <SmartText text={match[2]} onInvestigate={onInvestigate} />
-        </span>
+        <span className={iStyles.claimText}>{highlightText(match[2])}</span>
       </li>
     )
   }
   return (
     <li className={iStyles.claimRow}>
-      <span className={iStyles.claimText}>
-        <SmartText text={text} onInvestigate={onInvestigate} />
-      </span>
+      <span className={iStyles.claimText}>{highlightText(text)}</span>
     </li>
   )
 }
@@ -691,7 +694,8 @@ export default function IntelligencePage() {
   const [graphEntityId, setGraphEntityId] = useState(null)
   const [graphEntityName, setGraphEntityName] = useState('')
   const [filters, setFilters] = useState({ category: 'All', source: 'All', confidence: 'All', search: '' })
-  const [viewMode, setViewMode] = useState('report') // 'report' | 'dashboard'
+  const [viewMode, setViewMode] = useState('report') // 'report' | 'dashboard' | 'timeline' | 'graph'
+  const [dateFilter, setDateFilter] = useState('all') // 'all' | '1yr' | '30d'
   const [chatOpen, setChatOpen]   = useState(false)
   const [chatHistory, setChatHistory] = useState([])
   const [chatInput, setChatInput]   = useState('')
@@ -959,14 +963,35 @@ export default function IntelligencePage() {
               </div>
 
               <div className={iStyles.viewToggleBar}>
-                <button
-                  className={`${iStyles.viewToggleBtn} ${viewMode === 'report' ? iStyles.viewToggleActive : ''}`}
-                  onClick={() => setViewMode('report')}
-                >📄 Full Report</button>
-                <button
-                  className={`${iStyles.viewToggleBtn} ${viewMode === 'dashboard' ? iStyles.viewToggleActive : ''}`}
-                  onClick={() => setViewMode('dashboard')}
-                >📊 KPI Dashboard</button>
+                <button className={`${iStyles.viewToggleBtn} ${viewMode === 'report' ? iStyles.viewToggleActive : ''}`} onClick={() => setViewMode('report')}>📄 Report</button>
+                <button className={`${iStyles.viewToggleBtn} ${viewMode === 'dashboard' ? iStyles.viewToggleActive : ''}`} onClick={() => setViewMode('dashboard')}>📊 KPI</button>
+                <button className={`${iStyles.viewToggleBtn} ${viewMode === 'timeline' ? iStyles.viewToggleActive : ''}`} onClick={() => setViewMode('timeline')}>📅 Timeline</button>
+                <button className={`${iStyles.viewToggleBtn} ${viewMode === 'graph' ? iStyles.viewToggleActive : ''}`} onClick={() => setViewMode('graph')}>🕸 Graph</button>
+                <span style={{ flex:1 }} />
+                {/* Date range filter */}
+                {['all','1yr','30d'].map(d => (
+                  <button key={d} onClick={() => setDateFilter(d)}
+                    style={{ background: dateFilter===d ? 'rgba(129,140,248,0.2)' : 'transparent', border:'1px solid var(--line)', borderRadius:6, color: dateFilter===d ? '#c7d2fe' : 'var(--text-muted)', cursor:'pointer', fontSize:'0.72rem', padding:'0.2rem 0.6rem' }}>
+                    {d==='all'?'All time':d==='1yr'?'Last 1yr':'Last 30d'}
+                  </button>
+                ))}
+                {/* Add to Tracking */}
+                {report && (
+                  <button onClick={async () => {
+                    await fetch(`${API}/tracking/watchlist`, { method:'POST', headers:{'Content-Type':'application/json'},
+                      body: JSON.stringify({ entity_name: report.entity_name, entity_type: report.entity_type||'org' }) })
+                    alert(`${report.entity_name} added to tracking watchlist`)
+                  }} style={{ background:'rgba(74,222,128,0.1)', border:'1px solid rgba(74,222,128,0.4)', borderRadius:6, color:'#4ade80', cursor:'pointer', fontSize:'0.72rem', padding:'0.2rem 0.6rem' }}>+ Track</button>
+                )}
+                {/* Export panel */}
+                {report?.id && (
+                  <span style={{ display:'flex', gap:'0.3rem' }}>
+                    <a href={`${API}/intelligence/${report.id}/pdf`} target="_blank" rel="noopener noreferrer" style={{ background:'rgba(129,140,248,0.1)', border:'1px solid var(--line)', borderRadius:6, color:'#c7d2fe', fontSize:'0.72rem', padding:'0.2rem 0.6rem', textDecoration:'none' }}>PDF</a>
+                    <a href={`${API}/intelligence/${report.id}/word`} target="_blank" rel="noopener noreferrer" style={{ background:'rgba(129,140,248,0.1)', border:'1px solid var(--line)', borderRadius:6, color:'#c7d2fe', fontSize:'0.72rem', padding:'0.2rem 0.6rem', textDecoration:'none' }}>Word</a>
+                    <a href={`${API}/intelligence/${report.id}/excel`} target="_blank" rel="noopener noreferrer" style={{ background:'rgba(129,140,248,0.1)', border:'1px solid var(--line)', borderRadius:6, color:'#c7d2fe', fontSize:'0.72rem', padding:'0.2rem 0.6rem', textDecoration:'none' }}>Excel</a>
+                    <a href={`${API}/intelligence/${report.id}/powerpoint`} target="_blank" rel="noopener noreferrer" style={{ background:'rgba(129,140,248,0.1)', border:'1px solid var(--line)', borderRadius:6, color:'#c7d2fe', fontSize:'0.72rem', padding:'0.2rem 0.6rem', textDecoration:'none' }}>PPT</a>
+                  </span>
+                )}
               </div>
 
               <SummaryBar summary={report.summary} />
@@ -995,6 +1020,37 @@ export default function IntelligencePage() {
               {/* KPI Dashboard view */}
               {viewMode === 'dashboard' && (
                 <KpiDashboardView report={report} onInvestigate={investigate} />
+              )}
+
+              {/* Timeline view — all claims chronologically */}
+              {viewMode === 'timeline' && (
+                <div style={{ display:'flex', flexDirection:'column', gap:'0', position:'relative', paddingLeft:'1.5rem', marginTop:'1rem' }}>
+                  <div style={{ position:'absolute', left:7, top:8, bottom:8, width:2, background:'var(--line)' }} />
+                  {(report.sections||[]).flatMap(s =>
+                    (s.claims||[]).map(c => ({ ...c, section: s.title }))
+                  ).filter(c => c.text).map((c, i) => {
+                    const conf = c.confidence||'ANALYTICAL'
+                    const color = conf==='DOCUMENTED'?'#4ade80':conf==='REPORTED'?'#fbbf24':'#94a3b8'
+                    return (
+                      <div key={i} style={{ position:'relative', display:'flex', gap:'1rem', padding:'0.5rem 0' }}>
+                        <div style={{ position:'absolute', left:'-1.5rem', top:12, width:10, height:10, borderRadius:'50%', background:color }} />
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:'0.68rem', fontWeight:700, color:color, textTransform:'uppercase', letterSpacing:'0.05em' }}>[{conf}] {c.section}</div>
+                          <div style={{ fontSize:'0.85rem', color:'var(--text)', lineHeight:1.5, marginTop:'0.15rem' }}>{c.text}</div>
+                          {c.source_url && <a href={c.source_url} target="_blank" rel="noopener noreferrer" style={{ fontSize:'0.7rem', color:'#818cf8' }}>↗ source</a>}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Graph view — embedded Cytoscape */}
+              {viewMode === 'graph' && graphEntityId && (
+                <EmbeddedGraph entityId={graphEntityId} entityName={graphEntityName} onNodeClick={(name) => investigate(name)} />
+              )}
+              {viewMode === 'graph' && !graphEntityId && (
+                <p style={{ color:'var(--text-muted)', padding:'1rem' }}>Graph will appear after a report is generated for an entity with relationships.</p>
               )}
 
               {viewMode === 'report' && (

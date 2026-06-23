@@ -7,17 +7,17 @@ import styles from '../styles/Layout.module.css';
 const links = [
   { href: '/', label: 'Home' },
   { href: '/intelligence', label: 'Intelligence' },
+  { href: '/saved', label: 'Saved' },
   { href: '/timeline', label: 'Timeline' },
   { href: '/compare', label: 'Compare' },
   { href: '/tracking', label: 'Tracking' },
+  { href: '/tracking/alerts', label: 'Alerts' },
   { href: '/search', label: 'Search' },
   { href: '/graph', label: 'Graph' },
-  { href: '/entities/merge', label: 'Merge' },
   { href: '/registry', label: 'Registry' },
   { href: '/economics', label: 'Economics' },
   { href: '/stock', label: 'Stock' },
   { href: '/skills', label: 'Skills' },
-  { href: '/alerts', label: 'Alerts' },
 ];
 
 export default function Layout({ children }) {

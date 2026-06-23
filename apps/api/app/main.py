@@ -71,6 +71,12 @@ try:
 except Exception:
     pass
 
+try:
+    from app.api.market import router as market_router
+    app.include_router(market_router)
+except Exception:
+    pass
+
 @app.on_event("startup")
 async def on_startup():
     logger.info({"event": "startup"})

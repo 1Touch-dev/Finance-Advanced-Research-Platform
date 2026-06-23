@@ -262,3 +262,139 @@ def download_report_pdf(report_id: int, db: Session = Depends(get_db)):
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/{report_id}/word")
+def download_report_word(report_id: int, db: Session = Depends(get_db)):
+    """Download intelligence report as Word (.docx)."""
+    try:
+        from docx import Document as DocxDocument
+        from docx.shared import Pt, RGBColor
+    except ImportError:
+        raise HTTPException(503, "python-docx not installed")
+
+    report = get_intelligence_report(db, report_id)
+    if not report:
+        raise HTTPException(404, "Intelligence report not found")
+
+    doc = DocxDocument()
+    doc.add_heading(f"Intelligence Report: {report.get('entity_name', 'Unknown')}", 0)
+    doc.add_paragraph(f"Generated: {report.get('created_at', '')}  |  Type: {report.get('entity_type', '')}")
+    doc.add_paragraph("")
+
+    for section in report.get("sections", []):
+        doc.add_heading(section.get("title", "Section"), level=1)
+        doc.add_paragraph(section.get("summary", ""))
+        for claim in section.get("claims", []):
+            p = doc.add_paragraph(style="List Bullet")
+            p.add_run(f"[{claim.get('confidence', 'ANALYTICAL')}] ").bold = True
+            p.add_run(claim.get("text", ""))
+            if claim.get("source_url"):
+                p.add_run(f"  ({claim['source_url']})")
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+    entity_slug = (report.get("entity_name") or "report").lower().replace(" ", "_")[:40]
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="intel_{entity_slug}_{report_id}.docx"'},
+    )
+
+
+@router.get("/{report_id}/excel")
+def download_report_excel(report_id: int, db: Session = Depends(get_db)):
+    """Download intelligence report as Excel (.xlsx) — claims as rows."""
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment
+    except ImportError:
+        raise HTTPException(503, "openpyxl not installed")
+
+    report = get_intelligence_report(db, report_id)
+    if not report:
+        raise HTTPException(404, "Intelligence report not found")
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Intelligence Report"
+
+    # Header row
+    headers = ["Section", "Claim", "Confidence", "Source URL"]
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=h)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="4F46E5")
+        cell.alignment = Alignment(wrap_text=True)
+
+    row = 2
+    for section in report.get("sections", []):
+        title = section.get("title", "")
+        for claim in section.get("claims", []):
+            ws.cell(row=row, column=1, value=title)
+            ws.cell(row=row, column=2, value=claim.get("text", ""))
+            ws.cell(row=row, column=3, value=claim.get("confidence", "ANALYTICAL"))
+            ws.cell(row=row, column=4, value=claim.get("source_url", ""))
+            row += 1
+
+    ws.column_dimensions["A"].width = 30
+    ws.column_dimensions["B"].width = 80
+    ws.column_dimensions["C"].width = 15
+    ws.column_dimensions["D"].width = 50
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    entity_slug = (report.get("entity_name") or "report").lower().replace(" ", "_")[:40]
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="intel_{entity_slug}_{report_id}.xlsx"'},
+    )
+
+
+@router.get("/{report_id}/powerpoint")
+def download_report_pptx(report_id: int, db: Session = Depends(get_db)):
+    """Download intelligence report as PowerPoint (.pptx)."""
+    try:
+        from pptx import Presentation
+        from pptx.util import Inches, Pt
+        from pptx.dml.color import RGBColor as PptxRGB
+    except ImportError:
+        raise HTTPException(503, "python-pptx not installed")
+
+    report = get_intelligence_report(db, report_id)
+    if not report:
+        raise HTTPException(404, "Intelligence report not found")
+
+    prs = Presentation()
+    blank_layout = prs.slide_layouts[1]
+
+    # Title slide
+    slide = prs.slides.add_slide(prs.slide_layouts[0])
+    slide.shapes.title.text = f"Intelligence Report"
+    slide.placeholders[1].text = f"{report.get('entity_name', 'Unknown')} — {report.get('created_at', '')[:10]}"
+
+    # One slide per section (max 6 bullet points per slide)
+    for section in report.get("sections", []):
+        slide = prs.slides.add_slide(blank_layout)
+        slide.shapes.title.text = section.get("title", "Section")
+        body = slide.placeholders[1]
+        tf = body.text_frame
+        tf.word_wrap = True
+        claims = section.get("claims", [])[:6]
+        for i, claim in enumerate(claims):
+            p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+            p.text = f"[{claim.get('confidence','?')}] {claim.get('text','')[:200]}"
+            p.level = 0
+
+    buf = io.BytesIO()
+    prs.save(buf)
+    buf.seek(0)
+    entity_slug = (report.get("entity_name") or "report").lower().replace(" ", "_")[:40]
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={"Content-Disposition": f'attachment; filename="intel_{entity_slug}_{report_id}.pptx"'},
+    )
