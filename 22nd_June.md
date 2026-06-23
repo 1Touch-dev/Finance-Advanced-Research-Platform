@@ -2,6 +2,8 @@
 
 **Purpose:** Consolidated status as of 22 Jun (2:46 PM IST) — all done/pending tasks, bugs found and fixed during live E2E testing, and confirmed working features on staging.
 
+> **23 Jun update:** A full cross-verification against the v2.0 Requirements.docx revealed additional pending work. See [23rd_June.md](./23rd_June.md) for the complete honest status, partial gaps, and full roadmap.
+
 **Prior docs:** [18th_June.md](./18th_June.md) · [README.md](./README.md) · [james_requirements.md](./james_requirements.md)  
 **Staging:** Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002`  
 **Branch:** `feature/layer2-kpi-filters-clickable-browser` (active) · base: `feature/us-50-state-registry-api` · **PR #2**  
