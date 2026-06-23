@@ -10,8 +10,8 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 
 | Area | Status |
 |------|--------|
-| **Overall** | **v2.0 — 22 Jun tasks shipped; deeper spec work in progress (23 Jun)** |
-| **Active workstream** | Entity profile financial tabs, export formats, new connectors |
+| **Overall** | **23 Jun in progress — P1/P2/P3 being built** |
+| **Active workstream** | Entity profile 9 tabs ✅, exports ✅, market connectors ✅, new pages ✅ |
 | **Latest handoff** | [23rd_June.md](./23rd_June.md) · [22nd_June.md](./22nd_June.md) · [james_requirements.md](./james_requirements.md) |
 | **Branch** | `feature/layer2-kpi-filters-clickable-browser` |
 | **Apify** | ✅ $500 plan (22 Jun) — News ✅ LinkedIn ✅ PitchBook ✅ Twitter/Instagram/YouTube ✅ |
