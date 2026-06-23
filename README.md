@@ -10,8 +10,8 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 
 | Area | Status |
 |------|--------|
-| **Overall** | **23 Jun in progress — P1/P2/P3 being built** |
-| **Active workstream** | Entity profile 9 tabs ✅, exports ✅, market connectors ✅, new pages ✅ |
+| **Overall** | **23 Jun 2026 — P1 + P2 + P3 complete, committed and pushed** |
+| **Active workstream** | API keys to source (FINNHUB, FMP, FRED, NewsAPI, Guardian, NYT, UK Companies House) |
 | **Latest handoff** | [23rd_June.md](./23rd_June.md) · [22nd_June.md](./22nd_June.md) · [james_requirements.md](./james_requirements.md) |
 | **Branch** | `feature/layer2-kpi-filters-clickable-browser` |
 | **Apify** | ✅ $500 plan (22 Jun) — News ✅ LinkedIn ✅ PitchBook ✅ Twitter/Instagram/YouTube ✅ |
@@ -37,6 +37,31 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 | 12 | PDF export | `GET /intelligence/{id}/pdf` — polished multi-page ReportLab PDF + ⬇ PDF button |
 | 13 | Graph export | PNG (Cytoscape) + JSON export buttons on embedded graph |
 | 14 | Report reconstruction | `get_intelligence_report` rebuilds nested claims-per-section from DB storage |
+
+### ✅ 23 Jun — P1 + P2 + P3 Shipped
+
+| # | Feature | Details |
+|---|---------|---------|
+| 15 | Entity profile 9-tab layout | Financial (revenue charts, Beneish M-Score, Altman Z-Score, insider transactions), People & Contacts (Apollo), Social & News footprint, RAG Chat — added to existing 5 tabs |
+| 16 | API Status Panel | Per-source live/down indicator on entity profile header |
+| 17 | Add to Tracking button | On every entity profile and intelligence report |
+| 18 | Intelligence: 4 view modes | Report + KPI Dashboard + Timeline View (all claims chronologically) + Graph View (embedded Cytoscape) |
+| 19 | Date-range filter | All time / Last 1yr / Last 30d chips on report view |
+| 20 | Search highlight | Matching claims highlighted yellow when using search filter |
+| 21 | Word export | `GET /intelligence/{id}/word` → .docx download (python-docx) |
+| 22 | Excel export | `GET /intelligence/{id}/excel` → .xlsx download (openpyxl) |
+| 23 | PowerPoint export | `GET /intelligence/{id}/powerpoint` → .pptx download (python-pptx) |
+| 24 | `/intelligence/{id}` page | Dedicated report page per saved report with all export buttons |
+| 25 | `/tracking/alerts` page | Alert inbox — severity filter, acknowledge, snooze 24h |
+| 26 | `/saved` page | Saved reports library with search + direct PDF/Word/Excel export |
+| 27 | Navigation updated | Saved + Tracking/Alerts in main nav |
+| 28 | PM2 cron | `daily-digest` scheduled at 6AM UTC |
+| 29 | Financial data connectors | FINNHUB, FMP, Alpha Vantage, FRED — routes live, keys to be added |
+| 30 | News connectors | NewsAPI, Guardian, NYT, GDELT — routes live, keys to be added |
+| 31 | Beneish M-Score + Altman Z-Score | Computed from FMP financial data; shown on entity Financial tab |
+| 32 | UK Companies House | Officers + company search — route live, key to be added |
+| 33 | ICIJ Offshore Leaks | Panama/Paradise/Pandora Papers search — no key needed, live |
+| 34 | ALEPH/OCCRP | Leaked document search — route live, key to be added |
 
 ### Bug fixes applied (22 Jun E2E test session)
 

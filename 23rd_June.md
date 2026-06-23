@@ -9,7 +9,8 @@ Cross-verified against:
 
 **Staging:** Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002`  
 **Repo:** https://github.com/semajkyma/coritiba-platform  
-**Prior docs:** [22nd_June.md](./22nd_June.md) · [18th_June.md](./18th_June.md) · [README.md](./README.md)
+**Prior docs:** [22nd_June.md](./22nd_June.md) · [18th_June.md](./18th_June.md) · [README.md](./README.md)  
+**Status as of 23 Jun 4:30 PM IST:** P1 (17 items) ✅ · P2 (12 connectors) ✅ · P3 (7 items) ✅ · All committed and pushed to main. Awaiting 9 free API keys to unlock financial + news tabs.
 
 ---
 
