@@ -13,6 +13,61 @@ Cross-verified against:
 
 ---
 
+## TODAY — 23 Jun Build Plan (P1 + P2 + P3)
+
+### P1 — Core platform gaps (entity profile, exports, view modes, routing)
+
+| # | Task | Target file(s) | Status |
+|---|------|---------------|--------|
+| P1-1 | Entity profile: **Financial tab** — 20-yr revenue chart (Recharts), Beneish M-Score gauge, Altman Z-Score, Insider transactions | `pages/entities/[id].js`, `finance_connector.py` | 🔲 |
+| P1-2 | Entity profile: **People & Contacts tab** — Apollo executives, emails, titles, LinkedIn URLs | `pages/entities/[id].js`, `apollo_connector.py` | 🔲 |
+| P1-3 | Entity profile: **Social Footprint tab** — platform cards (Twitter/LinkedIn/Instagram/YouTube), sentiment chart, key quotes | `pages/entities/[id].js`, `apify_connector.py` | 🔲 |
+| P1-4 | Entity profile: **RAG Chat tab** — move floating chat into dedicated entity tab with suggested questions | `pages/entities/[id].js`, `chat.py` | 🔲 |
+| P1-5 | Intelligence report: **Timeline View** toggle — all events on Vis.js timeline | `pages/intelligence.js` | 🔲 |
+| P1-6 | Intelligence report: **Graph View** toggle — Cytoscape embedded inside report view | `pages/intelligence.js` | 🔲 |
+| P1-7 | **Word (.docx) export** — `python-docx` backend route + button in UI | `api/intelligence.py`, `pdf_service.py` | 🔲 |
+| P1-8 | **Excel (.xlsx) export** — `openpyxl` backend route + button in UI | `api/intelligence.py` | 🔲 |
+| P1-9 | **PowerPoint (.pptx) export** — `python-pptx` backend route + button in UI | `api/intelligence.py` | 🔲 |
+| P1-10 | **`/intelligence/{id}` dedicated report page** — each saved report gets its own URL | `pages/intelligence/[id].js` | 🔲 |
+| P1-11 | **`/entities/{id}/chat` dedicated page** — full-page RAG chat per entity | `pages/entities/[id]/chat.js` | 🔲 |
+| P1-12 | **`POST /entities/compare-chat`** route — compare two entities via RAG | `api/chat.py`, `rag_chat_service.py` | 🔲 |
+| P1-13 | **"Generate PDF from chat" button** — export chat thread as cited PDF | `pages/intelligence.js`, `api/intelligence.py` | 🔲 |
+| P1-14 | **`/tracking/alerts` page + API** — alert inbox with severity, acknowledge, snooze | `pages/tracking/alerts.js`, `api/tracking.py` | 🔲 |
+| P1-15 | **API Status Panel component** — per-source green/yellow/red on every report + entity page | `components/ApiStatusPanel.js` | 🔲 |
+| P1-16 | **Date-range filter** on report claims (Last 30d / 1yr / All time) | `pages/intelligence.js` | 🔲 |
+| P1-17 | **Search-within-report highlight** — matching claims highlighted yellow on search | `pages/intelligence.js` | 🔲 |
+
+### P2 — New data connectors (all free APIs)
+
+| # | Connector | Key to register | Status |
+|---|-----------|----------------|--------|
+| P2-1 | **FINNHUB** — real-time quotes, financial statements | `finnhub.io` (free) | 🔲 |
+| P2-2 | **FMP (Financial Modeling Prep)** — income statement, balance sheet, cash flow | `financialmodelingprep.com` (free, 250 req/day) | 🔲 |
+| P2-3 | **Alpha Vantage** — OHLCV + technicals | `alphavantage.co` (free, 25 req/day) | 🔲 |
+| P2-4 | **FRED** — Federal Reserve macro data (inflation, rates, GDP) | `fred.stlouisfed.org` (free, unlimited) | 🔲 |
+| P2-5 | **NewsAPI** — breaking news by entity name | `newsapi.org` (free, 100 req/day) | 🔲 |
+| P2-6 | **The Guardian API** — global news search | `open-platform.theguardian.com` (free, unlimited) | 🔲 |
+| P2-7 | **NYT Article Search** — historical news archive | `developer.nytimes.com` (free, 500 req/day) | 🔲 |
+| P2-8 | **GDELT** — global news events + sentiment | No key needed | 🔲 |
+| P2-9 | **UK Companies House** — UK officers, filings, PSC data | `developer.company-information.service.gov.uk` (free, 600 req/min) | 🔲 |
+| P2-10 | **ICIJ Offshore Leaks** — Panama/Paradise/Pandora Papers | No key needed | 🔲 |
+| P2-11 | **ALEPH/OCCRP** — leaked document datasets | `aleph.occrp.org` (free non-commercial) | 🔲 |
+| P2-12 | **OpenSanctions** — confirm live (key already in `.env`) | Already have: `f13ceaf124...` | 🔲 |
+
+### P3 — UX completeness
+
+| # | Task | Target file(s) | Status |
+|---|------|---------------|--------|
+| P3-1 | **`/saved` reports library page** — list all saved reports, search, filter, delete | `pages/saved.js` | 🔲 |
+| P3-2 | **Contract treemap by agency** on entity profile (Recharts Treemap, clickable) | `pages/entities/[id].js` | 🔲 |
+| P3-3 | **Lobbying spend bar chart** on entity profile (by year + by issue) | `pages/entities/[id].js` | 🔲 |
+| P3-4 | **"Add to Tracking" button** on every entity card and every report page | `pages/intelligence.js`, `pages/entities/[id].js` | 🔲 |
+| P3-5 | **Comparison page: Grouped Bar Chart** (financial metrics by year) | `pages/compare.js` | 🔲 |
+| P3-6 | **Comparison page: Timeline Overlay** (key events for all entities on same axis) | `pages/compare.js` | 🔲 |
+| P3-7 | **PM2 cron** for daily digest at 6 AM UTC | `ecosystem.config.js` | 🔲 |
+
+---
+
 ## 0) What James Asked For (Master Reference)
 
 ### WhatsApp — 22 Jun 2026
