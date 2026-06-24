@@ -10,9 +10,9 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 
 | Area | Status |
 |------|--------|
-| **Overall** | **23 Jun 2026 — P1 + P2 + P3 complete, committed and pushed** |
-| **Active workstream** | API keys — 8/9 obtained (ALEPH pending); CA SOS awaiting approval |
-| **Latest handoff** | [23rd_June.md](./23rd_June.md) · [22nd_June.md](./22nd_June.md) · [james_requirements.md](./james_requirements.md) |
+| **Overall** | **24 Jun 2026 — 8/9 API keys live, all connectors verified, Financial tab live with real data** |
+| **Active workstream** | ALEPH/OCCRP key pending · CA SOS API approval pending |
+| **Latest handoff** | [24th_June.md](./24th_June.md) · [23rd_June.md](./23rd_June.md) · [james_requirements.md](./james_requirements.md) |
 | **Branch** | `feature/layer2-kpi-filters-clickable-browser` |
 | **Apify** | ✅ $500 plan (22 Jun) — News ✅ LinkedIn ✅ PitchBook ✅ Twitter/Instagram/YouTube ✅ |
 | **Apollo** | ✅ `APOLLO_API_KEY` added — org enrichment live; people search needs paid plan |
