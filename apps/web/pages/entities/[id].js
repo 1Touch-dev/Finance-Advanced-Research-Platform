@@ -306,11 +306,17 @@ function ChatTab({ entityName, reportId }) {
 function ApiStatusPanel({ ticker }) {
   const [open, setOpen] = useState(false)
   const sources = [
-    { name:'Finnhub', key:'FINNHUB_API_KEY', url: ticker?`${API}/market/quote?ticker=${ticker}`:null },
-    { name:'FMP', key:'FMP_API_KEY', url: ticker?`${API}/market/income-statement?ticker=${ticker}&limit=1`:null },
-    { name:'Apollo', key:'APOLLO_API_KEY', url:`${API}/intelligence/apollo/enrich` },
-    { name:'Apify', key:'APIFY_API_TOKEN', url:null },
-    { name:'GDELT', key:'(no key)', url:`${API}/market/news/gdelt?query=test&limit=1` },
+    { name:'Finnhub',          key:'FINNHUB_API_KEY',         url: ticker?`${API}/market/quote?ticker=${ticker}`:null },
+    { name:'FMP',              key:'FMP_API_KEY',              url: ticker?`${API}/market/income-statement?ticker=${ticker}&limit=1`:null },
+    { name:'Alpha Vantage',    key:'ALPHA_VANTAGE_KEY',        url: ticker?`${API}/market/metrics?ticker=${ticker}`:null },
+    { name:'FRED',             key:'FRED_API_KEY',             url:`${API}/market/macro?series_id=GDP&limit=1` },
+    { name:'NewsAPI',          key:'NEWSAPI_KEY',              url:`${API}/market/news/newsapi?query=test&limit=1` },
+    { name:'The Guardian',     key:'GUARDIAN_API_KEY',         url:`${API}/market/news/guardian?query=test&limit=1` },
+    { name:'NYT',              key:'NYT_API_KEY',              url:`${API}/market/news/nyt?query=test&limit=1` },
+    { name:'UK Companies',     key:'UK_COMPANIES_HOUSE_KEY',   url:`${API}/market/uk/companies?q=test&limit=1` },
+    { name:'GDELT',            key:'(no key needed)',          url:`${API}/market/news/gdelt?query=test&limit=1` },
+    { name:'Apollo',           key:'APOLLO_API_KEY',           url:`${API}/intelligence/apollo/enrich` },
+    { name:'Apify',            key:'APIFY_API_TOKEN',          url:null },
   ]
   return (
     <div style={{ position:'relative', display:'inline-block' }}>
@@ -318,7 +324,7 @@ function ApiStatusPanel({ ticker }) {
         ⚡ API Status {open ? '▲' : '▼'}
       </button>
       {open && (
-        <div style={{ position:'absolute', right:0, top:'calc(100% + 4px)', background:'#0f1428', border:'1px solid var(--line)', borderRadius:10, padding:'0.75rem', zIndex:100, minWidth:220 }}>
+        <div style={{ position:'absolute', right:0, top:'calc(100% + 4px)', background:'#0f1428', border:'1px solid var(--line)', borderRadius:10, padding:'0.75rem', zIndex:100, minWidth:240 }}>
           {sources.map(s=>(
             <div key={s.name} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'0.25rem 0', borderBottom:'1px solid rgba(255,255,255,0.05)' }}>
               <span style={{ fontSize:'0.78rem', color:'#c7d2fe' }}>{s.name}</span>
@@ -371,7 +377,9 @@ export default function EntityProfile() {
 
   const entityKind = entity.entity_type||entity.kind||'entity'
   const entityName = entity.name||entity.entity_name||`Entity #${id}`
-  const ticker     = entity.ticker||entity.stock_ticker||''
+  // Check ticker field OR parse from identifiers array
+  const tickerFromIdentifiers = (entity.identifiers || []).find(i => i.scheme === 'TICKER')?.value || ''
+  const ticker     = entity.ticker||entity.stock_ticker||tickerFromIdentifiers||''
 
   const investigate = (name) => router.push(`/intelligence?entity=${encodeURIComponent(name)}`)
 

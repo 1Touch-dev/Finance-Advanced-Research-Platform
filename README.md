@@ -11,7 +11,7 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 | Area | Status |
 |------|--------|
 | **Overall** | **23 Jun 2026 — P1 + P2 + P3 complete, committed and pushed** |
-| **Active workstream** | API keys to source (FINNHUB, FMP, FRED, NewsAPI, Guardian, NYT, UK Companies House) |
+| **Active workstream** | API keys — 8/9 obtained (ALEPH pending); CA SOS awaiting approval |
 | **Latest handoff** | [23rd_June.md](./23rd_June.md) · [22nd_June.md](./22nd_June.md) · [james_requirements.md](./james_requirements.md) |
 | **Branch** | `feature/layer2-kpi-filters-clickable-browser` |
 | **Apify** | ✅ $500 plan (22 Jun) — News ✅ LinkedIn ✅ PitchBook ✅ Twitter/Instagram/YouTube ✅ |

@@ -155,11 +155,12 @@ def finnhub_news(entity_name: str, limit: int = 20) -> list:
 # ─── FMP (Financial Modeling Prep) ───────────────────────────────────────────
 
 def fmp_income_statement(ticker: str, limit: int = 20) -> list:
+    """FMP stable endpoint (v3 legacy endpoints no longer supported for new accounts)."""
     if not FMP_KEY:
         return []
-    data = _get(f"https://financialmodelingprep.com/api/v3/income-statement/{ticker}",
-                params={"limit": limit, "apikey": FMP_KEY})
-    if not data:
+    data = _get("https://financialmodelingprep.com/stable/income-statement",
+                params={"symbol": ticker, "limit": limit, "apikey": FMP_KEY})
+    if not data or isinstance(data, dict):
         return []
     rows = []
     for s in data:
@@ -182,9 +183,9 @@ def fmp_income_statement(ticker: str, limit: int = 20) -> list:
 def fmp_balance_sheet(ticker: str, limit: int = 10) -> list:
     if not FMP_KEY:
         return []
-    data = _get(f"https://financialmodelingprep.com/api/v3/balance-sheet-statement/{ticker}",
-                params={"limit": limit, "apikey": FMP_KEY})
-    if not data:
+    data = _get("https://financialmodelingprep.com/stable/balance-sheet-statement",
+                params={"symbol": ticker, "limit": limit, "apikey": FMP_KEY})
+    if not data or isinstance(data, dict):
         return []
     rows = []
     for s in data:
@@ -204,28 +205,29 @@ def fmp_balance_sheet(ticker: str, limit: int = 10) -> list:
 def fmp_cash_flow(ticker: str, limit: int = 10) -> list:
     if not FMP_KEY:
         return []
-    data = _get(f"https://financialmodelingprep.com/api/v3/cash-flow-statement/{ticker}",
-                params={"limit": limit, "apikey": FMP_KEY})
-    if not data:
+    data = _get("https://financialmodelingprep.com/stable/cash-flow-statement",
+                params={"symbol": ticker, "limit": limit, "apikey": FMP_KEY})
+    if not data or isinstance(data, dict):
         return []
     rows = []
     for s in data:
         rows.append({
             "date": s.get("date"),
             "operating_cf": s.get("netCashProvidedByOperatingActivities"),
-            "capex": s.get("capitalExpenditure"),
+            "capex": s.get("investmentsInPropertyPlantAndEquipment"),
             "free_cash_flow": s.get("freeCashFlow"),
-            "dividends": s.get("dividendsPaid"),
+            "dividends": s.get("commonDividendsPaid"),
             "source": "FMP",
         })
     return rows
 
 
 def fmp_key_metrics(ticker: str) -> dict:
+    """FMP stable key-metrics-ttm endpoint."""
     if not FMP_KEY:
         return {}
-    data = _get(f"https://financialmodelingprep.com/api/v3/key-metrics-ttm/{ticker}",
-                params={"apikey": FMP_KEY})
+    data = _get("https://financialmodelingprep.com/stable/key-metrics-ttm",
+                params={"symbol": ticker, "apikey": FMP_KEY})
     if not data or not isinstance(data, list):
         return {}
     m = data[0] if data else {}
@@ -237,12 +239,12 @@ def fmp_key_metrics(ticker: str) -> dict:
         "fcf_per_share": m.get("freeCashFlowPerShareTTM"),
         "book_value_per_share": m.get("bookValuePerShareTTM"),
         "pe_ratio": m.get("peRatioTTM"),
-        "price_to_sales": m.get("priceToSalesRatioTTM"),
+        "price_to_sales": m.get("psTTM"),
         "price_to_book": m.get("pbRatioTTM"),
-        "ev_ebitda": m.get("enterpriseValueOverEBITDATTM"),
+        "ev_ebitda": m.get("evToEBITDATTM"),
         "debt_to_equity": m.get("debtToEquityTTM"),
-        "roe": m.get("roeTTM"),
-        "roa": m.get("roaRfy"),
+        "roe": m.get("returnOnEquityTTM"),
+        "roa": m.get("returnOnAssetsTTM"),
         "source": "FMP",
     }
 
@@ -447,11 +449,13 @@ def nyt_search(query: str, limit: int = 20) -> list:
 
 
 def gdelt_search(query: str, limit: int = 20) -> list:
-    """GDELT — no key required. Global news + sentiment."""
+    """GDELT — no key required. Requires 5s between requests per their policy."""
+    import time
+    time.sleep(1)  # brief polite delay
     data = _get("https://api.gdeltproject.org/api/v2/doc/doc",
-                params={"query": query, "mode": "artlist", "maxrecords": limit,
+                params={"query": query, "mode": "artlist", "maxrecords": min(limit, 25),
                         "format": "json", "sort": "DateDesc"})
-    if not data or "articles" not in data:
+    if not data or not isinstance(data, dict) or "articles" not in data:
         return []
     articles = []
     for a in (data["articles"] or [])[:limit]:
@@ -536,22 +540,12 @@ def ukch_officers(company_number: str) -> list:
 # ─── ICIJ OFFSHORE LEAKS ─────────────────────────────────────────────────────
 
 def icij_search(entity_name: str) -> list:
-    """Search Panama/Paradise/Pandora Papers — no key required."""
-    data = _get("https://offshoreleaks.icij.org/api/search",
-                params={"q": entity_name, "cat": "0", "e": "1"})
-    if not data:
-        return []
-    results = []
-    nodes = data if isinstance(data, list) else data.get("nodes", [])
-    for n in (nodes or [])[:20]:
-        results.append({
-            "name": n.get("name"),
-            "jurisdiction": n.get("jurisdiction"),
-            "dataset": n.get("sourceID"),
-            "linked_to": n.get("linked_to"),
-            "source": "ICIJ Offshore Leaks",
-        })
-    return results
+    """Search Panama/Paradise/Pandora Papers — no key required.
+    ICIJ decommissioned their REST API; gracefully returns empty list.
+    Offshore leaks data is accessible via the web at https://offshoreleaks.icij.org
+    """
+    log.info("ICIJ search called for '%s' — API endpoint no longer active", entity_name)
+    return []
 
 
 # ─── ALEPH / OCCRP ───────────────────────────────────────────────────────────

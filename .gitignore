@@ -24,6 +24,7 @@ venv/
 .env
 .env.local
 .env.*.local
+api_credentials_audit.csv
 apps/admin/.env
 **/credentials*
 **/*credentials*
