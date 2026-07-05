@@ -416,3 +416,192 @@ def osint_company_report(company: str, domain: str = ""):
     """Company OSINT report: domain intel + UK Companies House + LinkedIn."""
     from app.connectors.osint_connector import company_osint_report
     return company_osint_report(company, domain=domain or None)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CRYPTO INTELLIGENCE
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/crypto/dashboard")
+def crypto_dashboard():
+    """Global crypto market dashboard: prices, trending, whale alerts."""
+    from app.connectors.crypto_connector import crypto_dashboard
+    return crypto_dashboard()
+
+
+@router.get("/crypto/prices")
+def crypto_prices(coins: str = ""):
+    """Current prices for top cryptocurrencies."""
+    from app.connectors.crypto_connector import get_crypto_prices
+    coin_list = [c.strip() for c in coins.split(",") if c.strip()] if coins else None
+    return get_crypto_prices(coin_list)
+
+
+@router.get("/crypto/coin/{coin_id}")
+def crypto_coin_detail(coin_id: str):
+    """Detailed profile for a specific coin (use CoinGecko id e.g. bitcoin, ethereum)."""
+    from app.connectors.crypto_connector import get_coin_detail
+    return get_coin_detail(coin_id)
+
+
+@router.get("/crypto/trending")
+def crypto_trending():
+    """Top trending cryptocurrencies (most searched in 24h)."""
+    from app.connectors.crypto_connector import get_trending_cryptos
+    return {"trending": get_trending_cryptos()}
+
+
+@router.get("/crypto/global")
+def crypto_global_market():
+    """Global crypto market statistics and dominance."""
+    from app.connectors.crypto_connector import get_global_market, get_defi_overview
+    return {"market": get_global_market(), "defi": get_defi_overview()}
+
+
+@router.get("/crypto/whales")
+def crypto_whale_alerts(min_usd: float = 500_000_000, limit: int = 20):
+    """Large-cap cryptocurrency movement / whale alerts."""
+    from app.connectors.crypto_connector import get_whale_alerts
+    return {"alerts": get_whale_alerts(min_usd=min_usd, limit=limit)}
+
+
+@router.get("/crypto/wallet/eth/{address}")
+def eth_wallet_profile(address: str):
+    """Ethereum wallet profile: balance, tokens, recent transactions."""
+    from app.connectors.crypto_connector import get_eth_wallet
+    return get_eth_wallet(address)
+
+
+@router.get("/crypto/wallet/btc/{address}")
+def btc_wallet_profile(address: str):
+    """Bitcoin wallet profile: balance, total received/sent, recent transactions."""
+    from app.connectors.crypto_connector import get_btc_wallet
+    return get_btc_wallet(address)
+
+
+@router.get("/crypto/flow/{coin_id}")
+def crypto_token_flow(coin_id: str):
+    """Exchange inflow/outflow signal for a coin."""
+    from app.connectors.crypto_connector import get_token_flow
+    return get_token_flow(coin_id)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GOVERNMENT TRADING INTELLIGENCE
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/gov-trading/summary")
+def gov_trading_summary_route(days: int = 90):
+    """Full government trading intelligence: congress trades, top tickers, active members."""
+    from app.connectors.gov_trading_connector import gov_trading_summary
+    return gov_trading_summary(days=days)
+
+
+@router.get("/gov-trading/recent")
+def gov_trading_recent(days: int = 30, limit: int = 50):
+    """Recent congressional stock trades (House + Senate)."""
+    from app.connectors.gov_trading_connector import get_recent_congress_trades
+    trades = get_recent_congress_trades(days=days, limit=limit)
+    return {"trades": trades, "count": len(trades), "period_days": days}
+
+
+@router.get("/gov-trading/ticker/{ticker}")
+def gov_trading_by_ticker(ticker: str, days: int = 365):
+    """All congressional trades for a specific stock."""
+    from app.connectors.gov_trading_connector import get_trades_by_ticker
+    trades = get_trades_by_ticker(ticker, days=days)
+    return {"ticker": ticker.upper(), "trades": trades, "count": len(trades)}
+
+
+@router.get("/gov-trading/member")
+def gov_trading_by_member(name: str):
+    """All trades by a specific congressional member."""
+    from app.connectors.gov_trading_connector import get_trades_by_member
+    trades = get_trades_by_member(name)
+    return {"name": name, "trades": trades, "count": len(trades)}
+
+
+@router.get("/gov-trading/top-tickers")
+def gov_trading_top_tickers(days: int = 90, top_n: int = 20):
+    """Most-traded tickers in Congress with buy/sell sentiment."""
+    from app.connectors.gov_trading_connector import get_most_traded_tickers
+    return {"period_days": days, "tickers": get_most_traded_tickers(days=days, top_n=top_n)}
+
+
+@router.get("/gov-trading/most-active")
+def gov_trading_most_active(days: int = 90, top_n: int = 20):
+    """Most active congressional traders."""
+    from app.connectors.gov_trading_connector import get_most_active_members
+    return {"period_days": days, "members": get_most_active_members(days=days, top_n=top_n)}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DEEP COMPANY INTELLIGENCE
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/company/info/{ticker}")
+def company_info(ticker: str):
+    """Company information from SEC EDGAR."""
+    from app.connectors.company_deep_connector import get_company_info
+    return get_company_info(ticker.upper())
+
+
+@router.get("/company/filings/{ticker}")
+def company_filings(ticker: str, forms: str = "10-K,10-Q,8-K", limit: int = 10):
+    """Recent SEC filings (10-K, 10-Q, 8-K, etc.)."""
+    from app.connectors.company_deep_connector import get_recent_filings
+    form_list = [f.strip() for f in forms.split(",") if f.strip()]
+    return {"ticker": ticker.upper(), "filings": get_recent_filings(ticker.upper(), form_list, limit)}
+
+
+@router.get("/company/financials/{ticker}")
+def company_quarterly_financials(ticker: str):
+    """Quarterly financial metrics from SEC EDGAR XBRL (revenue, EPS, net income, etc.)."""
+    from app.connectors.company_deep_connector import get_quarterly_financials
+    return get_quarterly_financials(ticker.upper())
+
+
+@router.get("/company/cap-table/{ticker}")
+def company_cap_table(ticker: str):
+    """Cap table: major shareholders, institutional + mutual fund holders, ownership %."""
+    from app.connectors.company_deep_connector import get_cap_table
+    return get_cap_table(ticker.upper())
+
+
+@router.get("/company/insider-trades/{ticker}")
+def company_insider_trades(ticker: str, limit: int = 30):
+    """Recent insider transactions (Form 4 disclosures) via yfinance."""
+    from app.connectors.company_deep_connector import get_insider_trades
+    trades = get_insider_trades(ticker.upper(), limit=limit)
+    return {"ticker": ticker.upper(), "trades": trades, "count": len(trades)}
+
+
+@router.get("/company/big-trades/{ticker}")
+def company_big_institutional_trades(ticker: str):
+    """Significant institutional positions ($100M+) and 13F signals."""
+    from app.connectors.company_deep_connector import get_institutional_big_trades
+    return get_institutional_big_trades(ticker.upper())
+
+
+@router.get("/company/analyst-ratings/{ticker}")
+def company_analyst_ratings(ticker: str):
+    """Analyst consensus, price targets, upgrade/downgrade history, earnings estimates."""
+    from app.connectors.company_deep_connector import get_analyst_ratings
+    return get_analyst_ratings(ticker.upper())
+
+
+@router.get("/company/earnings/{ticker}")
+def company_earnings_history(ticker: str):
+    """Earnings history (actual vs estimate, EPS surprise) and next earnings date."""
+    from app.connectors.company_deep_connector import get_earnings_history
+    return get_earnings_history(ticker.upper())
+
+
+@router.get("/company/deep-report/{ticker}")
+def company_deep_report(ticker: str, company: str = ""):
+    """
+    Full deep-dive company report: SEC filings, quarterly financials,
+    cap table, insider trades, analyst ratings, earnings, and news.
+    """
+    from app.connectors.company_deep_connector import deep_company_report
+    return deep_company_report(ticker.upper(), company_name=company)

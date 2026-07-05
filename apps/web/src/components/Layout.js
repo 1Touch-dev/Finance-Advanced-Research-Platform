@@ -17,6 +17,9 @@ const links = [
   { href: '/registry', label: 'Registry' },
   { href: '/economics', label: 'Economics' },
   { href: '/stock', label: 'Stock' },
+  { href: '/crypto', label: 'Crypto' },
+  { href: '/gov-trading', label: 'Gov Trading' },
+  { href: '/company', label: 'Company' },
   { href: '/skills', label: 'Skills' },
 ];
 

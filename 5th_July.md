@@ -283,9 +283,142 @@ apps/api/app/connectors/yfinance_connector.py  [NEW] yfinance OHLCV + fundamenta
 apps/api/app/connectors/technicals_connector.py [NEW] 15 technical indicators (pure Python)
 apps/api/app/connectors/multi_agent_intelligence.py [NEW] 4-agent investment intelligence engine
 apps/api/app/connectors/osint_connector.py     [NEW] OSINT: username/domain/email/LinkedIn
-apps/api/app/api/market.py                     [UPDATED] +23 new API routes
+apps/api/app/connectors/crypto_connector.py    [NEW] CoinGecko + BTC/ETH wallet + whale alerts
+apps/api/app/connectors/gov_trading_connector.py [NEW] Congress PTR disclosures + SEC Form 4
+apps/api/app/connectors/company_deep_connector.py [NEW] SEC 10-K/10-Q XBRL + cap table + earnings
+apps/api/app/api/market.py                     [UPDATED] +23 original +24 new API routes (47 total)
 apps/web/pages/entities/[id].js               [UPDATED] +3 tabs (News, Intelligence, OSINT)
+apps/web/pages/crypto.js                       [NEW] Crypto Intelligence dashboard
+apps/web/pages/gov-trading.js                  [NEW] Government/Insider Trading tracker
+apps/web/pages/company.js                      [NEW] Deep Company Analysis (SEC EDGAR)
+apps/web/pages/stock.js                        [UPDATED] +Analyst Consensus + Deep Company link
+apps/web/src/components/Layout.js             [UPDATED] +Crypto, Gov Trading, Company nav items
 ecosystem.config.js                            [UPDATED] rss-poller PM2 process added
 README.md                                      [UPDATED] 5th July sprint status
-5th_July.md                                   [NEW] This file
+5th_July.md                                   [NEW+UPDATED] This file
 ```
+
+---
+
+## 🚀 Phase 2 — New Features (5 July PM Sprint)
+
+### 5. Crypto Intelligence (`crypto_connector.py`)
+
+**Data sources:** CoinGecko (free, no key) · Blockchain.info (BTC) · Etherscan (free tier)
+
+**Features:**
+- Global market dashboard (total cap, BTC/ETH dominance, DeFi stats)
+- Top 15 cryptocurrency prices, market caps, 24h volumes + change
+- Trending coins (most searched 24h on CoinGecko)
+- Whale alert detection (high vol-to-cap ratio + significant price moves)
+- Per-coin detailed profile (supply, ATH, ATL, 7d/30d change, categories)
+- Exchange inflow/outflow flow signals
+- ETH wallet profile (balance, ERC-20 tokens, recent transactions)
+- BTC wallet profile (balance, received, sent, tx history via blockchain.info)
+
+**New API endpoints (10):**
+```
+GET /market/crypto/dashboard       — Full market dashboard
+GET /market/crypto/prices          — Top coin prices
+GET /market/crypto/coin/{coin_id}  — Detailed coin profile
+GET /market/crypto/trending        — Trending 24h
+GET /market/crypto/global          — Global market + DeFi stats
+GET /market/crypto/whales          — Whale alert signals
+GET /market/crypto/wallet/eth/{address} — ETH wallet
+GET /market/crypto/wallet/btc/{address} — BTC wallet
+GET /market/crypto/flow/{coin_id}  — Exchange flow signal
+```
+
+**Frontend:** `/crypto` page with 3 tabs: Market Dashboard, Coin Detail, Wallet Lookup
+
+---
+
+### 6. Government Trading Intelligence (`gov_trading_connector.py`)
+
+**Data sources:** House Clerk FD ZIP (STOCK Act PTR filings) · SEC EDGAR EFTS Form 4
+
+**Features:**
+- Annual House Financial Disclosure ZIP download + XML parse
+- Filter PTR (Periodic Transaction Report) filers = actual stock traders
+- Most active congressional traders by PTR filing count
+- State-level trading activity breakdown
+- Recent SEC Form 4 insider transactions (corporate insiders)
+- Per-ticker insider trade history via yfinance
+
+**New API endpoints (6):**
+```
+GET /market/gov-trading/summary      — Full dashboard
+GET /market/gov-trading/recent       — Recent congressional PTR filers
+GET /market/gov-trading/ticker/{t}   — All trades for a specific stock
+GET /market/gov-trading/member       — Trades by member name
+GET /market/gov-trading/top-tickers  — Most-traded tickers
+GET /market/gov-trading/most-active  — Most active traders
+```
+
+**Frontend:** `/gov-trading` page with 2 tabs: Congressional Summary, Corporate Insider Trades
+
+---
+
+### 7. Deep Company Intelligence (`company_deep_connector.py`)
+
+**Data sources:** SEC EDGAR XBRL API (free) · yfinance · SEC EDGAR submissions
+
+**Features:**
+- CIK resolution from ticker → company_tickers.json
+- SEC company info (name, SIC, state of incorporation, fiscal year end)
+- Recent SEC filings list (10-K, 10-Q, 8-K, DEF 14A with viewer URLs)
+- Quarterly financials via XBRL: Revenue, Net Income, EPS (basic/diluted), Gross Profit, Operating Income, R&D, Assets, Debt, Cash, Shares Outstanding
+- Cap table: shares outstanding, float, insider %, institutional %, top 20 institutional holders, top 15 mutual fund holders
+- Insider trades via yfinance (name, title, transaction type, shares, value, date)
+- Analyst consensus: recommendation, price targets (mean/high/low), upside %, upgrade/downgrade history
+- Earnings history: actual EPS vs estimate, surprise, next earnings calendar
+- Company news aggregation
+
+**New API endpoints (9):**
+```
+GET /market/company/info/{ticker}         — Company info from EDGAR
+GET /market/company/filings/{ticker}      — Recent SEC filings
+GET /market/company/financials/{ticker}   — Quarterly XBRL financials
+GET /market/company/cap-table/{ticker}    — Shareholders + ownership %
+GET /market/company/insider-trades/{t}    — Recent Form 4 transactions
+GET /market/company/big-trades/{ticker}   — Significant positions ($100M+)
+GET /market/company/analyst-ratings/{t}  — Consensus + price targets
+GET /market/company/earnings/{ticker}     — EPS history + next date
+GET /market/company/deep-report/{ticker}  — Full parallel deep-dive report
+```
+
+**Frontend:** `/company` page with 5 tabs: Overview, Filings, Cap Table, Analyst, Earnings
+
+**Also updated:** `/stock` page now includes Analyst Consensus section + link to Deep Company Analysis
+
+---
+
+## 📈 Updated Platform Status (5 July 2026 PM)
+
+| Component | Status |
+|-----------|--------|
+| Backend API (FastAPI) | ✅ Running on port 3001 |
+| Frontend (Next.js) | ✅ Running on port 3003 |
+| Postgres DB | ✅ Healthy |
+| RSS Poller Worker | ✅ Running (PM2, 15-min cycle) |
+| Crypto Intelligence | ✅ Live (CoinGecko + BTC/ETH wallet) |
+| Gov Trading Tracker | ✅ Live (House Clerk PTR + SEC Form 4) |
+| Deep Company Analysis | ✅ Live (SEC EDGAR XBRL + yfinance) |
+| API keys live | 8/9 (ALEPH pending) |
+| Total API endpoints | 47+ |
+| Navigation items | 18 |
+| New frontend pages | 3 (Crypto, Gov Trading, Company) |
+
+---
+
+## Tested Live ✅
+
+All 4 new/updated pages verified via Cursor browser (5 July 2026 PM):
+
+| Page | Result |
+|------|--------|
+| `/crypto` | ✅ PASS — Live market data, BTC $62,760, ETH $1,763, whale alerts |
+| `/gov-trading` | ✅ PASS — 134 PTR filings, Diana Harshbarger #1 active trader |
+| `/company` (AAPL) | ✅ PASS — Apple Inc., 8 quarters revenue, 42 analyst BUY $315 target |
+| `/stock` (TSLA) | ✅ PASS — $393.45, fundamentals, technicals, analyst consensus BUY |
+

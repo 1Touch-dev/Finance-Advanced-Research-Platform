@@ -10,19 +10,18 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 
 | Area | Status |
 |------|--------|
-| **Overall** | **5 Jul 2026 — RSS Phase 1 live · 23 new endpoints · 50 feeds ingesting · Intelligence engine running** |
-| **Active workstream** | 5th-July-sprint: RSS worker ✅ · yfinance ✅ · Technicals ✅ · Multi-agent intelligence ✅ · OSINT ✅ |
-| **Latest handoff** | [5th_July.md](./5th_July.md) · [25th_June.md](./25th_June.md) · [24th_June.md](./24th_June.md) |
+| **Overall** | **5 Jul 2026 PM — Crypto + Gov Trading + Deep Company Analysis live · 47+ endpoints · All pages verified** |
+| **Active workstream** | 5th-July-sprint: Crypto ✅ · Gov Trading ✅ · Deep Company ✅ · Stock Analyst ✅ · XBRL Financials ✅ |
+| **Latest handoff** | [5th_July.md](./5th_July.md) · [25th_June.md](./25th_June.md) |
 | **Branch** | `5th-July-sprint` |
-| **Apify** | ✅ $500 plan (22 Jun) — News ✅ LinkedIn ✅ PitchBook ✅ Twitter/Instagram/YouTube ✅ |
-| **Apollo** | ✅ `APOLLO_API_KEY` added — org enrichment live; people search needs paid plan |
-| **RSS Worker** | ✅ 50 feeds · PM2 rss-poller · 882 articles (first poll) · 15-min cycle |
-| **yfinance** | ✅ OHLCV, fundamentals, options, dividends, holders |
-| **Technicals** | ✅ 15 indicators: SMA/EMA/RSI/MACD/Bollinger/ATR/OBV/Stoch/Williams%R |
-| **Intelligence** | ✅ 4 agents: Fundamentals · Technical · Sentiment · Risk → composite BUY/HOLD/SELL |
-| **OSINT** | ✅ 40-platform username enum · domain intel · LinkedIn signals · email patterns |
+| **RSS Worker** | ✅ 50 feeds · PM2 rss-poller · 882+ articles · 15-min cycle |
+| **Crypto Intelligence** | ✅ CoinGecko market dashboard · ETH/BTC wallet lookup · Whale alerts |
+| **Gov Trading** | ✅ House Clerk PTR disclosures · SEC Form 4 insider trades |
+| **Deep Company** | ✅ SEC EDGAR XBRL financials · Cap table · Analyst ratings · Earnings |
+| **Multi-Agent Intelligence** | ✅ 4 agents: Fundamentals · Technical · Sentiment · Risk → BUY/HOLD/SELL |
+| **OSINT** | ✅ 40-platform username enum · domain intel · LinkedIn signals |
 | **Staging** | Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002` |
-| **Tests** | **79 passing** (`pytest tests/ -q`) |
+| **Nav pages** | 18 pages: Home, Intelligence, Saved, Timeline, Compare, Tracking, Alerts, Search, Graph, Registry, Economics, **Stock**, **Crypto**, **Gov Trading**, **Company**, Skills |
 
 ### ✅ v2.0 Features Shipped + Verified (22 Jun)
 
