@@ -302,6 +302,351 @@ function ChatTab({ entityName, reportId }) {
   )
 }
 
+// ── RSS News Tab ──────────────────────────────────────────────────────────────
+function RssNewsTab({ entityName }) {
+  const [category, setCategory] = useState('')
+  const [region, setRegion] = useState('')
+  const entityParam = entityName ? `&entity=${encodeURIComponent(entityName)}` : ''
+  const catParam = category ? `&category=${category}` : ''
+  const regParam = region ? `&region=${region}` : ''
+  const { data, isLoading } = useSWR(`${API}/market/rss/articles?limit=30${entityParam}${catParam}${regParam}`, fetcher)
+  const { data: digestData } = useSWR(`${API}/market/rss/digest?hours=24`, fetcher)
+
+  const CATEGORIES = ['','finance','macro','news','tech','crypto','government','policy']
+  const REGIONS = ['','global','us','europe','asia','india','mena','latam']
+
+  const articles = data?.articles || []
+  const digest = digestData?.digest || {}
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:'1rem' }}>
+      {/* Digest Summary */}
+      {Object.keys(digest).length > 0 && (
+        <div style={{ display:'flex', gap:'0.5rem', flexWrap:'wrap' }}>
+          {Object.entries(digest).map(([cat, arts]) => (
+            <div key={cat} onClick={() => setCategory(cat)}
+              style={{ background:'rgba(129,140,248,0.12)', border:'1px solid rgba(129,140,248,0.25)',
+                borderRadius:8, padding:'0.5rem 0.75rem', cursor:'pointer', minWidth:90 }}>
+              <div style={{ fontSize:'0.68rem', color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.05em' }}>{cat}</div>
+              <div style={{ fontSize:'1.1rem', fontWeight:700, color:'#e2e8f0' }}>{arts.length}</div>
+            </div>
+          ))}
+          <div style={{ background:'rgba(74,222,128,0.1)', border:'1px solid rgba(74,222,128,0.25)',
+            borderRadius:8, padding:'0.5rem 0.75rem', minWidth:90 }}>
+            <div style={{ fontSize:'0.68rem', color:'#94a3b8', textTransform:'uppercase' }}>Total (24h)</div>
+            <div style={{ fontSize:'1.1rem', fontWeight:700, color:'#4ade80' }}>{data?.total || 0}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Filters */}
+      <div style={{ display:'flex', gap:'0.5rem', flexWrap:'wrap', alignItems:'center' }}>
+        <select value={category} onChange={e=>setCategory(e.target.value)}
+          style={{ background:'#0f1428', border:'1px solid var(--line)', borderRadius:6, color:'#c7d2fe', padding:'0.3rem 0.5rem', fontSize:'0.78rem' }}>
+          {CATEGORIES.map(c => <option key={c} value={c}>{c||'All Categories'}</option>)}
+        </select>
+        <select value={region} onChange={e=>setRegion(e.target.value)}
+          style={{ background:'#0f1428', border:'1px solid var(--line)', borderRadius:6, color:'#c7d2fe', padding:'0.3rem 0.5rem', fontSize:'0.78rem' }}>
+          {REGIONS.map(r => <option key={r} value={r}>{r||'All Regions'}</option>)}
+        </select>
+        {(category||region) && (
+          <button onClick={() => { setCategory(''); setRegion('') }}
+            style={{ background:'transparent', border:'1px solid rgba(248,113,113,0.4)', borderRadius:6,
+              color:'#f87171', padding:'0.3rem 0.6rem', fontSize:'0.72rem', cursor:'pointer' }}>✕ Clear</button>
+        )}
+        <span style={{ fontSize:'0.72rem', color:'var(--text-muted)', marginLeft:'auto' }}>
+          50 live sources · auto-refresh every 15m
+        </span>
+      </div>
+
+      {/* Articles */}
+      {isLoading && <p style={{ color:'var(--text-muted)' }}>Loading articles…</p>}
+      {!isLoading && articles.length === 0 && <p style={{ color:'var(--text-muted)' }}>No articles found for this filter.</p>}
+      <div style={{ display:'flex', flexDirection:'column', gap:'0.5rem' }}>
+        {articles.map((art, i) => (
+          <a key={i} href={art.url} target="_blank" rel="noopener noreferrer"
+            style={{ display:'block', background:'rgba(255,255,255,0.03)', border:'1px solid var(--line)',
+              borderRadius:8, padding:'0.75rem 1rem', textDecoration:'none', transition:'border-color 0.2s' }}
+            onMouseOver={e=>e.currentTarget.style.borderColor='rgba(129,140,248,0.4)'}
+            onMouseOut={e=>e.currentTarget.style.borderColor='var(--line)'}
+          >
+            <div style={{ display:'flex', gap:'0.5rem', marginBottom:'0.3rem', flexWrap:'wrap' }}>
+              <span style={{ fontSize:'0.68rem', color:'#818cf8', fontWeight:600 }}>{art.source_name}</span>
+              {art.category && <span style={{ fontSize:'0.65rem', color:'#64748b', textTransform:'uppercase' }}>{art.category}</span>}
+              {art.region && <span style={{ fontSize:'0.65rem', color:'#64748b' }}>{art.region}</span>}
+              {art.published_at && <span style={{ fontSize:'0.65rem', color:'#475569', marginLeft:'auto' }}>{new Date(art.published_at).toLocaleDateString()}</span>}
+            </div>
+            <div style={{ fontSize:'0.9rem', color:'#e2e8f0', fontWeight:500, lineHeight:1.4 }}>{art.title}</div>
+            {art.summary && <div style={{ fontSize:'0.78rem', color:'#94a3b8', marginTop:'0.25rem', lineHeight:1.4 }}>{art.summary.slice(0,180)}{art.summary.length > 180 ? '…' : ''}</div>}
+            {art.matched_entities?.length > 0 && (
+              <div style={{ marginTop:'0.35rem', display:'flex', gap:'0.3rem', flexWrap:'wrap' }}>
+                {art.matched_entities.map((e,j) => (
+                  <span key={j} style={{ fontSize:'0.65rem', background:'rgba(251,191,36,0.15)', color:'#fbbf24', borderRadius:4, padding:'1px 5px' }}>{e}</span>
+                ))}
+              </div>
+            )}
+          </a>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Intelligence Tab ──────────────────────────────────────────────────────────
+function IntelligenceTab({ ticker, entityName }) {
+  const [ran, setRan] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [report, setReport] = useState(null)
+  const [error, setError] = useState(null)
+
+  const runReport = async () => {
+    if (!ticker) { setError('No ticker available for intelligence analysis.'); return }
+    setLoading(true); setError(null)
+    try {
+      const r = await fetch(`${API}/market/intelligence/report?ticker=${ticker}&company=${encodeURIComponent(entityName)}`)
+      const d = await r.json()
+      setReport(d); setRan(true)
+    } catch (e) { setError(e.message) }
+    finally { setLoading(false) }
+  }
+
+  const scoreColor = (s) => s >= 70 ? '#4ade80' : s >= 50 ? '#fbbf24' : '#f87171'
+  const recColor = (r) => r === 'BUY' ? '#4ade80' : r === 'SELL' ? '#f87171' : '#fbbf24'
+
+  if (!ticker) return (
+    <div>
+      <p style={{ color:'var(--text-muted)' }}>Intelligence report requires a ticker symbol. This entity has no ticker configured.</p>
+      <p style={{ color:'#818cf8', fontSize:'0.85rem' }}>You can still use OSINT, News, and Chat tabs for investigation.</p>
+    </div>
+  )
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:'1.25rem' }}>
+      {!ran && !loading && (
+        <div style={{ textAlign:'center', padding:'2rem' }}>
+          <p style={{ color:'var(--text-muted)', marginBottom:'1rem' }}>
+            Runs 4 specialist agents in parallel:<br/>
+            <span style={{ color:'#c7d2fe' }}>Fundamentals · Technical · Sentiment · Risk</span>
+          </p>
+          <button onClick={runReport}
+            style={{ background:'linear-gradient(135deg,#6366f1,#818cf8)', border:'none', borderRadius:8,
+              color:'#fff', cursor:'pointer', fontSize:'0.9rem', fontWeight:600, padding:'0.7rem 1.5rem' }}>
+            🤖 Run Multi-Agent Analysis for {ticker}
+          </button>
+        </div>
+      )}
+
+      {loading && (
+        <div style={{ textAlign:'center', padding:'2rem', color:'var(--text-muted)' }}>
+          <div style={{ fontSize:'1.5rem', marginBottom:'0.5rem' }}>⚙️</div>
+          Running 4 agents in parallel… (Fundamentals · Technical · Sentiment · Risk)
+        </div>
+      )}
+
+      {error && <p style={{ color:'#f87171' }}>Error: {error}</p>}
+
+      {report && (
+        <>
+          {/* Composite Score + Recommendation */}
+          <div style={{ display:'flex', gap:'1rem', flexWrap:'wrap' }}>
+            <div style={{ background:'rgba(255,255,255,0.04)', borderRadius:12, padding:'1.25rem 1.5rem', flex:1, minWidth:160, textAlign:'center' }}>
+              <div style={{ fontSize:'3rem', fontWeight:700, color: scoreColor(report.composite_score) }}>
+                {report.composite_score}
+              </div>
+              <div style={{ fontSize:'0.75rem', color:'var(--text-muted)', marginTop:'0.25rem' }}>Composite Score / 100</div>
+            </div>
+            <div style={{ background:'rgba(255,255,255,0.04)', borderRadius:12, padding:'1.25rem 1.5rem', flex:1, minWidth:160, textAlign:'center' }}>
+              <div style={{ fontSize:'2.5rem', fontWeight:700, color: recColor(report.recommendation) }}>
+                {report.recommendation}
+              </div>
+              <div style={{ fontSize:'0.75rem', color:'var(--text-muted)', marginTop:'0.25rem' }}>{report.conviction} Conviction</div>
+            </div>
+            {Object.entries(report.scores || {}).map(([agent, score]) => (
+              <div key={agent} style={{ background:'rgba(255,255,255,0.04)', borderRadius:12, padding:'1rem 1.25rem', minWidth:120, textAlign:'center' }}>
+                <div style={{ fontSize:'1.5rem', fontWeight:700, color: scoreColor(score) }}>{score}</div>
+                <div style={{ fontSize:'0.68rem', color:'var(--text-muted)', textTransform:'capitalize' }}>{agent}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Thesis */}
+          <div style={{ background:'rgba(99,102,241,0.1)', border:'1px solid rgba(129,140,248,0.25)', borderRadius:10, padding:'1rem 1.25rem' }}>
+            <div style={{ fontSize:'0.72rem', color:'#818cf8', fontWeight:700, letterSpacing:'0.06em', marginBottom:'0.5rem' }}>INVESTMENT THESIS</div>
+            <p style={{ margin:0, color:'#e2e8f0', lineHeight:1.6 }}>{report.thesis}</p>
+          </div>
+
+          {/* Top Signals */}
+          {report.top_signals?.length > 0 && (
+            <div>
+              <h3 style={{ fontSize:'0.85rem', color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:'0.6rem' }}>Key Signals</h3>
+              <div style={{ display:'flex', flexDirection:'column', gap:'0.3rem' }}>
+                {report.top_signals.map((s,i) => (
+                  <div key={i} style={{ display:'flex', gap:'0.5rem', alignItems:'flex-start' }}>
+                    <span style={{ color:'#818cf8', fontSize:'0.85rem' }}>•</span>
+                    <span style={{ fontSize:'0.85rem', color:'#c7d2fe' }}>{s}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Agent Narratives */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))', gap:'0.75rem' }}>
+            {Object.entries(report.agent_results || {}).map(([agent, data]) => (
+              <div key={agent} style={{ background:'rgba(255,255,255,0.03)', border:'1px solid var(--line)', borderRadius:10, padding:'1rem' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'0.5rem' }}>
+                  <span style={{ fontSize:'0.78rem', fontWeight:600, color:'#c7d2fe', textTransform:'capitalize' }}>{agent}</span>
+                  <span style={{ fontSize:'0.78rem', fontWeight:700, color: scoreColor(data?.score) }}>{data?.score}/100</span>
+                </div>
+                <p style={{ margin:0, fontSize:'0.8rem', color:'#94a3b8', lineHeight:1.5 }}>{data?.narrative}</p>
+              </div>
+            ))}
+          </div>
+
+          <button onClick={() => { setRan(false); setReport(null) }}
+            style={{ background:'transparent', border:'1px solid rgba(129,140,248,0.3)', borderRadius:6, color:'#818cf8',
+              cursor:'pointer', fontSize:'0.78rem', padding:'0.4rem 0.8rem', alignSelf:'flex-start' }}>
+            ↻ Re-run Analysis
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── OSINT Tab ─────────────────────────────────────────────────────────────────
+function OsintTab({ entityName }) {
+  const [username, setUsername] = useState('')
+  const [domain, setDomain] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [results, setResults] = useState(null)
+  const [activeCheck, setActiveCheck] = useState('')
+
+  const runUsernameCheck = async () => {
+    if (!username) return
+    setLoading(true); setActiveCheck('username')
+    try {
+      const r = await fetch(`${API}/market/osint/username?username=${encodeURIComponent(username)}`)
+      setResults({ type: 'username', data: await r.json() })
+    } catch (e) { setResults({ type: 'error', data: { error: e.message } }) }
+    finally { setLoading(false) }
+  }
+
+  const runDomainCheck = async () => {
+    if (!domain) return
+    setLoading(true); setActiveCheck('domain')
+    try {
+      const r = await fetch(`${API}/market/osint/domain?domain=${encodeURIComponent(domain)}`)
+      setResults({ type: 'domain', data: await r.json() })
+    } catch (e) { setResults({ type: 'error', data: { error: e.message } }) }
+    finally { setLoading(false) }
+  }
+
+  const runPersonReport = async () => {
+    setLoading(true); setActiveCheck('person')
+    try {
+      const r = await fetch(`${API}/market/osint/linkedin?person=${encodeURIComponent(entityName)}`)
+      const linkedin = await r.json()
+      setResults({ type: 'person', data: { linkedin, person: entityName } })
+    } catch (e) { setResults({ type: 'error', data: { error: e.message } }) }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:'1.25rem' }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:'0.75rem' }}>
+        {/* Username lookup */}
+        <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid var(--line)', borderRadius:10, padding:'1rem' }}>
+          <h3 style={{ margin:'0 0 0.75rem', fontSize:'0.85rem', color:'#c7d2fe' }}>👤 Username Enumeration</h3>
+          <p style={{ fontSize:'0.75rem', color:'var(--text-muted)', margin:'0 0 0.75rem' }}>Check 40+ platforms (Sherlock-style)</p>
+          <input value={username} onChange={e=>setUsername(e.target.value)} placeholder="Enter username…"
+            style={{ width:'100%', boxSizing:'border-box', background:'#0f1428', border:'1px solid var(--line)',
+              borderRadius:6, color:'#e2e8f0', fontSize:'0.85rem', padding:'0.4rem 0.6rem', marginBottom:'0.5rem' }}/>
+          <button onClick={runUsernameCheck} disabled={loading||!username}
+            style={{ background:'rgba(99,102,241,0.2)', border:'1px solid rgba(129,140,248,0.3)', borderRadius:6,
+              color:'#818cf8', cursor:'pointer', fontSize:'0.78rem', padding:'0.35rem 0.75rem' }}>
+            {loading && activeCheck==='username' ? 'Scanning…' : '🔍 Scan Platforms'}
+          </button>
+        </div>
+
+        {/* Domain check */}
+        <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid var(--line)', borderRadius:10, padding:'1rem' }}>
+          <h3 style={{ margin:'0 0 0.75rem', fontSize:'0.85rem', color:'#c7d2fe' }}>🌐 Domain Intelligence</h3>
+          <p style={{ fontSize:'0.75rem', color:'var(--text-muted)', margin:'0 0 0.75rem' }}>DNS records, WHOIS, RDAP</p>
+          <input value={domain} onChange={e=>setDomain(e.target.value)} placeholder="example.com"
+            style={{ width:'100%', boxSizing:'border-box', background:'#0f1428', border:'1px solid var(--line)',
+              borderRadius:6, color:'#e2e8f0', fontSize:'0.85rem', padding:'0.4rem 0.6rem', marginBottom:'0.5rem' }}/>
+          <button onClick={runDomainCheck} disabled={loading||!domain}
+            style={{ background:'rgba(99,102,241,0.2)', border:'1px solid rgba(129,140,248,0.3)', borderRadius:6,
+              color:'#818cf8', cursor:'pointer', fontSize:'0.78rem', padding:'0.35rem 0.75rem' }}>
+            {loading && activeCheck==='domain' ? 'Looking up…' : '🔎 Domain Lookup'}
+          </button>
+        </div>
+
+        {/* LinkedIn search */}
+        <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid var(--line)', borderRadius:10, padding:'1rem' }}>
+          <h3 style={{ margin:'0 0 0.75rem', fontSize:'0.85rem', color:'#c7d2fe' }}>💼 LinkedIn Signals</h3>
+          <p style={{ fontSize:'0.75rem', color:'var(--text-muted)', margin:'0 0 0.75rem' }}>Find likely profiles for: <strong style={{color:'#c7d2fe'}}>{entityName}</strong></p>
+          <button onClick={runPersonReport} disabled={loading}
+            style={{ background:'rgba(99,102,241,0.2)', border:'1px solid rgba(129,140,248,0.3)', borderRadius:6,
+              color:'#818cf8', cursor:'pointer', fontSize:'0.78rem', padding:'0.35rem 0.75rem' }}>
+            {loading && activeCheck==='person' ? 'Searching…' : '🔗 Find LinkedIn Profiles'}
+          </button>
+        </div>
+      </div>
+
+      {/* Results */}
+      {results && (
+        <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid var(--line)', borderRadius:10, padding:'1rem' }}>
+          <h3 style={{ margin:'0 0 0.75rem', fontSize:'0.85rem', color:'#c7d2fe', textTransform:'uppercase', letterSpacing:'0.05em' }}>Results</h3>
+          {results.type === 'username' && (
+            <div>
+              <p style={{ color:'#4ade80', fontWeight:600, marginBottom:'0.75rem' }}>
+                Found on {results.data.found_count} / {results.data.platforms_checked} platforms
+              </p>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:'0.4rem' }}>
+                {(results.data.profiles || []).map((p,i) => (
+                  <a key={i} href={p.url} target="_blank" rel="noopener noreferrer"
+                    style={{ fontSize:'0.78rem', background:'rgba(74,222,128,0.12)', color:'#4ade80',
+                      border:'1px solid rgba(74,222,128,0.3)', borderRadius:6, padding:'0.3rem 0.6rem',
+                      textDecoration:'none' }}>{p.platform} ↗</a>
+                ))}
+              </div>
+              {results.data.found_count === 0 && <p style={{ color:'var(--text-muted)' }}>No profiles found for this username.</p>}
+            </div>
+          )}
+          {results.type === 'domain' && (
+            <div style={{ display:'flex', flexDirection:'column', gap:'0.5rem' }}>
+              {Object.entries(results.data).filter(([k]) => k !== 'domain').map(([k,v]) => (
+                <div key={k} style={{ display:'flex', gap:'0.75rem', flexWrap:'wrap' }}>
+                  <span style={{ fontSize:'0.75rem', color:'#64748b', minWidth:120, textTransform:'uppercase' }}>{k.replace(/_/g,' ')}</span>
+                  <span style={{ fontSize:'0.8rem', color:'#c7d2fe' }}>
+                    {Array.isArray(v) ? v.join(', ') || '—' : typeof v === 'object' ? JSON.stringify(v).slice(0,120) : String(v ?? '—')}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {results.type === 'person' && (
+            <div>
+              <p style={{ color:'#94a3b8', marginBottom:'0.5rem' }}>LinkedIn profiles for: <strong style={{color:'#c7d2fe'}}>{results.data.person}</strong></p>
+              {results.data.linkedin?.likely_profiles?.length > 0 ? (
+                <div style={{ display:'flex', flexDirection:'column', gap:'0.4rem' }}>
+                  {results.data.linkedin.likely_profiles.map((url, i) => (
+                    <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                      style={{ fontSize:'0.82rem', color:'#60a5fa', textDecoration:'none' }}>{url} ↗</a>
+                  ))}
+                </div>
+              ) : <p style={{ color:'var(--text-muted)' }}>No LinkedIn profiles found via search.</p>}
+            </div>
+          )}
+          {results.type === 'error' && <p style={{ color:'#f87171' }}>Error: {results.data.error}</p>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── API Status Panel ──────────────────────────────────────────────────────────
 function ApiStatusPanel({ ticker }) {
   const [open, setOpen] = useState(false)
@@ -315,6 +660,8 @@ function ApiStatusPanel({ ticker }) {
     { name:'NYT',              key:'NYT_API_KEY',              url:`${API}/market/news/nyt?query=test&limit=1` },
     { name:'UK Companies',     key:'UK_COMPANIES_HOUSE_KEY',   url:`${API}/market/uk/companies?q=test&limit=1` },
     { name:'GDELT',            key:'(no key needed)',          url:`${API}/market/news/gdelt?query=test&limit=1` },
+    { name:'RSS Worker',       key:'(no key needed)',          url:`${API}/market/rss/sources` },
+    { name:'yfinance',         key:'(no key needed)',          url: ticker?`${API}/market/yf/fundamentals?ticker=${ticker}`:null },
     { name:'Apollo',           key:'APOLLO_API_KEY',           url:`${API}/intelligence/apollo/enrich` },
     { name:'Apify',            key:'APIFY_API_TOKEN',          url:null },
   ]
@@ -383,7 +730,7 @@ export default function EntityProfile() {
 
   const investigate = (name) => router.push(`/intelligence?entity=${encodeURIComponent(name)}`)
 
-  const TABS = ['overview','financial','people','social','chat','relationships','evidence','timeline','related']
+  const TABS = ['overview','financial','intelligence','news','osint','people','social','chat','relationships','evidence','timeline','related']
 
   if (!router.isReady) return (
     <main className={styles.page}><section className={styles.hero}><h1>Entity Profile</h1><p style={{color:'var(--text-muted)'}}>Loading…</p></section></main>
@@ -430,7 +777,7 @@ export default function EntityProfile() {
       <div className={eStyles.tabs}>
         {TABS.map(t=>(
           <button key={t} className={`${eStyles.tab} ${tab===t?eStyles.tabActive:''}`} onClick={()=>setTab(t)}>
-            {t==='financial'?'📈 Financial':t==='people'?'👥 People':t==='social'?'📡 Social':t==='chat'?'💬 Chat':t.charAt(0).toUpperCase()+t.slice(1)}
+            {t==='financial'?'📈 Financial':t==='people'?'👥 People':t==='social'?'📡 Social':t==='chat'?'💬 Chat':t==='intelligence'?'🤖 Intelligence':t==='news'?'📰 News':t==='osint'?'🔭 OSINT':t.charAt(0).toUpperCase()+t.slice(1)}
           </button>
         ))}
       </div>
@@ -452,6 +799,9 @@ export default function EntityProfile() {
         </div>
       )}
       {tab==='financial' && <div className={styles.panel}><h2>📈 Financial Analysis</h2><FinancialTab ticker={ticker} entityName={entityName} /></div>}
+      {tab==='intelligence' && <div className={styles.panel}><h2>🤖 Multi-Agent Intelligence Report</h2><IntelligenceTab ticker={ticker} entityName={entityName} /></div>}
+      {tab==='news' && <div className={styles.panel}><h2>📰 Global RSS News Feed</h2><RssNewsTab entityName={entityName} /></div>}
+      {tab==='osint' && <div className={styles.panel}><h2>🔭 OSINT Investigation</h2><OsintTab entityName={entityName} /></div>}
       {tab==='people' && <div className={styles.panel}><h2>👥 People & Contacts</h2><PeopleTab entityName={entityName} ticker={ticker} /></div>}
       {tab==='social' && <div className={styles.panel}><h2>📡 Social & News Footprint</h2><SocialTab entityName={entityName} /></div>}
       {tab==='chat' && <div className={styles.panel}><h2>💬 Ask about {entityName}</h2><ChatTab entityName={entityName} reportId={null} /></div>}

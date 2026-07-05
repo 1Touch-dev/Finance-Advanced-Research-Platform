@@ -10,12 +10,17 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 
 | Area | Status |
 |------|--------|
-| **Overall** | **24 Jun 2026 — 8/9 API keys live, all connectors verified, Financial tab live with real data** |
-| **Active workstream** | ALEPH/OCCRP key pending · CA SOS API approval pending |
-| **Latest handoff** | [24th_June.md](./24th_June.md) · [23rd_June.md](./23rd_June.md) · [james_requirements.md](./james_requirements.md) |
-| **Branch** | `feature/layer2-kpi-filters-clickable-browser` |
+| **Overall** | **5 Jul 2026 — RSS Phase 1 live · 23 new endpoints · 50 feeds ingesting · Intelligence engine running** |
+| **Active workstream** | 5th-July-sprint: RSS worker ✅ · yfinance ✅ · Technicals ✅ · Multi-agent intelligence ✅ · OSINT ✅ |
+| **Latest handoff** | [5th_July.md](./5th_July.md) · [25th_June.md](./25th_June.md) · [24th_June.md](./24th_June.md) |
+| **Branch** | `5th-July-sprint` |
 | **Apify** | ✅ $500 plan (22 Jun) — News ✅ LinkedIn ✅ PitchBook ✅ Twitter/Instagram/YouTube ✅ |
 | **Apollo** | ✅ `APOLLO_API_KEY` added — org enrichment live; people search needs paid plan |
+| **RSS Worker** | ✅ 50 feeds · PM2 rss-poller · 882 articles (first poll) · 15-min cycle |
+| **yfinance** | ✅ OHLCV, fundamentals, options, dividends, holders |
+| **Technicals** | ✅ 15 indicators: SMA/EMA/RSI/MACD/Bollinger/ATR/OBV/Stoch/Williams%R |
+| **Intelligence** | ✅ 4 agents: Fundamentals · Technical · Sentiment · Risk → composite BUY/HOLD/SELL |
+| **OSINT** | ✅ 40-platform username enum · domain intel · LinkedIn signals · email patterns |
 | **Staging** | Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002` |
 | **Tests** | **79 passing** (`pytest tests/ -q`) |
 
@@ -56,12 +61,13 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 | 26 | `/saved` page | Saved reports library with search + direct PDF/Word/Excel export |
 | 27 | Navigation updated | Saved + Tracking/Alerts in main nav |
 | 28 | PM2 cron | `daily-digest` scheduled at 6AM UTC |
-| 29 | Financial data connectors | FINNHUB, FMP, Alpha Vantage, FRED — routes live, keys to be added |
-| 30 | News connectors | NewsAPI, Guardian, NYT, GDELT — routes live, keys to be added |
+| 29 | Financial data connectors | FINNHUB, FMP, Alpha Vantage, FRED — ✅ keys live, Financial tab verified (24 Jun) |
+| 30 | News connectors | NewsAPI, Guardian, NYT, GDELT — ✅ keys live, aggregate news working (24 Jun) |
 | 31 | Beneish M-Score + Altman Z-Score | Computed from FMP financial data; shown on entity Financial tab |
-| 32 | UK Companies House | Officers + company search — route live, key to be added |
+| 32 | UK Companies House | Officers + company search — ✅ key live (24 Jun) |
 | 33 | ICIJ Offshore Leaks | Panama/Paradise/Pandora Papers search — no key needed, live |
-| 34 | ALEPH/OCCRP | Leaked document search — route live, key to be added |
+| 34 | ALEPH/OCCRP | Leaked document search — route live, key pending |
+| 35 | RSS global news intelligence | 500-source plan scoped — feed worker + event clustering not started (25 Jun) |
 
 ### Bug fixes applied (22 Jun E2E test session)
 
