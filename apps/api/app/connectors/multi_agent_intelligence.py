@@ -200,9 +200,10 @@ def technical_agent(ticker: str) -> dict:
         signals.append(f"Near support level ({support:.2f})")
 
     trend = "uptrend" if score > 55 else ("downtrend" if score < 45 else "sideways")
+    sma50_str = f"{sma50:.2f}" if sma50 is not None else "N/A"
     narrative = (
         f"Price is in a {trend} at {price:.2f}, "
-        f"{'above' if price and sma50 and price > sma50 else 'below'} its 50-day SMA ({sma50:.2f} if {sma50} else 'N/A'). "
+        f"{'above' if price and sma50 and price > sma50 else 'below'} its 50-day SMA ({sma50_str}). "
         f"RSI at {rsi:.1f} indicates {'overbought conditions' if rsi and rsi > 70 else 'oversold conditions' if rsi and rsi < 30 else 'neutral momentum'}. "
         f"Key support at {support:.2f}, resistance at {resist:.2f}."
     ) if price and sma50 and rsi else f"{ticker} technical analysis complete."
@@ -219,22 +220,44 @@ def technical_agent(ticker: str) -> dict:
 # ─── Agent 3: Sentiment ──────────────────────────────────────────────────────
 
 def sentiment_agent(ticker: str, company_name: str = "") -> dict:
-    """Analyze news sentiment from RSS + traditional news APIs."""
+    """Analyze news sentiment from RSS articles + traditional news APIs."""
     from app.connectors.financial_news_connector import aggregate_news
+    import os
+    from sqlalchemy import create_engine, text as sqlt
 
     query = company_name or ticker
-    news_data = _safe(aggregate_news, query, 10) or {}
-    articles = news_data.get("articles", []) if isinstance(news_data, dict) else []
+
+    # Get articles from traditional APIs
+    news_data = _safe(aggregate_news, query, 15) or {}
+    api_articles = news_data.get("articles", []) if isinstance(news_data, dict) else []
+
+    # Also get articles from RSS DB (entity-matched)
+    rss_articles = []
+    bare_name = (company_name or ticker).split()[0]  # e.g. "Apple" from "Apple Inc."
+    try:
+        db_url = os.getenv("DATABASE_URL", "postgresql+psycopg://user:password@127.0.0.1:5433/mydb")
+        engine = create_engine(db_url)
+        with engine.connect() as conn:
+            rows = conn.execute(sqlt("""
+                SELECT title, summary FROM rss_articles
+                WHERE :entity = ANY(matched_entities)
+                ORDER BY published_at DESC NULLS LAST LIMIT 20
+            """), {"entity": bare_name}).fetchall()
+            rss_articles = [{"title": r.title, "summary": r.summary or ""} for r in rows]
+    except Exception as e:
+        log.debug("RSS sentiment lookup error: %s", e)
+
+    all_articles = api_articles + rss_articles
 
     # Simple keyword-based sentiment scoring
-    BULLISH_WORDS = {"surge", "jump", "gain", "rally", "beat", "record", "growth", "profit", "strong", "upgrade", "buy", "bullish", "positive", "rise", "soar"}
-    BEARISH_WORDS = {"drop", "fall", "decline", "loss", "miss", "cut", "downgrade", "sell", "bearish", "negative", "concern", "risk", "warn", "crash", "plunge", "debt"}
+    BULLISH_WORDS = {"surge", "jump", "gain", "rally", "beat", "record", "growth", "profit", "strong", "upgrade", "buy", "bullish", "positive", "rise", "soar", "boost", "outperform", "exceed", "better"}
+    BEARISH_WORDS = {"drop", "fall", "decline", "loss", "miss", "cut", "downgrade", "sell", "bearish", "negative", "concern", "risk", "warn", "crash", "plunge", "debt", "weak", "disappoint", "underperform", "worse"}
 
     bullish_count = 0
     bearish_count = 0
     neutral_count = 0
 
-    for art in articles:
+    for art in all_articles:
         title = (art.get("title") or "").lower()
         words = set(title.split())
         b = len(words & BULLISH_WORDS)
@@ -259,7 +282,8 @@ def sentiment_agent(ticker: str, company_name: str = "") -> dict:
         signals.append(f"News sentiment mixed/neutral ({total} articles analyzed)")
 
     narrative = (
-        f"Out of {total} recent news articles, {bullish_count} are bullish-leaning and {bearish_count} bearish-leaning. "
+        f"Analyzed {total} articles (API + RSS). "
+        f"{bullish_count} bullish-leaning, {bearish_count} bearish-leaning. "
         f"Overall sentiment is {'positive' if sentiment_ratio > 0.1 else 'negative' if sentiment_ratio < -0.1 else 'neutral'}."
     )
 

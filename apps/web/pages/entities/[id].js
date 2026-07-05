@@ -306,10 +306,21 @@ function ChatTab({ entityName, reportId }) {
 function RssNewsTab({ entityName }) {
   const [category, setCategory] = useState('')
   const [region, setRegion] = useState('')
-  const entityParam = entityName ? `&entity=${encodeURIComponent(entityName)}` : ''
+
+  // Strip legal suffixes to get bare name for entity matching
+  const bareEntity = (entityName || '')
+    .replace(/\s+(Inc\.|Corp\.|Ltd\.|LLC|PLC|Group|Holdings|International|Co\.).*$/i, '')
+    .trim()
+
   const catParam = category ? `&category=${category}` : ''
   const regParam = region ? `&region=${region}` : ''
-  const { data, isLoading } = useSWR(`${API}/market/rss/articles?limit=30${entityParam}${catParam}${regParam}`, fetcher)
+  // Default: show all articles (no entity filter) so the feed is always populated
+  const { data, isLoading } = useSWR(`${API}/market/rss/articles?limit=30${catParam}${regParam}`, fetcher)
+  // Entity-specific feed for the digest strip
+  const { data: entityData } = useSWR(
+    bareEntity ? `${API}/market/rss/entity-feed?entity=${encodeURIComponent(bareEntity)}&limit=10` : null,
+    fetcher
+  )
   const { data: digestData } = useSWR(`${API}/market/rss/digest?hours=24`, fetcher)
 
   const CATEGORIES = ['','finance','macro','news','tech','crypto','government','policy']
@@ -317,16 +328,36 @@ function RssNewsTab({ entityName }) {
 
   const articles = data?.articles || []
   const digest = digestData?.digest || {}
+  const entityArticles = entityData?.articles || []
+  const total24h = Object.values(digest).reduce((s, arr) => s + arr.length, 0)
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:'1rem' }}>
+      {/* Entity-specific articles strip */}
+      {entityArticles.length > 0 && (
+        <div style={{ background:'rgba(251,191,36,0.08)', border:'1px solid rgba(251,191,36,0.2)', borderRadius:10, padding:'0.75rem 1rem' }}>
+          <div style={{ fontSize:'0.72rem', color:'#fbbf24', fontWeight:700, letterSpacing:'0.05em', marginBottom:'0.5rem' }}>
+            📌 MENTIONED IN NEWS — {bareEntity} ({entityArticles.length} articles)
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:'0.3rem' }}>
+            {entityArticles.slice(0,3).map((art, i) => (
+              <a key={i} href={art.url} target="_blank" rel="noopener noreferrer"
+                style={{ fontSize:'0.82rem', color:'#e2e8f0', textDecoration:'none' }}>
+                <span style={{ color:'#818cf8', marginRight:'0.4rem' }}>[{art.source_name}]</span>
+                {art.title}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Digest Summary */}
       {Object.keys(digest).length > 0 && (
         <div style={{ display:'flex', gap:'0.5rem', flexWrap:'wrap' }}>
           {Object.entries(digest).map(([cat, arts]) => (
-            <div key={cat} onClick={() => setCategory(cat)}
-              style={{ background:'rgba(129,140,248,0.12)', border:'1px solid rgba(129,140,248,0.25)',
-                borderRadius:8, padding:'0.5rem 0.75rem', cursor:'pointer', minWidth:90 }}>
+            <div key={cat} onClick={() => setCategory(cat === category ? '' : cat)}
+              style={{ background: cat === category ? 'rgba(129,140,248,0.25)' : 'rgba(129,140,248,0.12)',
+                border:'1px solid rgba(129,140,248,0.25)', borderRadius:8, padding:'0.5rem 0.75rem', cursor:'pointer', minWidth:90 }}>
               <div style={{ fontSize:'0.68rem', color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.05em' }}>{cat}</div>
               <div style={{ fontSize:'1.1rem', fontWeight:700, color:'#e2e8f0' }}>{arts.length}</div>
             </div>
@@ -334,7 +365,7 @@ function RssNewsTab({ entityName }) {
           <div style={{ background:'rgba(74,222,128,0.1)', border:'1px solid rgba(74,222,128,0.25)',
             borderRadius:8, padding:'0.5rem 0.75rem', minWidth:90 }}>
             <div style={{ fontSize:'0.68rem', color:'#94a3b8', textTransform:'uppercase' }}>Total (24h)</div>
-            <div style={{ fontSize:'1.1rem', fontWeight:700, color:'#4ade80' }}>{data?.total || 0}</div>
+            <div style={{ fontSize:'1.1rem', fontWeight:700, color:'#4ade80' }}>{total24h || data?.total || 0}</div>
           </div>
         </div>
       )}
