@@ -605,3 +605,110 @@ def company_deep_report(ticker: str, company: str = ""):
     """
     from app.connectors.company_deep_connector import deep_company_report
     return deep_company_report(ticker.upper(), company_name=company)
+
+
+# ─── Valuation Routes ─────────────────────────────────────────────────────────
+
+@router.get("/company/dcf-valuation/{ticker}")
+def company_dcf_valuation(ticker: str):
+    """
+    DCF intrinsic valuation: 5-year FCF projection, WACC (CAPM),
+    terminal value, bull/base/bear scenarios, vs current market price.
+    """
+    from app.connectors.valuation_connector import build_dcf_valuation
+    return build_dcf_valuation(ticker.upper())
+
+
+@router.get("/company/filing-analysis/{ticker}")
+def company_filing_analysis(ticker: str):
+    """
+    Parse 10-K/10-Q text for MD&A, forward guidance, risk factors,
+    and key metrics extracted from management's narrative.
+    """
+    from app.connectors.valuation_connector import get_filing_analysis
+    return get_filing_analysis(ticker.upper())
+
+
+@router.get("/company/full-valuation/{ticker}")
+def company_full_valuation(ticker: str):
+    """
+    Complete valuation report: DCF model + SEC filing text analysis + synthesis.
+    Bull/bear/base scenarios with intrinsic value vs market price.
+    """
+    from app.connectors.valuation_connector import full_valuation_report
+    return full_valuation_report(ticker.upper())
+
+
+# ─── Expert Analysis Routes ───────────────────────────────────────────────────
+
+@router.get("/company/expert-analysis/{ticker}")
+def company_expert_analysis(ticker: str, company: str = ""):
+    """
+    Expert analysis aggregator: analyst upgrade/downgrade timeline,
+    news sentiment over time, key themes, bullish/bearish article split.
+    """
+    from app.connectors.expert_analysis_connector import expert_analysis_report
+    return expert_analysis_report(ticker.upper(), company_name=company)
+
+
+@router.get("/company/analyst-timeline/{ticker}")
+def company_analyst_timeline(ticker: str, months: int = 12):
+    """Analyst upgrade/downgrade history with sentiment classification."""
+    from app.connectors.expert_analysis_connector import get_analyst_timeline
+    events = get_analyst_timeline(ticker.upper(), months=months)
+    return {"ticker": ticker.upper(), "events": events, "count": len(events)}
+
+
+# ─── Institutional (13F) Routes ───────────────────────────────────────────────
+
+@router.get("/company/institutional-changes/{ticker}")
+def company_institutional_changes(ticker: str):
+    """
+    Institutional position analysis: mega/large holders, mutual funds,
+    13F filers, notable institution positions, ownership summary.
+    """
+    from app.connectors.institutional_tracker import get_institutional_13f_changes
+    return get_institutional_13f_changes(ticker.upper())
+
+
+@router.get("/institution/holdings/{name}")
+def institution_holdings(name: str):
+    """
+    Top holdings for a named institution (e.g. 'Berkshire Hathaway', 'BlackRock')
+    parsed directly from their latest SEC 13F-HR filing.
+    """
+    from app.connectors.institutional_tracker import get_top_institution_holdings
+    return get_top_institution_holdings(name)
+
+
+@router.get("/institution/list")
+def institution_list():
+    """List of tracked institutions with their CIK numbers."""
+    from app.connectors.institutional_tracker import TOP_INSTITUTIONS
+    return {"institutions": [{"name": k, "cik": v} for k, v in TOP_INSTITUTIONS.items()]}
+
+
+# ─── Government Figure Trading Routes ─────────────────────────────────────────
+
+@router.get("/gov-trading/politician/{politician_id}")
+def gov_politician_profile(politician_id: str):
+    """
+    Full trading profile for a named politician: PTR filings, sponsored legislation,
+    cross-reference between trading activity and legislative agenda.
+    """
+    from app.connectors.gov_trading_connector import get_politician_profile
+    return get_politician_profile(politician_id)
+
+
+@router.get("/gov-trading/politicians/summary")
+def gov_politicians_summary():
+    """Trading activity summary for all tracked politicians (PTR count, latest filing)."""
+    from app.connectors.gov_trading_connector import get_all_politicians_summary
+    return {"politicians": get_all_politicians_summary()}
+
+
+@router.get("/gov-trading/politicians/list")
+def gov_politicians_list():
+    """List of tracked politicians."""
+    from app.connectors.gov_trading_connector import TRACKED_POLITICIANS
+    return {"politicians": [{"id": k, **v} for k, v in TRACKED_POLITICIANS.items()]}

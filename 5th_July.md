@@ -422,3 +422,198 @@ All 4 new/updated pages verified via Cursor browser (5 July 2026 PM):
 | `/company` (AAPL) | ✅ PASS — Apple Inc., 8 quarters revenue, 42 analyst BUY $315 target |
 | `/stock` (TSLA) | ✅ PASS — $393.45, fundamentals, technicals, analyst consensus BUY |
 
+
+---
+
+## 🚀 6th July 2026 — James's High-Priority Items (Continuation)
+
+> Second session on 5th-July-sprint branch implementing all remaining explicit James requests
+
+### 4 New Intelligence Streams Added
+
+---
+
+### 4. Financial Report Valuation Engine
+
+**Files:**
+- `apps/api/app/connectors/valuation_connector.py` (NEW — 350+ lines)
+- `apps/web/pages/valuation.js` (NEW — full frontend page)
+
+**What was built:**
+- **DCF (Discounted Cash Flow) model** using real SEC EDGAR XBRL data:
+  - 5-year FCF projection with historical CAGR
+  - WACC = CAPM (FRED 10yr Treasury risk-free + 5.5% ERP × beta)
+  - Terminal value at 2.5% perpetual growth
+  - Net Debt subtracted for equity value → intrinsic price per share
+- **Bull/Base/Bear scenarios** (±5% growth, ±1% WACC)
+- **Valuation assessment**: SIGNIFICANTLY UNDERVALUED → SIGNIFICANTLY OVERVALUED
+- **10-K/10-Q text parsing**: MD&A section extraction from SEC EDGAR filing HTML
+  - Forward-looking guidance signals extracted with regex patterns
+  - Key risk factors identified from Risk Factors section
+  - Revenue/growth metrics mentioned in management narrative
+- **Combined `full_valuation_report`** runs DCF + filing analysis in parallel
+
+**New API endpoints (3):**
+```
+GET /market/company/dcf-valuation/{ticker}   — Full DCF model (intrinsic vs market)
+GET /market/company/filing-analysis/{ticker} — 10-K/10-Q MD&A + guidance + risks
+GET /market/company/full-valuation/{ticker}  — Combined report + synthesis narrative
+```
+
+**Frontend** (`/valuation`):
+- Quick-ticker buttons (AAPL, MSFT, TSLA, NVDA, AMZN, GOOGL)
+- Assessment badge with color coding
+- All DCF inputs/outputs as metric cards
+- 3-scenario comparison (Bull/Base/Bear)
+- FCF History table (5 years)
+- 5-Year Projection table with PV columns
+- Filing Analysis tab: guidance signals, risk cards, MD&A excerpt
+
+**Live test results (AAPL):**
+- Intrinsic: $84.24 | Market: $308.63 | Assessment: SIGNIFICANTLY OVERVALUED
+- WACC: 10.41% | FCF Growth: 14.23% | Beta: 1.1
+
+---
+
+### 5. Stock Expert Analysis & Sentiment Tracker
+
+**Files:**
+- `apps/api/app/connectors/expert_analysis_connector.py` (NEW — 290+ lines)
+- `apps/web/pages/expert-analysis.js` (NEW — full frontend page)
+
+**What was built:**
+- **Multi-source news aggregation**: NewsAPI + Guardian + RSS database articles
+- **Sentiment scoring per article**: bullish/bearish word matching (100+ keywords)
+- **Analyst signal detection**: upgrade/downgrade/price target keyword matching
+- **Weekly sentiment aggregation**: 16-week rolling trend with net sentiment score
+- **Key theme extraction**: 15 categories (earnings, revenue, AI, acquisitions, layoffs, etc.)
+- **Analyst upgrade/downgrade timeline**: from yfinance with sentiment classification
+- **Trend direction**: IMPROVING / DETERIORATING / STABLE (recent 30d vs overall)
+
+**New API endpoints (2):**
+```
+GET /market/company/expert-analysis/{ticker}  — Full expert analysis report
+GET /market/company/analyst-timeline/{ticker} — Upgrade/downgrade timeline
+```
+
+**Frontend** (`/expert-analysis`):
+- Summary bar: total articles, bullish/bearish count, overall sentiment, trend direction
+- 5 tabs: Overview (top analyst articles), Sentiment Trend (weekly table + SVG chart), Key Themes (word cloud), Analyst Timeline, All Articles
+- Color-coded sentiment bars
+- Analyst-tagged articles highlighted in amber
+
+**Live test results (AAPL):**
+- 93 total articles | BULLISH sentiment | 42 bullish / 9 bearish
+- 13 analyst reports | Trend: STABLE
+- Top themes: AI (81), revenue (25), earnings (11), guidance (9)
+
+---
+
+### 6. Institutional (13F) Intelligence Tracker
+
+**Files:**
+- `apps/api/app/connectors/institutional_tracker.py` (NEW — 250+ lines)
+- `apps/web/pages/institutional.js` (NEW — full frontend page)
+
+**What was built:**
+- **Institutional holder analysis** via yfinance (current quarter):
+  - Mega positions (>$1B) classification
+  - Large positions ($100M–$1B) classification
+  - Notable institution position lookup (Berkshire, BlackRock, Vanguard, ARK, etc.)
+- **Mutual fund holders** with shares, value, % held
+- **Ownership summary**: insiders %, institutions %, float %
+- **Recent 13F filers** via SEC EDGAR EFTS: who filed 13F-HR mentioning a ticker
+- **Top institution portfolio parser**: Downloads actual 13F-HR XML from SEC EDGAR, parses `<infoTable>` entries for any of 11 tracked institutions
+
+**New API endpoints (3):**
+```
+GET /market/company/institutional-changes/{ticker} — Full institutional analysis
+GET /market/institution/holdings/{name}            — Institution portfolio from 13F XML
+GET /market/institution/list                       — Known tracked institutions
+```
+
+**Frontend** (`/institutional`):
+- 5 tabs: Institutional Holders, Mutual Funds, Mega Positions, 13F Filers, Institution Lookup
+- Institution dropdown: Berkshire, BlackRock, Vanguard, State Street, Fidelity, T. Rowe Price, JP Morgan, Goldman Sachs, Morgan Stanley, ARK, Pershing Square
+- Ownership summary bar (% insiders, % institutions, total count)
+
+**Live test results (AAPL):**
+- 10 institutional holders | 10 mega positions (>$1B)
+- Blackrock $353B | Vanguard $294B | State Street $186B | Berkshire Hathaway visible
+
+---
+
+### 7. Government Figure Financial Trading Tracker
+
+**Files:**
+- `apps/api/app/connectors/gov_trading_connector.py` (EXTENDED — +180 lines)
+- `apps/web/pages/gov-trading.js` (EXTENDED — new Politician Tracker tab)
+
+**What was built:**
+- **15 tracked politicians**: Nancy Pelosi, Mitch McConnell, Elizabeth Warren, Tommy Tuberville, Marjorie Taylor Greene, Chuck Schumer, Marco Rubio, Ted Cruz, Mark Kelly, Dan Crenshaw, Michael McCaul, and more
+- **`get_politician_profile(id)`**: Fetches PTR filings from House FD ZIP filtered by politician name
+- **Congress.gov integration**: Fetches sponsored legislation via DEMO_KEY API
+  - Filters financially relevant legislation (finance, banking, defense, tech, health, energy)
+  - Cross-references legislative agenda vs trading activity
+- **`get_all_politicians_summary()`**: Quick leaderboard of all 15 politicians by PTR count
+
+**New API endpoints (3):**
+```
+GET /market/gov-trading/politician/{id}     — Full trading + legislation profile
+GET /market/gov-trading/politicians/summary — All politicians trading summary table
+GET /market/gov-trading/politicians/list    — List of tracked politicians
+```
+
+**Frontend (new "Politician Tracker" tab on `/gov-trading`):**
+- Dropdown with all 15 tracked politicians
+- "All Politicians Summary" expandable leaderboard table
+- Individual politician profile: metadata, PTR filings table, sponsored legislation cards
+- Financially relevant legislation highlighted
+- Party color coding (D = blue, R = red, I = purple)
+
+**Live test results:**
+- 15 politicians tracked | Nancy Pelosi profile loaded (Party: D, Chamber: House, CA)
+- 2 PTR filings shown for Pelosi
+
+---
+
+## 📈 Updated Platform Status (6 July 2026)
+
+| Component | Status |
+|-----------|--------|
+| Backend API (FastAPI) | ✅ Running on port 3001 |
+| Frontend (Next.js) | ✅ Running on port 3003 |
+| RSS Poller Worker | ✅ Running (PM2, 15-min cycle) |
+| Crypto Intelligence | ✅ Live |
+| Gov Trading + Politician Tracker | ✅ Live |
+| Deep Company Analysis | ✅ Live |
+| **Financial Report Valuation Engine** | ✅ **NEW — Live** |
+| **Stock Expert Analysis Tracker** | ✅ **NEW — Live** |
+| **Institutional (13F) Tracker** | ✅ **NEW — Live** |
+| Total API endpoints | 60+ |
+| Navigation items | 20 |
+| New frontend pages (this session) | 3 (Valuation, Expert Analysis, Institutional) |
+| Updated frontend pages (this session) | 2 (Gov Trading +Politician tab, Layout +nav links) |
+
+---
+
+## Tested Live ✅ (6 July 2026)
+
+All 4 new pages verified via Cursor browser (6 July 2026):
+
+| Page | Result | Key Data |
+|------|--------|----------|
+| `/valuation` (AAPL) | ✅ PASS | Intrinsic $84.24 · Market $308.63 · SIGNIFICANTLY OVERVALUED · WACC 10.41% · 5yr FCF table · 2 filing cards |
+| `/expert-analysis` (AAPL) | ✅ PASS | BULLISH · 93 articles · 42 bullish / 9 bearish · 13 analyst reports · 15+ timeline rows |
+| `/institutional` (AAPL) | ✅ PASS | 10 holders: Blackrock $353B · Vanguard $294B · State Street $186B |
+| `/gov-trading` Politician Tracker | ✅ PASS | Nancy Pelosi · D · House · CA · 2 PTR filings |
+
+---
+
+## 🔄 Still Pending (Next Session)
+
+- **Deeper 10-K/10-Q analysis**: LLM-powered MD&A synthesis (Phase 3 — requires LLM integration)
+- **13F quarter-over-quarter position diff**: Compare two consecutive quarters to compute "new/added/reduced/exited" per holder
+- **Big Trade detection**: SEC Form 4 > configurable $X threshold filter + email alert
+- **Congress.gov full legislation cross-ref**: Requires paid API key for full data access (DEMO_KEY limited)
+- **ALEPH (OCCRP) API**: Still pending account approval

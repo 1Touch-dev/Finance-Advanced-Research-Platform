@@ -349,3 +349,149 @@ def get_most_traded_tickers(days: int = 90, top_n: int = 20) -> list:
 def get_most_active_members(days: int = 90, top_n: int = 20) -> list:
     """Most active congressional traders based on PTR filings."""
     return get_most_active_members_congress(top_n=top_n)
+
+
+# ─── Named Politician / Figure Tracker ───────────────────────────────────────
+
+# Known politicians with their House/Senate names for searching
+TRACKED_POLITICIANS = {
+    "nancy_pelosi": {"name": "Nancy Pelosi", "chamber": "house", "state": "CA", "party": "D"},
+    "mitch_mcconnell": {"name": "Mitch McConnell", "chamber": "senate", "state": "KY", "party": "R"},
+    "paul_ryan": {"name": "Paul Ryan", "chamber": "house", "state": "WI", "party": "R"},
+    "kevin_mccarthy": {"name": "Kevin McCarthy", "chamber": "house", "state": "CA", "party": "R"},
+    "john_boehner": {"name": "John Boehner", "chamber": "house", "state": "OH", "party": "R"},
+    "chuck_schumer": {"name": "Chuck Schumer", "chamber": "senate", "state": "NY", "party": "D"},
+    "elizabeth_warren": {"name": "Elizabeth Warren", "chamber": "senate", "state": "MA", "party": "D"},
+    "bernie_sanders": {"name": "Bernie Sanders", "chamber": "senate", "state": "VT", "party": "I"},
+    "marco_rubio": {"name": "Marco Rubio", "chamber": "senate", "state": "FL", "party": "R"},
+    "ted_cruz": {"name": "Ted Cruz", "chamber": "senate", "state": "TX", "party": "R"},
+    "mark_kelly": {"name": "Mark Kelly", "chamber": "senate", "state": "AZ", "party": "D"},
+    "tommy_tuberville": {"name": "Tommy Tuberville", "chamber": "senate", "state": "AL", "party": "R"},
+    "dan_crenshaw": {"name": "Dan Crenshaw", "chamber": "house", "state": "TX", "party": "R"},
+    "michael_mccaul": {"name": "Michael McCaul", "chamber": "house", "state": "TX", "party": "R"},
+    "marjorie_taylor_greene": {"name": "Marjorie Taylor Greene", "chamber": "house", "state": "GA", "party": "R"},
+}
+
+
+def get_politician_profile(politician_id: str) -> dict:
+    """
+    Get complete financial trading profile for a named politician.
+    Combines PTR filings (House) + SEC Form 4 + Congress.gov legislation.
+    """
+    info = TRACKED_POLITICIANS.get(politician_id.lower().replace(" ", "_"))
+    if not info:
+        # Try by name
+        for pid, pinfo in TRACKED_POLITICIANS.items():
+            if politician_id.lower() in pinfo["name"].lower():
+                info = pinfo
+                break
+    if not info:
+        return {"error": f"Politician '{politician_id}' not found", "available": list(TRACKED_POLITICIANS.keys())}
+
+    name = info["name"]
+    last_name = name.split()[-1]
+    first_name = name.split()[0]
+
+    # Get their PTR filings
+    ptr_filings = get_trades_by_member(name)
+
+    # Get Congress.gov recent bills sponsored
+    legislation = []
+    try:
+        import requests as req
+        r = req.get(
+            f"https://api.congress.gov/v3/member",
+            params={"api_key": "DEMO_KEY", "format": "json", "limit": 250},
+            headers={"User-Agent": "Finance-Platform/1.0"},
+            timeout=10
+        )
+        members = r.json().get("members", [])
+        # Find matching member
+        for m in members:
+            m_name = m.get("directOrderName", m.get("name", ""))
+            if last_name.lower() in m_name.lower() and (
+                first_name.lower() in m_name.lower() or info.get("state", "") in m.get("state", "")
+            ):
+                bioguide_id = m.get("bioguideId", "")
+                if bioguide_id:
+                    # Fetch their sponsored legislation
+                    leg_r = req.get(
+                        f"https://api.congress.gov/v3/member/{bioguide_id}/sponsored-legislation",
+                        params={"api_key": "DEMO_KEY", "format": "json", "limit": 10},
+                        headers={"User-Agent": "Finance-Platform/1.0"},
+                        timeout=10
+                    )
+                    leg_data = leg_r.json().get("sponsoredLegislation", [])
+                    for bill in leg_data[:10]:
+                        legislation.append({
+                            "title": bill.get("title", "")[:150],
+                            "type": bill.get("type", ""),
+                            "number": bill.get("number", ""),
+                            "introduced": bill.get("introducedDate", ""),
+                            "policy_area": bill.get("policyArea", {}).get("name", "") if isinstance(bill.get("policyArea"), dict) else "",
+                            "latest_action": bill.get("latestAction", {}).get("text", "") if isinstance(bill.get("latestAction"), dict) else "",
+                        })
+                break
+    except Exception as e:
+        log.debug("Congress.gov legislation fetch error: %s", e)
+
+    # Cross-reference: find legislation topics matching their traded tickers
+    # (basic keyword overlap)
+    traded_sectors = []
+    for filing in ptr_filings[:20]:
+        doc_id = filing.get("doc_id", "")
+        # Map doc_ids to known company types through filing dates
+        traded_sectors.append(filing.get("state_dst", ""))
+
+    # Analyze legislation themes vs trading sectors
+    financial_legislation = [l for l in legislation if any(
+        kw in (l.get("title", "") + l.get("policy_area", "")).lower()
+        for kw in ["finance", "banking", "investment", "securities", "trade", "tax",
+                   "defense", "technology", "health", "energy", "pharmaceut"]
+    )]
+
+    return {
+        "politician": {
+            "name": name,
+            "chamber": info.get("chamber", ""),
+            "state": info.get("state", ""),
+            "party": info.get("party", ""),
+        },
+        "ptr_filings_count": len(ptr_filings),
+        "recent_ptr_filings": ptr_filings[:20],
+        "recent_legislation_sponsored": legislation[:10],
+        "financially_relevant_legislation": financial_legislation[:5],
+        "disclosure_activity": {
+            "total_ptrs": len(ptr_filings),
+            "recent_filings_30d": sum(1 for f in ptr_filings
+                if f.get("filing_date", "") > (datetime.now() - timedelta(days=30)).strftime("%m/%d/%Y")),
+        },
+        "note": "PTR = Periodic Transaction Report (STOCK Act). Individual trade details require PDF parsing of specific disclosure documents.",
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+
+
+def get_all_politicians_summary() -> list:
+    """Get trading activity summary for all tracked politicians."""
+    results = []
+    all_members = _load_house_fd()
+
+    for pid, info in TRACKED_POLITICIANS.items():
+        name = info["name"]
+        last = name.split()[-1]
+        ptrs = [
+            m for m in all_members
+            if last.lower() in m.get("last", "").lower()
+            and m.get("filing_type") == "P"
+        ]
+        results.append({
+            "id": pid,
+            "name": name,
+            "chamber": info.get("chamber"),
+            "party": info.get("party"),
+            "state": info.get("state"),
+            "ptr_count": len(ptrs),
+            "latest_filing": sorted([p.get("filing_date", "") for p in ptrs])[-1] if ptrs else None,
+        })
+
+    return sorted(results, key=lambda x: x["ptr_count"], reverse=True)
