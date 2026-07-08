@@ -252,11 +252,11 @@ export default function ValuationPage() {
   ]
 
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
+    <div >
+      <div >
         <div>
-          <h1 className={styles.title}>Financial Valuation Engine</h1>
-          <p className={styles.subtitle}>DCF intrinsic value · 10-K/10-Q analysis · Bull/Bear scenarios</p>
+          <h1 >Financial Valuation Engine</h1>
+          <p >DCF intrinsic value · 10-K/10-Q analysis · Bull/Bear scenarios</p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <input value={input} onChange={e => setInput(e.target.value.toUpperCase())}
@@ -282,7 +282,7 @@ export default function ValuationPage() {
       {data && (
         <>
           {/* Assessment Banner */}
-          <div className={styles.panel} style={{ padding: '1rem 1.5rem', marginBottom: '1rem', display: 'flex', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="card" style={{ padding: '1rem 1.5rem', marginBottom: '1rem', display: 'flex', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
             <div>
               <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Overall Assessment</div>
               <AssessmentBadge value={data.dcf?.assessment} />
@@ -305,7 +305,7 @@ export default function ValuationPage() {
             ))}
           </div>
 
-          <div className={styles.panel}>
+          <div className="card">
             {tab === 'dcf' && <DCFSection dcf={data.dcf} />}
             {tab === 'filing' && <FilingAnalysisSection fa={data.fa} />}
           </div>
@@ -313,7 +313,7 @@ export default function ValuationPage() {
       )}
 
       {!data && !loading && (
-        <div className={styles.panel} style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
+        <div className="card" style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
           <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📊</div>
           <div style={{ fontSize: '1rem', fontWeight: 600, color: '#94a3b8' }}>Enter a ticker to run DCF valuation</div>
           <div style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>Analyzes SEC EDGAR XBRL financials · 10-K/10-Q management guidance · Intrinsic vs market price</div>

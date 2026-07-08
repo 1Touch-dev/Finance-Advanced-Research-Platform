@@ -764,15 +764,15 @@ export default function EntityProfile() {
   const TABS = ['overview','financial','intelligence','news','osint','people','social','chat','relationships','evidence','timeline','related']
 
   if (!router.isReady) return (
-    <main className={styles.page}><section className={styles.hero}><h1>Entity Profile</h1><p style={{color:'var(--text-muted)'}}>Loading…</p></section></main>
+    <main className="page-wrap"><section className="card"><h1>Entity Profile</h1><p style={{color:'var(--text-muted)'}}>Loading…</p></section></main>
   )
   if (!id) return (
-    <main className={styles.page}><section className={styles.hero}><h1>Entity Profile</h1><p>No entity ID. Go to <Link href="/search">Search</Link>.</p></section></main>
+    <main className="page-wrap"><section className="card"><h1>Entity Profile</h1><p>No entity ID. Go to <Link href="/search">Search</Link>.</p></section></main>
   )
 
   return (
-    <main className={styles.page}>
-      <section className={styles.hero}>
+    <main className="page-wrap">
+      <section className="card">
         <div style={{ display:'flex', alignItems:'flex-start', gap:'1rem', flexWrap:'wrap' }}>
           <div className={eStyles.avatar}>{entityName.charAt(0).toUpperCase()}</div>
           <div style={{ flex:1 }}>
@@ -814,7 +814,7 @@ export default function EntityProfile() {
       </div>
 
       {tab==='overview' && (
-        <div className={styles.panel}>
+        <div className="card">
           <h2>Entity Details</h2>
           <div className={eStyles.detailGrid}>
             {Object.entries(entity).filter(([k])=>!['id','created_at','updated_at','description'].includes(k)).map(([k,v])=>(
@@ -829,38 +829,38 @@ export default function EntityProfile() {
           {relatedList.length>0 && (<><h3 style={{marginTop:'1.5rem'}}>Top Related Parties</h3><div className={eStyles.relGrid}>{relatedList.slice(0,8).map((r,i)=><div key={i} className={eStyles.relChip} onClick={()=>investigate(r.name||r.entity_name||'')}>{r.name||r.entity_name||`#${r.id}`}</div>)}</div></>)}
         </div>
       )}
-      {tab==='financial' && <div className={styles.panel}><h2>📈 Financial Analysis</h2><FinancialTab ticker={ticker} entityName={entityName} /></div>}
-      {tab==='intelligence' && <div className={styles.panel}><h2>🤖 Multi-Agent Intelligence Report</h2><IntelligenceTab ticker={ticker} entityName={entityName} /></div>}
-      {tab==='news' && <div className={styles.panel}><h2>📰 Global RSS News Feed</h2><RssNewsTab entityName={entityName} /></div>}
-      {tab==='osint' && <div className={styles.panel}><h2>🔭 OSINT Investigation</h2><OsintTab entityName={entityName} /></div>}
-      {tab==='people' && <div className={styles.panel}><h2>👥 People & Contacts</h2><PeopleTab entityName={entityName} ticker={ticker} /></div>}
-      {tab==='social' && <div className={styles.panel}><h2>📡 Social & News Footprint</h2><SocialTab entityName={entityName} /></div>}
-      {tab==='chat' && <div className={styles.panel}><h2>💬 Ask about {entityName}</h2><ChatTab entityName={entityName} reportId={null} /></div>}
+      {tab==='financial' && <div className="card"><h2>📈 Financial Analysis</h2><FinancialTab ticker={ticker} entityName={entityName} /></div>}
+      {tab==='intelligence' && <div className="card"><h2>🤖 Multi-Agent Intelligence Report</h2><IntelligenceTab ticker={ticker} entityName={entityName} /></div>}
+      {tab==='news' && <div className="card"><h2>📰 Global RSS News Feed</h2><RssNewsTab entityName={entityName} /></div>}
+      {tab==='osint' && <div className="card"><h2>🔭 OSINT Investigation</h2><OsintTab entityName={entityName} /></div>}
+      {tab==='people' && <div className="card"><h2>👥 People & Contacts</h2><PeopleTab entityName={entityName} ticker={ticker} /></div>}
+      {tab==='social' && <div className="card"><h2>📡 Social & News Footprint</h2><SocialTab entityName={entityName} /></div>}
+      {tab==='chat' && <div className="card"><h2>💬 Ask about {entityName}</h2><ChatTab entityName={entityName} reportId={null} /></div>}
       {tab==='relationships' && (
-        <div className={styles.panel}>
+        <div className="card">
           <h2>Relationships <span style={{fontSize:'0.82rem',color:'var(--text-muted)',fontWeight:400}}>({relList.length})</span></h2>
-          {relList.length===0&&<p className={styles.empty}>No relationships mapped yet.</p>}
+          {relList.length===0&&<p style={{color:"var(--text-soft)",fontStyle:"italic",fontSize:"0.82rem"}}>No relationships mapped yet.</p>}
           <div className={eStyles.relList}>{relList.map((r,i)=><RelCard key={i} rel={r} entityId={id} onInvestigate={investigate}/>)}</div>
         </div>
       )}
       {tab==='evidence' && (
-        <div className={styles.panel}>
+        <div className="card">
           <h2>Evidence & Citations <span style={{fontSize:'0.82rem',color:'var(--text-muted)',fontWeight:400}}>({evList.length})</span></h2>
-          {evList.length===0&&<p className={styles.empty}>No evidence items found.</p>}
+          {evList.length===0&&<p style={{color:"var(--text-soft)",fontStyle:"italic",fontSize:"0.82rem"}}>No evidence items found.</p>}
           <div className={eStyles.evList}>{evList.map((ev,i)=><EvidenceRow key={i} ev={ev}/>)}</div>
         </div>
       )}
       {tab==='timeline' && (
-        <div className={styles.panel}>
+        <div className="card">
           <h2>Event Timeline <span style={{fontSize:'0.82rem',color:'var(--text-muted)',fontWeight:400}}>({tlList.length})</span></h2>
-          {tlList.length===0&&<p className={styles.empty}>No timeline events found.</p>}
+          {tlList.length===0&&<p style={{color:"var(--text-soft)",fontStyle:"italic",fontSize:"0.82rem"}}>No timeline events found.</p>}
           <div className={eStyles.timeline}>{tlList.map((item,i)=><TimelineItem key={i} item={item}/>)}</div>
         </div>
       )}
       {tab==='related' && (
-        <div className={styles.panel}>
+        <div className="card">
           <h2>Related Parties <span style={{fontSize:'0.82rem',color:'var(--text-muted)',fontWeight:400}}>({relatedList.length})</span></h2>
-          {relatedList.length===0&&<p className={styles.empty}>No related parties found.</p>}
+          {relatedList.length===0&&<p style={{color:"var(--text-soft)",fontStyle:"italic",fontSize:"0.82rem"}}>No related parties found.</p>}
           <div className={eStyles.relGrid}>{relatedList.map((r,i)=><div key={i} className={eStyles.relChipLarge} onClick={()=>investigate(r.name||r.entity_name||'')}><span className={eStyles.relChipName}>{r.name||r.entity_name||`#${r.id}`}</span>{r.entity_type&&<span className={eStyles.relChipType}>{r.entity_type}</span>}</div>)}</div>
         </div>
       )}

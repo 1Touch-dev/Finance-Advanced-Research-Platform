@@ -35,57 +35,57 @@ export default function Review(){
     try { await exportMd() } catch (e) { setErr(`Could not export markdown: ${e.message}`) }
   }
   return (
-    <main className={styles.page}>
-      <section className={styles.hero}>
+    <main className="page-wrap">
+      <section className="card">
         <h1>Review Workspace</h1>
         <p>Review report sections, submit edits, leave comments, and export reviewer-ready markdown.</p>
       </section>
       {!rep? 'Loading...' : (
         <>
-          <section className={styles.panel}>
-            <h2>{rep.title} <span className={styles.subtle}>({rep.kind})</span></h2>
-            <ul className={styles.list}>
+          <section className="card">
+            <h2>{rep.title} <span style={{color:"var(--text-soft)",fontSize:"0.8rem"}}>({rep.kind})</span></h2>
+            <ul style={{listStyle:"none",padding:0,margin:0,display:"flex",flexDirection:"column",gap:"0.5rem"}}>
               {rep.sections.map(s=> (
-                <li className={styles.listItem} key={s.id}>
+                <li style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"0.5rem",padding:"8px 10px",background:"rgba(255,255,255,0.025)",borderRadius:8,border:"1px solid var(--line)"}} key={s.id}>
                   <span>{s.order}. {s.name}</span>
-                  <button className={styles.button} onClick={()=>setSectionId(s.id)}>Select</button>
+                  <button className="btn btn-primary" onClick={()=>setSectionId(s.id)}>Select</button>
                 </li>
               ))}
             </ul>
           </section>
-          <section className={styles.grid2}>
-            <div className={styles.panel}>
+          <section className="grid-cols-2">
+            <div className="card">
             <h3>Suggest Edit</h3>
-              <label className={styles.label}>
+              <label style={{display:"flex",flexDirection:"column",gap:4,color:"var(--text-muted)",fontSize:"0.82rem",fontWeight:600}}>
                 Proposed content
-                <textarea className={styles.textarea} value={sectionText} onChange={e=>setSectionText(e.target.value)} />
+                <textarea className="inp" value={sectionText} onChange={e=>setSectionText(e.target.value)} />
               </label>
-              <div className={styles.buttonRow}>
-                <button className={styles.button} onClick={safeSuggest} disabled={!sectionId}>
+              <div style={{display:"flex",gap:"0.5rem",flexWrap:"wrap"}}>
+                <button className="btn btn-primary" onClick={safeSuggest} disabled={!sectionId}>
                   Propose for Section #{sectionId || '...'}
                 </button>
               </div>
             </div>
-            <div className={styles.panel}>
+            <div className="card">
             <h3>Add Comment</h3>
-              <label className={styles.label}>
+              <label style={{display:"flex",flexDirection:"column",gap:4,color:"var(--text-muted)",fontSize:"0.82rem",fontWeight:600}}>
                 Comment text
-                <textarea className={styles.textarea} value={comment} onChange={e=>setComment(e.target.value)} />
+                <textarea className="inp" value={comment} onChange={e=>setComment(e.target.value)} />
               </label>
-              <div className={styles.buttonRow}>
-                <button className={styles.button} onClick={safeAddComment}>Post Comment</button>
+              <div style={{display:"flex",gap:"0.5rem",flexWrap:"wrap"}}>
+                <button className="btn btn-primary" onClick={safeAddComment}>Post Comment</button>
               </div>
             </div>
           </section>
-          <section className={styles.panel}>
+          <section className="card">
             <h3>Exports</h3>
-            <div className={styles.buttonRow}>
-              <button className={styles.button} onClick={safeExport}>Export Markdown</button>
-              <button className={styles.button} onClick={async()=>{ try{await exportPdf()}catch(e){setErr(e.message)}}}>Export PDF</button>
-              <button className={styles.button} onClick={async()=>{ try{await exportDocx()}catch(e){setErr(e.message)}}}>Export Word</button>
+            <div style={{display:"flex",gap:"0.5rem",flexWrap:"wrap"}}>
+              <button className="btn btn-primary" onClick={safeExport}>Export Markdown</button>
+              <button className="btn btn-primary" onClick={async()=>{ try{await exportPdf()}catch(e){setErr(e.message)}}}>Export PDF</button>
+              <button className="btn btn-primary" onClick={async()=>{ try{await exportDocx()}catch(e){setErr(e.message)}}}>Export Word</button>
             </div>
-            {notice ? <p className={styles.subtle}>{notice}</p> : null}
-            {err ? <p className={styles.dangerText}>{err}</p> : null}
+            {notice ? <p style={{color:"var(--text-soft)",fontSize:"0.8rem"}}>{notice}</p> : null}
+            {err ? <p style={{color:"var(--red)",fontWeight:700}}>{err}</p> : null}
           </section>
         </>
       )}

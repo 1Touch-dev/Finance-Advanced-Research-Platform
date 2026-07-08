@@ -153,11 +153,11 @@ export default function ExpertAnalysisPage() {
   ]
 
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
+    <div >
+      <div >
         <div>
-          <h1 className={styles.title}>Expert Analysis Tracker</h1>
-          <p className={styles.subtitle}>Analyst ratings · News sentiment · Themes · Weekly trend</p>
+          <h1 >Expert Analysis Tracker</h1>
+          <p >Analyst ratings · News sentiment · Themes · Weekly trend</p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
           <input value={input} onChange={e => setInput(e.target.value.toUpperCase())}
@@ -185,7 +185,7 @@ export default function ExpertAnalysisPage() {
       {data && (
         <>
           {/* Summary Bar */}
-          <div className={styles.panel} style={{ padding: '1rem 1.5rem', marginBottom: '1rem', display: 'flex', gap: '2rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div className="card" style={{ padding: '1rem 1.5rem', marginBottom: '1rem', display: 'flex', gap: '2rem', flexWrap: 'wrap', alignItems: 'center' }}>
             <div>
               <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Overall Sentiment</div>
               <span style={{ background: SENTIMENT_COLORS[s.overall_sentiment] + '22', color: SENTIMENT_COLORS[s.overall_sentiment],
@@ -225,7 +225,7 @@ export default function ExpertAnalysisPage() {
             ))}
           </div>
 
-          <div className={styles.panel}>
+          <div className="card">
             {tab === 'overview' && (
               <div>
                 <SentimentBar bullish={s.bullish} bearish={s.bearish} neutral={s.neutral} />
@@ -308,7 +308,7 @@ export default function ExpertAnalysisPage() {
       )}
 
       {!data && !loading && (
-        <div className={styles.panel} style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
+        <div className="card" style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
           <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🏦</div>
           <div style={{ fontSize: '1rem', fontWeight: 600, color: '#94a3b8' }}>Enter a ticker to track expert analysis</div>
           <div style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>Aggregates analyst upgrades/downgrades · News sentiment · Weekly trend · Key themes</div>

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { getApiBaseUrl } from '../lib/api';
-import styles from '../src/styles/Page.module.css';
 
 export default function EconomicsPage() {
   const API = getApiBaseUrl();
@@ -42,21 +41,21 @@ export default function EconomicsPage() {
   const tier = records[0]?.normalized?.source_tier || 'unknown';
 
   return (
-    <main className={styles.page}>
-      <section className={styles.hero}>
+    <main className="page-wrap">
+      <section className="card">
         <h1>U.S. Economic Data (BEA)</h1>
         <p>
           Bureau of Economic Analysis — GDP, national accounts, and state personal income via connector #18.
         </p>
       </section>
 
-      <section className={styles.grid2}>
-        <aside className={styles.panel}>
+      <section className="grid-cols-2">
+        <aside className="card">
           <h2>Connector status</h2>
-          {loading && <p className={styles.subtle}>Loading…</p>}
-          {err && <p className={styles.dangerText}>{err}</p>}
+          {loading && <p style={{color:"var(--text-soft)",fontSize:"0.8rem"}}>Loading…</p>}
+          {err && <p style={{color:"var(--red)",fontWeight:700}}>{err}</p>}
           {health && (
-            <ul className={styles.subtle}>
+            <ul style={{color:"var(--text-soft)",fontSize:"0.8rem"}}>
               <li>Source ID: {health.id}</li>
               <li>Last run: {health.last_status}</li>
               <li>Records in DB: {health.records}</li>
@@ -65,7 +64,7 @@ export default function EconomicsPage() {
             </ul>
           )}
           {tier === 'sample' && (
-            <p className={styles.dangerText}>
+            <p style={{color:"var(--red)",fontWeight:700}}>
               Showing sample data. Activate <code>BEA_API_USER_ID</code> at{' '}
               <a href="https://apps.bea.gov/API/signup/" target="_blank" rel="noreferrer">
                 apps.bea.gov/API/signup
@@ -75,10 +74,10 @@ export default function EconomicsPage() {
           )}
         </aside>
 
-        <section className={styles.panel}>
+        <section className="card">
           <h2>Records ({total})</h2>
           {records.length === 0 && !loading ? (
-            <p className={styles.subtle}>No BEA records yet. Run the connector from Admin or seed script.</p>
+            <p style={{color:"var(--text-soft)",fontSize:"0.8rem"}}>No BEA records yet. Run the connector from Admin or seed script.</p>
           ) : (
             <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
               <thead>

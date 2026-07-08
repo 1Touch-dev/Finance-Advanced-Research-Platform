@@ -129,8 +129,8 @@ export default function TrackingPage() {
   ]
 
   return (
-    <main className={styles.page}>
-      <section className={styles.hero}>
+    <main className="page-wrap">
+      <section className="card">
         <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', fontWeight: 700,
                     letterSpacing: '0.08em', textTransform: 'uppercase', color: '#818cf8' }}>
           v2.0 — Entity Monitoring
@@ -167,27 +167,27 @@ export default function TrackingPage() {
       </div>
 
       {/* Add to watchlist */}
-      <div className={styles.panel}>
+      <div className="card">
         <h2>Add to Watchlist</h2>
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <label className={styles.label} style={{ flex: '1 1 220px' }}>
+          <label style={{display:"flex",flexDirection:"column",gap:4,color:"var(--text-muted)",fontSize:"0.82rem",fontWeight:600}} style={{ flex: '1 1 220px' }}>
             Entity Name
             <input
-              className={styles.input}
+              className="inp"
               value={addName}
               onChange={e => setAddName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && addEntity()}
               placeholder="e.g. Palantir Technologies"
             />
           </label>
-          <label className={styles.label} style={{ minWidth: 120 }}>
+          <label style={{display:"flex",flexDirection:"column",gap:4,color:"var(--text-muted)",fontSize:"0.82rem",fontWeight:600}} style={{ minWidth: 120 }}>
             Type
-            <select className={styles.input} value={addType} onChange={e => setAddType(e.target.value)}>
+            <select className="inp" value={addType} onChange={e => setAddType(e.target.value)}>
               <option value="org">Organization</option>
               <option value="person">Person</option>
             </select>
           </label>
-          <button className={styles.btn} onClick={addEntity} style={{ alignSelf: 'flex-end' }}>
+          <button  onClick={addEntity} style={{ alignSelf: 'flex-end' }}>
             + Add to Watchlist
           </button>
         </div>
@@ -217,10 +217,10 @@ export default function TrackingPage() {
       </div>
 
       {/* Watchlist */}
-      <div className={styles.panel}>
+      <div className="card">
         <h2>Watchlist ({entities.length})</h2>
         {entities.length === 0 && (
-          <p className={styles.empty}>No entities being tracked. Add some above.</p>
+          <p style={{color:"var(--text-soft)",fontStyle:"italic",fontSize:"0.82rem"}}>No entities being tracked. Add some above.</p>
         )}
         {entities.map((e, i) => (
           <WatchRow key={i} entity={e} onRemove={removeEntity} onInvestigate={investigate} />
@@ -228,7 +228,7 @@ export default function TrackingPage() {
       </div>
 
       {/* Digest controls */}
-      <div className={styles.panel}>
+      <div className="card">
         <h2>Daily Digest</h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '0 0 0.75rem' }}>
           Runs automatically at 6:00 AM UTC. Re-generates all watched entity reports,
@@ -241,7 +241,7 @@ export default function TrackingPage() {
             Dry run (no emails/SMS)
           </label>
           <button
-            className={styles.btn}
+            
             onClick={runDigest}
             disabled={digestRunning || entities.length === 0}
           >
@@ -270,7 +270,7 @@ export default function TrackingPage() {
 
       {/* Digest logs */}
       {logs.length > 0 && (
-        <div className={styles.panel}>
+        <div className="card">
           <h2>Digest History</h2>
           <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
             <thead>
@@ -304,7 +304,7 @@ export default function TrackingPage() {
       )}
 
       {/* Configure notifications note */}
-      <div className={styles.panel} style={{ borderLeft: '3px solid #fbbf24' }}>
+      <div className="card" style={{ borderLeft: '3px solid #fbbf24' }}>
         <h3 style={{ margin: '0 0 0.4rem', color: '#fbbf24' }}>Notification Configuration</h3>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: 0 }}>
           Set <code>DIGEST_RECIPIENT_EMAIL</code> and <code>DIGEST_RECIPIENT_PHONE</code> in <code>.env</code> to

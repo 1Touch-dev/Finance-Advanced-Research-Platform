@@ -185,9 +185,9 @@ export default function TimelinePage() {
   ]
 
   return (
-    <main className={styles.page}>
+    <main className="page-wrap">
       {/* Header */}
-      <section className={styles.hero}>
+      <section className="card">
         <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', fontWeight: 700,
                     letterSpacing: '0.08em', textTransform: 'uppercase', color: '#818cf8' }}>
           Layer 1 v1.2 — Person &amp; Entity Timeline
@@ -221,19 +221,19 @@ export default function TimelinePage() {
       </div>
 
       {/* Controls */}
-      <div className={styles.panel}>
+      <div className="card">
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <label className={styles.label} style={{ flex: '1 1 240px' }}>
+          <label style={{display:"flex",flexDirection:"column",gap:4,color:"var(--text-muted)",fontSize:"0.82rem",fontWeight:600}} style={{ flex: '1 1 240px' }}>
             Entity / Person Name
             <input
-              className={styles.input}
+              className="inp"
               value={entityName}
               onChange={e => setEntityName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && load()}
               placeholder="e.g. Peter Thiel"
             />
           </label>
-          <button className={styles.btn} onClick={load} disabled={loading} style={{ marginBottom: 0, alignSelf: 'flex-end' }}>
+          <button  onClick={load} disabled={loading} style={{ marginBottom: 0, alignSelf: 'flex-end' }}>
             {loading ? 'Loading...' : 'Load Timeline'}
           </button>
         </div>
@@ -309,15 +309,15 @@ export default function TimelinePage() {
 
       {/* Timeline */}
       {filtered.length === 0 && !loading && (
-        <div className={styles.panel}>
-          <p className={styles.empty}>
+        <div className="card">
+          <p style={{color:"var(--text-soft)",fontStyle:"italic",fontSize:"0.82rem"}}>
             No events to display. Try one of the demo seeds above or load any entity.
           </p>
         </div>
       )}
 
       {viewMode === 'vertical' && filtered.length > 0 && (
-        <div className={styles.panel} style={{ padding: '1rem 1.25rem' }}>
+        <div className="card" style={{ padding: '1rem 1.25rem' }}>
           <div className={tStyles.timelineWrap}>
             {filtered.map((ev, i) => (
               <EventCard key={i} ev={ev} isLast={i === filtered.length - 1} />

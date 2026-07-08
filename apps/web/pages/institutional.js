@@ -152,11 +152,11 @@ export default function InstitutionalPage() {
   ]
 
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
+    <div >
+      <div >
         <div>
-          <h1 className={styles.title}>Institutional Intelligence</h1>
-          <p className={styles.subtitle}>13F holders · Big money positions · Institution portfolios</p>
+          <h1 >Institutional Intelligence</h1>
+          <p >13F holders · Big money positions · Institution portfolios</p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
           <input value={input} onChange={e => setInput(e.target.value.toUpperCase())}
@@ -180,7 +180,7 @@ export default function InstitutionalPage() {
 
       {/* Summary stats */}
       {holderData && (
-        <div className={styles.panel} style={{ padding: '0.75rem 1.5rem', marginBottom: '1rem', display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+        <div className="card" style={{ padding: '0.75rem 1.5rem', marginBottom: '1rem', display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
           {[
             ['Inst. Holders', d.total_institutional_holders],
             ['Mega Positions (>$1B)', d.mega_positions_over_1b?.length],
@@ -226,7 +226,7 @@ export default function InstitutionalPage() {
         ))}
       </div>
 
-      <div className={styles.panel}>
+      <div className="card">
         {tab === 'holders' && (
           holderData ? (
             <div style={{ overflowX: 'auto' }}>

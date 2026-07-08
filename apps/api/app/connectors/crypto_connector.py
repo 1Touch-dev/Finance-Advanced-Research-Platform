@@ -24,6 +24,19 @@ COINCAP_BASE = "https://api.coincap.io/v2"
 
 HEADERS = {"User-Agent": "Finance-Platform/1.0 abhishekk@kyma.world"}
 
+# Simple TTL cache to avoid CoinGecko rate limits (300s TTL)
+_CACHE: dict = {}
+_CACHE_TTL = 300
+
+def _cached(key: str, fn, *args, **kwargs):
+    now = time.time()
+    if key in _CACHE and now - _CACHE[key][0] < _CACHE_TTL:
+        return _CACHE[key][1]
+    result = fn(*args, **kwargs)
+    if result:
+        _CACHE[key] = (now, result)
+    return result
+
 
 def _get(url, params=None, timeout=10):
     try:
@@ -374,40 +387,44 @@ def get_crypto_news(coin: str = "bitcoin", limit: int = 10) -> list:
 
 def crypto_dashboard() -> dict:
     """Aggregate dashboard: global market + top 10 prices + trending + whale alerts."""
-    try:
-        global_market = get_global_market()
-    except Exception:
-        global_market = {}
-    try:
-        prices = get_crypto_prices()
-    except Exception:
-        prices = {}
-    try:
-        trending = get_trending_cryptos()
-    except Exception:
-        trending = []
-    try:
-        whales = get_whale_alerts(min_usd=500_000_000, limit=10)
-    except Exception:
-        whales = []
+    def _build():
+        try:
+            global_market = get_global_market()
+        except Exception:
+            global_market = {}
+        try:
+            prices = get_crypto_prices()
+        except Exception:
+            prices = {}
+        try:
+            trending = get_trending_cryptos()
+        except Exception:
+            trending = []
+        try:
+            whales = get_whale_alerts(min_usd=500_000_000, limit=10)
+        except Exception:
+            whales = []
 
-    # Format prices list
-    price_list = [
-        {
-            "id": k,
-            "price_usd": v.get("usd"),
-            "market_cap_usd": v.get("usd_market_cap"),
-            "volume_24h_usd": v.get("usd_24h_vol"),
-            "change_24h_pct": v.get("usd_24h_change"),
+        price_list = [
+            {
+                "id": k,
+                "name": k.replace("-", " ").title(),
+                "symbol": k.split("-")[0].upper(),
+                "price_usd": v.get("usd"),
+                "market_cap_usd": v.get("usd_market_cap"),
+                "volume_24h_usd": v.get("usd_24h_vol"),
+                "change_24h_pct": v.get("usd_24h_change"),
+            }
+            for k, v in prices.items()
+        ]
+        price_list.sort(key=lambda x: x.get("market_cap_usd") or 0, reverse=True)
+
+        return {
+            "global": global_market,
+            "top_coins": price_list,
+            "trending": trending,
+            "whale_alerts": whales,
+            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
-        for k, v in prices.items()
-    ]
-    price_list.sort(key=lambda x: x.get("market_cap_usd") or 0, reverse=True)
 
-    return {
-        "global": global_market,
-        "top_coins": price_list,
-        "trending": trending,
-        "whale_alerts": whales,
-        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    }
+    return _cached("crypto_dashboard", _build)

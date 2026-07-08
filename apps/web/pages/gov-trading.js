@@ -176,7 +176,7 @@ function SummaryTab({ days, setDays }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       {/* Stats Row */}
-      <section className={styles.panel}>
+      <section className="card">
         <h2 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>Congressional STOCK Act Disclosures ({days}d)</h2>
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
           {[
@@ -195,7 +195,7 @@ function SummaryTab({ days, setDays }) {
 
       {/* Most Active + Top States */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-        <section className={styles.panel}>
+        <section className="card">
           <h2 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>Most Active Traders (PTR Count)</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
             {members.slice(0, 12).map((m, i) => (
@@ -209,7 +209,7 @@ function SummaryTab({ days, setDays }) {
           </div>
         </section>
 
-        <section className={styles.panel}>
+        <section className="card">
           <h2 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>States by PTR Activity</h2>
           {states.slice(0, 12).map(s => (
             <div key={s.state} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.3rem 0', borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: '0.83rem' }}>
@@ -221,7 +221,7 @@ function SummaryTab({ days, setDays }) {
       </div>
 
       {/* Recent PTR Filers */}
-      <section className={styles.panel}>
+      <section className="card">
         <h2 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>Recent PTR Filers (House)</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '0.5rem' }}>
           {recent.map((m, i) => (
@@ -235,7 +235,7 @@ function SummaryTab({ days, setDays }) {
 
       {/* SEC Form 4 Insider Trades */}
       {form4.length > 0 && (
-        <section className={styles.panel}>
+        <section className="card">
           <h2 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>Recent SEC Form 4 — Corporate Insider Trades</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
             {form4.slice(0, 15).map((t, i) => (
@@ -265,11 +265,11 @@ function InsiderTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <section className={styles.panel} style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <input className={styles.input} value={query} onChange={e => setQuery(e.target.value.toUpperCase())}
+      <section className="card" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <input className="inp" value={query} onChange={e => setQuery(e.target.value.toUpperCase())}
           onKeyDown={e => e.key === 'Enter' && setTicker(query)}
           placeholder="Ticker e.g. AAPL" style={{ maxWidth: 140, fontWeight: 700 }} />
-        <button className={styles.button} onClick={() => setTicker(query)}>Look Up</button>
+        <button className="btn btn-primary" onClick={() => setTicker(query)}>Look Up</button>
         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
           {POPULAR.map(t => (
             <button key={t} onClick={() => { setQuery(t); setTicker(t) }}
@@ -282,7 +282,7 @@ function InsiderTab() {
 
       {isLoading && <p style={{ color: '#94a3b8' }}>Loading insider trades…</p>}
       {insiderData && (
-        <section className={styles.panel}>
+        <section className="card">
           <h2 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>Insider Trades — {ticker} ({insiderData.count || 0} records)</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
             {(insiderData.trades || []).map((t, i) => {
@@ -322,10 +322,10 @@ export default function GovTradingPage() {
   ]
 
   return (
-    <main className={styles.page}>
-      <div className={styles.hero}>
-        <h1 className={styles.heroTitle}>Government & Insider Trading</h1>
-        <p className={styles.heroSub}>Congressional STOCK Act disclosures, corporate insider trades via SEC Form 4, and government financial intelligence.</p>
+    <main className="page-wrap">
+      <div className="card">
+        <h1 >Government & Insider Trading</h1>
+        <p >Congressional STOCK Act disclosures, corporate insider trades via SEC Form 4, and government financial intelligence.</p>
       </div>
 
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>

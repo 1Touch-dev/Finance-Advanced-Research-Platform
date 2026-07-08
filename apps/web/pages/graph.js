@@ -73,34 +73,34 @@ export default function GraphPage() {
   }
 
   return (
-    <main className={styles.page}>
-      <section className={styles.hero}>
+    <main className="page-wrap">
+      <section className="card">
         <h1>Intelligence Graph</h1>
         <p>Interactive Cytoscape graph with expand-on-click, zoom/pan, and export.</p>
       </section>
-      <section className={styles.grid2}>
-        <aside className={styles.panel}>
-          <div className={styles.controls}>
-            <label className={styles.label}>
+      <section className="grid-cols-2">
+        <aside className="card">
+          <div style={{display:"flex",flexDirection:"column",gap:"0.75rem"}}>
+            <label style={{display:"flex",flexDirection:"column",gap:4,color:"var(--text-muted)",fontSize:"0.82rem",fontWeight:600}}>
               Entity ID
-              <input className={styles.input} value={entityId} onChange={(e) => setEntityId(e.target.value)} placeholder="Entity ID (example: 1)" />
+              <input className="inp" value={entityId} onChange={(e) => setEntityId(e.target.value)} placeholder="Entity ID (example: 1)" />
             </label>
-            <div className={styles.buttonRow}>
-              <button className={styles.button} onClick={run}>Expand Graph</button>
-              <button className={styles.button} onClick={exportJson} disabled={!data}>Export JSON</button>
-              <button className={styles.button} onClick={exportPng} disabled={!data}>Export PNG</button>
+            <div style={{display:"flex",gap:"0.5rem",flexWrap:"wrap"}}>
+              <button className="btn btn-primary" onClick={run}>Expand Graph</button>
+              <button className="btn btn-primary" onClick={exportJson} disabled={!data}>Export JSON</button>
+              <button className="btn btn-primary" onClick={exportPng} disabled={!data}>Export PNG</button>
             </div>
-            {err ? <p className={styles.dangerText}>{err}</p> : null}
-            <div className={styles.metaRow}>
-              <span className={styles.chip}>Nodes: {data?.nodes?.length ?? 0}</span>
-              <span className={styles.chip}>Edges: {data?.edges?.length ?? 0}</span>
+            {err ? <p style={{color:"var(--red)",fontWeight:700}}>{err}</p> : null}
+            <div style={{display:"flex",flexWrap:"wrap",gap:"0.4rem"}}>
+              <span className="badge badge-gray">Nodes: {data?.nodes?.length ?? 0}</span>
+              <span className="badge badge-gray">Edges: {data?.edges?.length ?? 0}</span>
             </div>
           </div>
         </aside>
-        <section className={styles.panel}>
+        <section className="card">
           <h2>Graph Canvas</h2>
           <div ref={containerRef} style={{ width: '100%', height: 560, border: '1px solid var(--line)', borderRadius: 12, background: 'rgba(8,13,26,0.75)' }} />
-          {!data && <p className={styles.empty}>Run expansion to render the graph.</p>}
+          {!data && <p style={{color:"var(--text-soft)",fontStyle:"italic",fontSize:"0.82rem"}}>Run expansion to render the graph.</p>}
         </section>
       </section>
     </main>

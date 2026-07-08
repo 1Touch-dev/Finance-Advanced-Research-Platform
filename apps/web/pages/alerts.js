@@ -54,23 +54,23 @@ export default function AlertsPage() {
   }
 
   return (
-    <main className={styles.page}>
-      <section className={styles.hero}>
+    <main className="page-wrap">
+      <section className="card">
         <h1>Alert Inbox</h1>
         <p>Monitor connector delta events, filings, contracts, and sanctions hits.</p>
       </section>
-      <section className={styles.panel}>
-        <div className={styles.buttonRow}>
-          <button className={styles.button} onClick={runScan}>Run Scan + Deliver</button>
-          <button className={styles.button} onClick={load}>Refresh</button>
+      <section className="card">
+        <div style={{display:"flex",gap:"0.5rem",flexWrap:"wrap"}}>
+          <button className="btn btn-primary" onClick={runScan}>Run Scan + Deliver</button>
+          <button className="btn btn-primary" onClick={load}>Refresh</button>
         </div>
-        {notice && <p className={styles.subtle}>{notice}</p>}
-        {err && <p className={styles.dangerText}>{err}</p>}
+        {notice && <p style={{color:"var(--text-soft)",fontSize:"0.8rem"}}>{notice}</p>}
+        {err && <p style={{color:"var(--red)",fontWeight:700}}>{err}</p>}
       </section>
-      <section className={styles.panel}>
+      <section className="card">
         <h2>Events ({events.length})</h2>
         {events.length === 0 ? (
-          <p className={styles.empty}>No alert events yet. Configure rules and run a scan.</p>
+          <p style={{color:"var(--text-soft)",fontStyle:"italic",fontSize:"0.82rem"}}>No alert events yet. Configure rules and run a scan.</p>
         ) : (
           <div style={{ display:'flex', flexDirection:'column', gap:'0.5rem' }}>
             {events.map((e) => {

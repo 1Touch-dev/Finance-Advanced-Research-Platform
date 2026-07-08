@@ -17,8 +17,8 @@ export default function AlertsPage() {
   const ack = async (id) => { await fetch(`${API}/tracking/alerts/${id}/acknowledge`, { method:'POST' }); mutate() }
   const snooze = async (id) => { await fetch(`${API}/tracking/alerts/${id}/snooze?hours=24`, { method:'POST' }); mutate() }
   return (
-    <main className={styles.page}>
-      <section className={styles.hero}>
+    <main className="page-wrap">
+      <section className="card">
         <h1>Alert Inbox</h1>
         <p style={{ color:'var(--text-muted)', margin:'0.3rem 0 0' }}>Triggered alerts from entity monitoring. <Link href="/tracking">Back to Tracking</Link></p>
       </section>
@@ -32,7 +32,7 @@ export default function AlertsPage() {
         ))}
       </div>
       {alerts.length === 0 ? (
-        <div className={styles.panel} style={{ textAlign:'center', padding:'3rem' }}>
+        <div className="card" style={{ textAlign:'center', padding:'3rem' }}>
           <div style={{ fontSize:'2.5rem' }}>✅</div>
           <h2 style={{ color:'#4ade80' }}>No alerts</h2>
           <p style={{ color:'var(--text-muted)' }}>All clear. Add entities to <Link href="/tracking">tracking</Link> to monitor.</p>

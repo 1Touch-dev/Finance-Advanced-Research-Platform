@@ -21,27 +21,27 @@ export default function Portfolio(){
     setStatus('CSV imported successfully.')
   }
   return (
-    <main className={styles.page}>
-      <section className={styles.hero}>
+    <main className="page-wrap">
+      <section className="card">
         <h1>Portfolio Exposure</h1>
         <p>Inspect weighted position concentration and import additional positions via CSV.</p>
       </section>
-      <section className={styles.grid2}>
-        <aside className={styles.panel}>
-          <div className={styles.controls}>
-            <label className={styles.label}>
+      <section className="grid-cols-2">
+        <aside className="card">
+          <div style={{display:"flex",flexDirection:"column",gap:"0.75rem"}}>
+            <label style={{display:"flex",flexDirection:"column",gap:4,color:"var(--text-muted)",fontSize:"0.82rem",fontWeight:600}}>
               Upload positions CSV
-              <input className={styles.input} ref={fileRef} type="file" accept=".csv" />
+              <input className="inp" ref={fileRef} type="file" accept=".csv" />
             </label>
-            <div className={styles.buttonRow}>
-              <button className={styles.button} onClick={importCsv}>Import CSV</button>
+            <div style={{display:"flex",gap:"0.5rem",flexWrap:"wrap"}}>
+              <button className="btn btn-primary" onClick={importCsv}>Import CSV</button>
             </div>
-            {status ? <p className={styles.subtle}>{status}</p> : null}
+            {status ? <p style={{color:"var(--text-soft)",fontSize:"0.8rem"}}>{status}</p> : null}
           </div>
         </aside>
-        <section className={styles.panel}>
+        <section className="card">
           <h2>Exposure Output</h2>
-          <pre className={styles.mono}>{data?JSON.stringify(data,null,2):'Loading...'}</pre>
+          <pre className="card mono">{data?JSON.stringify(data,null,2):'Loading...'}</pre>
         </section>
       </section>
     </main>

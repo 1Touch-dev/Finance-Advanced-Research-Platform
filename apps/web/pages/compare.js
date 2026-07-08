@@ -206,7 +206,7 @@ function BoardOverlap({ reports }) {
   if (!overlaps.length) return null
 
   return (
-    <div className={styles.panel}>
+    <div className="card">
       <h2>Shared Entity References</h2>
       {overlaps.map((ov, i) => (
         <div key={i} className={cStyles.overlapRow}>
@@ -274,8 +274,8 @@ export default function ComparePage() {
   const tabs = ['radar', 'table', 'overlap']
 
   return (
-    <main className={styles.page}>
-      <section className={styles.hero}>
+    <main className="page-wrap">
+      <section className="card">
         <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', fontWeight: 700,
                     letterSpacing: '0.08em', textTransform: 'uppercase', color: '#818cf8' }}>
           Layer 1 v1.2 — Entity Comparison
@@ -287,7 +287,7 @@ export default function ComparePage() {
       </section>
 
       {/* Entity slots */}
-      <div className={styles.panel}>
+      <div className="card">
         <div className={cStyles.slotGrid}>
           {slots.map((slot, i) => (
             <div key={i} className={cStyles.slot} style={{ borderTopColor: COLORS[i % COLORS.length] }}>
@@ -296,7 +296,7 @@ export default function ComparePage() {
                 {i > 1 && <button className={cStyles.removeBtn} onClick={() => removeSlot(i)}>✕</button>}
               </div>
               <input
-                className={styles.input}
+                className="inp"
                 value={slot.name}
                 onChange={e => {
                   const s = [...slots]; s[i] = { ...s[i], name: e.target.value }; setSlots(s)
@@ -305,7 +305,7 @@ export default function ComparePage() {
                 onKeyDown={e => e.key === 'Enter' && generate(i)}
               />
               <input
-                className={styles.input}
+                className="inp"
                 value={slot.ticker}
                 onChange={e => {
                   const s = [...slots]; s[i] = { ...s[i], ticker: e.target.value }; setSlots(s)
@@ -318,14 +318,14 @@ export default function ComparePage() {
                 onChange={e => {
                   const s = [...slots]; s[i] = { ...s[i], type: e.target.value }; setSlots(s)
                 }}
-                className={styles.input}
+                className="inp"
                 style={{ marginTop: '0.4rem' }}
               >
                 <option value="org">Organization</option>
                 <option value="person">Person</option>
               </select>
               <button
-                className={styles.btn}
+                
                 onClick={() => generate(i)}
                 disabled={loading[i] || !slot.name.trim()}
                 style={{ marginTop: '0.5rem', width: '100%' }}
@@ -344,7 +344,7 @@ export default function ComparePage() {
           )}
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem' }}>
-          <button className={styles.btn} onClick={generateAll} disabled={loading.some(Boolean)}>
+          <button  onClick={generateAll} disabled={loading.some(Boolean)}>
             {loading.some(Boolean) ? 'Generating…' : '⚡ Generate All'}
           </button>
           {loadedEntities.length > 0 && (
@@ -381,14 +381,14 @@ export default function ComparePage() {
           </div>
 
           {activeTab === 'radar' && (
-            <div className={styles.panel}>
+            <div className="card">
               <h2>Radar Comparison</h2>
               <RadarChart entities={loadedEntities} summaries={summaries} />
             </div>
           )}
 
           {activeTab === 'table' && (
-            <div className={styles.panel}>
+            <div className="card">
               <h2>KPI Comparison Table</h2>
               <KpiTable entities={loadedEntities} summaries={summaries} />
             </div>
@@ -401,8 +401,8 @@ export default function ComparePage() {
       )}
 
       {loadedEntities.length < 2 && loadedEntities.length > 0 && (
-        <div className={styles.panel}>
-          <p className={styles.empty}>
+        <div className="card">
+          <p style={{color:"var(--text-soft)",fontStyle:"italic",fontSize:"0.82rem"}}>
             Generate reports for at least 2 entities to see comparisons.
           </p>
         </div>

@@ -27,23 +27,23 @@ export default function SkillsGateway(){
     }
   }
   return (
-    <main className={styles.page}>
-      <section className={styles.hero}>
+    <main className="page-wrap">
+      <section className="card">
         <h1>Finance Skills Gateway</h1>
         <p>Execute approved skills with explicit inputs and inspect structured outputs.</p>
         {status && (
-          <p className={styles.subtle}>
+          <p style={{color:"var(--text-soft)",fontSize:"0.8rem"}}>
             AI providers: Anthropic {status.anthropic?.configured ? `(live · ${status.anthropic.model})` : '(not configured)'}
             {' · '}OpenAI {status.openai?.configured ? '(fallback ready)' : '(not configured)'}
           </p>
         )}
       </section>
-      <section className={styles.grid2}>
-        <aside className={styles.panel}>
-          <div className={styles.controls}>
-            <label className={styles.label}>
+      <section className="grid-cols-2">
+        <aside className="card">
+          <div style={{display:"flex",flexDirection:"column",gap:"0.75rem"}}>
+            <label style={{display:"flex",flexDirection:"column",gap:4,color:"var(--text-muted)",fontSize:"0.82rem",fontWeight:600}}>
               Skill Name
-              <select className={styles.select} value={name} onChange={e=>setName(e.target.value)}>
+              <select className="inp" value={name} onChange={e=>setName(e.target.value)}>
           <option value="dcf">dcf</option>
           <option value="comps">comps</option>
           <option value="earnings">earnings</option>
@@ -54,19 +54,19 @@ export default function SkillsGateway(){
           <option value="market_research">market_research</option>
               </select>
             </label>
-            <label className={styles.label}>
+            <label style={{display:"flex",flexDirection:"column",gap:4,color:"var(--text-muted)",fontSize:"0.82rem",fontWeight:600}}>
               Input JSON
-              <textarea className={styles.textarea} value={input} onChange={e=>setInput(e.target.value)} />
+              <textarea className="inp" value={input} onChange={e=>setInput(e.target.value)} />
             </label>
-            <div className={styles.buttonRow}>
-              <button className={styles.button} onClick={run}>Run Skill</button>
+            <div style={{display:"flex",gap:"0.5rem",flexWrap:"wrap"}}>
+              <button className="btn btn-primary" onClick={run}>Run Skill</button>
             </div>
-            {err ? <p className={styles.dangerText}>{err}</p> : null}
+            {err ? <p style={{color:"var(--red)",fontWeight:700}}>{err}</p> : null}
           </div>
         </aside>
-        <section className={styles.panel}>
+        <section className="card">
           <h2>Skill Run Output{data?.output?.provider ? ` · ${data.output.provider}` : ''}</h2>
-          <pre className={styles.mono}>{data?JSON.stringify(data,null,2):'No run yet.'}</pre>
+          <pre className="card mono">{data?JSON.stringify(data,null,2):'No run yet.'}</pre>
         </section>
       </section>
     </main>

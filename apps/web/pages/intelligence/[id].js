@@ -14,13 +14,13 @@ export default function ReportPage() {
   const { id } = router.query
   const { data: report, error } = useSWR(id ? `${API}/intelligence/${id}` : null, fetcher)
 
-  if (!router.isReady) return <main className={styles.page}><section className={styles.hero}><p>Loading…</p></section></main>
-  if (error || (report && report.detail)) return <main className={styles.page}><section className={styles.hero}><h1>Report Not Found</h1><p><Link href="/saved">← Saved Reports</Link></p></section></main>
-  if (!report) return <main className={styles.page}><section className={styles.hero}><p>Loading report {id}…</p></section></main>
+  if (!router.isReady) return <main className="page-wrap"><section className="card"><p>Loading…</p></section></main>
+  if (error || (report && report.detail)) return <main className="page-wrap"><section className="card"><h1>Report Not Found</h1><p><Link href="/saved">← Saved Reports</Link></p></section></main>
+  if (!report) return <main className="page-wrap"><section className="card"><p>Loading report {id}…</p></section></main>
 
   return (
-    <main className={styles.page}>
-      <section className={styles.hero}>
+    <main className="page-wrap">
+      <section className="card">
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'1rem' }}>
           <div>
             <div style={{ fontSize:'0.72rem', color:'var(--text-muted)', marginBottom:'0.25rem' }}>
@@ -45,7 +45,7 @@ export default function ReportPage() {
 
       {/* Sections */}
       {(report.sections || []).map((s, i) => (
-        <div key={i} className={styles.panel} style={{ marginBottom:'0.75rem' }}>
+        <div key={i} className="card" style={{ marginBottom:'0.75rem' }}>
           <h2 style={{ margin:'0 0 0.75rem', display:'flex', gap:'0.5rem', alignItems:'center' }}>
             <span style={{ color:'var(--text-muted)', fontSize:'0.82rem', fontWeight:400 }}>§{s.order||i+1}</span>
             {s.title || s.name}

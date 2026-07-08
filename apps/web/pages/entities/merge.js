@@ -36,21 +36,21 @@ export default function EntityMergePage() {
   }
 
   return (
-    <main className={styles.page}>
-      <section className={styles.hero}>
+    <main className="page-wrap">
+      <section className="card">
         <h1>Entity Merge Review</h1>
         <p>Review proposed entity merges side-by-side and approve or reject.</p>
       </section>
-      <section className={styles.grid2}>
-        <aside className={styles.panel}>
+      <section className="grid-cols-2">
+        <aside className="card">
           <h2>Queue ({candidates.length})</h2>
           {candidates.length === 0 ? (
-            <p className={styles.empty}>No pending merge candidates.</p>
+            <p style={{color:"var(--text-soft)",fontStyle:"italic",fontSize:"0.82rem"}}>No pending merge candidates.</p>
           ) : (
-            <ul className={styles.list}>
+            <ul style={{listStyle:"none",padding:0,margin:0,display:"flex",flexDirection:"column",gap:"0.5rem"}}>
               {candidates.map((c) => (
-                <li className={styles.listItem} key={c.id}>
-                  <button className={styles.button} onClick={() => setSelected(c)}>
+                <li style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"0.5rem",padding:"8px 10px",background:"rgba(255,255,255,0.025)",borderRadius:8,border:"1px solid var(--line)"}} key={c.id}>
+                  <button className="btn btn-primary" onClick={() => setSelected(c)}>
                     {c.a?.name} ↔ {c.b?.name} ({c.score}%)
                   </button>
                 </li>
@@ -58,31 +58,31 @@ export default function EntityMergePage() {
             </ul>
           )}
         </aside>
-        <section className={styles.panel}>
+        <section className="card">
           {selected ? (
             <>
               <h2>Compare</h2>
-              <div className={styles.grid2}>
+              <div className="grid-cols-2">
                 <div>
                   <h3>Entity A — {selected.a?.name}</h3>
-                  <p className={styles.subtle}>ID {selected.a?.id} · {selected.a?.kind}</p>
+                  <p style={{color:"var(--text-soft)",fontSize:"0.8rem"}}>ID {selected.a?.id} · {selected.a?.kind}</p>
                 </div>
                 <div>
                   <h3>Entity B — {selected.b?.name}</h3>
-                  <p className={styles.subtle}>ID {selected.b?.id} · {selected.b?.kind}</p>
+                  <p style={{color:"var(--text-soft)",fontSize:"0.8rem"}}>ID {selected.b?.id} · {selected.b?.kind}</p>
                 </div>
               </div>
               <p>Reason: {selected.reason}</p>
-              <div className={styles.buttonRow}>
-                <button className={styles.button} onClick={() => approve(selected)}>Approve merge</button>
-                <button className={styles.button} onClick={() => reject(selected.id)}>Reject</button>
+              <div style={{display:"flex",gap:"0.5rem",flexWrap:"wrap"}}>
+                <button className="btn btn-primary" onClick={() => approve(selected)}>Approve merge</button>
+                <button className="btn btn-primary" onClick={() => reject(selected.id)}>Reject</button>
               </div>
             </>
           ) : (
-            <p className={styles.empty}>Select a candidate to review.</p>
+            <p style={{color:"var(--text-soft)",fontStyle:"italic",fontSize:"0.82rem"}}>Select a candidate to review.</p>
           )}
-          {notice && <p className={styles.subtle}>{notice}</p>}
-          {err && <p className={styles.dangerText}>{err}</p>}
+          {notice && <p style={{color:"var(--text-soft)",fontSize:"0.8rem"}}>{notice}</p>}
+          {err && <p style={{color:"var(--red)",fontWeight:700}}>{err}</p>}
         </section>
       </section>
     </main>

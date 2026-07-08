@@ -38,7 +38,7 @@ function EntityChip({ name, onInvestigate }) {
   if (!name || name.length < 3) return <span>{name}</span>
   return (
     <span
-      className={iStyles.entityChip}
+      
       title={`Investigate: ${name}`}
       onClick={() => onInvestigate && onInvestigate(name)}
     >
@@ -118,15 +118,15 @@ function ClaimRow({ text, onInvestigate, searchTerm }) {
   }
   if (match) {
     return (
-      <li className={iStyles.claimRow}>
+      <li >
         <Badge label={match[1]} />
-        <span className={iStyles.claimText}>{highlightText(match[2])}</span>
+        <span >{highlightText(match[2])}</span>
       </li>
     )
   }
   return (
-    <li className={iStyles.claimRow}>
-      <span className={iStyles.claimText}>{highlightText(text)}</span>
+    <li >
+      <span >{highlightText(text)}</span>
     </li>
   )
 }
@@ -168,26 +168,26 @@ function Section({ section, idx, onInvestigate, filters }) {
   if (filters && filters.category !== 'All' && category !== filters.category) return null
 
   return (
-    <div className={iStyles.section} style={{ borderLeft: `3px solid ${sectionAccentColor}` }}>
-      <button className={iStyles.sectionHeader} onClick={() => setOpen(o => !o)}>
-        <span className={iStyles.sectionNum}>§{section.order || idx + 1}</span>
-        <span className={iStyles.sectionName}>{section.name}</span>
+    <div  style={{ borderLeft: `3px solid ${sectionAccentColor}` }}>
+      <button  onClick={() => setOpen(o => !o)}>
+        <span >§{section.order || idx + 1}</span>
+        <span >{section.name}</span>
         <span
-          className={iStyles.sectionCatBadge}
+          
           style={{ background: `${catColor}22`, color: catColor, border: `1px solid ${catColor}44` }}
         >{category}</span>
-        <span className={iStyles.sectionCount}>{filteredClaims.length}/{claims.length}</span>
+        <span >{filteredClaims.length}/{claims.length}</span>
         {sectionAccentColor && (isLinkedIn || isNews || isPitchBook || isLobbying) && (
           <span style={{ fontSize: '0.65rem', color: sectionAccentColor, marginLeft: 4, fontWeight: 700 }}>
             {isLinkedIn ? 'LinkedIn' : isNews ? 'News' : isPitchBook ? 'PitchBook' : 'Both Sides'}
           </span>
         )}
-        <span className={iStyles.chevron}>{open ? '▲' : '▼'}</span>
+        <span >{open ? '▲' : '▼'}</span>
       </button>
       {open && (
-        <div className={iStyles.sectionBody}>
+        <div >
           {isNarrative && filteredClaims.length > 0 ? (
-            <div className={iStyles.narrative}>
+            <div >
               {filteredClaims[0].text.split('\n').map((line, i) => (
                 <p key={i} style={{ margin: '0 0 0.65rem' }}>{line}</p>
               ))}
@@ -200,10 +200,10 @@ function Section({ section, idx, onInvestigate, filters }) {
             />
           )}
           {section.data && Object.keys(section.data).length > 0 && (
-            <div className={iStyles.dataRow}>
+            <div >
               {Object.entries(section.data).map(([k, v]) =>
                 v !== null && v !== undefined && v !== '' && !Array.isArray(v) ? (
-                  <span key={k} className={iStyles.dataChip}>
+                  <span key={k} >
                     {k.replace(/_/g, ' ')}: <strong>{typeof v === 'number' ? v.toLocaleString() : String(v)}</strong>
                   </span>
                 ) : null
@@ -242,12 +242,12 @@ function KpiStrip({ summary }) {
   ]
 
   return (
-    <div className={iStyles.kpiStrip}>
+    <div >
       {kpis.map(k => (
-        <div key={k.label} className={iStyles.kpiCard}>
-          <span className={iStyles.kpiValue} style={{ color: k.color }}>{k.value}</span>
-          <span className={iStyles.kpiLabel}>{k.label}</span>
-          <span className={iStyles.kpiSub}>{k.sub}</span>
+        <div key={k.label} >
+          <span  style={{ color: k.color }}>{k.value}</span>
+          <span >{k.label}</span>
+          <span >{k.sub}</span>
         </div>
       ))}
     </div>
@@ -260,10 +260,10 @@ function FilterBar({ sections, filters, setFilters }) {
   const sources    = ['All', 'SEC', 'LDA', 'FEC', 'FARA', 'USASpending', 'CourtListener', 'LinkedIn', 'PitchBook', 'News', 'Wikipedia']
 
   return (
-    <div className={iStyles.filterBar}>
-      <div className={iStyles.filterGroup}>
-        <span className={iStyles.filterLabel}>Category</span>
-        <div className={iStyles.filterChips}>
+    <div >
+      <div >
+        <span >Category</span>
+        <div >
           {categories.map(c => (
             <button
               key={c}
@@ -273,19 +273,19 @@ function FilterBar({ sections, filters, setFilters }) {
           ))}
         </div>
       </div>
-      <div className={iStyles.filterGroup}>
-        <span className={iStyles.filterLabel}>Source</span>
+      <div >
+        <span >Source</span>
         <select
-          className={iStyles.filterSelect}
+          
           value={filters.source}
           onChange={e => setFilters(f => ({ ...f, source: e.target.value }))}
         >
           {sources.map(s => <option key={s}>{s}</option>)}
         </select>
       </div>
-      <div className={iStyles.filterGroup}>
-        <span className={iStyles.filterLabel}>Confidence</span>
-        <div className={iStyles.filterChips}>
+      <div >
+        <span >Confidence</span>
+        <div >
           {['All', 'DOCUMENTED', 'REPORTED', 'ANALYTICAL'].map(c => (
             <button
               key={c}
@@ -295,10 +295,10 @@ function FilterBar({ sections, filters, setFilters }) {
           ))}
         </div>
       </div>
-      <div className={iStyles.filterGroup}>
-        <span className={iStyles.filterLabel}>Search</span>
+      <div >
+        <span >Search</span>
         <input
-          className={iStyles.filterSearch}
+          
           placeholder="Filter claims..."
           value={filters.search}
           onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
@@ -306,7 +306,7 @@ function FilterBar({ sections, filters, setFilters }) {
       </div>
       {(filters.category !== 'All' || filters.source !== 'All' || filters.confidence !== 'All' || filters.search) && (
         <button
-          className={iStyles.filterReset}
+          
           onClick={() => setFilters({ category: 'All', source: 'All', confidence: 'All', search: '' })}
         >✕ Clear</button>
       )}
@@ -369,20 +369,20 @@ function SortableTable({ claims, sectionName, onInvestigate }) {
 
   return (
     <div>
-      <div className={iStyles.tableToolbar}>
-        <span className={iStyles.tableCount}>{claims.length} item{claims.length !== 1 ? 's' : ''}</span>
-        <button className={iStyles.csvBtn} onClick={exportCsv} title="Export CSV">⬇ CSV</button>
+      <div >
+        <span >{claims.length} item{claims.length !== 1 ? 's' : ''}</span>
+        <button  onClick={exportCsv} title="Export CSV">⬇ CSV</button>
       </div>
-      <ul className={iStyles.claimList}>
+      <ul >
         {paginated.map((c, i) => (
           <ClaimRow key={i} text={c.text || c} onInvestigate={onInvestigate} />
         ))}
       </ul>
       {totalPages > 1 && (
-        <div className={iStyles.pagination}>
-          <button className={iStyles.pageBtn} disabled={page === 0} onClick={() => setPage(p => p - 1)}>‹ Prev</button>
-          <span className={iStyles.pageInfo}>{page + 1} / {totalPages}</span>
-          <button className={iStyles.pageBtn} disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Next ›</button>
+        <div >
+          <button  disabled={page === 0} onClick={() => setPage(p => p - 1)}>‹ Prev</button>
+          <span >{page + 1} / {totalPages}</span>
+          <button  disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Next ›</button>
         </div>
       )}
     </div>
@@ -408,11 +408,11 @@ function SummaryBar({ summary }) {
     { label: 'Graph Edges',      value: summary.relationships_written },
   ]
   return (
-    <div className={iStyles.summaryBar}>
+    <div >
       {items.map(it => (
-        <div key={it.label} className={iStyles.summaryCell}>
-          <span className={iStyles.summaryCellVal}>{it.value ?? 0}</span>
-          <span className={iStyles.summaryCellLabel}>{it.label}</span>
+        <div key={it.label} >
+          <span >{it.value ?? 0}</span>
+          <span >{it.label}</span>
         </div>
       ))}
     </div>
@@ -558,13 +558,13 @@ function EmbeddedGraph({ entityId, entityName, onNodeClick }) {
   }
 
   return (
-    <div className={iStyles.graphEmbed}>
-      <div className={iStyles.graphEmbedHeader}>
+    <div >
+      <div >
         <span>🕸 Relationship Graph — {entityName}</span>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <span className={iStyles.graphMeta}>{nodeCount} nodes · {edgeCount} edges · click node to investigate</span>
-          <button className={iStyles.graphExportBtn} onClick={exportGraphPng} title="Export PNG">⬇ PNG</button>
-          <button className={iStyles.graphExportBtn} onClick={exportGraphJson} title="Export JSON">⬇ JSON</button>
+          <span >{nodeCount} nodes · {edgeCount} edges · click node to investigate</span>
+          <button  onClick={exportGraphPng} title="Export PNG">⬇ PNG</button>
+          <button  onClick={exportGraphJson} title="Export JSON">⬇ JSON</button>
         </div>
       </div>
       {loading && <p style={{ color: 'var(--text-muted)', padding: '1rem' }}>Loading graph...</p>}
@@ -591,10 +591,10 @@ function KpiDashboardView({ report, onInvestigate }) {
   const linkedInSection = sections.find(sec => sec.name?.toLowerCase().includes('linkedin'))
 
   const metric = (label, value, sub, color = '#c7d2fe') => (
-    <div className={iStyles.dashMetric}>
-      <span className={iStyles.dashMetricVal} style={{ color }}>{value}</span>
-      <span className={iStyles.dashMetricLabel}>{label}</span>
-      {sub && <span className={iStyles.dashMetricSub}>{sub}</span>}
+    <div >
+      <span  style={{ color }}>{value}</span>
+      <span >{label}</span>
+      {sub && <span >{sub}</span>}
     </div>
   )
 
@@ -605,73 +605,73 @@ function KpiDashboardView({ report, onInvestigate }) {
 
   const topClaims = (section, n = 4) =>
     (section?.claims || []).slice(0, n).map((c, i) => (
-      <div key={i} className={iStyles.dashClaimRow}>
+      <div key={i} >
         <SmartText text={(c.text || c || '').replace(/^\[(DOCUMENTED|REPORTED|ANALYTICAL)\]\s*/, '')} onInvestigate={onInvestigate} />
       </div>
     ))
 
   return (
-    <div className={iStyles.dashView}>
+    <div >
       {/* Row 1 — headline numbers */}
-      <div className={iStyles.dashRow}>
-        <div className={iStyles.dashCard}>
-          <div className={iStyles.dashCardTitle}>💰 Government Contracts</div>
-          <div className={iStyles.dashMetricGrid}>
+      <div >
+        <div >
+          <div >💰 Government Contracts</div>
+          <div >
             {metric('Total Obligated', s.total_obligated_usd ? `$${(s.total_obligated_usd/1e6).toFixed(1)}M` : '$0', `${s.contracts_found||0} awards`, '#60a5fa')}
             {metric('Lobbying Spend', s.kpi_lobbying_spend ? `$${(s.kpi_lobbying_spend/1e3).toFixed(0)}K` : '$0', `${s.lobbying_filings||0} filings`, '#f97316')}
             {metric('Lobbying Firms', s.lobbying_firms || 0, 'as client', '#fb923c')}
             {metric('As Registrant', s.lobbying_as_registrant || 0, 'filings', '#fdba74')}
           </div>
-          <div className={iStyles.dashClaimList}>{topClaims(contractSection)}</div>
+          <div >{topClaims(contractSection)}</div>
         </div>
 
-        <div className={iStyles.dashCard}>
-          <div className={iStyles.dashCardTitle}>⚖️ Legal & Compliance</div>
-          <div className={iStyles.dashMetricGrid}>
+        <div >
+          <div >⚖️ Legal & Compliance</div>
+          <div >
             {metric('Court Cases', s.court_cases || 0, 'CourtListener', '#f87171')}
             {metric('Court Risk', riskBadge(s.kpi_court_risk || 'LOW'), '', '#f87171')}
             {metric('OFAC/Sanctions', riskBadge(s.kpi_sanctions_risk || 'CLEAR'), `${s.sanctions_hits||0} hits`, '#4ade80')}
             {metric('FARA Regs', s.fara_registrations || 0, 'foreign agent', '#fb7185')}
           </div>
-          <div className={iStyles.dashClaimList}>{topClaims(legalSection)}</div>
+          <div >{topClaims(legalSection)}</div>
         </div>
       </div>
 
       {/* Row 2 — financial + media */}
-      <div className={iStyles.dashRow}>
-        <div className={iStyles.dashCard}>
-          <div className={iStyles.dashCardTitle}>📈 Investors & Capital</div>
-          <div className={iStyles.dashMetricGrid}>
+      <div >
+        <div >
+          <div >📈 Investors & Capital</div>
+          <div >
             {metric('SEC Filings', s.sec_filings || 0, 'EDGAR', '#818cf8')}
             {metric('Investor Filings', s.investor_filings || 0, '13G/13D/D', '#a78bfa')}
             {metric('FEC PACs', s.fec_committees || 0, 'committees', '#c084fc')}
             {metric('Graph Edges', s.relationships_written || 0, 'mapped', '#e879f9')}
           </div>
           {pbSection && (
-            <div className={iStyles.dashClaimList}>{topClaims(pbSection, 3)}</div>
+            <div >{topClaims(pbSection, 3)}</div>
           )}
-          {!pbSection && <div className={iStyles.dashClaimList}>{topClaims(investorSection, 3)}</div>}
+          {!pbSection && <div >{topClaims(investorSection, 3)}</div>}
         </div>
 
-        <div className={iStyles.dashCard}>
-          <div className={iStyles.dashCardTitle}>📰 News & Intelligence</div>
-          <div className={iStyles.dashMetricGrid}>
+        <div >
+          <div >📰 News & Intelligence</div>
+          <div >
             {metric('News Articles', s.news_articles || 0, 'Google News', '#fbbf24')}
             {metric('Data Confidence', `${s.kpi_data_confidence||0}%`, `${s.kpi_sources_active||0}/8 sources`, '#34d399')}
             {linkedInSection && metric('LinkedIn Edu', s.linkedin_education || 0, 'entries', '#0a66c2')}
             {metric('SEC CIK', s.sec_cik || '—', 'EDGAR ID', '#94a3b8')}
           </div>
-          <div className={iStyles.dashClaimList}>{topClaims(newsSection, 4)}</div>
+          <div >{topClaims(newsSection, 4)}</div>
         </div>
       </div>
 
       {/* Row 3 — lobbying issue areas */}
       {(s.lobbying_issue_areas || []).length > 0 && (
-        <div className={iStyles.dashCard} style={{ gridColumn: '1/-1' }}>
-          <div className={iStyles.dashCardTitle}>🏛 Lobbying Issue Areas</div>
+        <div  style={{ gridColumn: '1/-1' }}>
+          <div >🏛 Lobbying Issue Areas</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.5rem' }}>
             {(s.lobbying_issue_areas || []).map((area, i) => (
-              <span key={i} className={iStyles.issueTag}>{area}</span>
+              <span key={i} >{area}</span>
             ))}
           </div>
         </div>
@@ -823,8 +823,8 @@ export default function IntelligencePage() {
   }
 
   return (
-    <main className={styles.page}>
-      <section className={styles.hero}>
+    <main className="page-wrap">
+      <section className="card">
         <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', fontWeight: 700,
                     letterSpacing: '0.08em', textTransform: 'uppercase', color: '#818cf8' }}>
           Layer 1 v1.2 — Entity Network Intelligence
@@ -839,37 +839,37 @@ export default function IntelligencePage() {
 
       {/* Demo seeds */}
       {Object.values(DEMO_SEEDS).map(group => (
-        <div key={group.label} className={iStyles.seedRow}>
-          <span className={iStyles.seedLabel}>{group.label}:</span>
+        <div key={group.label} >
+          <span >{group.label}:</span>
           {group.seeds.map(s => (
-            <button key={s.label} className={iStyles.seedBtn} onClick={() => useSeed(s)}>
+            <button key={s.label}  onClick={() => useSeed(s)}>
               {s.label}
             </button>
           ))}
         </div>
       ))}
 
-      <div className={styles.grid2}>
+      <div className="grid-cols-2">
         {/* LEFT: controls + history */}
         <aside>
-          <div className={styles.panel}>
+          <div className="card">
             <h2>Generate Report</h2>
-            <div className={styles.controls}>
-              <label className={styles.label}>
+            <div style={{display:"flex",flexDirection:"column",gap:"0.75rem"}}>
+              <label style={{display:"flex",flexDirection:"column",gap:4,color:"var(--text-muted)",fontSize:"0.82rem",fontWeight:600}}>
                 Entity / Person Name
-                <input className={styles.input} value={entityName}
+                <input className="inp" value={entityName}
                        onChange={e => setEntityName(e.target.value)}
                        placeholder="e.g. Palantir Technologies" />
               </label>
-              <label className={styles.label}>
+              <label style={{display:"flex",flexDirection:"column",gap:4,color:"var(--text-muted)",fontSize:"0.82rem",fontWeight:600}}>
                 Ticker (optional)
-                <input className={styles.input} value={ticker}
+                <input className="inp" value={ticker}
                        onChange={e => setTicker(e.target.value)}
                        placeholder="e.g. PLTR" />
               </label>
-              <label className={styles.label}>
+              <label style={{display:"flex",flexDirection:"column",gap:4,color:"var(--text-muted)",fontSize:"0.82rem",fontWeight:600}}>
                 Entity Type
-                <select className={styles.select} value={entityType}
+                <select className="inp" value={entityType}
                         onChange={e => setEntityType(e.target.value)}>
                   <option value="org">Organization</option>
                   <option value="person">Person</option>
@@ -877,13 +877,13 @@ export default function IntelligencePage() {
                   <option value="agency">Government Agency</option>
                 </select>
               </label>
-              <div className={styles.buttonRow}>
-                <button className={styles.button} onClick={generate} disabled={loading}>
+              <div style={{display:"flex",gap:"0.5rem",flexWrap:"wrap"}}>
+                <button className="btn btn-primary" onClick={generate} disabled={loading}>
                   {loading ? 'Generating...' : 'Generate Intelligence Report'}
                 </button>
               </div>
-              {err && <p className={styles.dangerText}>{err}</p>}
-              <p className={styles.subtle}>
+              {err && <p style={{color:"var(--red)",fontWeight:700}}>{err}</p>}
+              <p style={{color:"var(--text-soft)",fontSize:"0.8rem"}}>
                 Runs 9–12 sections: SEC · FEC · FARA · USASpending · LDA (both sides) · OFAC ·
                 CourtListener · Wikipedia · FundedAPI · LinkedIn (Apify) · PitchBook (Apify) ·
                 Google News (Apify) · GPT narrative. Takes 30–90 seconds.
@@ -892,11 +892,11 @@ export default function IntelligencePage() {
           </div>
 
           {history.length > 0 && (
-            <div className={styles.panel} style={{ marginTop: '0.75rem' }}>
+            <div className="card" style={{ marginTop: '0.75rem' }}>
               <h3 style={{ margin: '0 0 0.6rem', fontSize: '0.9rem' }}>Recent Reports</h3>
-              <ul className={styles.list}>
+              <ul style={{listStyle:"none",padding:0,margin:0,display:"flex",flexDirection:"column",gap:"0.5rem"}}>
                 {history.map((h, i) => (
-                  <li key={i} className={styles.listItem}
+                  <li key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"0.5rem",padding:"8px 10px",background:"rgba(255,255,255,0.025)",borderRadius:8,border:"1px solid var(--line)"}}
                       style={{ cursor: 'pointer' }}
                       onClick={() => h.id && loadHistoric(h.id)}>
                     <span style={{ fontWeight: 600, fontSize: '0.88rem' }}>{h.entity}</span>
@@ -911,8 +911,8 @@ export default function IntelligencePage() {
         {/* RIGHT: report viewer */}
         <section>
           {!report && !loading && (
-            <div className={styles.panel}>
-              <p className={styles.empty}>
+            <div className="card">
+              <p style={{color:"var(--text-soft)",fontStyle:"italic",fontSize:"0.82rem"}}>
                 Select a demo entity above — try the <strong>PayPal Mafia</strong> group (Peter Thiel,
                 Elon Musk, Reid Hoffman…) or the <strong>Thiel / AI / Defense</strong> group (Palantir, Anduril…).
                 <br/><br/>
@@ -923,8 +923,8 @@ export default function IntelligencePage() {
             </div>
           )}
           {loading && (
-            <div className={styles.panel}>
-              <p className={iStyles.loadingMsg}>
+            <div className="card">
+              <p >
                 Running connectors for <strong>{entityName}</strong>...
                 <br/>SEC EDGAR · FEC · FARA · USASpending · LDA (both sides) · OFAC · CourtListener
                 <br/>Wikipedia · FundedAPI · Apify LinkedIn · Apify PitchBook · Google News...
@@ -935,26 +935,26 @@ export default function IntelligencePage() {
           )}
           {report && !loading && (
             <div>
-              <div className={iStyles.reportHeader}>
+              <div >
                 <div>
-                  <div className={iStyles.reportKind}>Layer 1 v1.2 — Entity Network Intelligence Report</div>
-                  <h2 className={iStyles.reportTitle}>{report.entity_name || report.title}</h2>
-                  <div className={iStyles.reportMeta}>
+                  <div >Layer 1 v1.2 — Entity Network Intelligence Report</div>
+                  <h2 >{report.entity_name || report.title}</h2>
+                  <div >
                     {report.report_id && <span>Report #{report.report_id}</span>}
                     {report.ticker && <span>Ticker: {report.ticker}</span>}
                     {report.generated_at && <span>{new Date(report.generated_at).toLocaleString()}</span>}
                     {report.data_sources && (
                       <>
-                        {report.data_sources.apify_linkedin && <span className={iStyles.apifyBadge}>LinkedIn ✓</span>}
-                        {report.data_sources.apify_pitchbook && <span className={iStyles.apifyBadge}>PitchBook ✓</span>}
-                        {report.data_sources.apify_news > 0 && <span className={iStyles.apifyBadge}>News ({report.data_sources.apify_news}) ✓</span>}
+                        {report.data_sources.apify_linkedin && <span >LinkedIn ✓</span>}
+                        {report.data_sources.apify_pitchbook && <span >PitchBook ✓</span>}
+                        {report.data_sources.apify_news > 0 && <span >News ({report.data_sources.apify_news}) ✓</span>}
                       </>
                     )}
                     {report.report_id && (
                       <a
                         href={`${API}/intelligence/${report.report_id}/pdf`}
                         target="_blank" rel="noopener noreferrer"
-                        className={iStyles.pdfDownloadBtn}
+                        
                         title="Download PDF"
                       >⬇ PDF</a>
                     )}
@@ -962,7 +962,7 @@ export default function IntelligencePage() {
                 </div>
               </div>
 
-              <div className={iStyles.viewToggleBar}>
+              <div >
                 <button className={`${iStyles.viewToggleBtn} ${viewMode === 'report' ? iStyles.viewToggleActive : ''}`} onClick={() => setViewMode('report')}>📄 Report</button>
                 <button className={`${iStyles.viewToggleBtn} ${viewMode === 'dashboard' ? iStyles.viewToggleActive : ''}`} onClick={() => setViewMode('dashboard')}>📊 KPI</button>
                 <button className={`${iStyles.viewToggleBtn} ${viewMode === 'timeline' ? iStyles.viewToggleActive : ''}`} onClick={() => setViewMode('timeline')}>📅 Timeline</button>
@@ -1054,7 +1054,7 @@ export default function IntelligencePage() {
               )}
 
               {viewMode === 'report' && (
-              <div className={iStyles.sectionsWrap}>
+              <div >
                 {(report.sections || []).map((s, i) => (
                   <Section key={i} section={s} idx={i} onInvestigate={investigate} filters={filters} />
                 ))}
@@ -1067,29 +1067,29 @@ export default function IntelligencePage() {
 
       {/* ── Floating RAG Chat Panel ─────────────────────────────────────── */}
       {report && (
-        <div className={iStyles.chatFab} onClick={() => setChatOpen(o => !o)} title="Ask AI about this report">
+        <div  onClick={() => setChatOpen(o => !o)} title="Ask AI about this report">
           {chatOpen ? '✕' : '💬'}
         </div>
       )}
       {report && chatOpen && (
-        <div className={iStyles.chatPanel}>
-          <div className={iStyles.chatHeader}>
+        <div >
+          <div >
             <span>🤖 Ask about {report.entity_name}</span>
-            <button className={iStyles.chatClose} onClick={() => setChatOpen(false)}>✕</button>
+            <button  onClick={() => setChatOpen(false)}>✕</button>
           </div>
-          <div className={iStyles.chatMessages}>
+          <div >
             {chatHistory.length === 0 && (
-              <div className={iStyles.chatEmpty}>
+              <div >
                 Ask anything about this entity — contracts, court cases, lobbying, people, financials...
               </div>
             )}
             {chatHistory.map((msg, i) => (
               <div key={i} className={`${iStyles.chatMsg} ${msg.role === 'user' ? iStyles.chatUser : iStyles.chatBot}`}>
-                <div className={iStyles.chatMsgText}>{msg.content}</div>
+                <div >{msg.content}</div>
                 {msg.sources && msg.sources.length > 0 && (
-                  <div className={iStyles.chatSources}>
+                  <div >
                     {msg.sources.slice(0,2).map((s, j) => (
-                      <span key={j} className={iStyles.chatSource}>
+                      <span key={j} >
                         {(s.source || '')} · {(s.text || '').slice(0, 60)}…
                       </span>
                     ))}
@@ -1097,18 +1097,18 @@ export default function IntelligencePage() {
                 )}
               </div>
             ))}
-            {chatLoading && <div className={iStyles.chatLoading}>Thinking…</div>}
+            {chatLoading && <div >Thinking…</div>}
           </div>
-          <div className={iStyles.chatInputRow}>
+          <div >
             <input
-              className={iStyles.chatInput}
+              
               value={chatInput}
               onChange={e => setChatInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && askChat()}
               placeholder="Ask a question…"
               disabled={chatLoading}
             />
-            <button className={iStyles.chatSend} onClick={askChat} disabled={chatLoading || !chatInput.trim()}>→</button>
+            <button  onClick={askChat} disabled={chatLoading || !chatInput.trim()}>→</button>
           </div>
         </div>
       )}

@@ -19,7 +19,7 @@ function PricePanel({ data, t }) {
   const price = data?.price || {}
   const currentPrice = price.current_price || fundamentals.currentPrice
   return (
-    <section className={styles.panel}>
+    <section className="card">
       <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <div>
           <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Price — {t}</div>
@@ -49,7 +49,7 @@ function AnalystPanel({ data }) {
   const upColor = data.upside_potential_pct > 10 ? '#4ade80' : data.upside_potential_pct < -10 ? '#f87171' : '#fbbf24'
   const recColors = { BUY: '#4ade80', STRONG_BUY: '#4ade80', HOLD: '#fbbf24', SELL: '#f87171', STRONG_SELL: '#f87171', UNDERPERFORM: '#f87171' }
   return (
-    <section className={styles.panel}>
+    <section className="card">
       <h2 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>Analyst Consensus</h2>
       <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '0.75rem' }}>
         <div style={{ textAlign: 'center' }}>
@@ -90,7 +90,7 @@ function AnalystPanel({ data }) {
 function EarningsPanel({ data }) {
   if (!data || (!data.earnings_history?.length && !data.calendar)) return null
   return (
-    <section className={styles.panel}>
+    <section className="card">
       <h2 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>Earnings History</h2>
       {data.calendar && Object.keys(data.calendar).length > 0 && (
         <div style={{ marginBottom: '0.75rem', background: 'rgba(129,140,248,0.08)', border: '1px solid rgba(129,140,248,0.2)', borderRadius: 8, padding: '0.6rem 0.9rem' }}>
@@ -141,7 +141,7 @@ function CapTablePanel({ data }) {
   const inst = data.top_institutional_holders || []
   const mf = data.top_mutual_fund_holders || []
   return (
-    <section className={styles.panel}>
+    <section className="card">
       <h2 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>Cap Table & Ownership</h2>
       <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
         {[
@@ -178,7 +178,7 @@ function FilingsPanel({ data, ticker }) {
   if (!data || !data.filings?.length) return null
   const formColors = { '10-K': '#818cf8', '10-Q': '#4ade80', '8-K': '#fbbf24', 'DEF 14A': '#94a3b8', '4': '#f87171' }
   return (
-    <section className={styles.panel}>
+    <section className="card">
       <h2 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>Recent SEC Filings</h2>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
         {data.filings.map((f, i) => (
@@ -202,7 +202,7 @@ function QuarterlyPanel({ data }) {
   const quarters = data.revenue || []
   if (!quarters.length) return null
   return (
-    <section className={styles.panel}>
+    <section className="card">
       <h2 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>Quarterly Financials (SEC EDGAR)</h2>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
         {[
@@ -257,17 +257,17 @@ export default function CompanyDeepPage() {
   const TABS = ['overview', 'filings', 'cap-table', 'analyst', 'earnings']
 
   return (
-    <main className={styles.page}>
-      <div className={styles.hero}>
-        <h1 className={styles.heroTitle}>Deep Company Analysis</h1>
-        <p className={styles.heroSub}>SEC quarterly reports (10-K/10-Q), XBRL financials, cap table, analyst ratings, insider trades, and earnings history.</p>
+    <main className="page-wrap">
+      <div className="card">
+        <h1 >Deep Company Analysis</h1>
+        <p >SEC quarterly reports (10-K/10-Q), XBRL financials, cap table, analyst ratings, insider trades, and earnings history.</p>
       </div>
 
-      <section className={styles.panel} style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <input className={styles.input} value={query} onChange={e => setQuery(e.target.value.toUpperCase())}
+      <section className="card" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <input className="inp" value={query} onChange={e => setQuery(e.target.value.toUpperCase())}
           onKeyDown={e => e.key === 'Enter' && run()}
           placeholder="e.g. AAPL" style={{ maxWidth: 160, fontWeight: 700, fontSize: '1rem' }} />
-        <button className={styles.button} onClick={run} disabled={loading}>
+        <button className="btn btn-primary" onClick={run} disabled={loading}>
           {loading ? 'Analyzing…' : 'Deep Analyze'}
         </button>
         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
@@ -278,14 +278,14 @@ export default function CompanyDeepPage() {
             </button>
           ))}
         </div>
-        {err && <p className={styles.dangerText} style={{ width: '100%', margin: 0 }}>{err}</p>}
+        {err && <p style={{color:"var(--red)",fontWeight:700}} style={{ width: '100%', margin: 0 }}>{err}</p>}
       </section>
 
       {data && (
         <>
           {/* Company Header */}
           {data.company_info && !data.company_info.error && (
-            <section className={styles.panel} style={{ padding: '0.75rem 1rem' }}>
+            <section className="card" style={{ padding: '0.75rem 1rem' }}>
               <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 <div>
                   <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#e2e8f0' }}>{data.company_info.name}</div>
@@ -334,7 +334,7 @@ export default function CompanyDeepPage() {
       )}
 
       {!data && !loading && (
-        <section className={styles.panel} style={{ textAlign: 'center', padding: '3rem' }}>
+        <section className="card" style={{ textAlign: 'center', padding: '3rem' }}>
           <p style={{ color: '#64748b' }}>Enter a ticker and click <strong style={{ color: '#818cf8' }}>Deep Analyze</strong> to get full SEC financials, cap table, analyst ratings, and earnings data.</p>
         </section>
       )}
