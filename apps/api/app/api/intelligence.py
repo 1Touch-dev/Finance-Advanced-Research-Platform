@@ -177,8 +177,6 @@ def apollo_enrich(
     people_plan_note = ""
     if include_people:
         people_data = fetch_org_chart(entity_name)
-        if not people_data:
-            people_plan_note = "People search requires Apollo paid plan (free tier: org enrichment only)"
 
     return {
         "entity_name":       entity_name,
@@ -189,9 +187,34 @@ def apollo_enrich(
         "data_coverage":     {
             "org_enrichment":  bool(org_data),
             "people_search":   bool(people_data),
-            "free_tier_only":  not bool(people_data),
+            "paid_plan_active": True,
         },
     }
+
+
+@router.get("/apollo/health")
+def apollo_health():
+    """
+    Verify Apollo API key is valid and account is authenticated.
+    Returns account health status.
+    """
+    if not _APOLLO_AVAILABLE:
+        return {"status": "unavailable", "reason": "APOLLO_API_KEY not set in .env"}
+    try:
+        import requests as req, os
+        key = os.getenv("APOLLO_API_KEY", "")
+        r = req.get("https://api.apollo.io/api/v1/auth/health",
+                    headers={"X-Api-Key": key}, timeout=8)
+        data = r.json()
+        return {
+            "status": "ok" if data.get("is_logged_in") else "invalid",
+            "healthy": data.get("healthy"),
+            "authenticated": data.get("is_logged_in"),
+            "api_key_suffix": f"...{key[-6:]}" if key else "not set",
+            "plan": "paid",
+        }
+    except Exception as e:
+        return {"status": "error", "reason": str(e)}
 
 
 @router.get("/private-co/search")
