@@ -10,18 +10,22 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 
 | Area | Status |
 |------|--------|
-| **Overall** | **5 Jul 2026 PM — Crypto + Gov Trading + Deep Company Analysis live · 47+ endpoints · All pages verified** |
-| **Active workstream** | 5th-July-sprint: Crypto ✅ · Gov Trading ✅ · Deep Company ✅ · Stock Analyst ✅ · XBRL Financials ✅ |
-| **Latest handoff** | [5th_July.md](./5th_July.md) · [25th_June.md](./25th_June.md) |
-| **Branch** | `5th-July-sprint` |
-| **RSS Worker** | ✅ 50 feeds · PM2 rss-poller · 882+ articles · 15-min cycle |
-| **Crypto Intelligence** | ✅ CoinGecko market dashboard · ETH/BTC wallet lookup · Whale alerts |
-| **Gov Trading** | ✅ House Clerk PTR disclosures · SEC Form 4 insider trades |
-| **Deep Company** | ✅ SEC EDGAR XBRL financials · Cap table · Analyst ratings · Earnings |
-| **Multi-Agent Intelligence** | ✅ 4 agents: Fundamentals · Technical · Sentiment · Risk → BUY/HOLD/SELL |
-| **OSINT** | ✅ 40-platform username enum · domain intel · LinkedIn signals |
-| **Staging** | Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002` |
-| **Nav pages** | 18 pages: Home, Intelligence, Saved, Timeline, Compare, Tracking, Alerts, Search, Graph, Registry, Economics, **Stock**, **Crypto**, **Gov Trading**, **Company**, Skills |
+| **Overall** | **13 Jul 2026 — Full platform live · UI/UX overhaul · 60+ endpoints · Handoff ready** |
+| **Active branch** | `8th-july-sprint` |
+| **Full handoff** | **[Finance_Platform_Handoff.md](./Finance_Platform_Handoff.md)** ← **START HERE for new teammates** |
+| **Sprint log** | [5th_July.md](./5th_July.md) |
+| **RSS Worker** | ✅ 50 feeds · PM2 rss-poller · 2000+ articles · 15-min cycle |
+| **Crypto Intelligence** | ✅ CoinGecko · ETH/BTC wallets · Whale alerts · TTL cache |
+| **Gov Trading** | ✅ House PTR · SEC Form 4 · Politician tracker |
+| **Deep Company** | ✅ SEC XBRL · Cap table · Analyst · Earnings |
+| **Valuation** | ✅ DCF model · 10-K/10-Q filing analysis · Bear/Base/Bull scenarios |
+| **Expert Analysis** | ✅ News sentiment · Themes · Analyst upgrade timeline |
+| **Institutional (13F)** | ✅ Holders · Mutual funds · 13F filers · Institution lookup |
+| **Multi-Agent AI** | ✅ Fundamentals · Technical · Sentiment · Risk → BUY/HOLD/SELL |
+| **UI/UX** | ✅ Dark sidebar · Tailwind design system · All pages redesigned (8 Jul) |
+| **Apollo.io** | ✅ Paid plan live · Org enrichment · People · Org chart |
+| **Staging** | Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002` · Docs `:3001/docs` |
+| **Nav pages** | 22+ pages: Dashboard, Intelligence, Saved, Stock, Valuation, Company, Expert, Institutional, Crypto, Gov Trading, Economics, Search, Graph, Registry, Timeline, Compare, Tracking, Alerts, Skills |
 
 ### ✅ v2.0 Features Shipped + Verified (22 Jun)
 
@@ -143,17 +147,20 @@ For all James's requirements (v2.0 features, Jarvis Nexus, agent team), see **[j
 
 **Active branch:** `feature/layer2-kpi-filters-clickable-browser` · 4 commits today
 
-## Layer 2 — What's next
+## What's next (priority backlog)
 
-See [james_requirements.md](./james_requirements.md) for the full prioritised backlog. Next items:
+See **[Finance_Platform_Handoff.md §10](./Finance_Platform_Handoff.md)** for the full backlog. Top items:
 
-1. Apollo email intelligence pipeline (v2.0 Block A)
-2. Apify social footprint — Twitter, Instagram, YouTube (v2.0 Block B)
-3. Per-entity RAG chat with pgvector + Claude (v2.0 Block C)
-4. Tracking dashboard + daily digest (v2.0 Block E)
-5. Private company intelligence — OpenCorporates, GLEIF, FinCEN BOI (v2.0 Block F)
-6. Comparison page — up to 5 entities (v2.0 Block D)
-- **LDA endpoint** — migrated to `lda.gov` (lda.senate.gov decommissions Jun 30 2026)
+1. LLM-powered 10-K/10-Q MD&A synthesis (Phase 3)
+2. 13F quarter-over-quarter position diff
+3. Big Trade detection + email/SMS alerts (Form 4 > $X)
+4. RSS Phase 2 — event clustering, facts, contradictions, perspectives
+5. Crawl4AI (replace Apify long-term)
+6. Congress.gov paid key · ALEPH/OCCRP · CA SOS · Google SSO credentials
+
+Active branch: **`8th-july-sprint`**
+
+For all James's requirements, see **[james_requirements.md](./james_requirements.md)**.
 
 ### Try it on staging
 
@@ -446,19 +453,28 @@ Source contracts (YAML) are under `packages/connectors/us/*/source_contract.yml`
 
 | Route | Purpose |
 |-------|---------|
-| `/` | Home + navigation cards |
-| **`/intelligence`** | **Layer 1 Entity Network Report generator** — PayPal Mafia + Thiel/Defense seeds, 9-section cited dossier viewer |
+| `/` | Dashboard — feature cards, live stats, quick search |
+| `/intelligence` | Layer 1 Entity Network Report generator |
+| `/intelligence/[id]` | Saved report viewer + PDF/Word/Excel/PPT export |
+| `/saved` | Saved reports library |
+| `/stock` | Stock analysis — price, technicals, 4-agent AI, analysts |
+| `/valuation` | DCF valuation + 10-K/10-Q filing analysis |
+| `/company` | Deep company — SEC filings, XBRL, cap table, earnings |
+| `/expert-analysis` | Expert sentiment + analyst upgrade timeline |
+| `/institutional` | 13F institutional holders + filer lookup |
+| `/gov-trading` | House PTR + Form 4 insider + Politician tracker |
+| `/crypto` | Crypto market dashboard, coin detail, wallet lookup |
+| `/economics` | FRED + BEA macro data |
 | `/search` | Global search |
-| `/graph` | Graph visualization (entity ID) |
-| `/registry` | U.S. 50-state company registry search (51 jurisdictions) |
-| `/economics` | BEA economic data — GDP, regional income (live connector) |
-| `/stock` | Stock analysis |
-| `/skills` | Skills runner (Anthropic/OpenAI) |
-| `/entities/[id]` | Entity profile |
-| `/entities/merge` | Entity merge queue |
-| `/portfolio/[id]` | Portfolio exposure |
-| `/review/[id]` | Report review workspace |
-| `/alerts` | Alert inbox |
+| `/graph` | Graph visualization |
+| `/registry` | U.S. 50-state registry + OSINT |
+| `/timeline` | Person/entity event timeline |
+| `/compare` | Multi-entity comparison |
+| `/tracking` | Watchlist + daily digest |
+| `/tracking/alerts` | Alert inbox |
+| `/skills` | Skills runner |
+| `/entities/[id]` | Entity profile (9 tabs) |
+| `/alerts` | Alert events |
 
 ---
 
@@ -596,16 +612,14 @@ Coverage is **minimal** today (health stubs + connector sample runs). See gap an
 
 | Document | Description |
 |----------|-------------|
-| [17th_June.md](./17th_June.md) | **Latest** — v1.1 ship: LDA fix, deep narrative, PayPal Mafia, E2E results, API research |
-| [16th_June.md](./16th_June.md) | Layer 1 v1 ship status, Palantir demo, James sign-off |
-| [15th_June.md](./15th_June.md) | Phase 3 planning, 15 intelligence PDF review, BizFile |
-| [12th_June.md](./12th_June.md) | Cobalt + CA SOS registry work |
-| [PHASE2_COMPLETION_REPORT.md](./PHASE2_COMPLETION_REPORT.md) | 50-state registry completion |
+| **[Finance_Platform_Handoff.md](./Finance_Platform_Handoff.md)** | **⭐ Full handoff for new teammates — architecture, features, APIs, backlog, credentials** |
+| [5th_July.md](./5th_July.md) | Latest sprint log — RSS, yfinance, multi-agent, crypto, gov, valuation, institutional |
+| [james_requirements.md](./james_requirements.md) | Full James requirements backlog |
 | [SETUP.md](./SETUP.md) | Local + Docker setup, troubleshooting |
-| [docs/DEMO_DATA.md](./docs/DEMO_DATA.md) | Demo seed and UI tour |
 | [docs/REQUIREMENT_GAP_ANALYSIS.md](./docs/REQUIREMENT_GAP_ANALYSIS.md) | Spec vs repo, priorities |
-| [docs/PHASE1_READINESS.md](./docs/PHASE1_READINESS.md) | Phase 1 checklist |
-| [memory/](./memory/) | Project context, architecture, progress |
+| [docs/DEMO_DATA.md](./docs/DEMO_DATA.md) | Demo seed and UI tour |
+| [api_credentials_audit.csv](./api_credentials_audit.csv) | API key audit trail |
+| [25th_June.md](./25th_June.md) · [24th_June.md](./24th_June.md) · [23rd_June.md](./23rd_June.md) | Earlier daily status docs |
 
 ---
 
