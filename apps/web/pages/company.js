@@ -175,13 +175,15 @@ function CapTablePanel({ data }) {
 }
 
 function FilingsPanel({ data, ticker }) {
-  if (!data || !data.filings?.length) return null
+  // Handle both array format (from deep-report) and object format (from standalone endpoint)
+  const filings = Array.isArray(data) ? data : data?.filings
+  if (!filings?.length) return null
   const formColors = { '10-K': '#818cf8', '10-Q': '#4ade80', '8-K': '#fbbf24', 'DEF 14A': '#94a3b8', '4': '#f87171' }
   return (
     <section className="card">
       <h2 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>Recent SEC Filings</h2>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-        {data.filings.map((f, i) => (
+        {filings.map((f, i) => (
           <div key={i} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', padding: '0.35rem 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
             <span style={{ fontSize: '0.72rem', fontWeight: 700, color: formColors[f.form_type] || '#94a3b8', background: `${formColors[f.form_type] || '#94a3b8'}22`, padding: '1px 6px', borderRadius: 4, minWidth: 50, textAlign: 'center' }}>
               {f.form_type}
@@ -237,9 +239,15 @@ function ContractsPanel({ data, loading }) {
   return (
     <section className="card">
       <h2 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>Government Contracts (USASpending)</h2>
+      {data.legal_name && (
+        <div style={{ marginBottom: '0.75rem', fontSize: '0.78rem', color: '#94a3b8' }}>
+          Searching for: <span style={{ color: '#818cf8', fontWeight: 600 }}>{data.legal_name}</span>
+          {data.match_mode && <span style={{ marginLeft: '0.5rem', color: '#64748b' }}>({data.match_mode} matching)</span>}
+        </div>
+      )}
       {data.total_received > 0 && (
         <div style={{ marginBottom: '1rem', padding: '0.75rem', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 8 }}>
-          <div style={{ fontSize: '0.68rem', color: '#10b981', textTransform: 'uppercase', fontWeight: 700 }}>Total Contract Value Received</div>
+          <div style={{ fontSize: '0.68rem', color: '#10b981', textTransform: 'uppercase', fontWeight: 700 }}>Total Contract Value Received ({data.total_matches || contracts.length} contracts)</div>
           <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10b981' }}>{fmtBig(data.total_received)}</div>
         </div>
       )}
@@ -367,18 +375,19 @@ export default function CompanyDeepPage() {
 
       // Fetch contracts and funding data for the company
       const companyName = d.company_info?.name || query
+      const tickerParam = query.toUpperCase()
       if (companyName) {
-        // Fetch contracts
+        // Fetch contracts - pass ticker for accurate legal name lookup
         setContractsLoading(true)
-        fetch(`${API}/market/company/contracts/${encodeURIComponent(companyName)}`)
+        fetch(`${API}/market/company/contracts/${encodeURIComponent(companyName)}?ticker=${tickerParam}`)
           .then(r => r.json())
           .then(setContractsData)
           .catch(() => {})
           .finally(() => setContractsLoading(false))
 
-        // Fetch funding
+        // Fetch funding - pass ticker for accurate legal name lookup
         setFundingLoading(true)
-        fetch(`${API}/market/company/funding/${encodeURIComponent(companyName)}`)
+        fetch(`${API}/market/company/funding/${encodeURIComponent(companyName)}?ticker=${tickerParam}`)
           .then(r => r.json())
           .then(setFundingData)
           .catch(() => {})
@@ -420,7 +429,7 @@ export default function CompanyDeepPage() {
         <>
           {/* Company Header */}
           {data.company_info && !data.company_info.error && (
-            <section className="card" style={{ padding: '0.75rem 1rem' }}>
+            <section className="card" style={{ padding: '1rem 1.25rem', marginBottom: '0.5rem' }}>
               <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 <div>
                   <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#e2e8f0' }}>{data.company_info.name}</div>
@@ -439,15 +448,15 @@ export default function CompanyDeepPage() {
           )}
 
           {/* Tab Nav */}
-          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
             {TABS.map(t => (
               <button key={t} onClick={() => setActiveTab(t)}
                 style={{
-                  padding: '0.4rem 0.9rem', borderRadius: 6, border: '1px solid', cursor: 'pointer',
+                  padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid', cursor: 'pointer',
                   borderColor: activeTab === t ? '#818cf8' : 'var(--line)',
                   background: activeTab === t ? 'rgba(129,140,248,0.15)' : 'rgba(255,255,255,0.03)',
-                  color: activeTab === t ? '#818cf8' : '#94a3b8', fontWeight: 600, fontSize: '0.78rem',
-                  textTransform: 'capitalize',
+                  color: activeTab === t ? '#818cf8' : '#94a3b8', fontWeight: 600, fontSize: '0.82rem',
+                  textTransform: 'capitalize', transition: 'all 0.15s ease',
                 }}>
                 {t.replace('-', ' ')}
               </button>

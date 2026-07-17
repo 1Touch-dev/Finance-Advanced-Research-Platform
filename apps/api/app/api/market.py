@@ -640,69 +640,205 @@ def company_deep_report(ticker: str, company: str = ""):
 
 # ─── Government Contracts (USASpending) ───────────────────────────────────────
 
+def _normalize_company_name(name: str) -> str:
+    """Normalize company name for matching."""
+    import re
+    # Remove common suffixes and normalize
+    name = name.upper().strip()
+    for suffix in [", INC.", ", INC", " INC.", " INC", ", LLC", " LLC", ", LP", " LP",
+                   ", CORP.", ", CORP", " CORP.", " CORP", " CORPORATION", ", LTD", " LTD",
+                   " COMPANY", " CO.", " CO"]:
+        if name.endswith(suffix):
+            name = name[:-len(suffix)].strip()
+    # Remove extra whitespace
+    name = re.sub(r'\s+', ' ', name)
+    return name
+
+
+def _name_matches(query: str, recipient: str, strict: bool = True) -> bool:
+    """
+    Check if recipient name matches the query.
+    For strict=True: recipient must be essentially the same company (exact or with suffix variations).
+    For strict=False: query must be a significant part of recipient name.
+    """
+    q_norm = _normalize_company_name(query)
+    r_norm = _normalize_company_name(recipient)
+
+    # Exact match after normalization
+    if q_norm == r_norm:
+        return True
+
+    if strict:
+        # In strict mode, one name should be a subset of the other
+        # e.g., "LOCKHEED MARTIN" matches "LOCKHEED MARTIN CORPORATION"
+        # but "APPLE" should NOT match "APPLE CONSTRUCTION" or "BIG APPLE"
+
+        # Query contains full recipient name (e.g., "LOCKHEED MARTIN CORP" vs "LOCKHEED MARTIN")
+        if q_norm in r_norm and len(q_norm) >= len(r_norm) * 0.7:
+            return True
+        # Recipient contains full query name
+        if r_norm in q_norm and len(r_norm) >= len(q_norm) * 0.7:
+            return True
+
+        # Check if they share the same primary company name (first 2+ significant words)
+        q_words = q_norm.split()
+        r_words = r_norm.split()
+
+        # Need at least 2 matching words at the start for short company names
+        min_words = min(2, len(q_words), len(r_words))
+        if min_words >= 2 and q_words[:min_words] == r_words[:min_words]:
+            return True
+
+        # For single-word queries, require exact match only
+        return False
+
+    # For non-strict: check if query is a significant standalone word
+    import re
+    words = re.findall(r'\b' + re.escape(q_norm) + r'\b', r_norm)
+    return len(words) > 0
+
+
 @router.get("/company/contracts/{entity_name}")
-def company_contracts(entity_name: str, limit: int = 20):
+def company_contracts(entity_name: str, ticker: str = "", limit: int = 30, strict: bool = True):
     """
     Fetch government contracts from USASpending for a company.
-    Returns both contracts RECEIVED (as recipient) and GIVEN (as awarding agency).
+
+    Args:
+        entity_name: Company name to search
+        ticker: Optional stock ticker to look up exact legal name
+        limit: Max results to return
+        strict: If True, only return exact matches (default). If False, return partial matches.
+
+    Returns contracts where the company is a RECIPIENT of government funds.
     """
     import requests as req
+
+    # Try to get exact legal name for public companies via ticker
+    search_names = []
+    legal_name = None
+
+    if ticker:
+        try:
+            import yfinance as yf
+            stock = yf.Ticker(ticker.upper())
+            info = stock.info
+            legal_name = info.get("longName") or info.get("shortName")
+            if legal_name:
+                search_names.append(legal_name)
+        except Exception:
+            pass
+
+    # Add the provided entity name
+    if entity_name and entity_name not in search_names:
+        search_names.append(entity_name)
+
     result = {
         "entity_name": entity_name,
+        "legal_name": legal_name,
+        "search_names": search_names,
         "as_recipient": [],
-        "as_agency": [],
         "total_received": 0,
-        "total_awarded": 0,
         "top_agencies": [],
-        "top_recipients": [],
+        "match_mode": "strict" if strict else "partial",
     }
 
     try:
-        # Side A: Entity as CONTRACT RECIPIENT
-        payload = {
-            "filters": {
-                "recipient_search_text": [entity_name],
-                "award_type_codes": ["A", "B", "C", "D"],  # Contracts
-            },
-            "fields": ["Award ID", "Recipient Name", "Award Amount", "Awarding Agency",
-                       "Award Type", "Start Date", "End Date", "Description"],
-            "page": 1, "limit": limit, "sort": "Award Amount", "order": "desc"
-        }
-        resp = req.post("https://api.usaspending.gov/api/v2/search/spending_by_award/",
-                        json=payload, timeout=20)
-        if resp.ok:
-            agency_counts = {}
-            for a in resp.json().get("results", []):
-                amt = float(a.get("Award Amount") or 0)
-                agency = a.get("Awarding Agency") or "Unknown Agency"
-                result["as_recipient"].append({
-                    "award_id": a.get("Award ID"),
-                    "recipient": a.get("Recipient Name"),
-                    "amount": amt,
-                    "agency": agency,
-                    "type": a.get("Award Type"),
-                    "start_date": a.get("Start Date"),
-                    "end_date": a.get("End Date"),
-                    "description": (a.get("Description") or "")[:200],
-                })
-                result["total_received"] += amt
-                agency_counts[agency] = agency_counts.get(agency, 0) + amt
-            result["top_agencies"] = sorted(agency_counts.items(), key=lambda x: -x[1])[:5]
+        # Search USASpending for contracts
+        # Use exact phrase search by searching each name
+        all_results = []
+        seen_awards = set()
+
+        for search_name in search_names:
+            payload = {
+                "filters": {
+                    "recipient_search_text": [search_name],  # Regular search, filter strictly after
+                    "award_type_codes": ["A", "B", "C", "D"],  # Contracts only
+                },
+                "fields": ["Award ID", "Recipient Name", "Award Amount", "Awarding Agency",
+                           "Award Type", "Start Date", "End Date", "Description"],
+                "page": 1, "limit": 100, "sort": "Award Amount", "order": "desc"
+            }
+            resp = req.post("https://api.usaspending.gov/api/v2/search/spending_by_award/",
+                            json=payload, timeout=25)
+            if resp.ok:
+                for a in resp.json().get("results", []):
+                    award_id = a.get("Award ID")
+                    if award_id in seen_awards:
+                        continue
+                    seen_awards.add(award_id)
+
+                    recipient = a.get("Recipient Name") or ""
+
+                    # Filter: only include if recipient name actually matches
+                    matches = False
+                    for name in search_names:
+                        if _name_matches(name, recipient, strict=strict):
+                            matches = True
+                            break
+
+                    if not matches:
+                        continue
+
+                    amt = float(a.get("Award Amount") or 0)
+                    all_results.append({
+                        "award_id": award_id,
+                        "recipient": recipient,
+                        "amount": amt,
+                        "agency": a.get("Awarding Agency") or "Unknown Agency",
+                        "type": a.get("Award Type"),
+                        "start_date": a.get("Start Date"),
+                        "end_date": a.get("End Date"),
+                        "description": (a.get("Description") or "")[:200],
+                    })
+
+        # Sort by amount and take top results
+        all_results.sort(key=lambda x: x["amount"], reverse=True)
+        result["as_recipient"] = all_results[:limit]
+        result["total_received"] = sum(r["amount"] for r in all_results)
+
+        # Calculate top agencies
+        agency_counts = {}
+        for r in all_results:
+            agency = r["agency"]
+            agency_counts[agency] = agency_counts.get(agency, 0) + r["amount"]
+        result["top_agencies"] = sorted(agency_counts.items(), key=lambda x: -x[1])[:5]
+
+        result["total_matches"] = len(all_results)
+
     except Exception as e:
-        result["recipient_error"] = str(e)
+        result["error"] = str(e)
 
     return result
 
 
 @router.get("/company/funding/{entity_name}")
-def company_funding(entity_name: str):
+def company_funding(entity_name: str, ticker: str = ""):
     """
     Fetch funding/capital raised data for a company.
     Uses FundedAPI (free) + SEC Form D filings.
     """
     import requests as req
+
+    # Build search names (like contracts endpoint)
+    search_names = []
+    legal_name = None
+    if ticker:
+        try:
+            import yfinance as yf
+            stock = yf.Ticker(ticker.upper())
+            info = stock.info
+            legal_name = info.get("longName") or info.get("shortName")
+            if legal_name:
+                search_names.append(legal_name)
+        except Exception:
+            pass
+    if entity_name and entity_name not in search_names:
+        search_names.append(entity_name)
+
     result = {
         "entity_name": entity_name,
+        "legal_name": legal_name,
+        "search_names": search_names,
         "funding_rounds": [],
         "total_raised": 0,
         "investors": [],
@@ -713,14 +849,16 @@ def company_funding(entity_name: str):
     try:
         resp = req.get(
             "https://fundedapi.com/v1/startups",
-            params={"q": entity_name, "limit": 5},
+            params={"q": entity_name, "limit": 10},
             timeout=12)
         if resp.ok:
             data = resp.json()
             startups = data.get("startups", data.get("data", []))
             for s in startups:
                 name = s.get("name", "")
-                if entity_name.lower().split()[0] in name.lower():
+                # Use strict matching
+                matches = any(_name_matches(sn, name, strict=True) for sn in search_names)
+                if matches:
                     round_info = {
                         "company": name,
                         "round": s.get("fundingRound") or s.get("round"),
@@ -734,14 +872,15 @@ def company_funding(entity_name: str):
     except Exception:
         pass
 
-    # 2. SEC Form D filings (private placements)
+    # 2. SEC Form D filings (private placements) - use legal name if available
+    search_term = legal_name or entity_name
     try:
         headers = {"User-Agent": "FinancePlatform research@example.com"}
         resp = req.get(
             "https://efts.sec.gov/LATEST/search-index",
             headers=headers,
             params={
-                "q": f'"{entity_name}"',
+                "q": f'"{search_term}"',
                 "forms": "D",
                 "dateRange": "custom",
                 "startdt": "2015-01-01",
@@ -750,15 +889,18 @@ def company_funding(entity_name: str):
             timeout=15)
         if resp.ok:
             hits = resp.json().get("hits", {}).get("hits", [])
-            for h in hits[:10]:
+            for h in hits[:20]:
                 src = h.get("_source", {})
                 display = src.get("display_names", [""])[0]
-                result["sec_form_d_filings"].append({
-                    "issuer": display,
-                    "filed_date": src.get("file_date"),
-                    "form": src.get("form", "Form D"),
-                    "description": src.get("file_description", ""),
-                })
+                # Filter: only include if issuer name matches
+                matches = any(_name_matches(sn, display, strict=True) for sn in search_names)
+                if matches:
+                    result["sec_form_d_filings"].append({
+                        "issuer": display,
+                        "filed_date": src.get("file_date"),
+                        "form": src.get("form", "Form D"),
+                        "description": src.get("file_description", ""),
+                    })
     except Exception:
         pass
 

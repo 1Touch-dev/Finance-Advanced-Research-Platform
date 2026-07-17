@@ -262,7 +262,10 @@ def get_cap_table(ticker: str) -> dict:
         major_list = []
         if major_df is not None and not major_df.empty:
             for _, row in major_df.iterrows():
-                major_list.append({"value": str(row.iloc[0]), "description": str(row.iloc[1])})
+                if len(row) >= 2:
+                    major_list.append({"value": str(row.iloc[0]), "description": str(row.iloc[1])})
+                elif len(row) == 1:
+                    major_list.append({"value": str(row.iloc[0]), "description": ""})
 
         info = stock.info or {}
         shares_out = info.get("sharesOutstanding")
