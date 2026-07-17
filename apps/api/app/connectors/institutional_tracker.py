@@ -128,13 +128,28 @@ def get_institutional_13f_changes(ticker: str) -> dict:
     try:
         import yfinance as yf
         import math
+        import pandas as pd
 
         def _sf(v):
+            """Safely convert to float, handling NaN, None, and pandas NA."""
             try:
-                f = float(v or 0)
+                if v is None:
+                    return 0.0
+                if isinstance(v, (pd.Timestamp, str)):
+                    return 0.0
+                if pd.isna(v):
+                    return 0.0
+                f = float(v)
                 return 0.0 if math.isnan(f) or math.isinf(f) else f
             except Exception:
                 return 0.0
+
+        def _get_val(row, *keys):
+            """Get value from row trying multiple column names."""
+            for k in keys:
+                if k in row.index:
+                    return row[k]
+            return None
 
         stock = yf.Ticker(ticker)
 
@@ -143,38 +158,45 @@ def get_institutional_13f_changes(ticker: str) -> dict:
         current_holders = {}
         if inst_df is not None and not inst_df.empty:
             for _, row in inst_df.head(25).iterrows():
-                name = str(row.get("Holder", row.get("Name", "")))
-                shares = int(_sf(row.get("Shares", 0)))
-                pct = float(_sf(row.get("pctHeld", row.get("% Out", 0))))
-                value = int(_sf(row.get("Value", 0)))
+                name = str(_get_val(row, "Holder", "Name") or "Unknown")
+                shares = int(_sf(_get_val(row, "Shares", "shares")))
+                pct = float(_sf(_get_val(row, "pctHeld", "% Out", "pctOut", "Pct Held")))
+                value = int(_sf(_get_val(row, "Value", "value")))
+                date_rep = _get_val(row, "Date Reported", "dateReported", "Date")
                 current_holders[name] = {
                     "shares": shares,
                     "pct_held": pct,
                     "value_usd": value,
-                    "date_reported": str(row.get("Date Reported", "")),
+                    "date_reported": str(date_rep)[:10] if date_rep else "",
                 }
 
         # Major holders summary
         major_df = stock.major_holders
         ownership_summary = {}
         if major_df is not None and not major_df.empty:
-            for idx, row in major_df.iterrows():
-                ownership_summary[str(idx)] = str(row.iloc[0])
+            try:
+                for idx, row in major_df.iterrows():
+                    key = str(row.iloc[1]) if len(row) > 1 else str(idx)
+                    val = str(row.iloc[0]) if len(row) > 0 else ""
+                    ownership_summary[key] = val
+            except Exception:
+                pass
 
         # Mutual fund holders
         mf_df = stock.mutualfund_holders
         mf_holders = {}
         if mf_df is not None and not mf_df.empty:
             for _, row in mf_df.head(15).iterrows():
-                name = str(row.get("Holder", row.get("Name", "")))
-                shares = int(_sf(row.get("Shares", 0)))
-                pct = float(_sf(row.get("pctHeld", row.get("% Out", 0))))
-                value = int(_sf(row.get("Value", 0)))
+                name = str(_get_val(row, "Holder", "Name") or "Unknown Fund")
+                shares = int(_sf(_get_val(row, "Shares", "shares")))
+                pct = float(_sf(_get_val(row, "pctHeld", "% Out", "pctOut", "Pct Held")))
+                value = int(_sf(_get_val(row, "Value", "value")))
+                date_rep = _get_val(row, "Date Reported", "dateReported", "Date")
                 mf_holders[name] = {
                     "shares": shares,
                     "pct_held": pct,
                     "value_usd": value,
-                    "date_reported": str(row.get("Date Reported", "")),
+                    "date_reported": str(date_rep)[:10] if date_rep else "",
                 }
 
         # Recent 13F filers from EDGAR

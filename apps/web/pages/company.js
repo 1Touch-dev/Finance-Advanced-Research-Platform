@@ -230,6 +230,116 @@ function QuarterlyPanel({ data }) {
   )
 }
 
+function ContractsPanel({ data, loading }) {
+  if (loading) return <p style={{ color: '#64748b' }}>Loading contracts...</p>
+  if (!data) return <p style={{ color: '#64748b' }}>No contracts data available</p>
+  const contracts = data.as_recipient || []
+  return (
+    <section className="card">
+      <h2 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>Government Contracts (USASpending)</h2>
+      {data.total_received > 0 && (
+        <div style={{ marginBottom: '1rem', padding: '0.75rem', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 8 }}>
+          <div style={{ fontSize: '0.68rem', color: '#10b981', textTransform: 'uppercase', fontWeight: 700 }}>Total Contract Value Received</div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10b981' }}>{fmtBig(data.total_received)}</div>
+        </div>
+      )}
+      {data.top_agencies?.length > 0 && (
+        <div style={{ marginBottom: '1rem' }}>
+          <div style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Top Awarding Agencies</div>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {data.top_agencies.map(([agency, amt], i) => (
+              <span key={i} style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 6, padding: '4px 10px', fontSize: '0.75rem', color: '#a5b4fc' }}>
+                {agency?.slice(0, 40)} — {fmtBig(amt)}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {contracts.length > 0 ? (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--line)' }}>
+              {['Agency', 'Type', 'Amount', 'Start', 'Description'].map(h =>
+                <th key={h} style={{ padding: '6px 10px', textAlign: 'left', color: 'var(--text-muted)', fontSize: '0.68rem', textTransform: 'uppercase' }}>{h}</th>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {contracts.slice(0, 15).map((c, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <td style={{ padding: '8px 10px', color: '#e2e8f0', fontWeight: 600 }}>{c.agency?.slice(0, 35)}</td>
+                <td style={{ padding: '8px 10px', color: '#94a3b8' }}>{c.type || '—'}</td>
+                <td style={{ padding: '8px 10px', color: '#10b981', fontWeight: 700 }}>{fmtBig(c.amount)}</td>
+                <td style={{ padding: '8px 10px', color: '#64748b', fontSize: '0.75rem' }}>{c.start_date?.slice(0, 10)}</td>
+                <td style={{ padding: '8px 10px', color: '#94a3b8', fontSize: '0.75rem' }}>{c.description?.slice(0, 60)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p style={{ color: '#64748b', fontSize: '0.85rem' }}>No government contracts found for this entity.</p>
+      )}
+    </section>
+  )
+}
+
+function FundingPanel({ data, loading }) {
+  if (loading) return <p style={{ color: '#64748b' }}>Loading funding data...</p>
+  if (!data) return <p style={{ color: '#64748b' }}>No funding data available</p>
+  const rounds = data.funding_rounds || []
+  const formD = data.sec_form_d_filings || []
+  return (
+    <section className="card">
+      <h2 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>Funding & Capital Raised</h2>
+      {data.total_raised > 0 && (
+        <div style={{ marginBottom: '1rem', padding: '0.75rem', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 8 }}>
+          <div style={{ fontSize: '0.68rem', color: '#fbbf24', textTransform: 'uppercase', fontWeight: 700 }}>Total Capital Raised</div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fbbf24' }}>{fmtBig(data.total_raised)}</div>
+        </div>
+      )}
+      {data.investors?.length > 0 && (
+        <div style={{ marginBottom: '1rem' }}>
+          <div style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Known Investors</div>
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+            {data.investors.slice(0, 10).map((inv, i) => (
+              <span key={i} style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 6, padding: '3px 8px', fontSize: '0.72rem', color: '#c4b5fd' }}>
+                {inv}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {rounds.length > 0 && (
+        <div style={{ marginBottom: '1rem' }}>
+          <div style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Funding Rounds</div>
+          {rounds.map((r, i) => (
+            <div key={i} style={{ display: 'flex', gap: '1rem', padding: '0.5rem 0.75rem', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--line)', borderRadius: 8, marginBottom: '0.4rem' }}>
+              <span style={{ color: '#fbbf24', fontWeight: 700, minWidth: 80 }}>{r.round || 'Unknown'}</span>
+              <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{fmtBig(r.amount)}</span>
+              <span style={{ color: '#64748b', fontSize: '0.75rem', marginLeft: 'auto' }}>{r.date}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {formD.length > 0 && (
+        <div>
+          <div style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', marginBottom: '0.5rem' }}>SEC Form D Filings (Private Placements)</div>
+          {formD.slice(0, 8).map((f, i) => (
+            <div key={i} style={{ display: 'flex', gap: '0.75rem', padding: '0.4rem 0', borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: '0.8rem' }}>
+              <span style={{ color: '#818cf8', fontWeight: 600, background: 'rgba(129,140,248,0.1)', padding: '1px 6px', borderRadius: 4 }}>{f.form}</span>
+              <span style={{ color: '#e2e8f0', flex: 1 }}>{f.issuer?.slice(0, 50)}</span>
+              <span style={{ color: '#64748b', fontSize: '0.75rem' }}>{f.filed_date}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {!rounds.length && !formD.length && (
+        <p style={{ color: '#64748b', fontSize: '0.85rem' }}>No funding data or private placement filings found for this entity.</p>
+      )}
+    </section>
+  )
+}
+
 export default function CompanyDeepPage() {
   const [ticker, setTicker] = useState('AAPL')
   const [query, setQuery] = useState('AAPL')
@@ -237,9 +347,14 @@ export default function CompanyDeepPage() {
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
+  const [contractsData, setContractsData] = useState(null)
+  const [fundingData, setFundingData] = useState(null)
+  const [contractsLoading, setContractsLoading] = useState(false)
+  const [fundingLoading, setFundingLoading] = useState(false)
 
   const run = async () => {
     setErr(''); setLoading(true); setData(null)
+    setContractsData(null); setFundingData(null)
     try {
       const r = await fetch(`${API}/market/company/deep-report/${encodeURIComponent(query.toUpperCase())}`)
       const d = await r.json()
@@ -249,12 +364,32 @@ export default function CompanyDeepPage() {
       }
       setData(d)
       setTicker(query.toUpperCase())
+
+      // Fetch contracts and funding data for the company
+      const companyName = d.company_info?.name || query
+      if (companyName) {
+        // Fetch contracts
+        setContractsLoading(true)
+        fetch(`${API}/market/company/contracts/${encodeURIComponent(companyName)}`)
+          .then(r => r.json())
+          .then(setContractsData)
+          .catch(() => {})
+          .finally(() => setContractsLoading(false))
+
+        // Fetch funding
+        setFundingLoading(true)
+        fetch(`${API}/market/company/funding/${encodeURIComponent(companyName)}`)
+          .then(r => r.json())
+          .then(setFundingData)
+          .catch(() => {})
+          .finally(() => setFundingLoading(false))
+      }
     } catch (e) { setErr(e.message) }
     finally { setLoading(false) }
   }
 
   const POPULAR = ['AAPL', 'TSLA', 'NVDA', 'MSFT', 'GOOGL', 'META', 'AMZN', 'PLTR', 'JPM', 'BAC']
-  const TABS = ['overview', 'filings', 'cap-table', 'analyst', 'earnings']
+  const TABS = ['overview', 'filings', 'cap-table', 'analyst', 'earnings', 'contracts', 'funding']
 
   return (
     <main className="page-wrap">
@@ -330,6 +465,8 @@ export default function CompanyDeepPage() {
           {activeTab === 'cap-table' && <CapTablePanel data={data.cap_table} />}
           {activeTab === 'analyst' && <AnalystPanel data={data.analyst_ratings} />}
           {activeTab === 'earnings' && <EarningsPanel data={data.earnings_history} />}
+          {activeTab === 'contracts' && <ContractsPanel data={contractsData} loading={contractsLoading} />}
+          {activeTab === 'funding' && <FundingPanel data={fundingData} loading={fundingLoading} />}
         </>
       )}
 
