@@ -45,6 +45,8 @@ app.add_middleware(
         "https://8th-july-sprint.d11ri08de55gmb.amplifyapp.com",
         "https://main.d11ri08de55gmb.amplifyapp.com",
         "https://d11ri08de55gmb.amplifyapp.com",
+        # Duck DNS domain
+        "https://financeintell.duckdns.org",
     ],
     allow_credentials=True,
     allow_methods=["*"],
