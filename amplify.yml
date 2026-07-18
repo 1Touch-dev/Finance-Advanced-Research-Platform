@@ -1,0 +1,22 @@
+version: 1
+applications:
+  - frontend:
+      phases:
+        preBuild:
+          commands:
+            - cd apps/web
+            - npm ci
+        build:
+          commands:
+            - cd apps/web
+            - echo "NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL" >> .env.production
+            - npm run build
+      artifacts:
+        baseDirectory: apps/web/.next
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - apps/web/node_modules/**/*
+          - apps/web/.next/cache/**/*
+    appRoot: .
