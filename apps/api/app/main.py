@@ -41,6 +41,10 @@ app.add_middleware(
         "http://184.72.123.188:3002",
         "http://184.72.123.188:3003",
         "http://184.72.123.188:3005",
+        # AWS Amplify domains
+        "https://8th-july-sprint.d11ri08de55gmb.amplifyapp.com",
+        "https://main.d11ri08de55gmb.amplifyapp.com",
+        "https://d11ri08de55gmb.amplifyapp.com",
     ],
     allow_credentials=True,
     allow_methods=["*"],
