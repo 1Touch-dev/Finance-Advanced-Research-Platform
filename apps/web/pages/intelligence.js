@@ -687,6 +687,7 @@ export default function IntelligencePage() {
   const [entityName, setEntityName] = useState('Palantir Technologies')
   const [ticker,     setTicker]     = useState('PLTR')
   const [entityType, setEntityType] = useState('org')
+  const [enhanced,   setEnhanced]   = useState(true)
   const [loading,    setLoading]    = useState(false)
   const [report,     setReport]     = useState(null)
   const [err,        setErr]        = useState('')
@@ -753,7 +754,8 @@ export default function IntelligencePage() {
     try {
       const params = new URLSearchParams({ entity_name: entityName, entity_type: entityType })
       if (ticker) params.set('ticker', ticker)
-      const r = await fetch(`${API}/intelligence/generate?${params}`, { method: 'POST' })
+      const endpoint = enhanced ? 'generate-enhanced' : 'generate'
+      const r = await fetch(`${API}/intelligence/${endpoint}?${params}`, { method: 'POST' })
       if (!r.ok) {
         const txt = await r.text()
         throw new Error(`API ${r.status}: ${txt.slice(0, 200)}`)
@@ -781,11 +783,15 @@ export default function IntelligencePage() {
       const data = await r.json()
       const sections = (data.sections || []).map(s => ({
         ...s,
-        claims: (s.content || '').split('\n').filter(Boolean).map(t => ({ text: t })),
-        data: {},
+        claims: (s.claims && s.claims.length)
+          ? s.claims
+          : (s.content || '').split('\n').filter(Boolean).map(t => ({ text: t })),
+        // Preserve persisted section aggregates (contract totals, lobbying $, etc.)
+        data: s.data || {},
       }))
-      setReport({ ...data, sections, summary: null })
-      setGraphEntityId(null)
+      // Preserve persisted summary/KPIs + structured enhanced fields
+      setReport({ ...data, sections, summary: data.summary || null })
+      setGraphEntityId(data.entity_id || null)
     } catch(e) {
       setErr(e.message)
     } finally {
@@ -877,9 +883,14 @@ export default function IntelligencePage() {
                   <option value="agency">Government Agency</option>
                 </select>
               </label>
+              <label style={{display:"flex",alignItems:"center",gap:8,color:"var(--text-muted)",fontSize:"0.82rem",fontWeight:600,cursor:"pointer"}}>
+                <input type="checkbox" checked={enhanced}
+                       onChange={e => setEnhanced(e.target.checked)} />
+                Enhanced (AI) — investment thesis, SWOT, risk matrix, financial health
+              </label>
               <div style={{display:"flex",gap:"0.5rem",flexWrap:"wrap"}}>
                 <button className="btn btn-primary" onClick={generate} disabled={loading}>
-                  {loading ? 'Generating...' : 'Generate Intelligence Report'}
+                  {loading ? 'Generating...' : (enhanced ? 'Generate Enhanced Report' : 'Generate Intelligence Report')}
                 </button>
               </div>
               {err && <p style={{color:"var(--red)",fontWeight:700}}>{err}</p>}
@@ -952,10 +963,10 @@ export default function IntelligencePage() {
                     )}
                     {report.report_id && (
                       <a
-                        href={`${API}/intelligence/${report.report_id}/pdf`}
+                        href={`${API}/intelligence/${report.report_id}/pdf-beautiful`}
                         target="_blank" rel="noopener noreferrer"
                         
-                        title="Download PDF"
+                        title="Download Beautiful PDF"
                       >⬇ PDF</a>
                     )}
                   </div>
@@ -984,14 +995,21 @@ export default function IntelligencePage() {
                   }} style={{ background:'rgba(74,222,128,0.1)', border:'1px solid rgba(74,222,128,0.4)', borderRadius:6, color:'#4ade80', cursor:'pointer', fontSize:'0.72rem', padding:'0.2rem 0.6rem' }}>+ Track</button>
                 )}
                 {/* Export panel */}
-                {report?.id && (
-                  <span style={{ display:'flex', gap:'0.3rem' }}>
-                    <a href={`${API}/intelligence/${report.id}/pdf`} target="_blank" rel="noopener noreferrer" style={{ background:'rgba(129,140,248,0.1)', border:'1px solid var(--line)', borderRadius:6, color:'#c7d2fe', fontSize:'0.72rem', padding:'0.2rem 0.6rem', textDecoration:'none' }}>PDF</a>
-                    <a href={`${API}/intelligence/${report.id}/word`} target="_blank" rel="noopener noreferrer" style={{ background:'rgba(129,140,248,0.1)', border:'1px solid var(--line)', borderRadius:6, color:'#c7d2fe', fontSize:'0.72rem', padding:'0.2rem 0.6rem', textDecoration:'none' }}>Word</a>
-                    <a href={`${API}/intelligence/${report.id}/excel`} target="_blank" rel="noopener noreferrer" style={{ background:'rgba(129,140,248,0.1)', border:'1px solid var(--line)', borderRadius:6, color:'#c7d2fe', fontSize:'0.72rem', padding:'0.2rem 0.6rem', textDecoration:'none' }}>Excel</a>
-                    <a href={`${API}/intelligence/${report.id}/powerpoint`} target="_blank" rel="noopener noreferrer" style={{ background:'rgba(129,140,248,0.1)', border:'1px solid var(--line)', borderRadius:6, color:'#c7d2fe', fontSize:'0.72rem', padding:'0.2rem 0.6rem', textDecoration:'none' }}>PPT</a>
-                  </span>
-                )}
+                {(report?.report_id || report?.id) && (() => {
+                  const rid = report.report_id || report.id
+                  const linkStyle = { background:'rgba(129,140,248,0.1)', border:'1px solid var(--line)', borderRadius:6, color:'#c7d2fe', fontSize:'0.72rem', padding:'0.2rem 0.6rem', textDecoration:'none' }
+                  return (
+                    <span style={{ display:'flex', gap:'0.3rem', flexWrap:'wrap' }}>
+                      <a href={`${API}/intelligence/${rid}/pdf-beautiful`} target="_blank" rel="noopener noreferrer" title="Beautifully styled PDF" style={{ ...linkStyle, background:'linear-gradient(135deg,#6366f1,#4f46e5)', border:'1px solid #818cf8', color:'#fff', fontWeight:700 }}>★ PDF</a>
+                      <a href={`${API}/intelligence/${rid}/pdf-professional`} target="_blank" rel="noopener noreferrer" title="Professional PDF with charts" style={linkStyle}>Pro PDF</a>
+                      <a href={`${API}/intelligence/${rid}/pdf`} target="_blank" rel="noopener noreferrer" style={linkStyle}>PDF</a>
+                      <a href={`${API}/intelligence/${rid}/word`} target="_blank" rel="noopener noreferrer" style={linkStyle}>Word</a>
+                      <a href={`${API}/intelligence/${rid}/excel-detailed`} target="_blank" rel="noopener noreferrer" title="Multi-sheet Excel" style={linkStyle}>Excel</a>
+                      <a href={`${API}/intelligence/${rid}/powerpoint-detailed`} target="_blank" rel="noopener noreferrer" title="Data-rich deck" style={linkStyle}>PPT</a>
+                      <a href={`${API}/intelligence/${rid}/markdown`} target="_blank" rel="noopener noreferrer" title="Markdown source" style={linkStyle}>MD</a>
+                    </span>
+                  )
+                })()}
               </div>
 
               <SummaryBar summary={report.summary} />

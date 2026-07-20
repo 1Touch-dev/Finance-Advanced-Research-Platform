@@ -1,8 +1,12 @@
 """
 Layer 1 Intelligence Report API
-POST /intelligence/generate  — run connectors for an entity, build graph, generate cited dossier
-GET  /intelligence/{report_id} — retrieve a generated intelligence report
-GET  /intelligence/            — list recent intelligence reports
+POST /intelligence/generate          — run connectors for an entity, build graph, generate cited dossier
+POST /intelligence/generate-enhanced — generate enhanced report with AI analysis
+GET  /intelligence/{report_id}       — retrieve a generated intelligence report
+GET  /intelligence/                  — list recent intelligence reports
+GET  /intelligence/{report_id}/pdf-professional — download enhanced PDF with charts
+GET  /intelligence/{report_id}/excel-detailed   — download multi-sheet Excel
+GET  /intelligence/{report_id}/powerpoint-detailed — download data-rich PowerPoint
 """
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 from fastapi.responses import StreamingResponse
@@ -11,7 +15,22 @@ from sqlalchemy import text
 from typing import Optional, Dict, Any, List
 import io
 from app.db.session import get_db
-from app.services.intelligence_service import generate_intelligence_report, get_intelligence_report, list_intelligence_reports
+from app.services.intelligence_service import (
+    generate_intelligence_report,
+    get_intelligence_report,
+    list_intelligence_reports,
+)
+
+# Enhanced report functions
+try:
+    from app.services.intelligence_service import (
+        generate_enhanced_intelligence_report,
+        get_enhanced_intelligence_report,
+        list_enhanced_intelligence_reports,
+    )
+    _ENHANCED_AVAILABLE = True
+except ImportError:
+    _ENHANCED_AVAILABLE = False
 
 try:
     from app.connectors.browser_research_agent import research_entity_browser, detect_jurisdiction
@@ -43,6 +62,24 @@ try:
     _PDF_AVAILABLE = True
 except ImportError:
     _PDF_AVAILABLE = False
+
+try:
+    from app.services.pdf_service import generate_enhanced_report_pdf
+    _ENHANCED_PDF_AVAILABLE = True
+except ImportError:
+    _ENHANCED_PDF_AVAILABLE = False
+
+try:
+    from app.services.markdown_pdf_service import convert_markdown_to_pdf, generate_enhanced_markdown_report
+    _MARKDOWN_PDF_AVAILABLE = True
+except ImportError:
+    _MARKDOWN_PDF_AVAILABLE = False
+
+try:
+    from app.services.premium_pdf_service import convert_to_premium_pdf
+    _PREMIUM_PDF_AVAILABLE = True
+except ImportError:
+    _PREMIUM_PDF_AVAILABLE = False
 
 router = APIRouter(prefix="/intelligence")
 
@@ -201,8 +238,11 @@ def apollo_health():
     if not _APOLLO_AVAILABLE:
         return {"status": "unavailable", "reason": "APOLLO_API_KEY not set in .env"}
     try:
-        import requests as req, os
-        key = os.getenv("APOLLO_API_KEY", "")
+        import requests as req
+        # Use the connector's call-time key resolver (loads .env on demand) so
+        # the key is picked up even if the process started before it was added.
+        from app.connectors.apollo_connector import _get_key
+        key = _get_key()
         r = req.get("https://api.apollo.io/api/v1/auth/health",
                     headers={"X-Api-Key": key}, timeout=8)
         data = r.json()
@@ -251,9 +291,25 @@ def fincen_search(name: str):
     return search_fincen_entities(name)
 
 
+@router.get("/enhanced")
+def list_enhanced_reports(limit: int = 20, db: Session = Depends(get_db)):
+    """List recent enhanced intelligence reports.
+
+    Defined before the catch-all /{report_id} route so "enhanced" is not
+    parsed as a report id.
+    """
+    if not _ENHANCED_AVAILABLE:
+        raise HTTPException(503, "Enhanced reports not available")
+    return list_enhanced_intelligence_reports(db, limit=limit)
+
+
 @router.get("/{report_id}")
 def get_report(report_id: int, db: Session = Depends(get_db)):
     report = get_intelligence_report(db, report_id)
+    # Fall back to the enhanced getter so enhanced reports (different kind) load
+    # on historic open and return their persisted structured fields.
+    if not report and _ENHANCED_AVAILABLE:
+        report = get_enhanced_intelligence_report(db, report_id)
     if not report:
         raise HTTPException(404, "Intelligence report not found")
     return report
@@ -420,4 +476,614 @@ def download_report_pptx(report_id: int, db: Session = Depends(get_db)):
         buf,
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         headers={"Content-Disposition": f'attachment; filename="intel_{entity_slug}_{report_id}.pptx"'},
+    )
+
+
+# ============================================================================
+# ENHANCED INTELLIGENCE REPORT ENDPOINTS
+# ============================================================================
+
+@router.post("/generate-enhanced")
+def generate_enhanced_report(
+    entity_name: str,
+    entity_type: str = "org",
+    ticker: Optional[str] = None,
+    include_investment_thesis: bool = True,
+    include_swot: bool = True,
+    include_risk_matrix: bool = True,
+    include_financial_health: bool = True,
+    include_competitive: bool = True,
+    db: Session = Depends(get_db),
+):
+    """
+    Generate an enhanced intelligence report with AI-synthesized insights.
+
+    This extends the standard intelligence report with:
+    - Executive Summary (1-page brief with key metrics, risks, opportunities)
+    - Investment Thesis (Buy/Hold/Sell with bull/bear cases)
+    - SWOT Analysis (with evidence citations)
+    - Risk Matrix (severity/likelihood ratings)
+    - Financial Health Summary (key metrics, grade)
+    - Competitive Analysis (market position, moats)
+
+    Parameters:
+        entity_name: Name of the entity to research
+        entity_type: "org" or "person"
+        ticker: Stock ticker (enables financial analysis)
+        include_*: Flags to enable/disable specific sections
+    """
+    if not _ENHANCED_AVAILABLE:
+        raise HTTPException(503, "Enhanced report generation not available")
+
+    report = generate_enhanced_intelligence_report(
+        db,
+        entity_name=entity_name,
+        entity_type=entity_type,
+        ticker=ticker,
+        include_investment_thesis=include_investment_thesis,
+        include_swot=include_swot,
+        include_risk_matrix=include_risk_matrix,
+        include_financial_health=include_financial_health,
+        include_competitive=include_competitive,
+    )
+    return report
+
+
+@router.get("/{report_id}/enhanced")
+def get_enhanced_report(report_id: int, db: Session = Depends(get_db)):
+    """
+    Retrieve an enhanced intelligence report by ID.
+    This retrieves both standard and enhanced reports.
+    """
+    if not _ENHANCED_AVAILABLE:
+        raise HTTPException(503, "Enhanced reports not available")
+
+    report = get_enhanced_intelligence_report(db, report_id)
+    if not report:
+        raise HTTPException(404, "Intelligence report not found")
+    return report
+
+
+@router.get("/{report_id}/pdf-professional")
+def download_enhanced_pdf(report_id: int, db: Session = Depends(get_db)):
+    """
+    Download an enhanced intelligence report as a professional PDF.
+
+    Includes:
+    - Investment thesis badge (Buy/Hold/Sell)
+    - SWOT 2x2 grid visualization
+    - Risk heatmap (5x5 severity/likelihood matrix)
+    - Financial metrics table
+    - Financial health grade badge
+    """
+    if not _ENHANCED_PDF_AVAILABLE:
+        raise HTTPException(503, "Enhanced PDF export unavailable — install reportlab")
+
+    # Try enhanced report first, fall back to standard
+    report = None
+    if _ENHANCED_AVAILABLE:
+        report = get_enhanced_intelligence_report(db, report_id)
+    if not report:
+        report = get_intelligence_report(db, report_id)
+    if not report:
+        raise HTTPException(404, "Intelligence report not found")
+
+    try:
+        pdf_bytes = generate_enhanced_report_pdf(report)
+    except Exception as exc:
+        raise HTTPException(500, f"PDF generation failed: {exc}")
+
+    entity_slug = (report.get("entity_name") or "report").lower().replace(" ", "_")[:40]
+    filename = f"enhanced_intel_{entity_slug}_{report_id}.pdf"
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/{report_id}/excel-detailed")
+def download_detailed_excel(report_id: int, db: Session = Depends(get_db)):
+    """
+    Download an enhanced intelligence report as a multi-sheet Excel workbook.
+
+    Sheets:
+    1. Executive Summary - key metrics and recommendations
+    2. All Claims - detailed claims with confidence levels
+    3. Financial Metrics - financial health data
+    4. Risk Matrix - risk register with scores
+    5. Government Contracts - procurement data
+    6. Raw JSON - complete report data
+    """
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        import json
+    except ImportError:
+        raise HTTPException(503, "openpyxl not installed")
+
+    # Try enhanced report first
+    report = None
+    if _ENHANCED_AVAILABLE:
+        report = get_enhanced_intelligence_report(db, report_id)
+    if not report:
+        report = get_intelligence_report(db, report_id)
+    if not report:
+        raise HTTPException(404, "Intelligence report not found")
+
+    wb = openpyxl.Workbook()
+
+    # Style definitions
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="4F46E5")
+    alt_fill = PatternFill("solid", fgColor="F3F4F6")
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin'),
+    )
+
+    # Sheet 1: Executive Summary
+    ws_summary = wb.active
+    ws_summary.title = "Executive Summary"
+
+    summary_data = [
+        ["Entity Name", report.get("entity_name", "N/A")],
+        ["Report ID", str(report.get("report_id", "N/A"))],
+        ["Report Type", report.get("report_type", "standard")],
+        ["Generated At", str(report.get("generated_at", "N/A"))[:19]],
+        ["Ticker", report.get("ticker", "N/A")],
+    ]
+
+    # Add investment thesis if available
+    investment_thesis = report.get("investment_thesis")
+    if investment_thesis:
+        summary_data.extend([
+            ["", ""],
+            ["INVESTMENT THESIS", ""],
+            ["Recommendation", investment_thesis.get("recommendation", "N/A")],
+            ["Conviction", investment_thesis.get("conviction", "N/A")],
+        ])
+
+    # Add financial health if available
+    financial_health = report.get("financial_health")
+    if financial_health:
+        summary_data.extend([
+            ["", ""],
+            ["FINANCIAL HEALTH", ""],
+            ["Grade", financial_health.get("grade", "N/A")],
+        ])
+
+    # Add risk score if available
+    risk_matrix = report.get("risk_matrix")
+    if risk_matrix:
+        summary_data.extend([
+            ["", ""],
+            ["RISK ASSESSMENT", ""],
+            ["Overall Risk Score", str(risk_matrix.get("overall_score", "N/A"))],
+            ["Critical Risks", str(len(risk_matrix.get("critical_risks", [])))],
+            ["High Risks", str(len(risk_matrix.get("high_risks", [])))],
+        ])
+
+    for row_idx, (key, val) in enumerate(summary_data, 1):
+        ws_summary.cell(row=row_idx, column=1, value=key).font = Font(bold=True)
+        ws_summary.cell(row=row_idx, column=2, value=val)
+
+    ws_summary.column_dimensions["A"].width = 25
+    ws_summary.column_dimensions["B"].width = 50
+
+    # Sheet 2: All Claims
+    ws_claims = wb.create_sheet("All Claims")
+    claim_headers = ["Section", "Claim Text", "Confidence", "Source"]
+    for col, h in enumerate(claim_headers, 1):
+        cell = ws_claims.cell(row=1, column=col, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+
+    row = 2
+    for section in report.get("sections", []):
+        section_name = section.get("name", section.get("title", "Section"))
+        for claim in section.get("claims", []):
+            ws_claims.cell(row=row, column=1, value=section_name)
+            ws_claims.cell(row=row, column=2, value=str(claim.get("text", ""))[:1000])
+            ws_claims.cell(row=row, column=3, value=claim.get("confidence", "ANALYTICAL"))
+            ws_claims.cell(row=row, column=4, value=claim.get("source", ""))
+            if row % 2 == 0:
+                for col in range(1, 5):
+                    ws_claims.cell(row=row, column=col).fill = alt_fill
+            row += 1
+
+    ws_claims.column_dimensions["A"].width = 30
+    ws_claims.column_dimensions["B"].width = 100
+    ws_claims.column_dimensions["C"].width = 15
+    ws_claims.column_dimensions["D"].width = 40
+
+    # Sheet 3: Financial Metrics
+    ws_financial = wb.create_sheet("Financial Metrics")
+    financial_data = report.get("financial_data", {})
+    fundamentals = financial_data.get("fundamentals", {}) if financial_data else {}
+
+    fin_headers = ["Metric", "Value"]
+    for col, h in enumerate(fin_headers, 1):
+        cell = ws_financial.cell(row=1, column=col, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+
+    row = 2
+    if fundamentals:
+        for key, val in fundamentals.items():
+            if val is not None:
+                ws_financial.cell(row=row, column=1, value=key)
+                ws_financial.cell(row=row, column=2, value=str(val))
+                row += 1
+
+    ws_financial.column_dimensions["A"].width = 30
+    ws_financial.column_dimensions["B"].width = 25
+
+    # Sheet 4: Risk Matrix
+    ws_risks = wb.create_sheet("Risk Matrix")
+    risk_headers = ["ID", "Description", "Category", "Severity", "Likelihood", "Score", "Mitigation"]
+    for col, h in enumerate(risk_headers, 1):
+        cell = ws_risks.cell(row=1, column=col, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+
+    row = 2
+    if risk_matrix:
+        for risk in risk_matrix.get("risks", []):
+            ws_risks.cell(row=row, column=1, value=risk.get("id", ""))
+            ws_risks.cell(row=row, column=2, value=risk.get("description", ""))
+            ws_risks.cell(row=row, column=3, value=risk.get("category", ""))
+            ws_risks.cell(row=row, column=4, value=risk.get("severity", 0))
+            ws_risks.cell(row=row, column=5, value=risk.get("likelihood", 0))
+            ws_risks.cell(row=row, column=6, value=risk.get("score", 0))
+            ws_risks.cell(row=row, column=7, value=risk.get("mitigation", ""))
+            row += 1
+
+    ws_risks.column_dimensions["A"].width = 8
+    ws_risks.column_dimensions["B"].width = 60
+    ws_risks.column_dimensions["C"].width = 15
+    ws_risks.column_dimensions["D"].width = 10
+    ws_risks.column_dimensions["E"].width = 12
+    ws_risks.column_dimensions["F"].width = 8
+    ws_risks.column_dimensions["G"].width = 20
+
+    # Sheet 5: Raw JSON
+    ws_json = wb.create_sheet("Raw JSON")
+    ws_json.cell(row=1, column=1, value="Complete Report Data (JSON)")
+    ws_json.cell(row=1, column=1).font = header_font
+
+    # Serialize report to JSON (handling non-serializable types)
+    try:
+        json_str = json.dumps(report, indent=2, default=str)
+        # Split into rows (max 32767 chars per cell in Excel)
+        lines = json_str.split('\n')
+        for row_idx, line in enumerate(lines[:10000], 2):  # Limit rows
+            ws_json.cell(row=row_idx, column=1, value=line[:32767])
+    except Exception:
+        ws_json.cell(row=2, column=1, value="[Error serializing report data]")
+
+    ws_json.column_dimensions["A"].width = 150
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    entity_slug = (report.get("entity_name") or "report").lower().replace(" ", "_")[:40]
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="enhanced_intel_{entity_slug}_{report_id}.xlsx"'},
+    )
+
+
+@router.get("/{report_id}/powerpoint-detailed")
+def download_detailed_pptx(report_id: int, db: Session = Depends(get_db)):
+    """
+    Download an enhanced intelligence report as a data-rich PowerPoint.
+
+    Slides:
+    1. Title slide with recommendation badge
+    2. Executive summary with KPIs
+    3. Investment thesis (if available)
+    4. SWOT analysis (if available)
+    5. Risk matrix (if available)
+    6. Financial health (if available)
+    7+ Content sections
+    """
+    try:
+        from pptx import Presentation
+        from pptx.util import Inches, Pt
+        from pptx.dml.color import RGBColor as PptxRGB
+        from pptx.enum.text import PP_ALIGN
+    except ImportError:
+        raise HTTPException(503, "python-pptx not installed")
+
+    # Try enhanced report first
+    report = None
+    if _ENHANCED_AVAILABLE:
+        report = get_enhanced_intelligence_report(db, report_id)
+    if not report:
+        report = get_intelligence_report(db, report_id)
+    if not report:
+        raise HTTPException(404, "Intelligence report not found")
+
+    prs = Presentation()
+    blank_layout = prs.slide_layouts[1]
+    title_only_layout = prs.slide_layouts[5]
+
+    # Slide 1: Title slide
+    slide = prs.slides.add_slide(prs.slide_layouts[0])
+    slide.shapes.title.text = "Enhanced Intelligence Report"
+    entity_name = report.get("entity_name", "Unknown")
+    ticker = report.get("ticker", "")
+    subtitle = f"{entity_name}"
+    if ticker:
+        subtitle += f" ({ticker})"
+    slide.placeholders[1].text = subtitle
+
+    # Slide 2: Executive Summary with KPIs
+    slide = prs.slides.add_slide(blank_layout)
+    slide.shapes.title.text = "Executive Summary"
+    body = slide.placeholders[1]
+    tf = body.text_frame
+    tf.word_wrap = True
+
+    summary = report.get("summary", {})
+    investment_thesis = report.get("investment_thesis")
+    financial_health = report.get("financial_health")
+    risk_matrix = report.get("risk_matrix")
+
+    kpis = []
+    if investment_thesis:
+        kpis.append(f"Recommendation: {investment_thesis.get('recommendation', 'N/A')} ({investment_thesis.get('conviction', '')} conviction)")
+    if financial_health:
+        kpis.append(f"Financial Health Grade: {financial_health.get('grade', 'N/A')}")
+    if risk_matrix:
+        kpis.append(f"Overall Risk Score: {risk_matrix.get('overall_score', 'N/A')}/100")
+    kpis.append(f"Data Confidence: {summary.get('kpi_data_confidence', 'N/A')}%")
+    kpis.append(f"Court Risk: {summary.get('kpi_court_risk', 'N/A')}")
+    kpis.append(f"Sanctions Status: {summary.get('kpi_sanctions_risk', 'N/A')}")
+
+    for i, kpi in enumerate(kpis[:6]):
+        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+        p.text = kpi
+        p.level = 0
+
+    # Slide 3: Investment Thesis (if available)
+    if investment_thesis:
+        slide = prs.slides.add_slide(blank_layout)
+        slide.shapes.title.text = "Investment Thesis"
+        body = slide.placeholders[1]
+        tf = body.text_frame
+        tf.word_wrap = True
+
+        thesis_points = [
+            f"Recommendation: {investment_thesis.get('recommendation', 'N/A')}",
+            f"Conviction Level: {investment_thesis.get('conviction', 'N/A')}",
+        ]
+
+        for bc in investment_thesis.get("bull_case", [])[:3]:
+            thesis_points.append(f"Bull: {bc}" if isinstance(bc, str) else f"Bull: {bc.get('description', '')}")
+        for bc in investment_thesis.get("bear_case", [])[:3]:
+            thesis_points.append(f"Bear: {bc}" if isinstance(bc, str) else f"Bear: {bc.get('description', '')}")
+
+        for i, point in enumerate(thesis_points[:8]):
+            p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+            p.text = str(point)[:150]
+            p.level = 0
+
+    # Slide 4: SWOT Analysis (if available)
+    swot = report.get("swot_analysis")
+    if swot:
+        slide = prs.slides.add_slide(blank_layout)
+        slide.shapes.title.text = "SWOT Analysis"
+        body = slide.placeholders[1]
+        tf = body.text_frame
+        tf.word_wrap = True
+
+        swot_points = []
+        for s in swot.get("strengths", [])[:2]:
+            swot_points.append(f"S: {s.get('description', str(s))[:80]}" if isinstance(s, dict) else f"S: {str(s)[:80]}")
+        for w in swot.get("weaknesses", [])[:2]:
+            swot_points.append(f"W: {w.get('description', str(w))[:80]}" if isinstance(w, dict) else f"W: {str(w)[:80]}")
+        for o in swot.get("opportunities", [])[:2]:
+            swot_points.append(f"O: {o.get('description', str(o))[:80]}" if isinstance(o, dict) else f"O: {str(o)[:80]}")
+        for t in swot.get("threats", [])[:2]:
+            swot_points.append(f"T: {t.get('description', str(t))[:80]}" if isinstance(t, dict) else f"T: {str(t)[:80]}")
+
+        for i, point in enumerate(swot_points[:8]):
+            p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+            p.text = point
+            p.level = 0
+
+    # Slide 5: Risk Matrix (if available)
+    if risk_matrix:
+        slide = prs.slides.add_slide(blank_layout)
+        slide.shapes.title.text = "Risk Assessment"
+        body = slide.placeholders[1]
+        tf = body.text_frame
+        tf.word_wrap = True
+
+        risk_points = [
+            f"Overall Risk Score: {risk_matrix.get('overall_score', 'N/A')}/100",
+            f"Critical Risks: {len(risk_matrix.get('critical_risks', []))}",
+            f"High Risks: {len(risk_matrix.get('high_risks', []))}",
+        ]
+
+        for risk in risk_matrix.get("top_priority_risks", [])[:3]:
+            risk_points.append(f"Priority: {risk.get('description', '')[:60]} (Score: {risk.get('score', 0)})")
+
+        for i, point in enumerate(risk_points[:6]):
+            p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+            p.text = point
+            p.level = 0
+
+    # Remaining slides: Content sections
+    sections = report.get("sections", [])
+    for section in sections[:10]:  # Limit to 10 sections
+        section_name = section.get("name", section.get("title", "Section"))
+
+        # Skip sections already covered
+        if any(x in section_name for x in ["Executive", "Investment Thesis", "SWOT", "Risk"]):
+            if any([investment_thesis, swot, risk_matrix]):
+                continue
+
+        slide = prs.slides.add_slide(blank_layout)
+        slide.shapes.title.text = section_name[:50]
+        body = slide.placeholders[1]
+        tf = body.text_frame
+        tf.word_wrap = True
+
+        claims = section.get("claims", [])[:6]
+        for i, claim in enumerate(claims):
+            p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+            claim_text = claim.get("text", str(claim)) if isinstance(claim, dict) else str(claim)
+            p.text = f"[{claim.get('confidence', '?') if isinstance(claim, dict) else 'INFO'}] {claim_text[:180]}"
+            p.level = 0
+
+    buf = io.BytesIO()
+    prs.save(buf)
+    buf.seek(0)
+    entity_slug = (report.get("entity_name") or "report").lower().replace(" ", "_")[:40]
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={"Content-Disposition": f'attachment; filename="enhanced_intel_{entity_slug}_{report_id}.pptx"'},
+    )
+
+
+@router.get("/{report_id}/pdf-beautiful")
+def download_beautiful_pdf(report_id: int, db: Session = Depends(get_db)):
+    """
+    Download an enhanced intelligence report as a beautifully formatted PDF.
+
+    Uses WeasyPrint to convert markdown to PDF with professional styling:
+    - Clean typography with Inter font
+    - Colored tables and headers
+    - Proper page headers/footers
+    - Print-optimized layout
+    """
+    if not _MARKDOWN_PDF_AVAILABLE:
+        raise HTTPException(503, "Beautiful PDF export unavailable — install weasyprint and markdown")
+
+    # Try enhanced report first, fall back to standard
+    report = None
+    if _ENHANCED_AVAILABLE:
+        report = get_enhanced_intelligence_report(db, report_id)
+    if not report:
+        report = get_intelligence_report(db, report_id)
+    if not report:
+        raise HTTPException(404, "Intelligence report not found")
+
+    try:
+        # Generate markdown from report data
+        markdown_content = generate_enhanced_markdown_report(report)
+
+        # Convert to beautiful PDF
+        pdf_bytes = convert_markdown_to_pdf(
+            markdown_content,
+            title=f"{report.get('entity_name', 'Entity')} — Enhanced Intelligence Report"
+        )
+    except Exception as exc:
+        raise HTTPException(500, f"PDF generation failed: {exc}")
+
+    entity_slug = (report.get("entity_name") or "report").lower().replace(" ", "_")[:40]
+    filename = f"beautiful_intel_{entity_slug}_{report_id}.pdf"
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/{report_id}/markdown")
+def download_markdown(report_id: int, db: Session = Depends(get_db)):
+    """
+    Download an enhanced intelligence report as a markdown file.
+
+    Useful for:
+    - Custom formatting/editing
+    - Integration with other tools
+    - Archival purposes
+    """
+    if not _MARKDOWN_PDF_AVAILABLE:
+        raise HTTPException(503, "Markdown export unavailable")
+
+    # Try enhanced report first, fall back to standard
+    report = None
+    if _ENHANCED_AVAILABLE:
+        report = get_enhanced_intelligence_report(db, report_id)
+    if not report:
+        report = get_intelligence_report(db, report_id)
+    if not report:
+        raise HTTPException(404, "Intelligence report not found")
+
+    try:
+        markdown_content = generate_enhanced_markdown_report(report)
+    except Exception as exc:
+        raise HTTPException(500, f"Markdown generation failed: {exc}")
+
+    entity_slug = (report.get("entity_name") or "report").lower().replace(" ", "_")[:40]
+    filename = f"intel_{entity_slug}_{report_id}.md"
+
+    return StreamingResponse(
+        io.BytesIO(markdown_content.encode('utf-8')),
+        media_type="text/markdown",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/{report_id}/pdf-premium")
+def download_premium_pdf(
+    report_id: int,
+    prepared_for: str = "Internal Analysis",
+    db: Session = Depends(get_db)
+):
+    """
+    Download a premium intelligence report as a professional PDF.
+
+    Generates institutional-quality reports matching investment intelligence standards:
+    - Dark header bar with classification markings
+    - Gold accent colors for section headers
+    - Executive callout boxes with key assessments
+    - Table of contents with numbered sections
+    - Risk matrix and watch items
+    - Professional typography and dense content layout
+    """
+    if not _PREMIUM_PDF_AVAILABLE:
+        raise HTTPException(503, "Premium PDF export unavailable — install weasyprint")
+
+    # Try enhanced report first, fall back to standard
+    report = None
+    if _ENHANCED_AVAILABLE:
+        report = get_enhanced_intelligence_report(db, report_id)
+    if not report:
+        report = get_intelligence_report(db, report_id)
+    if not report:
+        raise HTTPException(404, "Intelligence report not found")
+
+    entity_name = report.get("entity_name", "Unknown Entity")
+    ticker = report.get("ticker", "")
+
+    try:
+        pdf_bytes = convert_to_premium_pdf(
+            entity_name=entity_name,
+            ticker=ticker,
+            report_data=report,
+            prepared_for=prepared_for,
+            organization="ENTERPRISE INTELLIGENCE PLATFORM"
+        )
+    except Exception as exc:
+        raise HTTPException(500, f"Premium PDF generation failed: {exc}")
+
+    entity_slug = entity_name.lower().replace(" ", "_")[:40]
+    filename = f"premium_intel_{entity_slug}_{report_id}.pdf"
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

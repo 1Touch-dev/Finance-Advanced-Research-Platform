@@ -65,8 +65,46 @@ except ImportError:
     PRIVATE_CO_AVAILABLE = False
     def fetch_private_company_intel(name, **kw): return {}
 
+# Financial connectors for enhanced reports
+try:
+    from app.connectors.yfinance_connector import yf_snapshot, yf_fundamentals, yf_company_info
+    YFINANCE_AVAILABLE = True
+except ImportError:
+    YFINANCE_AVAILABLE = False
+    def yf_snapshot(ticker): return {}
+    def yf_fundamentals(ticker): return {}
+    def yf_company_info(ticker): return {}
+
+try:
+    from app.connectors.valuation_connector import full_valuation_report, build_dcf_valuation
+    VALUATION_AVAILABLE = True
+except ImportError:
+    VALUATION_AVAILABLE = False
+    def full_valuation_report(ticker): return {}
+    def build_dcf_valuation(ticker): return {}
+
+try:
+    from app.connectors.technicals_connector import compute_technicals
+    TECHNICALS_AVAILABLE = True
+except ImportError:
+    TECHNICALS_AVAILABLE = False
+    def compute_technicals(ticker, period="1y"): return {}
+
+# Enhanced narrative service
+try:
+    from app.services.enhanced_narrative_service import (
+        generate_enhanced_sections,
+        convert_enhanced_to_report_sections,
+    )
+    ENHANCED_NARRATIVE_AVAILABLE = True
+except ImportError:
+    ENHANCED_NARRATIVE_AVAILABLE = False
+    def generate_enhanced_sections(*args, **kwargs): return []
+    def convert_enhanced_to_report_sections(*args, **kwargs): return []
+
 
 INTELLIGENCE_KIND = "entity_network_intel"
+ENHANCED_INTELLIGENCE_KIND = "enhanced_entity_intel"
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -1447,12 +1485,12 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
                        {"r": report_id, "n": s["name"], "c": content, "o": s["order"]})
             for claim in s.get("claims", []):
                 db.execute(text("INSERT INTO claims (report_id, text, status) VALUES (:r,:t,'verified')"),
-                           {"r": report_id, "t": f"[{claim['confidence']}] {claim['text'][:499]}"})
+                           {"r": report_id, "t": f"[{claim['confidence']}] {claim['text'][:20000]}"})
         db.commit()
     except Exception:
         db.rollback()
 
-    return {
+    result = {
         "report_id": report_id,
         "entity_name": entity_name,
         "entity_id": entity_id,
@@ -1519,6 +1557,100 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
         }
     }
 
+    # Persist summary KPIs + section .data aggregates so historic loads/exports
+    # show real numbers instead of zeros.
+    _save_report_meta(db, report_id, {
+        "report_type":   "base",
+        "entity_name":   entity_name,
+        "entity_type":   entity_type,
+        "ticker":        ticker,
+        "generated_at":  started,
+        "summary":       result["summary"],
+        "data_sources":  result["data_sources"],
+        "sections_data": {s["name"]: s.get("data", {}) for s in sections},
+    })
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Report meta persistence
+# summary KPIs, structured enhanced fields (thesis/SWOT/risk/financial_health)
+# and per-section .data aggregates are computed at generation time but the
+# report_sections/claims tables only store text. We persist the rest as a JSON
+# blob in reports.meta so reports survive reload/export (no more zero KPIs or
+# "$0" totals on historic load). Uses the ORM so JSON (de)serialization is
+# correct on both SQLite and Postgres.
+# ---------------------------------------------------------------------------
+def _save_report_meta(db: Session, report_id: Optional[int], meta: Dict[str, Any]) -> None:
+    if not report_id:
+        return
+    import json as _json
+    try:
+        # Coerce to JSON-safe primitives (yfinance can leak numpy/Timestamp types
+        # that would otherwise raise on serialize and drop the whole blob).
+        safe_meta = _json.loads(_json.dumps(meta, default=str))
+        rep = db.query(Report).filter(Report.id == report_id).first()
+        if rep is not None:
+            rep.meta = safe_meta
+            db.commit()
+    except Exception:
+        db.rollback()
+
+
+def _load_report_meta(db: Session, report_id: int) -> Dict[str, Any]:
+    try:
+        rep = db.query(Report).filter(Report.id == report_id).first()
+        if rep is not None and isinstance(rep.meta, dict):
+            return rep.meta
+    except Exception:
+        db.rollback()
+    return {}
+
+
+def _fallback_summary(sections: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Recompute coarse KPI counts from persisted section content when the
+    structured summary blob is absent (reports generated before meta was
+    persisted). Keeps old reports from showing all-zero dashboards."""
+    import re as _re
+
+    def _section(*substrs):
+        for s in sections:
+            nm = (s.get("name") or "").lower()
+            if any(sub in nm for sub in substrs):
+                return s
+        return None
+
+    def _count(*substrs):
+        s = _section(*substrs)
+        return len([c for c in s.get("claims", []) if c.get("text")]) if s else 0
+
+    total_obligated = 0
+    contracts = _section("contract", "procurement")
+    if contracts:
+        for c in contracts.get("claims", []):
+            for m in _re.findall(r'\$([0-9][0-9,]{2,})', c.get("text", "")):
+                try:
+                    total_obligated = max(total_obligated, int(m.replace(",", "")))
+                except ValueError:
+                    pass
+
+    return {
+        "sec_filings":         _count("sec", "filing"),
+        "contracts_found":     _count("contract", "procurement"),
+        "total_obligated_usd": total_obligated,
+        "lobbying_filings":    _count("lobby"),
+        "news_articles":       _count("news", "media"),
+        "_source":             "fallback",
+    }
+
+
+def _attach_section_data(sections: List[Dict[str, Any]], sections_data: Dict[str, Any]) -> None:
+    for s in sections:
+        if s.get("name") in sections_data:
+            s["data"] = sections_data[s["name"]]
+        else:
+            s.setdefault("data", {})
+
 
 def get_intelligence_report(db: Session, report_id: int) -> Optional[Dict[str, Any]]:
     row = db.execute(
@@ -1569,14 +1701,24 @@ def get_intelligence_report(db: Session, report_id: int) -> Optional[Dict[str, A
     ename_m   = _re.search(r'Intelligence Report:\s+(.+)$', title)
     entity_name = ename_m.group(1).strip() if ename_m else None
 
+    # Rehydrate persisted meta (summary KPIs + section .data aggregates)
+    meta = _load_report_meta(db, report_id)
+    summary = meta.get("summary") or _fallback_summary(sections)
+    _attach_section_data(sections, meta.get("sections_data", {}))
+
     return {
-        "report_id":   row[0],
-        "title":       title,
-        "entity_name": entity_name,
-        "kind":        row[2],
-        "status":      row[3],
-        "sections":    sections,
-        "claims":      flat_claims,
+        "report_id":    row[0],
+        "title":        title,
+        "entity_name":  meta.get("entity_name") or entity_name,
+        "entity_type":  meta.get("entity_type"),
+        "ticker":       meta.get("ticker"),
+        "kind":         row[2],
+        "status":       row[3],
+        "sections":     sections,
+        "claims":       flat_claims,
+        "summary":      summary,
+        "data_sources": meta.get("data_sources", {}),
+        "generated_at": meta.get("generated_at"),
     }
 
 
@@ -1585,5 +1727,334 @@ def list_intelligence_reports(db: Session, limit: int = 20) -> List[Dict[str, An
         text("SELECT id, title, status, created_at FROM reports WHERE kind=:k ORDER BY id DESC LIMIT :l"),
         {"k": INTELLIGENCE_KIND, "l": limit}).fetchall()
     return [{"report_id": r[0], "title": r[1], "status": r[2],
-             "created_at": r[3].isoformat() if r[3] else None} for r in rows]
+             "created_at": (r[3].isoformat() if hasattr(r[3], "isoformat") else r[3]) if r[3] else None}
+            for r in rows]
+
+
+# ============================================================================
+# ENHANCED INTELLIGENCE REPORT GENERATION
+# ============================================================================
+
+def generate_enhanced_intelligence_report(
+    db: Session,
+    entity_name: str,
+    entity_type: str = "org",
+    ticker: Optional[str] = None,
+    include_investment_thesis: bool = True,
+    include_swot: bool = True,
+    include_risk_matrix: bool = True,
+    include_financial_health: bool = True,
+    include_competitive: bool = True,
+) -> Dict[str, Any]:
+    """
+    Generate an enhanced intelligence report with AI-synthesized insights.
+
+    This extends the standard intelligence report with:
+    - Executive Summary (1-page brief)
+    - Investment Thesis (Buy/Hold/Sell recommendation)
+    - SWOT Analysis (with evidence citations)
+    - Risk Matrix (severity/likelihood ratings)
+    - Financial Health Summary (key metrics)
+    - Competitive Analysis (market position, moats)
+
+    Args:
+        db: Database session
+        entity_name: Name of the entity to research
+        entity_type: "org" or "person"
+        ticker: Stock ticker symbol (enables financial analysis)
+        include_*: Flags to enable/disable specific enhanced sections
+
+    Returns:
+        Enhanced report dict with standard + enhanced sections
+    """
+    started = _now()
+
+    # 1. Generate base intelligence report
+    base_report = generate_intelligence_report(db, entity_name, entity_type, ticker)
+
+    if not base_report:
+        return {"error": "Failed to generate base intelligence report"}
+
+    # 2. Fetch financial data if ticker is available
+    financial_data = None
+    valuation_data = None
+    technicals_data = None
+
+    if ticker and YFINANCE_AVAILABLE:
+        try:
+            financial_data = yf_snapshot(ticker)
+        except Exception as e:
+            financial_data = {"error": str(e)}
+
+    if ticker and VALUATION_AVAILABLE:
+        try:
+            valuation_data = full_valuation_report(ticker)
+        except Exception as e:
+            valuation_data = {"error": str(e)}
+
+    if ticker and TECHNICALS_AVAILABLE:
+        try:
+            technicals_data = compute_technicals(ticker)
+        except Exception as e:
+            technicals_data = {"error": str(e)}
+
+    # 3. Generate enhanced narrative sections
+    enhanced_sections = []
+    if ENHANCED_NARRATIVE_AVAILABLE:
+        try:
+            enhanced_sections = generate_enhanced_sections(
+                entity_name=entity_name,
+                entity_type=entity_type,
+                ticker=ticker,
+                report_data=base_report,
+                financial_data=financial_data,
+                valuation_data=valuation_data,
+                technicals_data=technicals_data,
+                include_investment_thesis=include_investment_thesis,
+                include_swot=include_swot,
+                include_risk_matrix=include_risk_matrix,
+                include_financial_health=include_financial_health,
+                include_competitive=include_competitive,
+            )
+        except Exception as e:
+            enhanced_sections = [{"error": str(e)}]
+
+    # 4. Convert enhanced sections to standard report format
+    starting_order = max((s.get("order", 0) for s in base_report.get("sections", [])), default=100) + 10
+    enhanced_report_sections = convert_enhanced_to_report_sections(
+        enhanced_sections, starting_order=starting_order
+    )
+
+    # 5. Combine all sections
+    all_sections = base_report.get("sections", []) + enhanced_report_sections
+
+    # 6. Extract structured data from enhanced sections
+    investment_thesis = None
+    swot_analysis = None
+    risk_matrix = None
+    financial_health = None
+
+    for section in enhanced_sections:
+        section_name = section.get("section_name", "")
+        if "Investment Thesis" in section_name:
+            investment_thesis = {
+                "recommendation": section.get("recommendation", "NOT_RATED"),
+                "conviction": section.get("conviction", "MEDIUM"),
+                "bull_case": section.get("bull_case", []),
+                "bear_case": section.get("bear_case", []),
+                "fair_value": section.get("fair_value"),
+                "upside_pct": section.get("upside_pct"),
+            }
+        elif "SWOT" in section_name:
+            swot_analysis = {
+                "strengths": section.get("strengths", []),
+                "weaknesses": section.get("weaknesses", []),
+                "opportunities": section.get("opportunities", []),
+                "threats": section.get("threats", []),
+                "synthesis": section.get("synthesis", ""),
+            }
+        elif "Risk Matrix" in section_name:
+            risk_matrix = {
+                "risks": section.get("risks", []),
+                "critical_risks": section.get("critical_risks", []),
+                "high_risks": section.get("high_risks", []),
+                "medium_risks": section.get("medium_risks", []),
+                "low_risks": section.get("low_risks", []),
+                "overall_score": section.get("overall_score", 50),
+                "top_priority_risks": section.get("top_priority_risks", []),
+            }
+        elif "Financial Health" in section_name:
+            financial_health = {
+                "grade": section.get("grade", "C"),
+                "grade_rationale": section.get("grade_rationale", ""),
+                "metrics": section.get("metrics", {}),
+            }
+
+    # 7. Persist enhanced report to DB
+    enhanced_report_id = None
+    try:
+        db.execute(text("INSERT INTO reports (title, kind, status) VALUES (:t, :k, 'published')"),
+                   {"t": f"Enhanced Intelligence Report: {entity_name}", "k": ENHANCED_INTELLIGENCE_KIND})
+        db.flush()
+        row = db.execute(
+            text("SELECT id FROM reports WHERE kind=:k ORDER BY id DESC LIMIT 1"),
+            {"k": ENHANCED_INTELLIGENCE_KIND}).fetchone()
+        enhanced_report_id = row[0]
+
+        for s in all_sections:
+            content = "\n".join([c.get("text", str(c)) for c in s.get("claims", [])])
+            db.execute(text('INSERT INTO report_sections (report_id, name, content, "order") VALUES (:r,:n,:c,:o)'),
+                       {"r": enhanced_report_id, "n": s.get("name", "Section"), "c": content, "o": s.get("order", 0)})
+            for claim in s.get("claims", []):
+                claim_text = claim.get("text", str(claim)) if isinstance(claim, dict) else str(claim)
+                db.execute(text("INSERT INTO claims (report_id, text, status) VALUES (:r,:t,'verified')"),
+                           {"r": enhanced_report_id, "t": claim_text[:20000]})
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    # 8. Return enhanced report
+    result = {
+        "report_id": enhanced_report_id,
+        "base_report_id": base_report.get("report_id"),
+        "entity_name": entity_name,
+        "entity_id": base_report.get("entity_id"),
+        "entity_type": entity_type,
+        "ticker": ticker,
+        "generated_at": started,
+        "report_type": "enhanced",
+        "sections": all_sections,
+        "relationships_created": base_report.get("relationships_created", []),
+
+        # Enhanced analysis sections (structured data)
+        "investment_thesis": investment_thesis,
+        "swot_analysis": swot_analysis,
+        "risk_matrix": risk_matrix,
+        "financial_health": financial_health,
+
+        # Financial data
+        "financial_data": {
+            "fundamentals": financial_data.get("fundamentals") if financial_data else None,
+            "company_info": financial_data.get("company_info") if financial_data else None,
+            "valuation": valuation_data.get("dcf") if valuation_data else None,
+            "technicals": technicals_data.get("summary") if technicals_data else None,
+        },
+
+        # Data sources
+        "data_sources": {
+            **base_report.get("data_sources", {}),
+            "yfinance": YFINANCE_AVAILABLE and ticker is not None,
+            "valuation": VALUATION_AVAILABLE and ticker is not None,
+            "technicals": TECHNICALS_AVAILABLE and ticker is not None,
+            "enhanced_narrative": ENHANCED_NARRATIVE_AVAILABLE,
+        },
+
+        # Summary (merge base + enhanced)
+        "summary": {
+            **base_report.get("summary", {}),
+            "enhanced_sections_count": len(enhanced_sections),
+            "has_investment_thesis": investment_thesis is not None,
+            "has_swot": swot_analysis is not None,
+            "has_risk_matrix": risk_matrix is not None,
+            "has_financial_health": financial_health is not None,
+            "investment_recommendation": investment_thesis.get("recommendation") if investment_thesis else None,
+            "overall_risk_score": risk_matrix.get("overall_score") if risk_matrix else None,
+            "financial_grade": financial_health.get("grade") if financial_health else None,
+        },
+    }
+
+    # Persist structured enhanced fields + summary + section .data so the
+    # Enhanced report reloads/exports rich (no more heading-only sections or
+    # zero KPIs on historic load).
+    _save_report_meta(db, enhanced_report_id, {
+        "report_type":       "enhanced",
+        "entity_name":       entity_name,
+        "entity_type":       entity_type,
+        "ticker":            ticker,
+        "generated_at":      started,
+        "summary":           result["summary"],
+        "data_sources":      result["data_sources"],
+        "investment_thesis": investment_thesis,
+        "swot_analysis":     swot_analysis,
+        "risk_matrix":       risk_matrix,
+        "financial_health":  financial_health,
+        "financial_data":    result["financial_data"],
+        "sections_data":     {s.get("name", "Section"): s.get("data", {}) for s in all_sections},
+    })
+    return result
+
+
+def get_enhanced_intelligence_report(db: Session, report_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Retrieve an enhanced intelligence report by ID.
+
+    This retrieves both standard and enhanced reports.
+    """
+    # Try enhanced kind first
+    row = db.execute(
+        text("SELECT id, title, kind, status FROM reports WHERE id=:id AND kind=:k"),
+        {"id": report_id, "k": ENHANCED_INTELLIGENCE_KIND}).fetchone()
+
+    # Fall back to standard kind
+    if not row:
+        row = db.execute(
+            text("SELECT id, title, kind, status FROM reports WHERE id=:id AND kind=:k"),
+            {"id": report_id, "k": INTELLIGENCE_KIND}).fetchone()
+
+    if not row:
+        return None
+
+    sections_raw = db.execute(
+        text('SELECT name, content, "order" FROM report_sections WHERE report_id=:id ORDER BY "order"'),
+        {"id": report_id}).fetchall()
+    claims_raw = db.execute(
+        text("SELECT text, status FROM claims WHERE report_id=:id"),
+        {"id": report_id}).fetchall()
+
+    flat_claims = [{"text": c[0], "status": c[1]} for c in claims_raw]
+
+    sections = []
+    for s in sections_raw:
+        sec_name = s[0]
+        sec_content = s[1] or ""
+        sec_order = s[2]
+
+        line_claims = []
+        for line in sec_content.split("\n"):
+            line = line.strip()
+            if line:
+                import re as _re
+                clean = _re.sub(r'^\[(?:HIGH|MEDIUM|LOW|DOCUMENTED|REPORTED|ANALYTICAL|VERIFIED|FLAGGED)\]\s*', '', line)
+                line_claims.append({
+                    "text": clean,
+                    "source": sec_name,
+                    "confidence": "DOCUMENTED",
+                })
+        sections.append({
+            "name": sec_name,
+            "content": sec_content,
+            "order": sec_order,
+            "claims": line_claims,
+        })
+
+    import re as _re
+    title = row[1] or ""
+    ename_m = _re.search(r'Intelligence Report:\s+(.+)$', title)
+    entity_name = ename_m.group(1).strip() if ename_m else None
+
+    # Rehydrate persisted meta (structured enhanced fields + summary + data)
+    meta = _load_report_meta(db, report_id)
+    summary = meta.get("summary") or _fallback_summary(sections)
+    _attach_section_data(sections, meta.get("sections_data", {}))
+
+    return {
+        "report_id": row[0],
+        "title": title,
+        "entity_name": meta.get("entity_name") or entity_name,
+        "entity_type": meta.get("entity_type"),
+        "ticker": meta.get("ticker"),
+        "kind": row[2],
+        "status": row[3],
+        "sections": sections,
+        "claims": flat_claims,
+        "is_enhanced": row[2] == ENHANCED_INTELLIGENCE_KIND,
+        "summary": summary,
+        "data_sources": meta.get("data_sources", {}),
+        "generated_at": meta.get("generated_at"),
+        "investment_thesis": meta.get("investment_thesis"),
+        "swot_analysis": meta.get("swot_analysis"),
+        "risk_matrix": meta.get("risk_matrix"),
+        "financial_health": meta.get("financial_health"),
+        "financial_data": meta.get("financial_data"),
+    }
+
+
+def list_enhanced_intelligence_reports(db: Session, limit: int = 20) -> List[Dict[str, Any]]:
+    """List all enhanced intelligence reports."""
+    rows = db.execute(
+        text("SELECT id, title, status, created_at FROM reports WHERE kind=:k ORDER BY id DESC LIMIT :l"),
+        {"k": ENHANCED_INTELLIGENCE_KIND, "l": limit}).fetchall()
+    return [{"report_id": r[0], "title": r[1], "status": r[2],
+             "created_at": (r[3].isoformat() if hasattr(r[3], "isoformat") else r[3]) if r[3] else None,
+             "is_enhanced": True} for r in rows]
 

@@ -19,19 +19,43 @@ import requests
 logger = logging.getLogger(__name__)
 
 _APOLLO_BASE = "https://api.apollo.io/api/v1"
-_API_KEY = os.getenv("APOLLO_API_KEY", "")
+
+
+def _get_key() -> str:
+    """Read the Apollo key at call-time (not import-time).
+
+    The server process may have been started before APOLLO_API_KEY was added to
+    .env, in which case an import-time read caches an empty string forever. This
+    re-reads the environment and, if still empty, loads .env on demand so the
+    key is picked up without a full restart.
+    """
+    key = os.getenv("APOLLO_API_KEY", "").strip()
+    if not key:
+        # override=True so a real .env value wins even when the process was
+        # launched with APOLLO_API_KEY set to an empty string.
+        try:
+            from dotenv import load_dotenv, find_dotenv
+            load_dotenv(find_dotenv(usecwd=True), override=True)
+            key = os.getenv("APOLLO_API_KEY", "").strip()
+        except Exception:
+            pass
+    return key
+
+
+# Back-compat module attribute (some callers / health checks read this).
+_API_KEY = _get_key()
 
 
 def _headers() -> dict:
     return {
         "Content-Type": "application/json",
         "Cache-Control": "no-cache",
-        "X-Api-Key": _API_KEY,
+        "X-Api-Key": _get_key(),
     }
 
 
 def _post(endpoint: str, payload: dict) -> dict:
-    if not _API_KEY:
+    if not _get_key():
         logger.warning("APOLLO_API_KEY not set — skipping Apollo call")
         return {}
     try:

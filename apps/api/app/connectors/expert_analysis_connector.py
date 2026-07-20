@@ -12,6 +12,7 @@ import os
 import re
 import time
 import logging
+import requests
 from datetime import datetime, timedelta
 from collections import defaultdict
 
@@ -99,6 +100,40 @@ def get_expert_news(ticker: str, company_name: str = "", days: int = 90) -> list
             })
     except Exception as e:
         log.debug("RSS expert news error: %s", e)
+
+    # Source 3: Finnhub company news (FINNHUB_API_KEY is available; NewsAPI/
+    # Guardian/NYT keys usually are not, so this is the primary live source).
+    try:
+        import os
+        finnhub_key = os.getenv("FINNHUB_API_KEY", "").strip()
+        if finnhub_key and ticker:
+            to_dt = datetime.utcnow().date()
+            from_dt = to_dt - timedelta(days=days)
+            resp = requests.get(
+                "https://finnhub.io/api/v1/company-news",
+                params={"symbol": ticker.upper(), "from": str(from_dt),
+                        "to": str(to_dt), "token": finnhub_key},
+                timeout=15,
+            )
+            if resp.ok:
+                for a in resp.json()[:60]:
+                    dt = a.get("datetime")
+                    published = ""
+                    if dt:
+                        try:
+                            published = datetime.utcfromtimestamp(int(dt)).isoformat()
+                        except Exception:
+                            published = ""
+                    articles.append({
+                        "title": a.get("headline", ""),
+                        "summary": a.get("summary", ""),
+                        "source": a.get("source", "Finnhub"),
+                        "url": a.get("url", ""),
+                        "published": published,
+                        "origin": "finnhub",
+                    })
+    except Exception as e:
+        log.warning("Finnhub expert news error: %s", e)
 
     # Deduplicate by title
     seen = set()
