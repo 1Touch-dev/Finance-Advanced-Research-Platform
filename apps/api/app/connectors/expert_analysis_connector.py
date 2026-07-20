@@ -293,6 +293,18 @@ def expert_analysis_report(ticker: str, company_name: str = "") -> dict:
     - Summary stats
     """
     log.info("Building expert analysis for %s", ticker)
+
+    # Resolve the real company name when the caller only gave a ticker. This
+    # fixes the "wrong-entity"/ticker-as-name display and improves news matching
+    # (name-based sources searched the bare ticker, e.g. "C" for Citigroup).
+    if not company_name:
+        try:
+            import yfinance as yf
+            info = yf.Ticker(ticker).info or {}
+            company_name = info.get("longName") or info.get("shortName") or ticker
+        except Exception:
+            company_name = ticker
+
     articles = get_expert_news(ticker, company_name)
     scored = score_articles(articles, ticker)
     weekly_trend = aggregate_sentiment_over_time(scored)
