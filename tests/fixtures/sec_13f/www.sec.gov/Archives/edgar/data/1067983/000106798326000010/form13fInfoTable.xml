@@ -1,0 +1,22 @@
+<informationTable>
+  <infoTable>
+    <nameOfIssuer>Alpha Corp</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>111111111</cusip>
+    <value>100</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>10</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+  </infoTable>
+  <infoTable>
+    <nameOfIssuer>Beta Corp</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>222222222</cusip>
+    <value>200</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>20</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+  </infoTable>
+</informationTable>

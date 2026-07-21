@@ -1,0 +1,20 @@
+<edgarSubmission>
+  <headerData>
+    <submissionType>13F-HR</submissionType>
+    <filerInfo>
+      <periodOfReport>12-31-2025</periodOfReport>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <coverPage>
+      <reportCalendarOrQuarter>12-31-2025</reportCalendarOrQuarter>
+      <filingManager>
+        <name>Example Capital Management</name>
+      </filingManager>
+      <isAmendment>false</isAmendment>
+    </coverPage>
+    <summaryPage>
+      <isConfidentialOmitted>false</isConfidentialOmitted>
+    </summaryPage>
+  </formData>
+</edgarSubmission>

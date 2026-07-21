@@ -1,0 +1,12 @@
+<informationTable>
+  <infoTable>
+    <nameOfIssuer>Epsilon Corp</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>555555555</cusip>
+    <value>70</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>7</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+  </infoTable>
+</informationTable>

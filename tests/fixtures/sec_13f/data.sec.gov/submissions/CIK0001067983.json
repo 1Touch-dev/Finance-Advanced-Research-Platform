@@ -1,0 +1,27 @@
+{
+  "cik": "0001067983",
+  "filings": {
+    "recent": {
+      "form": ["13F-HR", "13F-HR/A", "13F-HR/A", "13F-HR/A"],
+      "filingDate": ["2026-05-15", "2026-05-20", "2026-05-25", "2026-05-28"],
+      "accessionNumber": [
+        "0001067983-26-000010",
+        "0001067983-26-000011",
+        "0001067983-26-000012",
+        "0001067983-26-000013"
+      ],
+      "reportDate": ["2026-03-31", "2026-03-31", "2026-03-31", "2026-03-31"],
+      "primaryDocument": [
+        "primary_doc.xml",
+        "restatement.xml",
+        "new_holdings_a.xml",
+        "new_holdings_b.xml"
+      ]
+    },
+    "files": [
+      {
+        "name": "old-submissions-001.json"
+      }
+    ]
+  }
+}
