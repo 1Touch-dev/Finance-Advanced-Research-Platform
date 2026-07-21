@@ -471,6 +471,30 @@ def get_politician_profile(politician_id: str) -> dict:
     }
 
 
+# ─── F-03: Big Trade Scanner ─────────────────────────────────────────────────
+
+def scan_big_trades(tickers: list, threshold: float = 500_000, days: int = 30) -> list:
+    """
+    Scan a list of tickers for insider trades above `threshold` USD.
+    Uses get_insider_trades_for_ticker() (yfinance Form 4).
+    Returns qualifying trade dicts sorted by value_usd desc.
+    """
+    qualifying = []
+    for ticker in tickers:
+        if not ticker:
+            continue
+        try:
+            trades = get_insider_trades_for_ticker(ticker, days=days)
+            for t in trades:
+                if float(t.get("value_usd") or 0) >= threshold:
+                    qualifying.append(t)
+            time.sleep(0.5)  # avoid yfinance/SEC rate limits between tickers
+        except Exception as e:
+            log.warning("scan_big_trades error for %s: %s", ticker, e)
+    qualifying.sort(key=lambda x: float(x.get("value_usd") or 0), reverse=True)
+    return qualifying
+
+
 def get_all_politicians_summary() -> list:
     """Get trading activity summary for all tracked politicians."""
     results = []

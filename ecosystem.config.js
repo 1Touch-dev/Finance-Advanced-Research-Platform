@@ -47,5 +47,36 @@ module.exports = {
       autorestart: true,
       watch: false,
     },
+    // ── F-03: Big Trade Scanner ──────────────────────────────────────────────
+    {
+      name: 'big-trade-scanner',
+      cwd: './apps/api',
+      script: '../../venv/bin/python3',
+      args: '-m app.scripts.run_big_trade_scan',
+      interpreter: 'none',
+      env_file: '../../.env',
+      autorestart: true,
+      watch: false,
+      // Runs at 00:00, 04:00, 08:00, 12:00, 16:00, 20:00 UTC
+      cron_restart: '0 */4 * * *',
+      log_file: './logs/big-trade-scanner.log',
+      error_file: './logs/big-trade-scanner-error.log',
+    },
+    // ── F-04: Investment Alert Scanner ──────────────────────────────────────
+    {
+      name: 'investment-alert-scanner',
+      cwd: './apps/api',
+      script: '../../venv/bin/python3',
+      args: '-m app.scripts.run_investment_alert_scan',
+      interpreter: 'none',
+      env_file: '../../.env',
+      autorestart: true,
+      watch: false,
+      // Offset 30 min from big-trade-scanner to avoid overlap
+      // Runs at 00:30, 04:30, 08:30, 12:30, 16:30, 20:30 UTC
+      cron_restart: '30 */4 * * *',
+      log_file: './logs/investment-alert-scanner.log',
+      error_file: './logs/investment-alert-scanner-error.log',
+    },
   ],
 };
