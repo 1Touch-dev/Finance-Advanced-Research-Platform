@@ -67,13 +67,13 @@ def _log_seen(db: Session, item_id: int, trade: dict):
     try:
         db.execute(text("""
             INSERT INTO investment_alert_seen
-              (watchlist_item_id, investor_name, ticker, transaction, value_usd, trade_date)
-            VALUES (:item_id, :investor_name, :ticker, :transaction, :value_usd, :trade_date)
+              (watchlist_item_id, investor_name, ticker, txn_type, value_usd, trade_date)
+            VALUES (:item_id, :investor_name, :ticker, :txn_type, :value_usd, :trade_date)
         """), {
             "item_id": item_id,
             "investor_name": trade.get("investor_name", ""),
             "ticker": trade.get("ticker", ""),
-            "transaction": trade.get("transaction", ""),
+            "txn_type": trade.get("transaction", ""),
             "value_usd": trade.get("value_usd", 0),
             "trade_date": trade.get("date", ""),
         })

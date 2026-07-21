@@ -31,7 +31,7 @@ class InvestmentAlertSeen(Base):
     watchlist_item_id = Column(Integer, ForeignKey('watchlist_items.id'), nullable=False)
     investor_name = Column(String, nullable=False)
     ticker = Column(String, nullable=False)
-    transaction = Column(String, nullable=False)
+    txn_type = Column(String, nullable=False)
     value_usd = Column(Float, nullable=True)
     trade_date = Column(String, nullable=False)
     alerted_at = Column(DateTime(timezone=True), server_default=func.now())
