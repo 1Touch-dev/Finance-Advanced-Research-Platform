@@ -89,9 +89,89 @@ function AnalystPanel({ data }) {
 
 function EarningsPanel({ data }) {
   if (!data || (!data.earnings_history?.length && !data.calendar)) return null
+
+  // Calculate growth metrics from earnings history
+  const history = data.earnings_history || []
+  const calcGrowthMetrics = () => {
+    if (history.length < 2) return null
+    let beats = 0, misses = 0, yoyGrowths = [], qoqGrowths = []
+
+    history.forEach((e, i) => {
+      const actual = e.epsActual || e['Reported EPS'] || e.actual || 0
+      const est = e.epsEstimate || e['EPS Estimate'] || e.estimate || 0
+      if (actual > est) beats++
+      else if (actual < est) misses++
+
+      // QoQ growth (vs previous quarter)
+      if (i < history.length - 1) {
+        const prevActual = history[i + 1]?.epsActual || history[i + 1]?.actual || 0
+        if (prevActual !== 0) {
+          qoqGrowths.push((actual - prevActual) / Math.abs(prevActual))
+        }
+      }
+      // YoY growth (vs same quarter last year - 4 quarters ago)
+      if (i + 4 < history.length) {
+        const yoyActual = history[i + 4]?.epsActual || history[i + 4]?.actual || 0
+        if (yoyActual !== 0) {
+          yoyGrowths.push((actual - yoyActual) / Math.abs(yoyActual))
+        }
+      }
+    })
+
+    const avgYoY = yoyGrowths.length ? yoyGrowths.reduce((a, b) => a + b, 0) / yoyGrowths.length : null
+    const avgQoQ = qoqGrowths.length ? qoqGrowths.reduce((a, b) => a + b, 0) / qoqGrowths.length : null
+    const latestYoY = yoyGrowths[0] ?? null
+    const latestQoQ = qoqGrowths[0] ?? null
+
+    return { beats, misses, avgYoY, avgQoQ, latestYoY, latestQoQ, total: history.length }
+  }
+
+  const metrics = calcGrowthMetrics()
+
   return (
     <section className="card">
       <h2 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>Earnings History</h2>
+
+      {/* Growth Metrics Summary */}
+      {metrics && (
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+          <div style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 8, padding: '0.5rem 0.75rem', minWidth: 100 }}>
+            <div style={{ fontSize: '0.62rem', color: '#4ade80', textTransform: 'uppercase', fontWeight: 700 }}>Beat Rate</div>
+            <div style={{ fontSize: '1rem', fontWeight: 700, color: '#86efac' }}>
+              {metrics.total > 0 ? `${Math.round(metrics.beats / metrics.total * 100)}%` : '—'}
+            </div>
+            <div style={{ fontSize: '0.68rem', color: '#64748b' }}>{metrics.beats}/{metrics.total} quarters</div>
+          </div>
+          {metrics.latestYoY != null && (
+            <div style={{ background: metrics.latestYoY >= 0 ? 'rgba(74,222,128,0.08)' : 'rgba(248,113,113,0.08)', border: `1px solid ${metrics.latestYoY >= 0 ? 'rgba(74,222,128,0.2)' : 'rgba(248,113,113,0.2)'}`, borderRadius: 8, padding: '0.5rem 0.75rem', minWidth: 100 }}>
+              <div style={{ fontSize: '0.62rem', color: '#818cf8', textTransform: 'uppercase', fontWeight: 700 }}>YoY Growth</div>
+              <div style={{ fontSize: '1rem', fontWeight: 700, color: metrics.latestYoY >= 0 ? '#86efac' : '#fca5a5' }}>
+                {metrics.latestYoY >= 0 ? '+' : ''}{(metrics.latestYoY * 100).toFixed(1)}%
+              </div>
+              <div style={{ fontSize: '0.68rem', color: '#64748b' }}>vs same qtr last yr</div>
+            </div>
+          )}
+          {metrics.latestQoQ != null && (
+            <div style={{ background: metrics.latestQoQ >= 0 ? 'rgba(74,222,128,0.08)' : 'rgba(248,113,113,0.08)', border: `1px solid ${metrics.latestQoQ >= 0 ? 'rgba(74,222,128,0.2)' : 'rgba(248,113,113,0.2)'}`, borderRadius: 8, padding: '0.5rem 0.75rem', minWidth: 100 }}>
+              <div style={{ fontSize: '0.62rem', color: '#818cf8', textTransform: 'uppercase', fontWeight: 700 }}>QoQ Growth</div>
+              <div style={{ fontSize: '1rem', fontWeight: 700, color: metrics.latestQoQ >= 0 ? '#86efac' : '#fca5a5' }}>
+                {metrics.latestQoQ >= 0 ? '+' : ''}{(metrics.latestQoQ * 100).toFixed(1)}%
+              </div>
+              <div style={{ fontSize: '0.68rem', color: '#64748b' }}>vs prev quarter</div>
+            </div>
+          )}
+          {metrics.avgYoY != null && (
+            <div style={{ background: 'rgba(129,140,248,0.08)', border: '1px solid rgba(129,140,248,0.2)', borderRadius: 8, padding: '0.5rem 0.75rem', minWidth: 100 }}>
+              <div style={{ fontSize: '0.62rem', color: '#a5b4fc', textTransform: 'uppercase', fontWeight: 700 }}>Avg YoY</div>
+              <div style={{ fontSize: '1rem', fontWeight: 700, color: metrics.avgYoY >= 0 ? '#c7d2fe' : '#fca5a5' }}>
+                {metrics.avgYoY >= 0 ? '+' : ''}{(metrics.avgYoY * 100).toFixed(1)}%
+              </div>
+              <div style={{ fontSize: '0.68rem', color: '#64748b' }}>historical avg</div>
+            </div>
+          )}
+        </div>
+      )}
+
       {data.calendar && Object.keys(data.calendar).length > 0 && (
         <div style={{ marginBottom: '0.75rem', background: 'rgba(129,140,248,0.08)', border: '1px solid rgba(129,140,248,0.2)', borderRadius: 8, padding: '0.6rem 0.9rem' }}>
           <div style={{ fontSize: '0.72rem', color: '#818cf8', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.3rem' }}>Next Earnings</div>
@@ -110,6 +190,7 @@ function EarningsPanel({ data }) {
               <th style={{ padding: '0.35rem 0.5rem', textAlign: 'right', borderBottom: '1px solid var(--line)' }}>Actual EPS</th>
               <th style={{ padding: '0.35rem 0.5rem', textAlign: 'right', borderBottom: '1px solid var(--line)' }}>Estimated EPS</th>
               <th style={{ padding: '0.35rem 0.5rem', textAlign: 'right', borderBottom: '1px solid var(--line)' }}>Surprise</th>
+              <th style={{ padding: '0.35rem 0.5rem', textAlign: 'right', borderBottom: '1px solid var(--line)' }}>QoQ</th>
             </tr>
           </thead>
           <tbody>
@@ -118,6 +199,9 @@ function EarningsPanel({ data }) {
               const actual = e.epsActual || e['Reported EPS'] || e.actual
               const est = e.epsEstimate || e['EPS Estimate'] || e.estimate
               const surp = e.epsDifference || e.Surprise
+              // Calculate QoQ for this row
+              const prevActual = data.earnings_history[i + 1]?.epsActual || data.earnings_history[i + 1]?.actual
+              const qoqGrowth = prevActual && prevActual !== 0 ? ((actual - prevActual) / Math.abs(prevActual)) : null
               return (
                 <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                   <td style={{ padding: '0.35rem 0.5rem', color: '#e2e8f0' }}>{String(quarter).slice(0, 10)}</td>
@@ -125,6 +209,9 @@ function EarningsPanel({ data }) {
                   <td style={{ padding: '0.35rem 0.5rem', textAlign: 'right', color: '#94a3b8' }}>{fmt(est)}</td>
                   <td style={{ padding: '0.35rem 0.5rem', textAlign: 'right', color: surp > 0 ? '#4ade80' : surp < 0 ? '#f87171' : '#94a3b8', fontWeight: 600 }}>
                     {surp != null ? `${surp > 0 ? '+' : ''}${fmt(surp)}` : '—'}
+                  </td>
+                  <td style={{ padding: '0.35rem 0.5rem', textAlign: 'right', color: qoqGrowth != null ? (qoqGrowth >= 0 ? '#4ade80' : '#f87171') : '#64748b', fontSize: '0.75rem' }}>
+                    {qoqGrowth != null ? `${qoqGrowth >= 0 ? '+' : ''}${(qoqGrowth * 100).toFixed(1)}%` : '—'}
                   </td>
                 </tr>
               )

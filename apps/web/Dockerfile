@@ -7,6 +7,8 @@ RUN npm install
 
 COPY pages ./pages
 COPY src ./src
+COPY lib ./lib
+COPY tailwind.config.js postcss.config.js ./
 
 ENV NEXT_PUBLIC_API_URL=http://localhost:3001
 EXPOSE 3000

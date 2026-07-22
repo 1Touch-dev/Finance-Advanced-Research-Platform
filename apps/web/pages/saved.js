@@ -80,7 +80,15 @@ export default function SavedReports() {
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
                     {r.id && (
                       <>
-                        {[['PDF', 'pdf'], ['Word', 'word'], ['Excel', 'excel']].map(([label, ext]) => (
+                        <a
+                          href={`${API}/intelligence/${r.id}/pdf-beautiful`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          title="Beautiful PDF"
+                          className="btn btn-primary btn-xs"
+                        >★ PDF</a>
+                        {[['Word', 'word'], ['Excel', 'excel-detailed'], ['MD', 'markdown']].map(([label, ext]) => (
                           <a
                             key={ext}
                             href={`${API}/intelligence/${r.id}/${ext}`}

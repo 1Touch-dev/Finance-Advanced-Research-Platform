@@ -2,6 +2,9 @@
   "name": "web",
   "version": "1.0.0",
   "main": "src/index.js",
+  "engines": {
+    "node": ">=18.0.0 <23.0.0"
+  },
   "scripts": {
     "start": "next dev",
     "build": "next build",

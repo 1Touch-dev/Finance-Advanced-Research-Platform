@@ -22,7 +22,15 @@ dependencies = [
   "requests>=2.31",
   "pyotp>=2.9",
   "qrcode>=7.4",
-  "apify-client>=3.0"
+  "apify-client>=3.0",
+  "yfinance>=0.2.40",
+  "pandas>=2.0",
+  "matplotlib>=3.8",
+  "pillow>=10.0",
+  "openpyxl>=3.1",
+  "python-pptx>=0.6",
+  "weasyprint>=60",
+  "markdown>=3.5"
 ]
 [build-system]
 requires = ["setuptools", "wheel"]

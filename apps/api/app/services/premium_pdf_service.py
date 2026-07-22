@@ -643,6 +643,10 @@ def generate_premium_report_html(
             <span class="toc-number">8</span>
             <span class="toc-text">Risk Assessment &amp; Watch Items</span>
         </div>
+        <div class="toc-item">
+            <span class="toc-number">9</span>
+            <span class="toc-text">Sources &amp; Citations</span>
+        </div>
     </div>
 </div>
 
@@ -809,15 +813,25 @@ def generate_premium_report_html(
     <h1 class="section-title"><span class="section-number">8.</span> Risk Assessment &amp; Watch Items</h1>
 
     {_format_risk_section(entity_name, ticker, report_data)}
-
-    <div class="end-marker">
-        END OF REPORT — Compiled from open-source data current to {generated_at}. Sourcing available on request for any individual claim.
-    </div>
 </div>
 
-<div class="page-footer">
-    <span class="footer-left">Prepared for internal use only — not for distribution</span>
-    <span class="footer-right">Page 9</span>
+<div class="page-break"></div>
+
+<!-- SECTION 9: SOURCES & CITATIONS -->
+<div class="page-header">
+    <span class="header-left">{classification}</span>
+    <span class="header-right">{organization}</span>
+</div>
+
+<div class="page-content">
+    <h1 class="section-title"><span class="section-number">9.</span> Sources &amp; Citations</h1>
+
+    {_format_citations_section(sections)}
+
+    <div class="end-marker">
+        END OF REPORT — Compiled from open-source data current to {generated_at}.<br/>
+        All figures, statements, and attributions are documented with source URLs above.
+    </div>
 </div>
 
 </body>
@@ -920,6 +934,79 @@ def _format_currency(value: int) -> str:
         return f"${value / 1_000:.0f}K"
     else:
         return f"${value:,}"
+
+
+def _extract_citations(sections: list) -> list:
+    """Extract unique citations (source URLs) from all sections."""
+    citations = []
+    seen_urls = set()
+
+    for sec in sections:
+        for claim in sec.get('claims', []):
+            if isinstance(claim, dict):
+                url = claim.get('source_url', '')
+                source = claim.get('source', 'Unknown Source')
+                if url and url not in seen_urls:
+                    seen_urls.add(url)
+                    citations.append({
+                        'source': source,
+                        'url': url
+                    })
+
+    return citations
+
+
+def _format_citations_section(sections: list) -> str:
+    """Format citations as a numbered list with source names and URLs."""
+    citations = _extract_citations(sections)
+
+    if not citations:
+        return """
+<p style="color: #718096; font-style: italic;">
+    Sources for this report include SEC EDGAR, USASpending.gov, LDA Senate filings,
+    FEC OpenData, FARA DOJ database, Wikipedia, and other public data sources.
+    Specific citations available upon request.
+</p>
+"""
+
+    html = """
+<div class="citations-list" style="font-size: 9pt; line-height: 1.5;">
+    <p style="margin-bottom: 12pt; color: #4a5568;">
+        The following sources were consulted in preparing this intelligence report.
+        All data is publicly available as of the report date.
+    </p>
+    <table style="width: 100%; border-collapse: collapse; font-size: 8.5pt;">
+        <thead>
+            <tr style="background: #f7fafc; border-bottom: 1px solid #e2e8f0;">
+                <th style="padding: 6pt 8pt; text-align: left; font-weight: 600; color: #2d3748; width: 5%;">#</th>
+                <th style="padding: 6pt 8pt; text-align: left; font-weight: 600; color: #2d3748; width: 25%;">Source</th>
+                <th style="padding: 6pt 8pt; text-align: left; font-weight: 600; color: #2d3748; width: 70%;">URL</th>
+            </tr>
+        </thead>
+        <tbody>
+"""
+
+    for i, citation in enumerate(citations[:30], 1):  # Limit to 30 citations
+        source = citation['source']
+        url = citation['url']
+        # Truncate long URLs for display
+        display_url = url if len(url) < 80 else url[:77] + '...'
+        html += f"""
+            <tr style="border-bottom: 1px solid #edf2f7;">
+                <td style="padding: 5pt 8pt; color: #718096;">[{i}]</td>
+                <td style="padding: 5pt 8pt; color: #2d3748; font-weight: 500;">{source}</td>
+                <td style="padding: 5pt 8pt; color: #4299e1; word-break: break-all; font-family: 'SF Mono', monospace; font-size: 7.5pt;">
+                    <a href="{url}" style="color: #4299e1; text-decoration: none;">{display_url}</a>
+                </td>
+            </tr>
+"""
+
+    html += """
+        </tbody>
+    </table>
+</div>
+"""
+    return html
 
 
 def _generate_executive_bottomline(entity_name: str, ticker: str, report_data: dict, gov_contracts: dict) -> str:

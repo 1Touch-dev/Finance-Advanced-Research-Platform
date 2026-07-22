@@ -485,10 +485,13 @@ def generate_enhanced_markdown_report(report_data: dict) -> str:
     import re
     md = []
 
-    entity_name = report_data.get('entity_name', 'Unknown Entity')
-    ticker = report_data.get('ticker', '')
-    report_id = report_data.get('report_id', '')
-    gen_at = report_data.get('generated_at', datetime.utcnow().isoformat())
+    # Use `or` (not dict.get's default arg) — these keys are often present
+    # with an explicit None value (e.g. non-enhanced reports, older reports),
+    # and .get(key, default) only falls back when the key is MISSING entirely.
+    entity_name = report_data.get('entity_name') or 'Unknown Entity'
+    ticker = report_data.get('ticker') or ''
+    report_id = report_data.get('report_id') or ''
+    gen_at = report_data.get('generated_at') or datetime.utcnow().isoformat()
 
     # Title
     ticker_str = f" ({ticker})" if ticker else ""
@@ -502,10 +505,10 @@ def generate_enhanced_markdown_report(report_data: dict) -> str:
     md.append("")
 
     # Executive Dashboard
-    summary = report_data.get('summary', {})
-    investment_thesis = report_data.get('investment_thesis', {})
-    risk_matrix = report_data.get('risk_matrix', {})
-    financial_health = report_data.get('financial_health', {})
+    summary = report_data.get('summary') or {}
+    investment_thesis = report_data.get('investment_thesis') or {}
+    risk_matrix = report_data.get('risk_matrix') or {}
+    financial_health = report_data.get('financial_health') or {}
 
     md.append("## Executive Dashboard")
     md.append("")
@@ -534,7 +537,7 @@ def generate_enhanced_markdown_report(report_data: dict) -> str:
     md.append("")
 
     # Process sections
-    sections = report_data.get('sections', [])
+    sections = report_data.get('sections') or []
 
     # Extract key sections
     section_map = {sec.get('name', ''): sec for sec in sections}
@@ -564,7 +567,7 @@ def generate_enhanced_markdown_report(report_data: dict) -> str:
             md.append("")
 
     # SWOT Analysis
-    swot = report_data.get('swot_analysis', {})
+    swot = report_data.get('swot_analysis') or {}
     if swot:
         md.append("## SWOT Analysis")
         md.append("")
@@ -753,7 +756,7 @@ def generate_enhanced_markdown_report(report_data: dict) -> str:
             break
 
     # Data Sources
-    ds = report_data.get('data_sources', {})
+    ds = report_data.get('data_sources') or {}
     md.append("## Data Sources & Methodology")
     md.append("")
     md.append("This report was generated using the following data sources:")

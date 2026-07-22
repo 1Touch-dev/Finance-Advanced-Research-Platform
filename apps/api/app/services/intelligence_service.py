@@ -864,13 +864,17 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
     sec1_claims = []
     if wiki_data.get("summary"):
         sec1_claims.append({"text": wiki_data["summary"][:600],
-                            "confidence": "DOCUMENTED", "source": "Wikipedia"})
+                            "confidence": "DOCUMENTED", "source": "Wikipedia",
+                            "source_url": wiki_data.get("url", "")})
     if sec_data.get("cik"):
-        sec1_claims.append({"text": f"SEC CIK: {sec_data['cik']}. SIC: {sec_data.get('sic_desc','')} ({sec_data.get('sic','')}).",
-                            "confidence": "DOCUMENTED", "source": "SEC EDGAR"})
+        cik = sec_data['cik']
+        sec1_claims.append({"text": f"SEC CIK: {cik}. SIC: {sec_data.get('sic_desc','')} ({sec_data.get('sic','')}).",
+                            "confidence": "DOCUMENTED", "source": "SEC EDGAR",
+                            "source_url": f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}"})
     if sec_data.get("state_of_inc"):
         sec1_claims.append({"text": f"Incorporated in {sec_data['state_of_inc']}; listed on {', '.join(sec_data.get('exchanges',[]))}.",
-                            "confidence": "DOCUMENTED", "source": "SEC EDGAR"})
+                            "confidence": "DOCUMENTED", "source": "SEC EDGAR",
+                            "source_url": f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={sec_data.get('cik','')}" if sec_data.get('cik') else ""})
     sections.append({"name": "Entity Profile", "order": 1, "claims": sec1_claims,
                      "data": {"cik": sec_data.get("cik"), "company": sec_data.get("company_name"),
                               "wiki_url": wiki_data.get("url",""), "sic": sec_data.get("sic_desc","")}})
@@ -916,40 +920,51 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
     sec3_claims = []
 
     # SIDE A — entity AS RECIPIENT (receiving contracts)
+    usa_spending_url = f"https://www.usaspending.gov/search/?hash=&filters=%7B%22recipientSearchText%22%3A%5B%22{entity_name.replace(' ', '%20')}%22%5D%7D"
     if spending_data.get("awards"):
         sec3_claims.append({
             "text": f"[AS RECIPIENT] {entity_name} received {len(spending_data['awards'])} federal contract award(s) totaling ${spending_data.get('total_obligated', 0):,.0f} from USASpending.gov.",
-            "confidence": "DOCUMENTED", "source": "USASpending.gov"
+            "confidence": "DOCUMENTED", "source": "USASpending.gov",
+            "source_url": usa_spending_url
         })
     for agency, amt in spending_data.get("top_agencies", [])[:3]:
         sec3_claims.append({
             "text": f"[RECIPIENT SIDE] Top awarding agency: {agency} — ${amt:,.0f} obligated.",
-            "confidence": "DOCUMENTED", "source": "USASpending.gov"
+            "confidence": "DOCUMENTED", "source": "USASpending.gov",
+            "source_url": usa_spending_url
         })
     for a in spending_data.get("awards", []):
         amt = a.get("amount", 0)
         desc = (' — ' + a['description'][:80]) if a.get('description') else ''
+        award_id = a.get("id", "")
+        award_url = f"https://www.usaspending.gov/award/{award_id}" if award_id else usa_spending_url
         sec3_claims.append({
             "text": f"[RECIPIENT SIDE] ${float(amt):,.0f} from {a.get('agency')} ({a.get('type')}){desc}. Start: {a.get('start', 'unknown')}.",
-            "confidence": "DOCUMENTED", "source": "USASpending.gov"
+            "confidence": "DOCUMENTED", "source": "USASpending.gov",
+            "source_url": award_url
         })
 
     # SIDE B — entity AS AWARDING AGENCY (giving contracts to others)
     if spending_data.get("as_agency_awards"):
         sec3_claims.append({
             "text": f"[AS AWARDING AGENCY] {entity_name} appears as awarding agency in {len(spending_data['as_agency_awards'])} contract(s) totaling ${spending_data.get('as_agency_total', 0):,.0f}.",
-            "confidence": "DOCUMENTED", "source": "USASpending.gov"
+            "confidence": "DOCUMENTED", "source": "USASpending.gov",
+            "source_url": usa_spending_url
         })
     for recipient, amt in spending_data.get("top_recipients", [])[:3]:
         sec3_claims.append({
             "text": f"[AGENCY SIDE] Top recipient of contracts from {entity_name}: {recipient} — ${amt:,.0f}.",
-            "confidence": "DOCUMENTED", "source": "USASpending.gov"
+            "confidence": "DOCUMENTED", "source": "USASpending.gov",
+            "source_url": usa_spending_url
         })
     for a in spending_data.get("as_agency_awards", [])[:3]:
         amt = a.get("amount", 0)
+        award_id = a.get("id", "")
+        award_url = f"https://www.usaspending.gov/award/{award_id}" if award_id else usa_spending_url
         sec3_claims.append({
             "text": f"[AGENCY SIDE] {entity_name} awarded ${float(amt):,.0f} to {a.get('recipient')} ({a.get('type')}). Start: {a.get('start', 'unknown')}.",
-            "confidence": "DOCUMENTED", "source": "USASpending.gov"
+            "confidence": "DOCUMENTED", "source": "USASpending.gov",
+            "source_url": award_url
         })
 
     if not sec3_claims:
@@ -966,34 +981,42 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
 
     # ── Section 4: Lobbying Activity — BOTH SIDES ────────────────────────────
     sec4_claims = []
+    lda_search_url = f"https://lda.senate.gov/filings/public/filing/search/?search={entity_name.replace(' ', '+')}"
 
     # SIDE A — entity AS CLIENT (hiring lobbyists)
     if lda_data.get("total_count", 0) > 0:
         sec4_claims.append({"text": f"[AS CLIENT] {entity_name} has {lda_data['total_count']} lobbying filings on record as the client hiring lobbying firms (LDA database).",
-                            "confidence": "DOCUMENTED", "source": "LDA / lda.gov"})
+                            "confidence": "DOCUMENTED", "source": "LDA / lda.gov",
+                            "source_url": lda_search_url})
     if lda_data.get("issue_areas"):
         sec4_claims.append({"text": f"Lobbying issue areas (as client): {', '.join(lda_data['issue_areas'][:10])}.",
-                            "confidence": "DOCUMENTED", "source": "LDA"})
+                            "confidence": "DOCUMENTED", "source": "LDA",
+                            "source_url": lda_search_url})
     for firm, count in lda_data.get("top_firms", [])[:5]:
         sec4_claims.append({"text": f"[CLIENT SIDE] Lobbying firm {firm} filed {count} disclosure(s) on behalf of {entity_name}.",
-                            "confidence": "DOCUMENTED", "source": "LDA"})
+                            "confidence": "DOCUMENTED", "source": "LDA",
+                            "source_url": lda_search_url})
     for f in lda_data.get("filings", [])[:5]:
         income = f.get("income") or 0
         issues_str = ", ".join(f.get("issues", []))
         sec4_claims.append({"text": f"[CLIENT SIDE] {f.get('registrant','')} → Client: {f.get('client','')} | Period: {f.get('period','')} {f.get('year','')} | Income: ${float(income):,.0f} | Issues: {issues_str}.",
-                            "confidence": "DOCUMENTED", "source": "LDA"})
+                            "confidence": "DOCUMENTED", "source": "LDA",
+                            "source_url": lda_search_url})
 
     # SIDE B — entity AS REGISTRANT (lobbying firm acting for clients)
     if lda_data.get("as_registrant_count", 0) > 0:
         sec4_claims.append({"text": f"[AS LOBBYING FIRM] {entity_name} also appears as a registered lobbying firm in {lda_data['as_registrant_count']} filings — acting on behalf of other clients.",
-                            "confidence": "DOCUMENTED", "source": "LDA"})
+                            "confidence": "DOCUMENTED", "source": "LDA",
+                            "source_url": lda_search_url})
     for client_name, count in lda_data.get("as_registrant_clients", [])[:3]:
         sec4_claims.append({"text": f"[REGISTRANT SIDE] {entity_name} lobbied on behalf of: {client_name} ({count} filing(s)).",
-                            "confidence": "DOCUMENTED", "source": "LDA"})
+                            "confidence": "DOCUMENTED", "source": "LDA",
+                            "source_url": lda_search_url})
     for f in lda_data.get("as_registrant_filings", [])[:3]:
         income = f.get("income") or 0
         sec4_claims.append({"text": f"[REGISTRANT SIDE] {f.get('registrant','')} lobbied for client {f.get('client','')} | Period: {f.get('period','')} {f.get('year','')} | Income: ${float(income):,.0f}.",
-                            "confidence": "DOCUMENTED", "source": "LDA"})
+                            "confidence": "DOCUMENTED", "source": "LDA",
+                            "source_url": lda_search_url})
 
     if not sec4_claims:
         sec4_claims.append({"text": "No lobbying filings found (neither as client nor as registrant) in LDA database.",
@@ -1009,12 +1032,18 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
 
     # ── Section 5: Political & Foreign Exposure ───────────────────────────────
     sec5_claims = []
+    fec_search_url = f"https://www.fec.gov/data/committees/?q={entity_name.replace(' ', '+')}"
+    fara_search_url = "https://efile.fara.gov/ords/fara/f?p=1240:1"
+
     # ── FEC: Side A — entity as a registered PAC/committee ──
     for c in fec_data.get("committees", []):
+        committee_id = c.get("id", "")
+        committee_url = f"https://www.fec.gov/data/committee/{committee_id}/" if committee_id else fec_search_url
         sec5_claims.append({
             "text": f"[FEC COMMITTEE — REGISTRANT SIDE] {c['name']} ({c.get('type','')}, {c.get('state','')}) — "
                     f"Entity is the registered political committee.",
             "confidence": "DOCUMENTED", "source": "FEC OpenData",
+            "source_url": committee_url
         })
     # ── FEC: Side B — entity as a donor/contributor ──
     for contrib in fec_data.get("as_contributor", [])[:5]:
@@ -1023,6 +1052,7 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
                     f"${contrib.get('amount',0):,.0f} on {contrib.get('date','')} "
                     f"to {contrib.get('recipient','')}.",
             "confidence": "DOCUMENTED", "source": "FEC Schedule A",
+            "source_url": f"https://www.fec.gov/data/receipts/?contributor_name={entity_name.replace(' ', '+')}"
         })
 
     # ── FARA: Side A — entity as the registered lobbyist ──
@@ -1031,6 +1061,7 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
             "text": f"[FARA REGISTRANT SIDE] FARA registration #{r.get('reg_num')}: "
                     f"{r['name']} registered as foreign agent (foreign country: {r.get('country','unknown')}).",
             "confidence": "DOCUMENTED", "source": "FARA DOJ",
+            "source_url": fara_search_url
         })
     # ── FARA: Side B — entity as the foreign principal ──
     for fp in fara_data.get("foreign_principals", []):
@@ -1039,6 +1070,7 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
                     f"is represented in the US by FARA registrant {fp.get('registrant','')} "
                     f"(reg #{fp.get('reg_num','')}) on behalf of {fp.get('country','unknown')}.",
             "confidence": "DOCUMENTED", "source": "FARA DOJ",
+            "source_url": fara_search_url
         })
 
     if not sec5_claims:
