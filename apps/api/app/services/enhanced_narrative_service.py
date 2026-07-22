@@ -25,6 +25,11 @@ from app.templates.report_prompts import (
     get_risk_matrix_prompt,
     get_financial_health_prompt,
     get_competitive_analysis_prompt,
+    get_bottom_line_prompt,
+    get_key_personnel_prompt,
+    get_network_mapping_prompt,
+    get_watch_items_prompt,
+    get_government_exposure_prompt,
 )
 
 logger = logging.getLogger(__name__)
@@ -735,6 +740,235 @@ Tag all claims with [DOCUMENTED], [REPORTED], or [ANALYTICAL]."""
 
 
 # ============================================================================
+# HEMISPHERIC-STYLE SECTIONS (Bottom Line, Personnel, Network, Watch Items)
+# ============================================================================
+
+def generate_bottom_line(
+    entity_name: str,
+    ticker: Optional[str],
+    report_data: Dict[str, Any],
+    financial_data: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Generate BOTTOM LINE executive callout (Hemispheric-style).
+
+    This is the crisp, actionable assessment that appears in a callout box
+    at the top of the report.
+    """
+    prompt = get_bottom_line_prompt(
+        entity_name=entity_name,
+        ticker=ticker,
+        report_data=report_data,
+        financial_data=financial_data,
+    )
+
+    system_instruction = """You are a senior intelligence analyst at a top-tier research firm.
+You write dense, specific, actionable intelligence assessments.
+Every sentence should contain information a decision-maker can act on.
+Avoid hedging language. Be assertive and direct."""
+
+    narrative = _call_openai(prompt, system_instruction, temperature=0.2, max_tokens=1500)
+
+    return {
+        "section_name": "Bottom Line",
+        "narrative": narrative,
+        "metadata": {
+            "entity_name": entity_name,
+            "ticker": ticker,
+            "model": _MODEL,
+            "analysis_type": "bottom_line",
+        },
+    }
+
+
+def generate_key_personnel(
+    entity_name: str,
+    entity_type: str,
+    report_data: Dict[str, Any],
+    people_data: Optional[list] = None,
+) -> Dict[str, Any]:
+    """
+    Generate Key Personnel dossiers (Hemispheric-style).
+
+    Detailed profiles of key executives with career history, education,
+    board seats, financial entanglements, and network connections.
+    """
+    prompt = get_key_personnel_prompt(
+        entity_name=entity_name,
+        entity_type=entity_type,
+        report_data=report_data,
+        people_data=people_data,
+    )
+
+    system_instruction = """You are an intelligence analyst specializing in personnel dossiers.
+You compile detailed profiles with specific dates, institutions, and relationships.
+Focus on career trajectory, educational background, board interlocks, and financial ties.
+Flag any potential conflicts of interest or concerning connections."""
+
+    narrative = _call_openai(prompt, system_instruction, temperature=0.25, max_tokens=4000)
+
+    # Extract personnel list from narrative
+    personnel = _parse_personnel(narrative)
+
+    return {
+        "section_name": "Key Personnel",
+        "narrative": narrative,
+        "personnel": personnel,
+        "metadata": {
+            "entity_name": entity_name,
+            "model": _MODEL,
+            "analysis_type": "key_personnel",
+            "profile_count": len(personnel),
+        },
+    }
+
+
+def _parse_personnel(narrative: str) -> List[Dict[str, Any]]:
+    """Extract structured personnel data from narrative."""
+    import re
+    personnel = []
+
+    # Look for ## [Name] — [Title] patterns
+    pattern = r'##\s+([^—\n]+)\s*—\s*([^\n]+)'
+    matches = re.findall(pattern, narrative)
+
+    for name, title in matches[:10]:
+        personnel.append({
+            "name": name.strip(),
+            "title": title.strip(),
+        })
+
+    return personnel
+
+
+def generate_network_mapping(
+    entity_name: str,
+    report_data: Dict[str, Any],
+    relationships: Optional[list] = None,
+) -> Dict[str, Any]:
+    """
+    Generate Network Mapping analysis (Hemispheric-style).
+
+    Maps ownership networks, board interlocks, investor relationships,
+    political connections, and co-investment patterns.
+    """
+    prompt = get_network_mapping_prompt(
+        entity_name=entity_name,
+        report_data=report_data,
+        relationships=relationships,
+    )
+
+    system_instruction = """You are a network intelligence analyst mapping financial and political relationships.
+You identify ownership structures, board interlocks, shared investors, and political connections.
+Focus on relationships that create influence, risk, or opportunity.
+Be specific with names, percentages, and institutional affiliations."""
+
+    narrative = _call_openai(prompt, system_instruction, temperature=0.25, max_tokens=4000)
+
+    return {
+        "section_name": "Network Mapping",
+        "narrative": narrative,
+        "metadata": {
+            "entity_name": entity_name,
+            "model": _MODEL,
+            "analysis_type": "network_mapping",
+        },
+    }
+
+
+def generate_watch_items(
+    entity_name: str,
+    report_data: Dict[str, Any],
+    financial_data: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Generate Watch Items / Outlook section (Hemispheric-style).
+
+    Forward-looking intelligence with specific events to monitor,
+    scenario triggers, and key metrics to track.
+    """
+    prompt = get_watch_items_prompt(
+        entity_name=entity_name,
+        report_data=report_data,
+        financial_data=financial_data,
+    )
+
+    system_instruction = """You are a senior intelligence analyst writing forward-looking watch items.
+Each watch item should be specific, actionable, and tied to a date or trigger event.
+Organize by timeframe and prioritize by materiality to the investment thesis.
+Include specific scenario triggers that would change the overall assessment."""
+
+    narrative = _call_openai(prompt, system_instruction, temperature=0.3, max_tokens=3000)
+
+    # Extract watch items from narrative
+    watch_items = _parse_watch_items(narrative)
+
+    return {
+        "section_name": "Outlook & Watch Items",
+        "narrative": narrative,
+        "watch_items": watch_items,
+        "metadata": {
+            "entity_name": entity_name,
+            "model": _MODEL,
+            "analysis_type": "watch_items",
+            "item_count": len(watch_items),
+        },
+    }
+
+
+def _parse_watch_items(narrative: str) -> List[Dict[str, Any]]:
+    """Extract structured watch items from narrative."""
+    import re
+    items = []
+
+    # Look for bullet points with bold items
+    pattern = r'\*\*([^*]+)\*\*[:\s]*([^\n]+)'
+    matches = re.findall(pattern, narrative)
+
+    for item, description in matches[:15]:
+        if len(item) > 3 and len(description) > 10:
+            items.append({
+                "item": item.strip(),
+                "description": description.strip()[:200],
+            })
+
+    return items
+
+
+def generate_government_exposure(
+    entity_name: str,
+    report_data: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Generate Government Exposure analysis.
+
+    Comprehensive analysis of government contracts, lobbying activity,
+    political donations, regulatory relationships, and geopolitical exposure.
+    """
+    prompt = get_government_exposure_prompt(
+        entity_name=entity_name,
+        report_data=report_data,
+    )
+
+    system_instruction = """You are an analyst specializing in government contracting and political exposure.
+You analyze federal contracts, lobbying activity, regulatory relationships, and political donations.
+Quantify exposure with specific dollar amounts and identify key agencies and relationships.
+Flag any concerning patterns or compliance risks."""
+
+    narrative = _call_openai(prompt, system_instruction, temperature=0.25, max_tokens=3500)
+
+    return {
+        "section_name": "Government Exposure",
+        "narrative": narrative,
+        "metadata": {
+            "entity_name": entity_name,
+            "model": _MODEL,
+            "analysis_type": "government_exposure",
+        },
+    }
+
+
+# ============================================================================
 # FULL ENHANCED REPORT GENERATION
 # ============================================================================
 
@@ -746,14 +980,21 @@ def generate_enhanced_sections(
     financial_data: Optional[Dict[str, Any]] = None,
     valuation_data: Optional[Dict[str, Any]] = None,
     technicals_data: Optional[Dict[str, Any]] = None,
+    people_data: Optional[list] = None,
+    relationships: Optional[list] = None,
     include_investment_thesis: bool = True,
     include_swot: bool = True,
     include_risk_matrix: bool = True,
     include_financial_health: bool = True,
     include_competitive: bool = True,
+    include_bottom_line: bool = True,
+    include_key_personnel: bool = True,
+    include_network_mapping: bool = True,
+    include_watch_items: bool = True,
+    include_government_exposure: bool = True,
 ) -> List[Dict[str, Any]]:
     """
-    Generate all enhanced report sections.
+    Generate all enhanced report sections (Hemispheric-quality).
 
     Args:
         entity_name: Name of the entity
@@ -763,6 +1004,8 @@ def generate_enhanced_sections(
         financial_data: Optional yfinance data
         valuation_data: Optional DCF valuation data
         technicals_data: Optional technical indicators
+        people_data: Optional list of key personnel from Apollo/LinkedIn
+        relationships: Optional list of relationships from graph
         include_*: Flags to include/exclude specific sections
 
     Returns:
@@ -770,7 +1013,21 @@ def generate_enhanced_sections(
     """
     enhanced_sections = []
 
-    # Always generate executive summary
+    # 1. BOTTOM LINE - Hemispheric-style executive callout (first for prominence)
+    if include_bottom_line:
+        logger.info(f"Generating Bottom Line for {entity_name}")
+        try:
+            bottom_line = generate_bottom_line(
+                entity_name=entity_name,
+                ticker=ticker,
+                report_data=report_data,
+                financial_data=financial_data,
+            )
+            enhanced_sections.append(bottom_line)
+        except Exception as e:
+            logger.warning(f"Failed to generate Bottom Line: {e}")
+
+    # 2. EXECUTIVE SUMMARY - Always generate
     logger.info(f"Generating executive summary for {entity_name}")
     exec_summary = generate_executive_summary(
         entity_name=entity_name,
@@ -780,7 +1037,21 @@ def generate_enhanced_sections(
     )
     enhanced_sections.append(exec_summary)
 
-    # Investment Thesis (for companies with tickers)
+    # 3. KEY PERSONNEL - Hemispheric-style dossiers
+    if include_key_personnel:
+        logger.info(f"Generating Key Personnel for {entity_name}")
+        try:
+            key_personnel = generate_key_personnel(
+                entity_name=entity_name,
+                entity_type=entity_type,
+                report_data=report_data,
+                people_data=people_data,
+            )
+            enhanced_sections.append(key_personnel)
+        except Exception as e:
+            logger.warning(f"Failed to generate Key Personnel: {e}")
+
+    # 4. INVESTMENT THESIS (for companies with tickers)
     if include_investment_thesis and (ticker or entity_type == "org"):
         logger.info(f"Generating investment thesis for {entity_name}")
         investment_thesis = generate_investment_thesis(
@@ -792,7 +1063,7 @@ def generate_enhanced_sections(
         )
         enhanced_sections.append(investment_thesis)
 
-    # SWOT Analysis
+    # 5. SWOT Analysis
     if include_swot:
         logger.info(f"Generating SWOT analysis for {entity_name}")
         swot = generate_swot_analysis(
@@ -803,7 +1074,7 @@ def generate_enhanced_sections(
         )
         enhanced_sections.append(swot)
 
-    # Risk Matrix
+    # 6. Risk Matrix
     if include_risk_matrix:
         logger.info(f"Generating risk matrix for {entity_name}")
         risk_matrix = generate_risk_matrix(
@@ -813,7 +1084,7 @@ def generate_enhanced_sections(
         )
         enhanced_sections.append(risk_matrix)
 
-    # Financial Health (requires financial data)
+    # 7. Financial Health (requires financial data)
     if include_financial_health and financial_data:
         logger.info(f"Generating financial health summary for {entity_name}")
         financial_health = generate_financial_health(
@@ -824,7 +1095,7 @@ def generate_enhanced_sections(
         )
         enhanced_sections.append(financial_health)
 
-    # Competitive Analysis
+    # 8. Competitive Analysis
     if include_competitive and entity_type == "org":
         sector = None
         if financial_data:
@@ -837,6 +1108,44 @@ def generate_enhanced_sections(
             report_data=report_data,
         )
         enhanced_sections.append(competitive)
+
+    # 9. NETWORK MAPPING - Hemispheric-style relationship analysis
+    if include_network_mapping:
+        logger.info(f"Generating Network Mapping for {entity_name}")
+        try:
+            network = generate_network_mapping(
+                entity_name=entity_name,
+                report_data=report_data,
+                relationships=relationships,
+            )
+            enhanced_sections.append(network)
+        except Exception as e:
+            logger.warning(f"Failed to generate Network Mapping: {e}")
+
+    # 10. GOVERNMENT EXPOSURE - Contracts, lobbying, political
+    if include_government_exposure and entity_type == "org":
+        logger.info(f"Generating Government Exposure for {entity_name}")
+        try:
+            gov_exposure = generate_government_exposure(
+                entity_name=entity_name,
+                report_data=report_data,
+            )
+            enhanced_sections.append(gov_exposure)
+        except Exception as e:
+            logger.warning(f"Failed to generate Government Exposure: {e}")
+
+    # 11. WATCH ITEMS - Hemispheric-style forward-looking (last section)
+    if include_watch_items:
+        logger.info(f"Generating Watch Items for {entity_name}")
+        try:
+            watch = generate_watch_items(
+                entity_name=entity_name,
+                report_data=report_data,
+                financial_data=financial_data,
+            )
+            enhanced_sections.append(watch)
+        except Exception as e:
+            logger.warning(f"Failed to generate Watch Items: {e}")
 
     logger.info(f"Generated {len(enhanced_sections)} enhanced sections for {entity_name}")
     return enhanced_sections

@@ -525,6 +525,315 @@ def _build_technicals_context(technicals_data: Dict[str, Any]) -> str:
 # PROMPT RETRIEVAL INTERFACE
 # ============================================================================
 
+def get_bottom_line_prompt(
+    entity_name: str,
+    ticker: Optional[str],
+    report_data: Dict[str, Any],
+    financial_data: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Generate prompt for BOTTOM LINE executive callout (Hemispheric-style)."""
+
+    context = _build_context_block(report_data, financial_data)
+
+    return f"""You are a senior intelligence analyst writing a BOTTOM LINE assessment.
+Generate a crisp, actionable BOTTOM LINE callout for {entity_name} ({ticker or 'N/A'}).
+
+CONTEXT DATA:
+{context}
+
+INSTRUCTIONS:
+Write a 3-4 paragraph BOTTOM LINE executive assessment that:
+
+1. **First paragraph**: State the core investment/intelligence thesis in 2-3 sentences. What is the single most important thing a decision-maker needs to know? Be direct and assertive.
+
+2. **Second paragraph**: Identify the primary tension or conflict. What competing forces, risks, or uncertainties define the current situation? Name specific actors, events, or structural factors.
+
+3. **Third paragraph**: Highlight network/relationship factors that matter. Who are the key players, what are their entanglements, and why does this matter for the investment/intelligence case?
+
+4. **Fourth paragraph (optional)**: Forward-looking watch items. What should be monitored? What events would change the thesis?
+
+STYLE REQUIREMENTS:
+- Write in intelligence-briefing style: dense, specific, assertive
+- Use specific names, dates, dollar amounts, and percentages
+- Avoid hedging language ("may", "might", "could potentially")
+- Each sentence should contain actionable information
+- Tag claims: [DOCUMENTED], [REPORTED], or [ANALYTICAL]
+
+{DATA_DISCIPLINE}
+OUTPUT: Return ONLY the BOTTOM LINE text (no headers, no markdown formatting).
+"""
+
+
+def get_key_personnel_prompt(
+    entity_name: str,
+    entity_type: str,
+    report_data: Dict[str, Any],
+    people_data: Optional[list] = None,
+) -> str:
+    """Generate prompt for Key Personnel dossiers (Hemispheric-style)."""
+
+    context = _build_context_block(report_data)
+    people_context = ""
+    if people_data:
+        people_context = "\n### KNOWN PERSONNEL\n"
+        for p in people_data[:15]:
+            if isinstance(p, dict):
+                name = p.get('name', p.get('full_name', 'Unknown'))
+                title = p.get('title', p.get('headline', ''))
+                people_context += f"- {name}: {title}\n"
+
+    return f"""You are an intelligence analyst compiling personnel dossiers.
+Generate detailed Key Personnel profiles for {entity_name}.
+
+CONTEXT DATA:
+{context}
+{people_context}
+
+INSTRUCTIONS:
+For each key person (CEO, CFO, key executives, board members), provide:
+
+## [PERSON NAME] — [Title]
+
+**Current Role**: [Description of responsibilities and tenure]
+
+**Career History**:
+- [Most recent prior role] — [Company], [Years]
+- [Earlier role] — [Company], [Years]
+- [Foundational experience] — [Company], [Years]
+
+**Education**:
+- [Degree], [Institution], [Year if known]
+- [Additional credentials]
+
+**Board Seats & Affiliations**:
+- [Current board positions]
+- [Advisory roles]
+- [Nonprofit/institutional affiliations]
+
+**Financial Entanglements** (if any):
+- [Stock ownership, options, recent transactions]
+- [Investments in related entities]
+- [Potential conflicts of interest]
+
+**Network Notes**:
+- [Connections to other key figures in this report]
+- [Co-employment or co-education links]
+- [Investment/business relationship overlaps]
+
+REQUIREMENTS:
+- Profile at minimum: CEO, CFO, and 2-3 other key executives
+- Be specific with dates, institutions, dollar amounts
+- Flag any documented Russia/China/sanctioned-entity exposure
+- Note any regulatory or legal history
+- Tag all claims: [DOCUMENTED], [REPORTED], or [ANALYTICAL]
+
+{DATA_DISCIPLINE}
+"""
+
+
+def get_network_mapping_prompt(
+    entity_name: str,
+    report_data: Dict[str, Any],
+    relationships: Optional[list] = None,
+) -> str:
+    """Generate prompt for network/relationship mapping (Hemispheric-style)."""
+
+    context = _build_context_block(report_data)
+    rel_context = ""
+    if relationships:
+        rel_context = "\n### KNOWN RELATIONSHIPS\n"
+        for r in relationships[:20]:
+            if isinstance(r, dict):
+                src = r.get('source', r.get('src_entity', ''))
+                dst = r.get('target', r.get('dst_entity', ''))
+                kind = r.get('kind', r.get('relationship_type', ''))
+                rel_context += f"- {src} → {dst} ({kind})\n"
+
+    return f"""You are a network intelligence analyst mapping financial/political relationships.
+Generate a Network Mapping analysis for {entity_name}.
+
+CONTEXT DATA:
+{context}
+{rel_context}
+
+INSTRUCTIONS:
+Map the key relationship networks around this entity:
+
+## 1. OWNERSHIP & CONTROL NETWORK
+- Major shareholders (>5% ownership)
+- Subsidiary relationships
+- Joint ventures and partnerships
+- Voting control vs economic interest gaps
+
+## 2. BOARD & EXECUTIVE INTERLOCKS
+| Person | Role at {entity_name} | Other Boards/Roles | Network Significance |
+|--------|----------------------|-------------------|---------------------|
+| [Name] | [Role] | [Other positions] | [Why this matters] |
+
+## 3. INVESTOR/CAPITAL NETWORK
+- Key institutional investors
+- Sovereign wealth fund exposure
+- Private equity/VC relationships
+- Family office connections
+
+## 4. POLITICAL/REGULATORY NETWORK
+- Government contracts and relationships
+- Lobbying relationships (as client AND as target)
+- Regulatory body connections
+- Political donation patterns
+
+## 5. CO-INVESTMENT PATTERNS
+Identify entities that share investors with {entity_name}:
+| Shared Investor | Other Portfolio Companies | Investment Thesis Link |
+|-----------------|--------------------------|----------------------|
+
+## 6. EDUCATIONAL/PROFESSIONAL LINEAGE
+- "Mafia" networks (PayPal mafia, Goldman alumni, etc.)
+- Shared educational backgrounds (Stanford MBA cohorts, etc.)
+- Prior employer alumni networks
+
+## 7. NETWORK RISKS & WATCH ITEMS
+- Sanctions exposure through network connections
+- Reputational contagion risks
+- Regulatory scrutiny on network members
+
+Tag all claims: [DOCUMENTED], [REPORTED], or [ANALYTICAL]
+Be specific with names, dates, and dollar amounts.
+"""
+
+
+def get_watch_items_prompt(
+    entity_name: str,
+    report_data: Dict[str, Any],
+    financial_data: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Generate prompt for Watch Items / Outlook section (Hemispheric-style)."""
+
+    context = _build_context_block(report_data, financial_data)
+
+    return f"""You are a senior intelligence analyst writing forward-looking watch items.
+Generate an Outlook & Watch Items section for {entity_name}.
+
+CONTEXT DATA:
+{context}
+
+INSTRUCTIONS:
+Generate 8-12 specific, actionable watch items organized by timeframe:
+
+## NEAR-TERM (30-90 days)
+For each item:
+- **[Watch Item]**: [Why this matters] — [Trigger event or date to monitor]
+
+Examples of what to include:
+- Earnings releases and guidance
+- Regulatory decisions pending
+- Product launches
+- Executive changes
+- Litigation milestones
+
+## MEDIUM-TERM (3-12 months)
+- Strategic initiatives and their milestones
+- Competitive dynamics to monitor
+- Macroeconomic factors affecting the entity
+- Political/regulatory calendar events
+
+## STRUCTURAL / LONG-TERM
+- Industry transformation factors
+- Technology disruption vectors
+- Demographic or market shifts
+- Geopolitical realignment impacts
+
+## SCENARIO TRIGGERS
+Identify specific events that would materially change the investment thesis:
+
+| Scenario | Trigger Event | Impact on Thesis |
+|----------|---------------|-----------------|
+| Bull Case Acceleration | [Specific event] | [How thesis improves] |
+| Bear Case Activation | [Specific event] | [How thesis deteriorates] |
+| Thesis Invalidation | [Specific event] | [Why position should be exited] |
+
+## MONITORING INDICATORS
+Key metrics to track on an ongoing basis:
+- [KPI 1]: Current value, threshold levels
+- [KPI 2]: Current value, threshold levels
+- [KPI 3]: Current value, threshold levels
+
+REQUIREMENTS:
+- Be specific with dates, names, and numbers
+- Each watch item should be actionable
+- Prioritize by materiality to investment thesis
+- Tag all claims: [DOCUMENTED], [REPORTED], or [ANALYTICAL]
+
+{DATA_DISCIPLINE}
+"""
+
+
+def get_government_exposure_prompt(
+    entity_name: str,
+    report_data: Dict[str, Any],
+) -> str:
+    """Generate prompt for Government Contracts & Exposure analysis."""
+
+    context = _build_context_block(report_data)
+
+    return f"""You are an analyst specializing in government contracting and political exposure.
+Generate a Government Exposure analysis for {entity_name}.
+
+CONTEXT DATA:
+{context}
+
+INSTRUCTIONS:
+Analyze government relationships across all dimensions:
+
+## 1. FEDERAL CONTRACTING PROFILE
+| Agency | Contract Type | Value | Period | Status |
+|--------|--------------|-------|--------|--------|
+| [Agency] | [Type] | [$Amount] | [Years] | [Active/Complete] |
+
+Summary metrics:
+- Total contract value (lifetime): $X
+- Active contract value: $X
+- Top 3 agencies by spend
+- Contract concentration risk
+
+## 2. LOBBYING ACTIVITY (AS CLIENT)
+| Lobbying Firm | Issues | Annual Spend | Key Lobbyists |
+|---------------|--------|--------------|---------------|
+
+- Total lobbying spend (annual): $X
+- Primary legislative targets
+- Regulatory agencies targeted
+
+## 3. LOBBYING EXPOSURE (AS TARGET)
+Which industries/entities lobby AGAINST this entity?
+- Competitive lobbying efforts
+- Regulatory opposition campaigns
+
+## 4. POLITICAL DONATIONS
+- PAC contributions by party/candidate
+- Executive personal contributions
+- 501(c)(4) dark money exposure (if known)
+
+## 5. REGULATORY RELATIONSHIP
+- Key regulatory bodies with jurisdiction
+- Recent enforcement actions
+- Pending investigations or inquiries
+- Compliance infrastructure assessment
+
+## 6. GEOPOLITICAL EXPOSURE
+- Foreign government relationships
+- CFIUS/national security considerations
+- Sanctions compliance status
+- Export control exposure
+
+## 7. GOVERNMENT RISK ASSESSMENT
+| Risk Factor | Severity | Likelihood | Mitigation Status |
+|-------------|----------|------------|-------------------|
+
+Tag all claims: [DOCUMENTED], [REPORTED], or [ANALYTICAL]
+"""
+
+
 PROMPT_REGISTRY = {
     "executive_summary": get_executive_summary_prompt,
     "investment_thesis": get_investment_thesis_prompt,
@@ -532,6 +841,11 @@ PROMPT_REGISTRY = {
     "risk_matrix": get_risk_matrix_prompt,
     "financial_health": get_financial_health_prompt,
     "competitive_analysis": get_competitive_analysis_prompt,
+    "bottom_line": get_bottom_line_prompt,
+    "key_personnel": get_key_personnel_prompt,
+    "network_mapping": get_network_mapping_prompt,
+    "watch_items": get_watch_items_prompt,
+    "government_exposure": get_government_exposure_prompt,
 }
 
 
