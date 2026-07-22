@@ -56,6 +56,11 @@ services:
       dockerfile: apps/api/Dockerfile
     ports:
       - "3001:3001"
+    # .env supplies API keys (OPENAI, APOLLO, APIFY, etc.). The explicit
+    # `environment` block below overrides .env values (e.g. DATABASE_URL) so
+    # the API talks to the compose Postgres, not the local sqlite fallback.
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql+psycopg://user:password@postgres:5432/mydb
       JWT_SECRET: dev-secret-change

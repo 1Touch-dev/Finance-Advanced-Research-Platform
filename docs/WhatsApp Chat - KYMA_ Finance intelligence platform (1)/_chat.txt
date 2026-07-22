@@ -1,0 +1,140 @@
+[28/05/26, 11:13:31 AM] KYMA: Finance intelligence platform: ‎Messages and calls are end-to-end encrypted. Only people in this chat can read, listen to, or share them.
+[28/05/26, 11:13:31 AM] Akash Onetouch Main: ‎Akash Onetouch Main created this group
+[13/07/26, 11:15:25 AM] KYMA: Finance intelligence platform: ‎Abhishek Kulkarni Onetouch added you
+[13/07/26, 5:04:25 PM] James 1touch: Hi; was any work done on this
+[13/07/26, 5:07:19 PM] Anshuman: Hey James, just got the hand off of this project today along with other ones. Whats the next milestone we have to achieve in this project?
+[13/07/26, 5:08:44 PM] James 1touch: Can someone resend the full roadmap please. Or are we finished?
+‎[13/07/26, 5:10:48 PM] Abhishek Kulkarni Onetouch: Finance_Platform_Handoff.md ‎<attached: 00003007-Finance_Platform_Handoff.md>
+[13/07/26, 5:11:44 PM] James 1touch: For any api we need an approval let’s find an alternative or workaround
+[13/07/26, 5:12:37 PM] James 1touch: Please let me know any pending APIs neeeded
+[13/07/26, 5:17:31 PM] Abhishek Kulkarni Onetouch: quick update on API access status:
+
+Needs approval / credentials from provider or you:
+- CA Secretary of State API — application submitted, waiting for Active status
+- ALEPH / OCCRP — account/API approval pending
+- Google Workspace SSO — routes ready, need OIDC client ID/secret from you
+- Congress.gov full access — DEMO_KEY limited; paid key needed
+- Cobalt SOS — trial rate-limited (429); deferred unless paid
+
+Working with workarounds (no blocker):
+- House/Senate stock watcher → using House Clerk + SEC Form 4
+- Congress legislation → DEMO_KEY (partial)
+- CA SOS → BizFile scrape interim
+- FT/WSJ → Google News RSS fallback
+- FinCEN BOI → OpenCorporates fallback
+- CoinGecko → 5-min cache
+- Scraping → Apify live; Crawl4AI planned
+
+Still remaining:
+- CA SOS key approval
+- ALEPH/OCCRP key approval
+- Google SSO credentials
+- Congress.gov full key
+- Decide Cobalt paid vs free scrapers
+- Crawl4AI migration
+- RSS Phase 2
+- Deeper 10-K/10-Q LLM synthesis
+
+Platform is live with workarounds; no blockers on day-to-day research.
+[13/07/26, 5:21:28 PM] James 1touch: Ca secretary api; have we found any alternatives.
+[13/07/26, 5:22:08 PM] James 1touch: Can we add the debit card (brown) on the required APIs that need billing
+[13/07/26, 5:23:17 PM] Abhishek Kulkarni Onetouch: BizFile Playwright scrape
+[13/07/26, 5:24:40 PM] Abhishek Kulkarni Onetouch: it does almost all work of CA , but uses playwright which might increase the delay by few seconds in retrieval , other than that it very well supplements it
+[13/07/26, 8:30:27 PM] James 1touch: that works not an issue.
+‎[14/07/26, 9:01:11 AM] James 1touch: we should search, linkedin profiles, to find relationships, trends, if they studied, together, worked together, etc. ‎<attached: 00003016-PHOTO-2026-07-14-09-01-11.jpg>
+[14/07/26, 9:01:15 AM] James 1touch: by scraping linkedin
+[14/07/26, 9:01:28 AM] James 1touch: apollo is not integerated
+‎[14/07/26, 9:01:51 AM] James 1touch: Screenshot 2026-07-14 at 12.31.36 AM.png ‎<attached: 00003019-Screenshot 2026-07-14 at 12.31.36 AM.png>
+‎[14/07/26, 9:02:17 AM] James 1touch: Screenshot 2026-07-14 at 12.32.03 AM.png ‎<attached: 00003020-Screenshot 2026-07-14 at 12.32.03 AM.png>
+‎[14/07/26, 9:02:18 AM] James 1touch: Screenshot 2026-07-14 at 12.32.07 AM.png ‎<attached: 00003021-Screenshot 2026-07-14 at 12.32.07 AM.png>
+[14/07/26, 9:02:52 AM] James 1touch: in financial, if not public, it should look for any private or public record of contracts, valuations, capital raised, etc.
+[14/07/26, 9:03:01 AM] James 1touch: There is private information on companies as well
+[14/07/26, 9:03:05 AM] James 1touch: we need to get that
+‎[14/07/26, 9:05:39 AM] James 1touch: this flow seems unnecessary. there should be one enrich. entity should have names and details. ‎<attached: 00003025-PHOTO-2026-07-14-09-05-39.jpg>
+‎[14/07/26, 9:05:39 AM] James 1touch: enrich should go on other slide ‎<attached: 00003026-PHOTO-2026-07-14-09-05-39.jpg>
+[14/07/26, 9:05:43 AM] James 1touch: need visualizer of relationships.
+[14/07/26, 9:05:49 AM] James 1touch: possibility to add or compare people
+[14/07/26, 9:06:38 AM] James 1touch: what about lobbying information
+[14/07/26, 9:06:47 AM] James 1touch: goverment tracking
+[14/07/26, 9:06:52 AM] James 1touch: important people tracking
+[14/07/26, 9:06:54 AM] James 1touch: crypto
+[14/07/26, 9:07:37 AM] James 1touch: Expert analysis, needs to have multiple perspectives, based on different perspectives, and different analyzis styles and investment profiles, or perspectives.
+‎[14/07/26, 9:07:59 AM] James 1touch: sentiment not working ‎<attached: 00003034-PHOTO-2026-07-14-09-07-59.jpg>
+‎[14/07/26, 9:08:19 AM] James 1touch: buttons for earnings growth etc not working ‎<attached: 00003035-PHOTO-2026-07-14-09-08-19.jpg>
+‎[14/07/26, 9:08:48 AM] James 1touch: need stock price during timeline ‎<attached: 00003036-PHOTO-2026-07-14-09-08-48.jpg>
+[14/07/26, 9:09:03 AM] James 1touch: should be clickable to view what happened or why, and news regarding
+‎[14/07/26, 9:09:57 AM] James 1touch: for public companies, can we make search dropwon with suggestion or autofill, and search by name to get tickr. ‎<attached: 00003038-PHOTO-2026-07-14-09-09-57.jpg>
+‎[14/07/26, 9:11:59 AM] James 1touch: should include all years, company is older. Need to add filters, add details, make clickable, to view earnings, or more details. Make table editable to add or edit fields ‎<attached: 00003039-PHOTO-2026-07-14-09-11-59.jpg>
+‎[14/07/26, 9:11:59 AM] James 1touch: add information below, add more information. Citygroup has nothing related to apple. dont understand that. Shoud include information regarding apple. And multiple perspectives, and why. ‎<attached: 00003040-PHOTO-2026-07-14-09-11-59.jpg>
+‎[14/07/26, 9:11:59 AM] James 1touch: no info ‎<attached: 00003041-PHOTO-2026-07-14-09-11-59.jpg>
+‎[14/07/26, 9:11:59 AM] James 1touch: no info ‎<attached: 00003042-PHOTO-2026-07-14-09-11-59.jpg>
+[14/07/26, 9:12:36 AM] Abhishek Kulkarni Onetouch: Some of api’s are down , will check and bring them live
+‎[14/07/26, 9:13:04 AM] James 1touch: in valuation, add rss feed, filtered to only articles or news, about each stock, as well as organizing different perspectives, and summarizing them. ‎<attached: 00003044-PHOTO-2026-07-14-09-13-04.jpg>
+[14/07/26, 9:13:38 AM] James 1touch: we need to add features to track funds, private equity, venture capitals, institutional investors, whales on crypto, etc.
+[14/07/26, 9:14:53 AM] James 1touch: et
+‎[14/07/26, 9:14:53 AM] James 1touch: institutional should also have search by people, and list of people, investments multiple people have, track kall investments, analyze investments with most people, highest quantity, who is exposed the post. 
+Who else has invested (non goverment) but in multiple of these companies in a large amount ‎<attached: 00003047-PHOTO-2026-07-14-09-14-53.jpg>
+[14/07/26, 9:14:54 AM] James 1touch: etc
+[14/07/26, 9:15:18 AM] James 1touch: instittional nothing appearing for me
+[14/07/26, 9:15:55 AM] James 1touch: goverment trading, we should be able to click on specific profiles, search and filter by investments or companies, to see trends,   track people, track trends, etc.
+‎[14/07/26, 9:16:08 AM] James 1touch: ‎<attached: 00003051-PHOTO-2026-07-14-09-16-08.jpg>
+‎[14/07/26, 9:16:44 AM] James 1touch: must add whale tracker. News tracker. Reddit. Etc ‎<attached: 00003052-PHOTO-2026-07-14-09-16-44.jpg>
+[14/07/26, 9:17:03 AM] James 1touch: graph function not clear
+[14/07/26, 9:17:55 AM] James 1touch: linkedin on apify, needs to go further down through employees, key highers, etc.
+[14/07/26, 9:18:08 AM] James 1touch: reports not generating
+[14/07/26, 9:18:43 AM] James 1touch: timeline, needs to add news about meetings, purchases, trips, etc.
+[14/07/26, 9:48:59 AM] Abhishek Kulkarni Onetouch: Ok, noted all the issues and suggestions , will implement them
+[15/07/26, 8:49:06 AM] James 1touch: Hi; please let me know akash or who is gonna work on these changes
+[15/07/26, 11:20:15 AM] Anshuman: I will work on these changes along with Akash or might be Jitu
+‎[16/07/26, 1:31:33 AM] James 1touch: Screenshot 2026-07-15 at 5.01.02 PM.png ‎document omitted
+[16/07/26, 7:15:44 AM] James 1touch: Guys we need the reports; to be interactive, reports; 
+That find and search, for similarities in entities, lobbying, all sources. 
+While also finding comparisons between multiple companies. 
+Multiple finds and what they invest in; 
+How those companies are doing. 
+
+We need to provide a lot more insights, all stats, all KPIs, complete data reports. 
+While also using ai to find key factors elements, patterns, etc. 
+
+Find investors of same companies
+
+Find what schools employees at a company met, or founders, and how they evolved. Ex PayPal mafia; and all the group of people that met and than started global tech monopoly. 
+
+Report should include company, people, employees, key decisions, lobbying, all data we have. 
+While also providing insights into relationships that might ve important to a local effect, corporate effect, goverment effect, customer acquisition effect, etc. 
+
+We need to be able to analyze global markets and global news, while interpreting why specific people are making key decisions.
+
+We should generate timelines, and find all news related to them during that time. 
+Come up with summaries
+
+Come up with connections to governments, or other large investors or players
+‎[16/07/26, 7:17:05 AM] James 1touch: Hemispheric Dollar Corridor Annex - Ukraine Reconstruction Financing.pdf • ‎15 pages ‎<attached: 00003062-Hemispheric Dollar Corridor Annex - Ukraine Reconstruction Financing.pdf>
+[16/07/26, 7:17:05 AM] James 1touch: Example of reports. And type of information we need to find. How to report it.    Add more detailed visualizations, mapping, graphics. Concise points, perspectives, how this effects different things etc
+[16/07/26, 7:53:32 AM] Abhishek Kulkarni Onetouch: Sure James, the report generation will be improved along with others
+[16/07/26, 8:51:10 AM] Anshuman: I am working on aligning the frontend properly first and understanding the platform along with aligning others, while keeping the queue of tasks to be improved
+[16/07/26, 8:51:24 AM] Anshuman: Will be fixing these issues
+[16/07/26, 8:51:40 AM] Anshuman: And these
+[16/07/26, 9:44:04 AM] James 1touch: Ok, but writing complete reports, with detailed analysis of investors employees contracts lobbying etc
+[16/07/26, 9:44:10 AM] James 1touch: All sources and than analyzing it
+[16/07/26, 9:44:35 AM] James 1touch: Comparing it to companies with similar or related founders developers or investors, or directors of company advisors etc
+[16/07/26, 9:46:13 AM] James 1touch: Contracts
+[16/07/26, 9:46:19 AM] James 1touch: All details
+[16/07/26, 9:46:27 AM] James 1touch: Than comparing and analyzing finding patterns
+[16/07/26, 9:46:36 AM] James 1touch: Similarities; 
+Clients
+[16/07/26, 9:46:37 AM] James 1touch: Etc
+[16/07/26, 12:57:58 PM] Anshuman: Okay Got the flow
+[16/07/26, 12:59:30 PM] Anshuman: So I am starting to validate it from Analysis of investors, contracts, etc. 
+
+Then the comparision part 
+
+And then the pattern analysis, similarities and 
+
+
+Whats that clients?
+[16/07/26, 2:16:30 PM] KYMA: Finance intelligence platform: ‎You're now an admin
+[16/07/26, 6:38:33 PM] James 1touch: Clients?   Finance investors.
+[17/07/26, 1:58:00 AM] Anshuman: Ok
+[17/07/26, 11:00:54 AM] Jitu 1Touch: ‎You removed Jitu 1Touch
+[17/07/26, 11:01:03 AM] Rishav Onetouch: ‎You added Rishav Onetouch
