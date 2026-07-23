@@ -10,14 +10,18 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 
 | Area | Status |
 |------|--------|
-| **Overall** | **24 Jun 2026 — 8/9 API keys live, all connectors verified, Financial tab live with real data** |
-| **Active workstream** | ALEPH/OCCRP key pending · CA SOS API approval pending |
-| **Latest handoff** | [24th_June.md](./24th_June.md) · [23rd_June.md](./23rd_June.md) · [james_requirements.md](./james_requirements.md) |
-| **Branch** | `feature/layer2-kpi-filters-clickable-browser` |
-| **Apify** | ✅ $500 plan (22 Jun) — News ✅ LinkedIn ✅ PitchBook ✅ Twitter/Instagram/YouTube ✅ |
-| **Apollo** | ✅ `APOLLO_API_KEY` added — org enrichment live; people search needs paid plan |
+| **Overall** | **5 Jul 2026 PM — Crypto + Gov Trading + Deep Company Analysis live · 47+ endpoints · All pages verified** |
+| **Active workstream** | 5th-July-sprint: Crypto ✅ · Gov Trading ✅ · Deep Company ✅ · Stock Analyst ✅ · XBRL Financials ✅ |
+| **Latest handoff** | [5th_July.md](./5th_July.md) · [25th_June.md](./25th_June.md) |
+| **Branch** | `5th-July-sprint` |
+| **RSS Worker** | ✅ 50 feeds · PM2 rss-poller · 882+ articles · 15-min cycle |
+| **Crypto Intelligence** | ✅ CoinGecko market dashboard · ETH/BTC wallet lookup · Whale alerts |
+| **Gov Trading** | ✅ House Clerk PTR disclosures · SEC Form 4 insider trades |
+| **Deep Company** | ✅ SEC EDGAR XBRL financials · Cap table · Analyst ratings · Earnings |
+| **Multi-Agent Intelligence** | ✅ 4 agents: Fundamentals · Technical · Sentiment · Risk → BUY/HOLD/SELL |
+| **OSINT** | ✅ 40-platform username enum · domain intel · LinkedIn signals |
 | **Staging** | Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002` |
-| **Tests** | **79 passing** (`pytest tests/ -q`) |
+| **Nav pages** | 18 pages: Home, Intelligence, Saved, Timeline, Compare, Tracking, Alerts, Search, Graph, Registry, Economics, **Stock**, **Crypto**, **Gov Trading**, **Company**, Skills |
 
 ### ✅ v2.0 Features Shipped + Verified (22 Jun)
 
@@ -56,12 +60,13 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 | 26 | `/saved` page | Saved reports library with search + direct PDF/Word/Excel export |
 | 27 | Navigation updated | Saved + Tracking/Alerts in main nav |
 | 28 | PM2 cron | `daily-digest` scheduled at 6AM UTC |
-| 29 | Financial data connectors | FINNHUB, FMP, Alpha Vantage, FRED — routes live, keys to be added |
-| 30 | News connectors | NewsAPI, Guardian, NYT, GDELT — routes live, keys to be added |
+| 29 | Financial data connectors | FINNHUB, FMP, Alpha Vantage, FRED — ✅ keys live, Financial tab verified (24 Jun) |
+| 30 | News connectors | NewsAPI, Guardian, NYT, GDELT — ✅ keys live, aggregate news working (24 Jun) |
 | 31 | Beneish M-Score + Altman Z-Score | Computed from FMP financial data; shown on entity Financial tab |
-| 32 | UK Companies House | Officers + company search — route live, key to be added |
+| 32 | UK Companies House | Officers + company search — ✅ key live (24 Jun) |
 | 33 | ICIJ Offshore Leaks | Panama/Paradise/Pandora Papers search — no key needed, live |
-| 34 | ALEPH/OCCRP | Leaked document search — route live, key to be added |
+| 34 | ALEPH/OCCRP | Leaked document search — route live, key pending |
+| 35 | RSS global news intelligence | 500-source plan scoped — feed worker + event clustering not started (25 Jun) |
 
 ### Bug fixes applied (22 Jun E2E test session)
 

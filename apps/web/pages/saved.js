@@ -10,9 +10,15 @@ const fetcher = url => fetch(url).then(r => r.json()).catch(() => ({ reports:[] 
 export default function SavedReports() {
   const [search, setSearch] = useState('')
   const { data } = useSWR(`${API}/intelligence/?limit=100`, fetcher, { refreshInterval: 60000 })
-  const reports = (data?.reports || data || []).filter(r =>
-    !search || (r.entity_name||'').toLowerCase().includes(search.toLowerCase())
-  )
+  const raw = (data?.reports || data || [])
+  // API returns { report_id, title: "Layer 1 Intelligence Report: EntityName", status, created_at }
+  const reports = raw
+    .map(r => ({
+      ...r,
+      id: r.report_id ?? r.id,
+      entity_name: r.entity_name || (r.title?.split(': ').slice(1).join(': ')) || r.title || `Report #${r.report_id ?? r.id}`,
+    }))
+    .filter(r => !search || r.entity_name.toLowerCase().includes(search.toLowerCase()))
   return (
     <main className={styles.page}>
       <section className={styles.hero}>

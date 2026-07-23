@@ -37,5 +37,15 @@ module.exports = {
       env_file: '../../.env',
       autorestart: true,
     },
+    {
+      name: 'rss-poller',
+      cwd: './apps/api',
+      script: '../../venv/bin/python3',
+      args: '-m app.connectors.rss_worker --loop',
+      interpreter: 'none',
+      env_file: '../../.env',
+      autorestart: true,
+      watch: false,
+    },
   ],
 };

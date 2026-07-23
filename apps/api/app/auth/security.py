@@ -3,7 +3,7 @@ import hashlib
 import secrets
 
 import jwt
-from passlib.hash import bcrypt
+import bcrypt as _bcrypt_native
 
 from app.core.settings import settings
 
@@ -12,11 +12,16 @@ _refresh_tokens: dict = {}
 
 
 def hash_password(p: str) -> str:
-    return bcrypt.hash(p)
+    """Hash a password using native bcrypt (avoids passlib version conflicts)."""
+    return _bcrypt_native.hashpw(p.encode(), _bcrypt_native.gensalt()).decode()
 
 
 def verify_password(p: str, h: str) -> bool:
-    return bcrypt.verify(p, h)
+    """Verify a password against a bcrypt hash (native bcrypt, bypasses passlib)."""
+    try:
+        return _bcrypt_native.checkpw(p.encode(), h.encode())
+    except Exception:
+        return False
 
 
 def create_token(user_id: int, email: str, hours: int = 8) -> str:

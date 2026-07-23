@@ -18,7 +18,7 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-_APOLLO_BASE = "https://api.apollo.io/v1"
+_APOLLO_BASE = "https://api.apollo.io/api/v1"
 _API_KEY = os.getenv("APOLLO_API_KEY", "")
 
 
@@ -160,8 +160,8 @@ def search_people(
 ) -> list:
     """
     Search for people at an organization.
+    Uses /mixed_people/api_search (new Apollo v1 endpoint — works on paid plan).
     Returns a list of { name, title, email, linkedin, seniority, department }.
-    NOTE: /people/search requires Apollo paid plan. Returns [] on free tier with a note.
     """
     payload = {
         "page": 1,
@@ -174,29 +174,34 @@ def search_people(
     if title_keywords:
         payload["person_titles"] = title_keywords
 
-    data = _post("/people/search", payload)
+    # Use the new mixed_people/api_search endpoint (old /people/search is deprecated)
+    data = _post("/mixed_people/api_search", payload)
 
-    # Free plan returns an error — surface it gracefully
-    if data.get("error") and "free plan" in str(data.get("error", "")).lower():
-        logger.info("Apollo people search requires paid plan — returning empty list")
+    if data.get("error"):
+        logger.info("Apollo people search error: %s", data.get("error"))
         return []
 
     people = data.get("people") or []
 
     results = []
     for p in people:
-        email = None
-        for acct in (p.get("account") or {}).get("contacts") or []:
-            if acct.get("email"):
-                email = acct["email"]
-                break
+        email = p.get("email") or ""
+        # Also check account contacts
         if not email:
-            email = p.get("email") or ""
+            for acct in (p.get("account") or {}).get("contacts") or []:
+                if acct.get("email"):
+                    email = acct["email"]
+                    break
+
+        # Handle obfuscated name (basic paid plan returns first_name + last_name_obfuscated)
+        first = p.get("first_name", "")
+        last = p.get("last_name", "") or p.get("last_name_obfuscated", "")
+        display_name = p.get("name", "") or f"{first} {last}".strip() or "—"
 
         results.append({
-            "name":       p.get("name", ""),
-            "first_name": p.get("first_name", ""),
-            "last_name":  p.get("last_name", ""),
+            "name":       display_name,
+            "first_name": first,
+            "last_name":  last,
             "title":      p.get("title", ""),
             "seniority":  p.get("seniority", ""),
             "department": p.get("departments", [None])[0] if p.get("departments") else "",
@@ -206,6 +211,7 @@ def search_people(
             "country":    p.get("country", ""),
             "headline":   p.get("headline", ""),
             "photo_url":  p.get("photo_url", ""),
+            "last_refreshed": p.get("last_refreshed_at", ""),
         })
 
     return results
