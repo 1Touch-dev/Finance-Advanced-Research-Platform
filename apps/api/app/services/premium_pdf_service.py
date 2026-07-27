@@ -1010,24 +1010,40 @@ def _format_citations_section(sections: list) -> str:
 
 
 def _generate_executive_bottomline(entity_name: str, ticker: str, report_data: dict, gov_contracts: dict) -> str:
-    """Generate executive bottom line summary."""
+    """Generate executive bottom line summary from AI-generated content or generic fallback."""
     total_contracts = _format_currency(gov_contracts.get('total_value', 0))
     ticker = (ticker or report_data.get('ticker') or '').strip()
     ticker_display = f" ({ticker})" if ticker else ""
 
+    # Try to extract AI-generated Bottom Line from enhanced narrative sections
+    sections = report_data.get('sections', [])
+    for sec in sections:
+        name = sec.get('name', '') or sec.get('title', '') or sec.get('section_name', '')
+        if 'bottom' in name.lower() and 'line' in name.lower():
+            narrative = sec.get('narrative', '')
+            if narrative and len(narrative) > 50:
+                # Convert markdown to HTML and return the AI-generated content
+                html_content = markdown.markdown(narrative, extensions=['nl2br'])
+                return html_content
+
+    # Generic fallback that works for any company (NOT Tesla-specific)
+    gov_context = ""
+    if gov_contracts.get('total_value', 0) > 0:
+        gov_context = f", with documented federal government engagement ({total_contracts} in contract awards)"
+
     return f"""
-<p>{entity_name}{ticker_display} presents a complex investment profile characterized by significant technology leadership
-in its core markets, substantial federal government engagement ({total_contracts} in documented contract awards),
-and elevated media visibility that creates both opportunity and reputational risk exposure.</p>
+<p>{entity_name}{ticker_display} presents an investment profile characterized by its market positioning
+in core business segments{gov_context}. The company's strategic initiatives and competitive dynamics
+warrant ongoing monitoring for material developments.</p>
 
-<p>The company maintains market-leading positions in electric vehicles and energy storage, with demonstrated
-manufacturing scale advantages and vertical integration. However, execution risk in autonomous driving deployment,
-intensifying competition from legacy automakers and Chinese manufacturers, and regulatory uncertainty around
-its advanced driver assistance systems represent material watch items.</p>
+<p>Key factors influencing the investment thesis include operational execution, competitive pressures,
+regulatory environment, and macroeconomic conditions affecting the company's primary markets.
+Material watch items include management execution on stated strategic priorities and any shifts
+in the competitive landscape.</p>
 
-<p>Federal contract activity is concentrated in engineering support services for NASA facilities and NOAA weather
-infrastructure — sectors with stable multi-year funding but limited growth vectors relative to core commercial
-operations. This government portfolio represents a small but consistent revenue stream rather than a strategic growth driver.</p>
+<p>This assessment synthesizes intelligence from SEC filings, government databases, news coverage,
+and market data. Investors should consider both upside catalysts and downside risks when evaluating
+position sizing and entry/exit timing.</p>
 """
 
 
@@ -1157,7 +1173,7 @@ def _convert_markdown_table_to_html(table_lines: list) -> str:
 
 
 def _format_investment_thesis(claims: list, entity_name: str, ticker: str) -> str:
-    """Format investment thesis section."""
+    """Format investment thesis section with entity-specific content or generic fallback."""
     content = _format_claims_as_paragraphs(claims) if claims else ""
 
     # Use fallback if no valid content
@@ -1165,36 +1181,35 @@ def _format_investment_thesis(claims: list, entity_name: str, ticker: str) -> st
         content = f"""
 <h2>Investment Recommendation</h2>
 
-<p>Based on available data, {entity_name} warrants a <strong>HOLD</strong> rating with sector-relative
-positioning dependent on execution of key near-term catalysts.</p>
+<p>Based on available data, {entity_name} warrants careful evaluation against sector peers,
+with positioning dependent on execution of key strategic initiatives and macroeconomic conditions.</p>
 
 <h2>Bull Case Catalysts</h2>
 <ul>
-    <li><strong>Autonomous Driving Commercialization:</strong> Successful deployment of full self-driving
-    capabilities would fundamentally revalue the company as a robotaxi/mobility platform rather than
-    a traditional automaker.</li>
-    <li><strong>Energy Storage Acceleration:</strong> Grid-scale battery deployment is scaling faster
-    than vehicle production, with higher margins and recurring revenue characteristics.</li>
-    <li><strong>Manufacturing Innovation:</strong> Continued cost reduction through casting innovations
-    and manufacturing efficiency could sustain margin leadership despite competitive pressure.</li>
+    <li><strong>Revenue Growth:</strong> Successful expansion into new markets or product categories
+    could accelerate top-line growth and improve competitive positioning.</li>
+    <li><strong>Margin Expansion:</strong> Operational improvements, scale advantages, or pricing power
+    could drive margin improvement relative to historical levels.</li>
+    <li><strong>Strategic Initiatives:</strong> Execution on management's stated priorities could unlock
+    shareholder value through organic growth or capital allocation decisions.</li>
 </ul>
 
 <h2>Bear Case Risks</h2>
 <ul>
-    <li><strong>Valuation Compression:</strong> Current multiples price in significant autonomous/AI
-    optionality; failure to deliver would trigger rerating to traditional auto multiples.</li>
-    <li><strong>Chinese Competition:</strong> BYD and emerging Chinese EV makers are eroding market
-    share in key markets with aggressive pricing and improving technology.</li>
-    <li><strong>Regulatory Headwinds:</strong> NHTSA scrutiny of Autopilot/FSD, potential recall actions,
-    and evolving autonomous vehicle regulations create ongoing uncertainty.</li>
+    <li><strong>Valuation Risk:</strong> Current multiples may not be sustainable if growth expectations
+    are not met or if sector sentiment deteriorates.</li>
+    <li><strong>Competitive Pressure:</strong> Intensifying competition could pressure market share,
+    pricing, or margins in key product segments.</li>
+    <li><strong>Macroeconomic Sensitivity:</strong> Economic cycles, interest rate changes, or consumer
+    spending patterns could impact demand in end markets.</li>
 </ul>
 
 <h2>Key Milestones to Monitor</h2>
 <ul>
-    <li>Robotaxi launch timeline and initial market reception</li>
-    <li>Quarterly vehicle delivery trends and average selling price trajectory</li>
-    <li>Energy storage deployment growth and margin contribution</li>
-    <li>FSD subscription adoption rates and regulatory approval progress</li>
+    <li>Quarterly earnings results and forward guidance updates</li>
+    <li>Market share trends and competitive dynamics in core segments</li>
+    <li>Management commentary on capital allocation priorities</li>
+    <li>Regulatory developments affecting business operations</li>
 </ul>
 """
 
@@ -1202,7 +1217,7 @@ positioning dependent on execution of key near-term catalysts.</p>
 
 
 def _format_financial_section(claims: list, entity_name: str) -> str:
-    """Format financial health section."""
+    """Format financial health section with entity-specific content or generic fallback."""
     content = _format_claims_as_paragraphs(claims) if claims else ""
 
     # Use fallback if no valid content
@@ -1210,75 +1225,28 @@ def _format_financial_section(claims: list, entity_name: str) -> str:
         content = f"""
 <h2>Key Financial Metrics</h2>
 
-<table>
-    <thead>
-        <tr>
-            <th>Metric</th>
-            <th>Current</th>
-            <th>Prior Year</th>
-            <th>Trend</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td>Revenue (TTM)</td>
-            <td>$96.8B</td>
-            <td>$81.5B</td>
-            <td>+18.8%</td>
-        </tr>
-        <tr>
-            <td>Gross Margin</td>
-            <td>17.9%</td>
-            <td>25.6%</td>
-            <td>-7.7pp</td>
-        </tr>
-        <tr>
-            <td>Operating Margin</td>
-            <td>8.2%</td>
-            <td>16.8%</td>
-            <td>-8.6pp</td>
-        </tr>
-        <tr>
-            <td>Free Cash Flow</td>
-            <td>$4.4B</td>
-            <td>$7.6B</td>
-            <td>-42.1%</td>
-        </tr>
-        <tr>
-            <td>Cash & Equivalents</td>
-            <td>$26.1B</td>
-            <td>$22.2B</td>
-            <td>+17.6%</td>
-        </tr>
-        <tr>
-            <td>Total Debt</td>
-            <td>$5.7B</td>
-            <td>$4.4B</td>
-            <td>+29.5%</td>
-        </tr>
-    </tbody>
-</table>
+<p>Financial data sourced from SEC filings and market data providers. For the most current
+financial metrics, please refer to the company's latest quarterly filing (10-Q) or annual
+report (10-K) available through the SEC EDGAR database.</p>
 
 <h2>Liquidity Assessment</h2>
 
-<p>{entity_name} maintains a robust liquidity position with $26.1B in cash and equivalents, providing
-significant financial flexibility for capital expenditure programs, potential acquisitions, and
-weathering competitive pricing pressure. The debt-to-equity ratio remains conservative relative
-to legacy automakers.</p>
+<p>{entity_name}'s liquidity position should be evaluated based on current ratio, quick ratio,
+and cash flow from operations relative to short-term obligations. Key metrics to monitor include
+working capital trends, debt maturity schedule, and available credit facilities.</p>
 
-<h2>Margin Pressure Analysis</h2>
+<h2>Profitability Analysis</h2>
 
-<p>Gross margins have compressed significantly from peak levels due to aggressive pricing actions
-designed to maintain volume growth and market share in the face of intensifying competition.
-Management has indicated willingness to sacrifice near-term margins for long-term market position,
-a strategy that creates uncertainty around the sustainable margin profile.</p>
+<p>Margin trends and profitability metrics provide insight into operational efficiency and
+pricing power. Investors should track gross margin, operating margin, and net margin relative
+to historical performance and industry peers to assess competitive positioning.</p>
 """
 
     return content
 
 
 def _format_competitive_section(claims: list, entity_name: str) -> str:
-    """Format competitive analysis section."""
+    """Format competitive analysis section with entity-specific content or generic fallback."""
     content = _format_claims_as_paragraphs(claims) if claims else ""
 
     # Use fallback if no valid content (including timeout errors)
@@ -1286,60 +1254,27 @@ def _format_competitive_section(claims: list, entity_name: str) -> str:
         content = f"""
 <h2>Market Position</h2>
 
-<p>{entity_name} maintains leadership in the global battery electric vehicle (BEV) market, though
-market share has eroded from peak levels as legacy automakers and Chinese competitors have
-scaled production.</p>
+<p>{entity_name}'s competitive positioning should be evaluated based on market share trends,
+pricing power, and barriers to entry in core markets. Key factors include brand strength,
+distribution capabilities, technology leadership, and cost structure relative to peers.</p>
 
-<h2>Competitive Landscape</h2>
+<h2>Competitive Dynamics</h2>
 
-<table>
-    <thead>
-        <tr>
-            <th>Competitor</th>
-            <th>Segment</th>
-            <th>Competitive Threat</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td>BYD (China)</td>
-            <td>Full-range EVs</td>
-            <td><span class="risk-indicator risk-high">HIGH</span></td>
-        </tr>
-        <tr>
-            <td>Volkswagen Group</td>
-            <td>Mass-market EVs</td>
-            <td><span class="risk-indicator risk-medium">MEDIUM</span></td>
-        </tr>
-        <tr>
-            <td>Rivian / Lucid</td>
-            <td>Premium EVs</td>
-            <td><span class="risk-indicator risk-low">LOW</span></td>
-        </tr>
-        <tr>
-            <td>Hyundai-Kia</td>
-            <td>Mass-market EVs</td>
-            <td><span class="risk-indicator risk-medium">MEDIUM</span></td>
-        </tr>
-        <tr>
-            <td>Ford / GM</td>
-            <td>Trucks & Mass-market</td>
-            <td><span class="risk-indicator risk-medium">MEDIUM</span></td>
-        </tr>
-    </tbody>
-</table>
+<p>The competitive landscape analysis considers direct competitors, potential disruptors,
+and substitute products or services. Market share data, customer switching costs, and
+network effects contribute to the assessment of competitive moat sustainability.</p>
 
-<h2>Competitive Moats</h2>
+<h2>Strategic Assessment</h2>
 
 <ul>
-    <li><strong>Supercharger Network:</strong> Industry-leading charging infrastructure now adopted
-    as North American standard, creating ecosystem lock-in and potential licensing revenue.</li>
-    <li><strong>Manufacturing Efficiency:</strong> Vertical integration and manufacturing innovations
-    (mega-castings, structural battery packs) maintain cost advantages.</li>
-    <li><strong>Software & Data:</strong> Largest real-world driving dataset for autonomous
-    development; over-the-air update capability enables continuous improvement.</li>
-    <li><strong>Brand Positioning:</strong> Strong brand equity among early adopters, though
-    recent political associations have created polarization risk.</li>
+    <li><strong>Scale Advantages:</strong> Evaluate whether the company's scale provides
+    meaningful cost advantages or operational efficiencies relative to smaller competitors.</li>
+    <li><strong>Technology & Innovation:</strong> Assess R&D investment levels and track record
+    of product innovation as drivers of competitive differentiation.</li>
+    <li><strong>Customer Relationships:</strong> Consider customer concentration, retention rates,
+    and switching costs as indicators of competitive stickiness.</li>
+    <li><strong>Brand & Reputation:</strong> Evaluate brand equity and reputation as intangible
+    assets that contribute to pricing power and customer acquisition.</li>
 </ul>
 """
 
@@ -1372,21 +1307,24 @@ def _format_gov_contracts_section(gov_contracts: dict, entity_name: str) -> str:
         if text and '$' in text:
             contract_details += f"<li>{text}</li>\n"
 
+    # Build agency description from actual data
+    agency_list = list(agencies.keys())[:3]
+    agency_desc = ""
+    if agency_list:
+        agency_desc = f" The contract portfolio spans multiple agencies including {', '.join(agency_list)}."
+
     return f"""
 <h2>Federal Contract Portfolio Overview</h2>
 
 <p>{entity_name} has received <strong>{total}</strong> in documented federal contract awards according
-to USASpending.gov data. The contract portfolio is concentrated in engineering support services
-for government facilities, primarily NASA and NOAA installations.</p>
+to USASpending.gov data.{agency_desc}</p>
 
 <div class="callout-box">
     <div class="callout-title">CONTRACT PORTFOLIO ASSESSMENT</div>
     <div class="callout-content">
-        <p>The federal contract portfolio represents a small but stable revenue stream, not a
-        strategic growth vector. Contracts are primarily cost-plus or fixed-price engineering
-        support arrangements with multi-year performance periods, providing consistent but
-        limited-upside revenue. No classified or defense-adjacent contracts were identified
-        in public records.</p>
+        <p>The federal contract portfolio should be evaluated relative to total company revenue
+        to assess its strategic significance. Contract types, performance periods, and renewal
+        patterns provide insight into the stability and growth potential of this revenue stream.</p>
     </div>
 </div>
 
@@ -1414,21 +1352,38 @@ for government facilities, primarily NASA and NOAA installations.</p>
 
 
 def _format_lobbying_section(sections: list, entity_name: str) -> str:
-    """Format lobbying activity section."""
-    # Find lobbying section
-    lobbying_data = None
+    """Format lobbying activity section with entity-specific content or generic fallback."""
+    # Find lobbying section with AI-generated content
     for sec in sections:
-        name = sec.get('name', '') or sec.get('title', '')
-        if 'lobby' in name.lower():
-            lobbying_data = sec
-            break
+        name = sec.get('name', '') or sec.get('title', '') or sec.get('section_name', '')
+        if 'lobby' in name.lower() or 'regulatory' in name.lower():
+            narrative = sec.get('narrative', '')
+            claims = sec.get('claims', [])
 
+            # Use AI-generated narrative if available
+            if narrative and len(narrative) > 100:
+                html_content = markdown.markdown(narrative, extensions=['nl2br', 'fenced_code'])
+                return f"""
+<h2>Regulatory & Lobbying Activity</h2>
+{html_content}
+"""
+
+            # Use claims if available
+            if claims:
+                claims_html = _format_claims_as_paragraphs(claims)
+                if claims_html and len(claims_html) > 50:
+                    return f"""
+<h2>Regulatory & Lobbying Activity</h2>
+{claims_html}
+"""
+
+    # Generic fallback that works for any company
     return f"""
 <h2>Lobbying Disclosure Overview</h2>
 
 <p>Based on Senate Lobbying Disclosure Act filings, {entity_name} maintains a Washington presence
-focused on electric vehicle incentives, charging infrastructure policy, autonomous vehicle
-regulations, and energy storage deployment frameworks.</p>
+focused on policy areas relevant to its core business operations. Companies of this scale typically
+engage on regulatory matters, tax policy, and industry-specific legislation.</p>
 
 <h2>Key Issue Areas</h2>
 
@@ -1442,34 +1397,33 @@ regulations, and energy storage deployment frameworks.</p>
     </thead>
     <tbody>
         <tr>
-            <td>Energy & Environment</td>
-            <td>EV tax credits, charging infrastructure, clean energy standards</td>
-            <td><span class="risk-indicator risk-high">HIGH</span></td>
+            <td>Industry Regulation</td>
+            <td>Sector-specific regulations, compliance requirements, licensing</td>
+            <td><span class="risk-indicator risk-medium">MEDIUM</span></td>
         </tr>
         <tr>
-            <td>Transportation</td>
-            <td>Autonomous vehicle regulations, NHTSA standards, safety testing</td>
-            <td><span class="risk-indicator risk-high">HIGH</span></td>
+            <td>Tax Policy</td>
+            <td>Corporate tax rates, R&D credits, international tax treatment</td>
+            <td><span class="risk-indicator risk-medium">MEDIUM</span></td>
         </tr>
         <tr>
             <td>Trade</td>
-            <td>Tariffs on Chinese EVs, critical mineral supply chains, trade policy</td>
+            <td>Tariff policy, supply chain regulations, trade agreements</td>
             <td><span class="risk-indicator risk-medium">MEDIUM</span></td>
         </tr>
         <tr>
-            <td>Manufacturing</td>
-            <td>Factory incentives, labor policy, supply chain resilience</td>
-            <td><span class="risk-indicator risk-medium">MEDIUM</span></td>
+            <td>Workforce</td>
+            <td>Immigration policy, labor regulations, workforce development</td>
+            <td><span class="risk-indicator risk-low">LOW</span></td>
         </tr>
     </tbody>
 </table>
 
 <h2>Policy Engagement Assessment</h2>
 
-<p>{entity_name}'s lobbying activity has intensified around autonomous vehicle regulations as the
-company approaches commercial deployment of full self-driving technology. The regulatory pathway
-for Level 4 autonomy remains uncertain, creating both opportunity and risk as the company
-navigates federal and state regulatory frameworks.</p>
+<p>{entity_name}'s lobbying activity reflects standard corporate engagement with federal policymakers
+on issues material to business operations. Detailed lobbying disclosures are available through the
+Senate Office of Public Records for investors seeking granular visibility into specific policy priorities.</p>
 """
 
 
@@ -1488,10 +1442,9 @@ def _format_news_section(news_items: list, entity_name: str) -> str:
     return f"""
 <h2>Recent Media Coverage</h2>
 
-<p>{entity_name} maintains high media visibility, with news coverage spanning product developments,
-corporate governance, executive statements, and vehicle safety incidents. Media sentiment analysis
-indicates mixed coverage with elevated attention to both positive innovation narratives and
-negative safety/quality concerns.</p>
+<p>{entity_name} receives media coverage spanning financial performance, strategic initiatives,
+competitive dynamics, and industry developments. Media sentiment analysis provides insight into
+market perception and potential reputational factors affecting investor sentiment.</p>
 
 <table>
     <thead>
@@ -1509,23 +1462,48 @@ negative safety/quality concerns.</p>
 <h2>Media Sentiment Assessment</h2>
 
 <div class="callout-box">
-    <div class="callout-title">REPUTATIONAL RISK INDICATOR</div>
+    <div class="callout-title">MEDIA MONITORING NOTE</div>
     <div class="callout-content">
-        <p>Media coverage reflects the company's unique position at the intersection of automotive,
-        technology, and political discourse. Vehicle safety incidents receive disproportionate coverage
-        relative to industry norms, creating reputational risk that may impact consumer sentiment
-        and regulatory posture.</p>
+        <p>Media coverage should be monitored for potential impacts on brand perception, customer
+        sentiment, and regulatory attention. Key areas to track include coverage of earnings
+        releases, management changes, competitive developments, and industry trends.</p>
 
-        <p>Executive public statements and social media activity continue to generate significant
-        media attention, creating both brand amplification opportunity and unpredictability risk
-        for institutional investors.</p>
+        <p>Investors should consider media sentiment as one input into overall risk assessment,
+        recognizing that short-term news cycles may not reflect long-term fundamental value.</p>
     </div>
 </div>
 """
 
 
 def _format_risk_section(entity_name: str, ticker: str, report_data: dict) -> str:
-    """Format risk assessment section."""
+    """Format risk assessment section with entity-specific content or generic fallback."""
+    sections = report_data.get('sections', [])
+
+    # Try to find AI-generated risk matrix content
+    for sec in sections:
+        name = sec.get('name', '') or sec.get('title', '') or sec.get('section_name', '')
+        if 'risk' in name.lower():
+            narrative = sec.get('narrative', '')
+            claims = sec.get('claims', [])
+
+            # Use AI-generated narrative if available
+            if narrative and len(narrative) > 100:
+                html_content = markdown.markdown(narrative, extensions=['nl2br', 'fenced_code'])
+                return f"""
+<h2>Risk Assessment</h2>
+{html_content}
+"""
+
+            # Use claims if available
+            if claims:
+                claims_html = _format_claims_as_paragraphs(claims)
+                if claims_html and len(claims_html) > 50:
+                    return f"""
+<h2>Risk Assessment</h2>
+{claims_html}
+"""
+
+    # Generic fallback applicable to any company
     return f"""
 <h2>Risk Matrix</h2>
 
@@ -1541,39 +1519,39 @@ def _format_risk_section(entity_name: str, ticker: str, report_data: dict) -> st
     <tbody>
         <tr>
             <td>Regulatory</td>
-            <td>NHTSA actions on Autopilot/FSD; state-level autonomous vehicle restrictions</td>
-            <td><span class="risk-indicator risk-high">HIGH</span></td>
+            <td>Changes to industry regulations, compliance requirements, or government policy</td>
+            <td><span class="risk-indicator risk-medium">MEDIUM</span></td>
             <td><span class="risk-indicator risk-medium">MEDIUM</span></td>
         </tr>
         <tr>
             <td>Competitive</td>
-            <td>Market share erosion from BYD and legacy OEM EV launches</td>
-            <td><span class="risk-indicator risk-high">HIGH</span></td>
-            <td><span class="risk-indicator risk-high">HIGH</span></td>
+            <td>Market share pressure from existing competitors and new market entrants</td>
+            <td><span class="risk-indicator risk-medium">MEDIUM</span></td>
+            <td><span class="risk-indicator risk-medium">MEDIUM</span></td>
         </tr>
         <tr>
             <td>Execution</td>
-            <td>Robotaxi deployment delays; Cybertruck/Semi production ramp challenges</td>
+            <td>Challenges in delivering on strategic initiatives and operational targets</td>
             <td><span class="risk-indicator risk-medium">MEDIUM</span></td>
             <td><span class="risk-indicator risk-medium">MEDIUM</span></td>
         </tr>
         <tr>
-            <td>Reputational</td>
-            <td>Executive public statements; vehicle safety incidents; brand polarization</td>
+            <td>Macroeconomic</td>
+            <td>Economic cycles, interest rate changes, and consumer spending patterns</td>
             <td><span class="risk-indicator risk-medium">MEDIUM</span></td>
-            <td><span class="risk-indicator risk-high">HIGH</span></td>
+            <td><span class="risk-indicator risk-medium">MEDIUM</span></td>
         </tr>
         <tr>
             <td>Geopolitical</td>
-            <td>China market access; tariff policy; critical mineral supply chain</td>
-            <td><span class="risk-indicator risk-high">HIGH</span></td>
+            <td>International trade policy, supply chain disruption, and market access</td>
+            <td><span class="risk-indicator risk-medium">MEDIUM</span></td>
             <td><span class="risk-indicator risk-medium">MEDIUM</span></td>
         </tr>
         <tr>
             <td>Financial</td>
-            <td>Continued margin compression; capex intensity; valuation multiple risk</td>
+            <td>Margin pressure, capital allocation decisions, and valuation multiple contraction</td>
             <td><span class="risk-indicator risk-medium">MEDIUM</span></td>
-            <td><span class="risk-indicator risk-high">HIGH</span></td>
+            <td><span class="risk-indicator risk-medium">MEDIUM</span></td>
         </tr>
     </tbody>
 </table>
@@ -1581,25 +1559,23 @@ def _format_risk_section(entity_name: str, ticker: str, report_data: dict) -> st
 <h2>Watch Items</h2>
 
 <ul>
-    <li>Whether robotaxi launch proceeds on stated timeline and achieves regulatory approval
-    in target markets — the single highest-impact catalyst for valuation.</li>
-    <li>Quarterly gross margin trajectory as indicator of pricing power sustainability
-    versus competitive pressure accommodation.</li>
-    <li>NHTSA investigation outcomes and any mandatory recall actions affecting
-    Autopilot or Full Self-Driving software deployments.</li>
-    <li>China market share trends and any policy actions affecting local production
-    or market access.</li>
-    <li>Executive succession planning and governance structure evolution as the company
-    scales beyond founder-led operations.</li>
-    <li>Energy storage segment growth and margin contribution as potential valuation
-    re-rating catalyst independent of vehicle business.</li>
+    <li>Quarterly earnings reports and management guidance for forward-looking indicators
+    of operational momentum and margin trends.</li>
+    <li>Competitive dynamics in core markets, including pricing actions, market share shifts,
+    and new product launches from key competitors.</li>
+    <li>Regulatory developments that could impact business operations, compliance costs,
+    or market access in key jurisdictions.</li>
+    <li>Macroeconomic indicators relevant to the company's end markets, including consumer
+    sentiment, business spending, and credit conditions.</li>
+    <li>Management execution on stated strategic priorities and capital allocation decisions,
+    including M&A activity and share repurchase programs.</li>
 </ul>
 
 <div class="network-box">
     <div class="network-title">MONITORING RECOMMENDATION</div>
-    <p>Given elevated execution risk, regulatory uncertainty, and valuation sensitivity to autonomous
-    vehicle commercialization timeline, quarterly monitoring cadence is recommended with emphasis on
-    delivery volume trends, margin trajectory, and regulatory development tracking.</p>
+    <p>Standard quarterly monitoring cadence recommended with enhanced tracking during earnings
+    seasons and periods of elevated market volatility. Key focus areas include margin trajectory,
+    competitive positioning, and management commentary on forward guidance.</p>
 </div>
 """
 
