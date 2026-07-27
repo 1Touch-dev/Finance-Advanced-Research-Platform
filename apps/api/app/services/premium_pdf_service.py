@@ -1023,7 +1023,7 @@ def _generate_executive_bottomline(entity_name: str, ticker: str, report_data: d
             narrative = sec.get('narrative', '')
             if narrative and len(narrative) > 50:
                 # Convert markdown to HTML and return the AI-generated content
-                html_content = markdown.markdown(narrative, extensions=['nl2br'])
+                html_content = markdown.markdown(narrative, extensions=['tables', 'fenced_code', 'nl2br', 'sane_lists'])
                 return html_content
 
     # Generic fallback that works for any company (NOT Tesla-specific)
@@ -1103,10 +1103,10 @@ def _format_claims_as_paragraphs(claims: list) -> str:
 
     processed_text = '\n'.join(processed_lines)
 
-    # Convert remaining markdown to HTML
+    # Convert remaining markdown to HTML (tables handled above, but include extension as safety net)
     html_content = markdown.markdown(
         processed_text,
-        extensions=['fenced_code', 'nl2br']
+        extensions=['tables', 'fenced_code', 'nl2br', 'sane_lists']
     )
 
     return html_content if html_content else "<p>No detailed executive summary data available for this report.</p>"
@@ -1362,7 +1362,7 @@ def _format_lobbying_section(sections: list, entity_name: str) -> str:
 
             # Use AI-generated narrative if available
             if narrative and len(narrative) > 100:
-                html_content = markdown.markdown(narrative, extensions=['nl2br', 'fenced_code'])
+                html_content = markdown.markdown(narrative, extensions=['tables', 'fenced_code', 'nl2br', 'sane_lists'])
                 return f"""
 <h2>Regulatory & Lobbying Activity</h2>
 {html_content}
@@ -1488,7 +1488,7 @@ def _format_risk_section(entity_name: str, ticker: str, report_data: dict) -> st
 
             # Use AI-generated narrative if available
             if narrative and len(narrative) > 100:
-                html_content = markdown.markdown(narrative, extensions=['nl2br', 'fenced_code'])
+                html_content = markdown.markdown(narrative, extensions=['tables', 'fenced_code', 'nl2br', 'sane_lists'])
                 return f"""
 <h2>Risk Assessment</h2>
 {html_content}
