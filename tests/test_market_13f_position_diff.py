@@ -5,11 +5,15 @@ import sys
 from datetime import date
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 API_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "apps", "api"))
 if API_ROOT not in sys.path:
     sys.path.insert(0, API_ROOT)
 
+from app.models.base import Base
+import app.models.market_13f_cache  # noqa: F401
 from app.models.market_13f_schemas import (
     PositionDiffDataQuality,
     PositionDiffFilterStatus,
@@ -25,8 +29,10 @@ from app.services.sec_13f_service import (
     compute_share_pct_change,
     fetch_13f_filing_records,
     filter_filing_records_for_period,
+    get_or_fetch_13f_period_snapshot,
     group_compatible_positions,
     load_13f_filing,
+    load_13f_period_snapshot_from_cache,
     normalize_cik,
     normalize_cusip,
     normalize_issuer_name,
@@ -35,6 +41,7 @@ from app.services.sec_13f_service import (
     normalize_security_title,
     parse_13f_information_table,
     select_reporting_period_pair,
+    upsert_13f_period_snapshot_cache,
 )
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "sec_13f"
@@ -67,6 +74,17 @@ def _fixture_json_fetcher(url: str):
 
 def _fixture_text_fetcher(url: str):
     return _fixture_path_from_url(url).read_text()
+
+
+@pytest.fixture
+def db_session():
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(bind=engine)
+    session = sessionmaker(bind=engine, autoflush=False, autocommit=False)()
+    try:
+        yield session
+    finally:
+        session.close()
 
 
 def test_normalize_cik_zero_pads():
@@ -345,3 +363,119 @@ def test_parse_13f_information_table_scales_pre_2023_thousands_to_usd():
     """
     positions = parse_13f_information_table(xml_text, filing_record=filing_record)
     assert positions[0].reported_value_usd == 150000000.0
+
+
+def test_13f_period_snapshot_cache_roundtrip_preserves_positions_and_warnings(db_session):
+    records = fetch_13f_filing_records("1067983", json_fetcher=_fixture_json_fetcher)
+    period_records = filter_filing_records_for_period(records, date(2026, 3, 31))
+    snapshot = build_13f_reporting_period_snapshot(
+        period_records,
+        json_fetcher=_fixture_json_fetcher,
+        text_fetcher=_fixture_text_fetcher,
+    )
+
+    cached = upsert_13f_period_snapshot_cache(db_session, snapshot)
+    reloaded = load_13f_period_snapshot_from_cache(
+        db_session,
+        institution_cik="1067983",
+        report_period=date(2026, 3, 31),
+    )
+
+    assert cached.primary_filing.metadata.accession_number == "0001067983-26-000011"
+    assert reloaded is not None
+    assert reloaded.primary_filing.metadata.accession_number == "0001067983-26-000011"
+    assert reloaded.primary_filing.metadata.is_confidential_omitted is False
+    assert [item.metadata.accession_number for item in reloaded.supplemental_amendments] == [
+        "0001067983-26-000012",
+        "0001067983-26-000013",
+    ]
+    assert [position.accession_number for position in reloaded.positions] == [
+        "0001067983-26-000011",
+        "0001067983-26-000011",
+        "0001067983-26-000012",
+        "0001067983-26-000013",
+    ]
+    assert reloaded.warnings[0].code == "confidential_omissions_possible"
+    assert reloaded.data_quality.confidential_omissions_possible is True
+
+
+def test_get_or_fetch_13f_period_snapshot_uses_cache_after_first_fetch(db_session):
+    calls = {"json": 0, "text": 0}
+
+    def counting_json_fetcher(url: str):
+        calls["json"] += 1
+        return _fixture_json_fetcher(url)
+
+    def counting_text_fetcher(url: str):
+        calls["text"] += 1
+        return _fixture_text_fetcher(url)
+
+    first = get_or_fetch_13f_period_snapshot(
+        db_session,
+        institution_cik="1067983",
+        report_period=date(2026, 3, 31),
+        json_fetcher=counting_json_fetcher,
+        text_fetcher=counting_text_fetcher,
+    )
+    assert first.primary_filing.metadata.accession_number == "0001067983-26-000011"
+    assert calls["json"] > 0
+    assert calls["text"] > 0
+
+    calls_before_second = calls.copy()
+    second = get_or_fetch_13f_period_snapshot(
+        db_session,
+        institution_cik="1067983",
+        report_period=date(2026, 3, 31),
+        json_fetcher=counting_json_fetcher,
+        text_fetcher=counting_text_fetcher,
+    )
+    assert second.primary_filing.metadata.accession_number == "0001067983-26-000011"
+    assert calls == calls_before_second
+
+
+def test_upsert_13f_period_snapshot_cache_does_not_create_duplicate_period_rows(db_session):
+    records = fetch_13f_filing_records("1067983", json_fetcher=_fixture_json_fetcher)
+    period_records = filter_filing_records_for_period(records, date(2026, 3, 31))
+    snapshot = build_13f_reporting_period_snapshot(
+        period_records,
+        json_fetcher=_fixture_json_fetcher,
+        text_fetcher=_fixture_text_fetcher,
+    )
+
+    first = upsert_13f_period_snapshot_cache(db_session, snapshot)
+    second = upsert_13f_period_snapshot_cache(db_session, snapshot)
+
+    assert first.primary_filing.metadata.accession_number == second.primary_filing.metadata.accession_number
+    assert db_session.query(app.models.market_13f_cache.Institutional13FPeriodCache).count() == 1
+
+
+def test_get_or_fetch_13f_period_snapshot_uses_cached_snapshot_when_fetchers_fail(db_session):
+    initial = get_or_fetch_13f_period_snapshot(
+        db_session,
+        institution_cik="1067983",
+        report_period=date(2026, 3, 31),
+        json_fetcher=_fixture_json_fetcher,
+        text_fetcher=_fixture_text_fetcher,
+    )
+    assert initial.primary_filing.metadata.accession_number == "0001067983-26-000011"
+
+    def failing_json_fetcher(url: str):
+        raise RuntimeError(f"unexpected SEC json fetch: {url}")
+
+    def failing_text_fetcher(url: str):
+        raise RuntimeError(f"unexpected SEC text fetch: {url}")
+
+    cached = get_or_fetch_13f_period_snapshot(
+        db_session,
+        institution_cik="1067983",
+        report_period=date(2026, 3, 31),
+        json_fetcher=failing_json_fetcher,
+        text_fetcher=failing_text_fetcher,
+    )
+    assert cached.primary_filing.metadata.accession_number == "0001067983-26-000011"
+    assert [position.accession_number for position in cached.positions] == [
+        "0001067983-26-000011",
+        "0001067983-26-000011",
+        "0001067983-26-000012",
+        "0001067983-26-000013",
+    ]

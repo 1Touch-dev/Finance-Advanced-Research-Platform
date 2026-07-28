@@ -9,21 +9,32 @@ from typing import Any, Callable, Iterable, Sequence
 import xml.etree.ElementTree as ET
 
 import requests
+from sqlalchemy.orm import Session
 
+from app.models.market_13f_cache import (
+    Institutional13FPeriodCache,
+    Institutional13FPositionCache,
+    Institutional13FSupplementalAmendmentCache,
+)
 from app.models.market_13f_schemas import (
     PositionDiffDataQuality,
     PositionDiffFilterStatus,
+    PositionDiffFilingRef,
+    PositionDiffFilings,
     PositionDiffHighlights,
     PositionDiffInstitution,
     PositionDiffPagination,
     PositionDiffPeriods,
     PositionDiffPosition,
     PositionDiffResponse,
+    PositionDiffRequest,
+    PositionDiffSortField,
     PositionDiffStatus,
     PositionDiffSummary,
     PositionDiffWarning,
     PositionSnapshotEntry,
     PutCallValue,
+    SortDirection,
 )
 
 
@@ -102,6 +113,7 @@ class SEC13FPeriodSnapshot:
     supplemental_amendments: list[ParsedSEC13FFiling] = field(default_factory=list)
     positions: list[PositionSnapshotEntry] = field(default_factory=list)
     warnings: list[PositionDiffWarning] = field(default_factory=list)
+    data_quality: PositionDiffDataQuality = field(default_factory=PositionDiffDataQuality)
 
 
 JsonFetcher = Callable[[str], dict[str, Any]]
@@ -637,7 +649,412 @@ def build_13f_reporting_period_snapshot(
         supplemental_amendments=supplemental_amendments,
         positions=active_positions,
         warnings=warnings,
+        data_quality=PositionDiffDataQuality(
+            confidential_omissions_possible=any(
+                filing.metadata.is_confidential_omitted for filing in loaded_filings
+            )
+        ),
     )
+
+
+def _warning_to_json(warning: PositionDiffWarning) -> dict[str, Any]:
+    return warning.model_dump()
+
+
+def _warning_from_json(payload: dict[str, Any]) -> PositionDiffWarning:
+    return PositionDiffWarning(**payload)
+
+
+def _data_quality_to_json(data_quality: PositionDiffDataQuality) -> dict[str, Any]:
+    return data_quality.model_dump()
+
+
+def _data_quality_from_json(payload: dict[str, Any] | None) -> PositionDiffDataQuality:
+    return PositionDiffDataQuality(**(payload or {}))
+
+
+def _cached_report_periods(db: Session, institution_cik: str) -> list[date]:
+    normalized_cik = normalize_cik(institution_cik)
+    rows = (
+        db.query(Institutional13FPeriodCache.report_period)
+        .filter(Institutional13FPeriodCache.institution_cik == normalized_cik)
+        .order_by(Institutional13FPeriodCache.report_period.desc())
+        .all()
+    )
+    return [row[0] for row in rows]
+
+
+def _resolve_position_diff_periods(
+    db: Session,
+    *,
+    institution_cik: str,
+    current_period: date | str | None,
+    previous_period: date | str | None,
+    json_fetcher: JsonFetcher | None = None,
+    submissions_base_url: str = "https://data.sec.gov/submissions",
+) -> tuple[date, date]:
+    normalized_cik = normalize_cik(institution_cik)
+    normalized_current = normalize_reporting_period(current_period) if current_period else None
+    normalized_previous = normalize_reporting_period(previous_period) if previous_period else None
+
+    if normalized_current and normalized_previous:
+        if normalized_previous >= normalized_current:
+            raise ValueError("previous_period must be earlier than current_period")
+        return normalized_current, normalized_previous
+
+    cached_periods = _cached_report_periods(db, normalized_cik)
+    if normalized_current is None and normalized_previous is None and len(cached_periods) >= 2:
+        return cached_periods[0], cached_periods[1]
+    if normalized_current is not None and normalized_previous is None:
+        previous_candidates = [period for period in cached_periods if period < normalized_current]
+        if previous_candidates:
+            return normalized_current, previous_candidates[0]
+    if normalized_current is None and normalized_previous is not None:
+        current_candidates = [period for period in cached_periods if period > normalized_previous]
+        if current_candidates:
+            return current_candidates[0], normalized_previous
+
+    filing_records = fetch_13f_filing_records(
+        normalized_cik,
+        json_fetcher=json_fetcher,
+        submissions_base_url=submissions_base_url,
+    )
+    return select_reporting_period_pair(
+        filing_records,
+        current_period=normalized_current,
+        previous_period=normalized_previous,
+    )
+
+
+def _build_filings_metadata(
+    current_snapshot: SEC13FPeriodSnapshot,
+    previous_snapshot: SEC13FPeriodSnapshot,
+) -> PositionDiffFilings:
+    def _ref(filing: ParsedSEC13FFiling) -> PositionDiffFilingRef:
+        return PositionDiffFilingRef(
+            accession_number=filing.metadata.accession_number,
+            filing_date=filing.metadata.filing_date,
+            form=filing.metadata.form,
+            amendment_type=filing.metadata.amendment_type,
+        )
+
+    return PositionDiffFilings(
+        current=_ref(current_snapshot.primary_filing),
+        previous=_ref(previous_snapshot.primary_filing),
+        current_supplemental_amendments=[_ref(item) for item in current_snapshot.supplemental_amendments],
+        previous_supplemental_amendments=[_ref(item) for item in previous_snapshot.supplemental_amendments],
+    )
+
+
+def load_13f_period_snapshot_from_cache(
+    db: Session,
+    *,
+    institution_cik: str,
+    report_period: date | str,
+) -> SEC13FPeriodSnapshot | None:
+    normalized_cik = normalize_cik(institution_cik)
+    normalized_period = normalize_reporting_period(report_period)
+    cache_row = (
+        db.query(Institutional13FPeriodCache)
+        .filter(
+            Institutional13FPeriodCache.institution_cik == normalized_cik,
+            Institutional13FPeriodCache.report_period == normalized_period,
+        )
+        .one_or_none()
+    )
+    if cache_row is None:
+        return None
+
+    primary_metadata = ParsedSEC13FMetadata(
+        cik=cache_row.institution_cik,
+        accession_number=cache_row.primary_accession_number,
+        form=cache_row.primary_form,
+        filing_date=cache_row.primary_filing_date,
+        report_period=cache_row.report_period,
+        filing_manager_name=cache_row.institution_name,
+        is_amendment=bool(cache_row.primary_is_amendment),
+        amendment_type=cache_row.primary_amendment_type,
+        amendment_no=cache_row.primary_amendment_no,
+        is_confidential_omitted=bool(cache_row.primary_is_confidential_omitted),
+    )
+    positions = [
+        PositionSnapshotEntry(
+            issuer_name=position.issuer_name,
+            ticker=position.ticker,
+            ticker_resolution_method=position.ticker_resolution_method,
+            cusip=position.cusip,
+            security_title=position.security_title,
+            put_call=position.put_call,
+            shares=float(position.shares),
+            reported_value_usd=float(position.reported_value_usd),
+            accession_number=position.accession_number,
+            filing_date=position.filing_date,
+            raw_row_index=position.raw_row_index,
+        )
+        for position in cache_row.positions
+    ]
+    primary_filing = ParsedSEC13FFiling(
+        metadata=primary_metadata,
+        positions=[
+            entry.model_copy(deep=True)
+            for entry in positions
+            if entry.accession_number == cache_row.primary_accession_number
+        ],
+    )
+    supplemental_amendments = [
+        ParsedSEC13FFiling(
+            metadata=ParsedSEC13FMetadata(
+                cik=cache_row.institution_cik,
+                accession_number=amendment.accession_number,
+                form=amendment.form,
+                filing_date=amendment.filing_date,
+                report_period=cache_row.report_period,
+                filing_manager_name=cache_row.institution_name,
+                is_amendment=True,
+                amendment_type=amendment.amendment_type,
+                amendment_no=amendment.amendment_no,
+                is_confidential_omitted=bool(amendment.is_confidential_omitted),
+            ),
+            positions=[
+                entry.model_copy(deep=True)
+                for entry in positions
+                if entry.accession_number == amendment.accession_number
+            ],
+        )
+        for amendment in cache_row.supplemental_amendments
+    ]
+    return SEC13FPeriodSnapshot(
+        institution_name=cache_row.institution_name,
+        cik=cache_row.institution_cik,
+        report_period=cache_row.report_period,
+        primary_filing=primary_filing,
+        supplemental_amendments=supplemental_amendments,
+        positions=positions,
+        warnings=[_warning_from_json(item) for item in (cache_row.warnings_json or [])],
+        data_quality=_data_quality_from_json(cache_row.data_quality_json),
+    )
+
+
+def upsert_13f_period_snapshot_cache(
+    db: Session,
+    snapshot: SEC13FPeriodSnapshot,
+    *,
+    commit: bool = True,
+) -> SEC13FPeriodSnapshot:
+    normalized_cik = normalize_cik(snapshot.cik)
+    normalized_period = normalize_reporting_period(snapshot.report_period)
+    cache_row = (
+        db.query(Institutional13FPeriodCache)
+        .filter(
+            Institutional13FPeriodCache.institution_cik == normalized_cik,
+            Institutional13FPeriodCache.report_period == normalized_period,
+        )
+        .one_or_none()
+    )
+    if cache_row is None:
+        cache_row = Institutional13FPeriodCache(
+            institution_cik=normalized_cik,
+            report_period=normalized_period,
+        )
+        db.add(cache_row)
+
+    cache_row.institution_name = snapshot.institution_name
+    cache_row.primary_accession_number = snapshot.primary_filing.metadata.accession_number
+    cache_row.primary_form = snapshot.primary_filing.metadata.form
+    cache_row.primary_filing_date = snapshot.primary_filing.metadata.filing_date
+    cache_row.primary_is_amendment = snapshot.primary_filing.metadata.is_amendment
+    cache_row.primary_is_confidential_omitted = (
+        snapshot.primary_filing.metadata.is_confidential_omitted
+    )
+    cache_row.primary_amendment_type = snapshot.primary_filing.metadata.amendment_type
+    cache_row.primary_amendment_no = snapshot.primary_filing.metadata.amendment_no
+    cache_row.warnings_json = [_warning_to_json(item) for item in snapshot.warnings]
+    cache_row.data_quality_json = _data_quality_to_json(snapshot.data_quality)
+
+    if cache_row.id is not None:
+        cache_row.supplemental_amendments.clear()
+        cache_row.positions.clear()
+        db.flush()
+
+    cache_row.supplemental_amendments = [
+        Institutional13FSupplementalAmendmentCache(
+            sort_order=index,
+            accession_number=filing.metadata.accession_number,
+            form=filing.metadata.form,
+            filing_date=filing.metadata.filing_date,
+            amendment_type=filing.metadata.amendment_type,
+            amendment_no=filing.metadata.amendment_no,
+            is_confidential_omitted=filing.metadata.is_confidential_omitted,
+        )
+        for index, filing in enumerate(snapshot.supplemental_amendments)
+    ]
+    cache_row.positions = [
+        Institutional13FPositionCache(
+            sort_order=index,
+            accession_number=position.accession_number,
+            filing_date=position.filing_date,
+            issuer_name=position.issuer_name,
+            ticker=position.ticker,
+            ticker_resolution_method=position.ticker_resolution_method,
+            cusip=position.cusip,
+            security_title=position.security_title,
+            put_call=position.put_call,
+            shares=float(position.shares),
+            reported_value_usd=float(position.reported_value_usd),
+            raw_row_index=position.raw_row_index,
+        )
+        for index, position in enumerate(snapshot.positions)
+    ]
+
+    db.flush()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
+    db.refresh(cache_row)
+    return load_13f_period_snapshot_from_cache(
+        db,
+        institution_cik=normalized_cik,
+        report_period=normalized_period,
+    ) or snapshot
+
+
+def get_or_fetch_13f_period_snapshot(
+    db: Session,
+    *,
+    institution_cik: str,
+    report_period: date | str,
+    json_fetcher: JsonFetcher | None = None,
+    text_fetcher: TextFetcher | None = None,
+    submissions_base_url: str = "https://data.sec.gov/submissions",
+    archives_base_url: str = "https://www.sec.gov/Archives/edgar/data",
+    commit: bool = True,
+) -> SEC13FPeriodSnapshot:
+    cached = load_13f_period_snapshot_from_cache(
+        db,
+        institution_cik=institution_cik,
+        report_period=report_period,
+    )
+    if cached is not None:
+        return cached
+
+    filing_records = fetch_13f_filing_records(
+        institution_cik,
+        json_fetcher=json_fetcher,
+        submissions_base_url=submissions_base_url,
+    )
+    period_records = filter_filing_records_for_period(filing_records, report_period)
+    if not period_records:
+        raise ValueError("No 13F filings were found for the requested reporting period")
+    snapshot = build_13f_reporting_period_snapshot(
+        period_records,
+        json_fetcher=json_fetcher,
+        text_fetcher=text_fetcher,
+        archives_base_url=archives_base_url,
+    )
+    return upsert_13f_period_snapshot_cache(db, snapshot, commit=commit)
+
+
+def get_institutional_position_diff(
+    db: Session,
+    request: PositionDiffRequest,
+    *,
+    json_fetcher: JsonFetcher | None = None,
+    text_fetcher: TextFetcher | None = None,
+    submissions_base_url: str = "https://data.sec.gov/submissions",
+    archives_base_url: str = "https://www.sec.gov/Archives/edgar/data",
+    commit: bool = True,
+) -> PositionDiffResponse:
+    current_period, previous_period = _resolve_position_diff_periods(
+        db,
+        institution_cik=request.institution_cik,
+        current_period=request.current_period,
+        previous_period=request.previous_period,
+        json_fetcher=json_fetcher,
+        submissions_base_url=submissions_base_url,
+    )
+    current_snapshot = load_13f_period_snapshot_from_cache(
+        db,
+        institution_cik=request.institution_cik,
+        report_period=current_period,
+    )
+    previous_snapshot = load_13f_period_snapshot_from_cache(
+        db,
+        institution_cik=request.institution_cik,
+        report_period=previous_period,
+    )
+
+    if current_snapshot is None or previous_snapshot is None:
+        filing_records = fetch_13f_filing_records(
+            request.institution_cik,
+            json_fetcher=json_fetcher,
+            submissions_base_url=submissions_base_url,
+        )
+        if current_snapshot is None:
+            current_records = filter_filing_records_for_period(filing_records, current_period)
+            if not current_records:
+                raise ValueError("No 13F filings were found for requested reporting period")
+            current_snapshot = upsert_13f_period_snapshot_cache(
+                db,
+                build_13f_reporting_period_snapshot(
+                    current_records,
+                    json_fetcher=json_fetcher,
+                    text_fetcher=text_fetcher,
+                    archives_base_url=archives_base_url,
+                ),
+                commit=commit,
+            )
+        if previous_snapshot is None:
+            previous_records = filter_filing_records_for_period(filing_records, previous_period)
+            if not previous_records:
+                raise ValueError("No 13F filings were found for requested reporting period")
+            previous_snapshot = upsert_13f_period_snapshot_cache(
+                db,
+                build_13f_reporting_period_snapshot(
+                    previous_records,
+                    json_fetcher=json_fetcher,
+                    text_fetcher=text_fetcher,
+                    archives_base_url=archives_base_url,
+                ),
+                commit=commit,
+            )
+
+    combined_data_quality = PositionDiffDataQuality(
+        comparison_complete=(
+            current_snapshot.data_quality.comparison_complete
+            and previous_snapshot.data_quality.comparison_complete
+        ),
+        current_filing_complete=current_snapshot.data_quality.current_filing_complete,
+        previous_filing_complete=previous_snapshot.data_quality.previous_filing_complete,
+        ticker_enrichment_complete=(
+            current_snapshot.data_quality.ticker_enrichment_complete
+            and previous_snapshot.data_quality.ticker_enrichment_complete
+        ),
+        confidential_omissions_possible=(
+            current_snapshot.data_quality.confidential_omissions_possible
+            or previous_snapshot.data_quality.confidential_omissions_possible
+        ),
+    )
+
+    response = compare_position_snapshots(
+        institution_name=current_snapshot.institution_name,
+        institution_cik=request.institution_cik,
+        current_period=current_period,
+        previous_period=previous_period,
+        current_positions=current_snapshot.positions,
+        previous_positions=previous_snapshot.positions,
+        filter_status=request.status,
+        sort_by=request.sort_by.value,
+        sort_dir=request.sort_dir.value,
+        limit=request.limit,
+        offset=request.offset,
+        warnings=[*current_snapshot.warnings, *previous_snapshot.warnings],
+        data_quality=combined_data_quality,
+        ticker=request.ticker,
+        cusip=request.cusip,
+    )
+    response.filings = _build_filings_metadata(current_snapshot, previous_snapshot)
+    return response
 
 
 def build_position_key(entry: PositionSnapshotEntry) -> str:
@@ -827,6 +1244,22 @@ def _filter_positions(
     return [item for item in positions if item.status.value == filter_status.value]
 
 
+def _filter_position_identity(
+    positions: list[PositionDiffPosition],
+    *,
+    ticker: str | None = None,
+    cusip: str | None = None,
+) -> list[PositionDiffPosition]:
+    normalized_ticker = canonical_ticker(ticker)
+    normalized_cusip = normalize_cusip(cusip)
+    filtered = positions
+    if normalized_ticker is not None:
+        filtered = [item for item in filtered if canonical_ticker(item.ticker) == normalized_ticker]
+    if normalized_cusip is not None:
+        filtered = [item for item in filtered if normalize_cusip(item.cusip) == normalized_cusip]
+    return filtered
+
+
 def compare_position_snapshots(
     *,
     institution_name: str,
@@ -842,6 +1275,8 @@ def compare_position_snapshots(
     offset: int = 0,
     warnings: Sequence[PositionDiffWarning] | None = None,
     data_quality: PositionDiffDataQuality | None = None,
+    ticker: str | None = None,
+    cusip: str | None = None,
 ) -> PositionDiffResponse:
     current_grouped = group_compatible_positions(current_positions)
     previous_grouped = group_compatible_positions(previous_positions)
@@ -864,7 +1299,7 @@ def compare_position_snapshots(
     positions: list[PositionDiffPosition] = []
     ticker_enrichment_complete = True
 
-    for key in all_keys:
+    for key in sorted(all_keys):
         current_item = current_by_key.get(key)
         previous_item = previous_by_key.get(key)
 
@@ -934,6 +1369,7 @@ def compare_position_snapshots(
     )
 
     filtered = _filter_positions(positions, filter_status)
+    filtered = _filter_position_identity(filtered, ticker=ticker, cusip=cusip)
     sorted_positions = _sort_positions(filtered, sort_by, sort_dir)
     paginated = sorted_positions[offset : offset + limit]
 
