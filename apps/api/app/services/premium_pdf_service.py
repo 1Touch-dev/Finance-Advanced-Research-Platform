@@ -629,22 +629,30 @@ def generate_premium_report_html(
         </div>
         <div class="toc-item">
             <span class="toc-number">5</span>
-            <span class="toc-text">Government Contracts &amp; Federal Engagement</span>
+            <span class="toc-text">Key Personnel Dossiers</span>
         </div>
         <div class="toc-item">
             <span class="toc-number">6</span>
-            <span class="toc-text">Regulatory &amp; Lobbying Activity</span>
+            <span class="toc-text">Network &amp; Relationship Mapping</span>
         </div>
         <div class="toc-item">
             <span class="toc-number">7</span>
-            <span class="toc-text">Recent News &amp; Media Coverage</span>
+            <span class="toc-text">Government Contracts &amp; Federal Engagement</span>
         </div>
         <div class="toc-item">
             <span class="toc-number">8</span>
-            <span class="toc-text">Risk Assessment &amp; Watch Items</span>
+            <span class="toc-text">Regulatory &amp; Lobbying Activity</span>
         </div>
         <div class="toc-item">
             <span class="toc-number">9</span>
+            <span class="toc-text">Recent News &amp; Media Coverage</span>
+        </div>
+        <div class="toc-item">
+            <span class="toc-number">10</span>
+            <span class="toc-text">Risk Assessment &amp; Watch Items</span>
+        </div>
+        <div class="toc-item">
+            <span class="toc-number">11</span>
             <span class="toc-text">Sources &amp; Citations</span>
         </div>
     </div>
@@ -746,16 +754,16 @@ def generate_premium_report_html(
 
 <div class="page-break"></div>
 
-<!-- SECTION 5: GOVERNMENT CONTRACTS -->
+<!-- SECTION 5: KEY PERSONNEL DOSSIERS -->
 <div class="page-header">
     <span class="header-left">{classification}</span>
     <span class="header-right">{organization}</span>
 </div>
 
 <div class="page-content">
-    <h1 class="section-title"><span class="section-number">5.</span> Government Contracts &amp; Federal Engagement</h1>
+    <h1 class="section-title"><span class="section-number">5.</span> Key Personnel Dossiers</h1>
 
-    {_format_gov_contracts_section(gov_contracts, entity_name)}
+    {_format_key_personnel_section(entity_name, report_data)}
 </div>
 
 <div class="page-footer">
@@ -765,16 +773,16 @@ def generate_premium_report_html(
 
 <div class="page-break"></div>
 
-<!-- SECTION 6: LOBBYING -->
+<!-- SECTION 6: NETWORK & RELATIONSHIP MAPPING -->
 <div class="page-header">
     <span class="header-left">{classification}</span>
     <span class="header-right">{organization}</span>
 </div>
 
 <div class="page-content">
-    <h1 class="section-title"><span class="section-number">6.</span> Regulatory &amp; Lobbying Activity</h1>
+    <h1 class="section-title"><span class="section-number">6.</span> Network &amp; Relationship Mapping</h1>
 
-    {_format_lobbying_section(sections, entity_name)}
+    {_format_network_mapping_section(entity_name, report_data)}
 </div>
 
 <div class="page-footer">
@@ -784,16 +792,16 @@ def generate_premium_report_html(
 
 <div class="page-break"></div>
 
-<!-- SECTION 7: NEWS -->
+<!-- SECTION 7: GOVERNMENT CONTRACTS -->
 <div class="page-header">
     <span class="header-left">{classification}</span>
     <span class="header-right">{organization}</span>
 </div>
 
 <div class="page-content">
-    <h1 class="section-title"><span class="section-number">7.</span> Recent News &amp; Media Coverage</h1>
+    <h1 class="section-title"><span class="section-number">7.</span> Government Contracts &amp; Federal Engagement</h1>
 
-    {_format_news_section(news_items, entity_name)}
+    {_format_gov_contracts_section(gov_contracts, entity_name)}
 </div>
 
 <div class="page-footer">
@@ -803,28 +811,66 @@ def generate_premium_report_html(
 
 <div class="page-break"></div>
 
-<!-- SECTION 8: RISK ASSESSMENT -->
+<!-- SECTION 8: LOBBYING -->
 <div class="page-header">
     <span class="header-left">{classification}</span>
     <span class="header-right">{organization}</span>
 </div>
 
 <div class="page-content">
-    <h1 class="section-title"><span class="section-number">8.</span> Risk Assessment &amp; Watch Items</h1>
+    <h1 class="section-title"><span class="section-number">8.</span> Regulatory &amp; Lobbying Activity</h1>
+
+    {_format_lobbying_section(sections, entity_name)}
+</div>
+
+<div class="page-footer">
+    <span class="footer-left">Prepared for internal use only — not for distribution</span>
+    <span class="footer-right">Page 9</span>
+</div>
+
+<div class="page-break"></div>
+
+<!-- SECTION 9: NEWS -->
+<div class="page-header">
+    <span class="header-left">{classification}</span>
+    <span class="header-right">{organization}</span>
+</div>
+
+<div class="page-content">
+    <h1 class="section-title"><span class="section-number">9.</span> Recent News &amp; Media Coverage</h1>
+
+    {_format_news_section(news_items, entity_name)}
+</div>
+
+<div class="page-footer">
+    <span class="footer-left">Prepared for internal use only — not for distribution</span>
+    <span class="footer-right">Page 10</span>
+</div>
+
+<div class="page-break"></div>
+
+<!-- SECTION 10: RISK ASSESSMENT -->
+<div class="page-header">
+    <span class="header-left">{classification}</span>
+    <span class="header-right">{organization}</span>
+</div>
+
+<div class="page-content">
+    <h1 class="section-title"><span class="section-number">10.</span> Risk Assessment &amp; Watch Items</h1>
 
     {_format_risk_section(entity_name, ticker, report_data)}
 </div>
 
 <div class="page-break"></div>
 
-<!-- SECTION 9: SOURCES & CITATIONS -->
+<!-- SECTION 11: SOURCES & CITATIONS -->
 <div class="page-header">
     <span class="header-left">{classification}</span>
     <span class="header-right">{organization}</span>
 </div>
 
 <div class="page-content">
-    <h1 class="section-title"><span class="section-number">9.</span> Sources &amp; Citations</h1>
+    <h1 class="section-title"><span class="section-number">11.</span> Sources &amp; Citations</h1>
 
     {_format_citations_section(sections)}
 
@@ -1576,6 +1622,230 @@ def _format_risk_section(entity_name: str, ticker: str, report_data: dict) -> st
     <p>Standard quarterly monitoring cadence recommended with enhanced tracking during earnings
     seasons and periods of elevated market volatility. Key focus areas include margin trajectory,
     competitive positioning, and management commentary on forward guidance.</p>
+</div>
+"""
+
+
+def _format_key_personnel_section(entity_name: str, report_data: dict) -> str:
+    """Format Key Personnel dossiers section (Hemispheric-style)."""
+    sections = report_data.get('sections', [])
+
+    # Try to find AI-generated Key Personnel content
+    for sec in sections:
+        name = sec.get('name', '') or sec.get('title', '') or sec.get('section_name', '')
+        if 'personnel' in name.lower() or 'executive' in name.lower():
+            narrative = sec.get('narrative', '')
+            claims = sec.get('claims', [])
+
+            # Use AI-generated narrative if available
+            if narrative and len(narrative) > 100:
+                html_content = markdown.markdown(narrative, extensions=['tables', 'fenced_code', 'nl2br', 'sane_lists'])
+                return f"""
+<h2>Executive Leadership Dossiers</h2>
+{html_content}
+"""
+
+            # Use claims if available
+            if claims:
+                claims_html = _format_claims_as_paragraphs(claims)
+                if claims_html and len(claims_html) > 50:
+                    return f"""
+<h2>Executive Leadership Dossiers</h2>
+{claims_html}
+"""
+
+    # Try to extract people data from report
+    people_data = report_data.get('people_data', [])
+    if people_data:
+        personnel_html = ""
+        for person in people_data[:6]:  # Top 6 executives
+            name = person.get('name', 'Unknown')
+            title = person.get('title', 'Executive')
+            bio = person.get('bio', '') or person.get('summary', '')
+            education = person.get('education', [])
+            experience = person.get('experience', [])
+
+            edu_html = ""
+            if education:
+                edu_items = [f"<li>{e.get('school', '')} - {e.get('degree', '')}</li>" for e in education[:2]]
+                edu_html = f"<ul>{''.join(edu_items)}</ul>"
+
+            exp_html = ""
+            if experience:
+                exp_items = [f"<li>{e.get('company', '')} - {e.get('title', '')}</li>" for e in experience[:3]]
+                exp_html = f"<ul>{''.join(exp_items)}</ul>"
+
+            personnel_html += f"""
+<div class="no-break" style="margin-bottom: 20pt; padding: 15pt; background: #f8f9fa; border-left: 3px solid #c9a227;">
+    <h3 style="color: #c9a227; margin-bottom: 8pt;">{name}</h3>
+    <p style="font-weight: 600; color: #4a5568; margin-bottom: 10pt;">{title}</p>
+    {f'<p style="font-size: 9.5pt;">{bio[:300]}...</p>' if bio else ''}
+    {f'<p style="font-size: 9pt; color: #718096;"><strong>Education:</strong></p>{edu_html}' if edu_html else ''}
+    {f'<p style="font-size: 9pt; color: #718096;"><strong>Prior Experience:</strong></p>{exp_html}' if exp_html else ''}
+</div>
+"""
+        return f"""
+<h2>Executive Leadership Dossiers</h2>
+
+<p>The following profiles summarize key leadership positions at {entity_name}. Background information
+is compiled from public filings, LinkedIn profiles, and corporate disclosures.</p>
+
+{personnel_html}
+"""
+
+    # Generic fallback
+    return f"""
+<h2>Executive Leadership</h2>
+
+<p>{entity_name}'s executive leadership team is responsible for strategic direction, operational
+execution, and stakeholder relations. Key positions include the Chief Executive Officer, Chief
+Financial Officer, and functional heads across business units.</p>
+
+<div class="callout-box">
+    <div class="callout-title">PERSONNEL ASSESSMENT</div>
+    <div class="callout-content">
+        <p>Executive team evaluation should consider tenure, industry experience, track record
+        at prior organizations, and alignment of incentive structures with shareholder interests.</p>
+        <p>Key monitoring points include management turnover, insider transactions, and
+        compensation structure changes disclosed in proxy filings.</p>
+    </div>
+</div>
+
+<h3>Key Positions to Monitor</h3>
+
+<ul>
+    <li><strong>Chief Executive Officer:</strong> Overall strategic direction and stakeholder communication</li>
+    <li><strong>Chief Financial Officer:</strong> Financial reporting integrity and capital allocation</li>
+    <li><strong>Chief Operating Officer:</strong> Operational execution and efficiency initiatives</li>
+    <li><strong>General Counsel:</strong> Legal strategy and regulatory compliance</li>
+    <li><strong>Board of Directors:</strong> Governance oversight and strategic guidance</li>
+</ul>
+"""
+
+
+def _format_network_mapping_section(entity_name: str, report_data: dict) -> str:
+    """Format Network Mapping section (Hemispheric-style relationships visualization)."""
+    sections = report_data.get('sections', [])
+
+    # Try to find AI-generated Network Mapping content
+    for sec in sections:
+        name = sec.get('name', '') or sec.get('title', '') or sec.get('section_name', '')
+        if 'network' in name.lower() or 'mapping' in name.lower() or 'relationship' in name.lower():
+            narrative = sec.get('narrative', '')
+            claims = sec.get('claims', [])
+
+            # Use AI-generated narrative if available
+            if narrative and len(narrative) > 100:
+                html_content = markdown.markdown(narrative, extensions=['tables', 'fenced_code', 'nl2br', 'sane_lists'])
+                return f"""
+<h2>Network & Relationship Mapping</h2>
+{html_content}
+"""
+
+            # Use claims if available
+            if claims:
+                claims_html = _format_claims_as_paragraphs(claims)
+                if claims_html and len(claims_html) > 50:
+                    return f"""
+<h2>Network & Relationship Mapping</h2>
+{claims_html}
+"""
+
+    # Try to extract relationships from report
+    relationships = report_data.get('relationships_created', [])
+    if relationships:
+        rel_rows = ""
+        for rel in relationships[:15]:  # Top 15 relationships
+            rel_type = rel.get('kind', 'Associated')
+            target = rel.get('dst_name', rel.get('target', 'Unknown'))
+            context = rel.get('context', '') or rel.get('meta', {}).get('context', '')
+            rel_rows += f"""
+        <tr>
+            <td>{rel_type.replace('_', ' ').title()}</td>
+            <td>{target}</td>
+            <td>{context[:80]}{'...' if len(context) > 80 else ''}</td>
+        </tr>"""
+
+        return f"""
+<h2>Network & Relationship Mapping</h2>
+
+<p>The following table summarizes key relationships and network connections identified for {entity_name}
+through public records, filings, and database searches.</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Relationship Type</th>
+            <th>Connected Entity</th>
+            <th>Context</th>
+        </tr>
+    </thead>
+    <tbody>
+        {rel_rows}
+    </tbody>
+</table>
+
+<div class="network-box">
+    <div class="network-title">NETWORK ASSESSMENT</div>
+    <p>Network analysis reveals the entity's connections across business partnerships, regulatory
+    relationships, and stakeholder groups. These connections may present opportunities for
+    intelligence collection and risk identification.</p>
+</div>
+"""
+
+    # Generic fallback
+    return f"""
+<h2>Network & Relationship Mapping</h2>
+
+<p>{entity_name}'s corporate network spans business relationships, regulatory interactions,
+and stakeholder connections across multiple jurisdictions and industry verticals.</p>
+
+<h3>Key Network Categories</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Category</th>
+            <th>Description</th>
+            <th>Intelligence Value</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Business Partners</td>
+            <td>Key suppliers, distributors, joint venture partners</td>
+            <td><span class="risk-indicator risk-high">HIGH</span></td>
+        </tr>
+        <tr>
+            <td>Regulatory</td>
+            <td>Government agencies, compliance relationships</td>
+            <td><span class="risk-indicator risk-medium">MEDIUM</span></td>
+        </tr>
+        <tr>
+            <td>Financial</td>
+            <td>Lenders, investors, banking relationships</td>
+            <td><span class="risk-indicator risk-high">HIGH</span></td>
+        </tr>
+        <tr>
+            <td>Industry</td>
+            <td>Trade associations, industry groups</td>
+            <td><span class="risk-indicator risk-low">LOW</span></td>
+        </tr>
+        <tr>
+            <td>Legal</td>
+            <td>Outside counsel, litigation counterparties</td>
+            <td><span class="risk-indicator risk-medium">MEDIUM</span></td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="callout-box">
+    <div class="callout-title">NETWORK INTELLIGENCE NOTE</div>
+    <div class="callout-content">
+        <p>Comprehensive network mapping enables identification of hidden dependencies, potential
+        vulnerabilities, and opportunities for competitive intelligence. Key focus areas include
+        supply chain concentration, customer concentration, and regulatory relationship strength.</p>
+    </div>
 </div>
 """
 

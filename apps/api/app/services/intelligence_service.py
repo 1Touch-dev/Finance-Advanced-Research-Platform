@@ -2,7 +2,10 @@
 Intelligence Report Service - Layer 1 Entity Network Report (v1.2)
 """
 import os
+import logging
 import requests
+
+logger = logging.getLogger(__name__)
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
@@ -101,6 +104,14 @@ except ImportError:
     ENHANCED_NARRATIVE_AVAILABLE = False
     def generate_enhanced_sections(*args, **kwargs): return []
     def convert_enhanced_to_report_sections(*args, **kwargs): return []
+
+# Multi-agent investment intelligence
+try:
+    from app.connectors.multi_agent_intelligence import run_investment_intelligence
+    MULTI_AGENT_AVAILABLE = True
+except ImportError:
+    MULTI_AGENT_AVAILABLE = False
+    def run_investment_intelligence(ticker, company_name=""): return {}
 
 
 INTELLIGENCE_KIND = "entity_network_intel"
@@ -1830,10 +1841,31 @@ def generate_enhanced_intelligence_report(
         except Exception as e:
             technicals_data = {"error": str(e)}
 
+    # 2b. Fetch people data from Apollo for Key Personnel dossiers
+    people_data = []
+    if APOLLO_AVAILABLE:
+        try:
+            org_info = apollo_enrich_org(name=entity_name)
+            if org_info:
+                people_data = apollo_org_chart(org_info) or []
+        except Exception as e:
+            logger.warning(f"Apollo people fetch error: {e}")
+
+    # 2c. Run multi-agent investment intelligence for deeper analysis
+    multi_agent_intel = {}
+    if ticker and MULTI_AGENT_AVAILABLE:
+        try:
+            multi_agent_intel = run_investment_intelligence(ticker, entity_name)
+        except Exception as e:
+            logger.warning(f"Multi-agent intelligence error: {e}")
+
     # 3. Generate enhanced narrative sections
     enhanced_sections = []
     if ENHANCED_NARRATIVE_AVAILABLE:
         try:
+            # Extract relationships from base report for network mapping
+            relationships = base_report.get("relationships_created", [])
+
             enhanced_sections = generate_enhanced_sections(
                 entity_name=entity_name,
                 entity_type=entity_type,
@@ -1842,11 +1874,18 @@ def generate_enhanced_intelligence_report(
                 financial_data=financial_data,
                 valuation_data=valuation_data,
                 technicals_data=technicals_data,
+                people_data=people_data,
+                relationships=relationships,
                 include_investment_thesis=include_investment_thesis,
                 include_swot=include_swot,
                 include_risk_matrix=include_risk_matrix,
                 include_financial_health=include_financial_health,
                 include_competitive=include_competitive,
+                include_bottom_line=True,
+                include_key_personnel=True,
+                include_network_mapping=True,
+                include_watch_items=True,
+                include_government_exposure=True,
             )
         except Exception as e:
             enhanced_sections = [{"error": str(e)}]
@@ -1952,6 +1991,12 @@ def generate_enhanced_intelligence_report(
             "technicals": technicals_data.get("summary") if technicals_data else None,
         },
 
+        # Multi-agent investment intelligence
+        "multi_agent_intel": multi_agent_intel if multi_agent_intel else None,
+
+        # Key personnel data
+        "people_data": people_data if people_data else None,
+
         # Data sources
         "data_sources": {
             **base_report.get("data_sources", {}),
@@ -1959,6 +2004,8 @@ def generate_enhanced_intelligence_report(
             "valuation": VALUATION_AVAILABLE and ticker is not None,
             "technicals": TECHNICALS_AVAILABLE and ticker is not None,
             "enhanced_narrative": ENHANCED_NARRATIVE_AVAILABLE,
+            "multi_agent": MULTI_AGENT_AVAILABLE and ticker is not None,
+            "apollo_people": APOLLO_AVAILABLE and len(people_data) > 0,
         },
 
         # Summary (merge base + enhanced)
@@ -1972,6 +2019,11 @@ def generate_enhanced_intelligence_report(
             "investment_recommendation": investment_thesis.get("recommendation") if investment_thesis else None,
             "overall_risk_score": risk_matrix.get("overall_score") if risk_matrix else None,
             "financial_grade": financial_health.get("grade") if financial_health else None,
+            # Multi-agent intelligence summary
+            "multi_agent_recommendation": multi_agent_intel.get("recommendation") if multi_agent_intel else None,
+            "multi_agent_composite_score": multi_agent_intel.get("composite_score") if multi_agent_intel else None,
+            "multi_agent_conviction": multi_agent_intel.get("conviction") if multi_agent_intel else None,
+            "key_personnel_count": len(people_data) if people_data else 0,
         },
     }
 
