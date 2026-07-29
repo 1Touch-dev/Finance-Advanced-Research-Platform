@@ -2,7 +2,7 @@
 
 **Purpose:** Daily handoff after James reviewed Layer 1 v1 on staging. Two revision areas locked: **lobbying filings accuracy** and **much deeper intelligence narrative** (company, parties, investors). New demo anchor: **PayPal Mafia**. New data sources requested: **PitchBook**, **LinkedIn** (employees, education).
 
-**Prior docs:** `16th_June.md` (Layer 1 v1 shipped) · `15th_June.md` (15 PDF review) · [README.md](./README.md)
+**Prior docs:** `16th_June.md` (Layer 1 v1 shipped) · `15th_June.md` (15 PDF review) · [README.md](../../README.md)
 
 **Staging:** Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002`  
 **Branch:** `feature/us-50-state-registry-api` · **PR #2**  
@@ -273,9 +273,9 @@ CA SOS API · Cobalt · Type B kill chain · Type C thematic dossiers · OIDC SS
 |------|--------|--------|
 | `apps/api/app/services/intelligence_service.py` | `_fetch_lda` fix; `_fetch_wikipedia`, `_fetch_funded_api`, `_fetch_sec_investors`; deep `_generate_narrative`; 9-section orchestrator | ✅ |
 | `apps/web/pages/intelligence.js` | PayPal Mafia + Thiel/Defense seed groups; summary bar; 9-section UI | ✅ |
-| `README.md` | v1.1 status, demo results, API alternatives | ✅ |
+| `../../README.md` | v1.1 status, demo results, API alternatives | ✅ |
 | `17th_June.md` | This handoff | ✅ |
-| `SETUP.md`, `docs/REQUIREMENT_GAP_ANALYSIS.md`, `memory/*` | Cross-references updated | ✅ |
+| `SETUP.md`, `../../docs/REQUIREMENT_GAP_ANALYSIS.md`, `../../memory/*` | Cross-references updated | ✅ |
 | `tests/` | LDA client-name query tests | 🔲 Deferred |
 
 ---

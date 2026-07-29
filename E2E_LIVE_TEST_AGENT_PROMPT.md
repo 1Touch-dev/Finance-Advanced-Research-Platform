@@ -175,7 +175,7 @@ Update these files with **today's date** and **verified staging numbers**:
 | File | What to update |
 |------|----------------|
 | `README.md` | Current status table, web routes (add `/economics`, `/registry`), test count, BEA live |
-| `11th_June.md` | Phase 2 completion status, honest data gaps |
+| `Task/June task/11th_June.md` | Phase 2 completion status, honest data gaps |
 | `PHASE2_COMPLETION_REPORT.md` | E2E results, BEA live, economics page |
 | `JAMES_REQUIREMENTS_VERIFICATION_REPORT.md` | J8 BEA now live; refresh record counts |
 | `PHASE1_E2E_VERIFICATION_REPORT.md` | Or create **`E2E_LIVE_VERIFICATION_REPORT.md`** (new) — main deliverable |
@@ -282,7 +282,7 @@ git push origin feature/us-50-state-registry-api
 
 ## EXECUTION ORDER
 
-1. Read this file + skim `README.md`, `11th_June.md`
+1. Read this file + skim `README.md`, `Task/June task/11th_June.md`
 2. Run §A infrastructure checks
 3. Run §D API curl smoke tests
 4. Browser test §B + §C in order

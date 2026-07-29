@@ -259,7 +259,7 @@ Stored in James’s 9 June chat — full list in §2.3 of this doc’s source me
 | `4th_june.md` | Standup notes |
 | `PHASE1_MVP_COMPLETION_REPORT.md` | 5 Jun sign-off (~95%) — superseded on connectors/Anthropic by 8–10 Jun |
 | `PHASE1_E2E_VERIFICATION_REPORT.md` | Browser verification |
-| `docs/DEPLOYMENT.md` | Staging deploy |
+| `../../docs/DEPLOYMENT.md` | Staging deploy |
 
 ---
 

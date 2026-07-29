@@ -37,4 +37,4 @@ The platform provides **evidence-first** public-record intelligence, investor re
 
 **Branch:** `feature/us-50-state-registry-api` · PR #2
 
-**Latest handoff:** [17th_June.md](../17th_June.md)
+**Latest handoff:** [17th_June.md](../Task/June task/17th_June.md)

@@ -17,30 +17,43 @@ from typing import Optional
 log = logging.getLogger(__name__)
 
 ETHERSCAN_KEY = os.getenv("ETHERSCAN_API_KEY", "")
+COINGECKO_API_KEY = os.getenv("COINGECKO_API_KEY", "")
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"
 ETHERSCAN_BASE = "https://api.etherscan.io/api"
 BLOCKCHAIN_INFO = "https://blockchain.info"
 COINCAP_BASE = "https://api.coincap.io/v2"
 
-HEADERS = {"User-Agent": "Finance-Platform/1.0 abhishekk@kyma.world"}
+HEADERS = {"User-Agent": "Finance-Platform/1.0"}
 
-# Simple TTL cache to avoid CoinGecko rate limits (300s TTL)
+# TTL cache — 10 min for successful responses; never cache empty/error results
 _CACHE: dict = {}
-_CACHE_TTL = 300
+_CACHE_TTL = 600
 
 def _cached(key: str, fn, *args, **kwargs):
     now = time.time()
     if key in _CACHE and now - _CACHE[key][0] < _CACHE_TTL:
         return _CACHE[key][1]
     result = fn(*args, **kwargs)
-    if result:
+    # Only cache non-empty successful results
+    if result and result != {} and not (isinstance(result, dict) and result.get("error")):
         _CACHE[key] = (now, result)
     return result
 
 
-def _get(url, params=None, timeout=10):
+def _cg_headers() -> dict:
+    """Return headers with CoinGecko demo API key if configured."""
+    h = dict(HEADERS)
+    if COINGECKO_API_KEY:
+        h["x-cg-demo-api-key"] = COINGECKO_API_KEY
+    return h
+
+
+def _get(url, params=None, timeout=12):
     try:
-        r = requests.get(url, params=params, headers=HEADERS, timeout=timeout)
+        r = requests.get(url, params=params, headers=_cg_headers(), timeout=timeout)
+        if r.status_code == 429:
+            log.warning("CoinGecko rate limited (429) for %s — get a free demo key at https://www.coingecko.com/en/api", url)
+            return {}
         r.raise_for_status()
         return r.json()
     except Exception as e:

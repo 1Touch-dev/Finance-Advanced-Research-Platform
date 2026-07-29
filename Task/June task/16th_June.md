@@ -272,7 +272,7 @@ From ARG Editorial Question Bank — questions Layer 1 should eventually answer:
 | **Full Thiel network (10 nodes)** | 🔲 Pending | Only Palantir spike done; seeds in UI ready |
 | **Registry as report entry point** | 🔲 Pending | Layer 1 uses entity name/ticker directly, not registry lookup |
 
-See also: `docs/REQUIREMENT_GAP_ANALYSIS.md` — sections 4 (connectors), 5 (entity resolution), 6 (graph), 9 (reports).
+See also: `../../docs/REQUIREMENT_GAP_ANALYSIS.md` — sections 4 (connectors), 5 (entity resolution), 6 (graph), 9 (reports).
 
 ---
 
@@ -374,7 +374,7 @@ See also: `docs/REQUIREMENT_GAP_ANALYSIS.md` — sections 4 (connectors), 5 (ent
 | `16th_June.md` | This handoff — Layer 1 kickoff + ship status |
 | `15th_June.md` | BizFile + full 15-PDF analysis |
 | `15th_June_docs/*.pdf` | James sample reports (gitignored) |
-| `docs/REQUIREMENT_GAP_ANALYSIS.md` | Platform gaps |
+| `../../docs/REQUIREMENT_GAP_ANALYSIS.md` | Platform gaps |
 | `apps/api/app/api/intelligence.py` | Layer 1 intelligence API |
 | `apps/api/app/services/intelligence_service.py` | Report orchestrator + connectors |
 | `apps/web/pages/intelligence.js` | Intelligence report UI |

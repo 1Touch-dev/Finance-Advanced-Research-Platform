@@ -26,7 +26,7 @@ When finished, produce a structured **`PHASE1_MVP_COMPLETION_REPORT.md`** docume
   - `Enterprise Intelligence Development Plan.pdf`
   - `Enterprise Intelligence Scaling Plan.pdf`
   - `INTELIGENCE Platform Credentials.pdf`
-- **Implementation roadmap (in repo):** `5th_june.md` (sections §6 and §7 are your checklists)
+- **Implementation roadmap (in repo):** `Task/June task/5th_june.md` (sections §6 and §7 are your checklists)
 - **Gap analysis:** `docs/REQUIREMENT_GAP_ANALYSIS.md`
 - **Apps:** `apps/api` (FastAPI), `apps/web` (Next.js), `apps/admin` (React), `apps/worker` (Bull/Redis)
 - **Packages:** `packages/connectors`, `packages/finance`, `packages/reporting`
@@ -139,7 +139,7 @@ Execute in this exact order:
 
 ## PHASE 1 U.S. MVP — 11 MODULES (100% REQUIRED)
 
-Implement **every item** in `5th_june.md` §6.1–§6.12. Summary:
+Implement **every item** in `Task/June task/5th_june.md` §6.1–§6.12. Summary:
 
 ### Module 1 — Enterprise Workspace & Identity
 - OIDC SSO (Google Workspace or Azure AD — pick one, fully working)
@@ -270,14 +270,14 @@ Everything else in Phase 1 spec is **IN SCOPE**.
 
 ## IMPLEMENTATION RULES
 
-1. **Read before writing:** `5th_june.md`, `docs/REQUIREMENT_GAP_ANALYSIS.md`, relevant `apps/api/app/api/*.py`, `packages/connectors/us/*/`.
+1. **Read before writing:** `Task/June task/5th_june.md`, `docs/REQUIREMENT_GAP_ANALYSIS.md`, relevant `apps/api/app/api/*.py`, `packages/connectors/us/*/`.
 2. **Match existing conventions:** naming, imports, FastAPI patterns, Next.js page structure.
 3. **Minimal scope per PR commit** but complete all modules before declaring done.
 4. **No hardcoded secrets** anywhere in tracked files.
 5. **No sample data in production connector paths** — test fixtures only in `tests/`.
 6. **Every new endpoint:** permission check + audit log entry.
 7. **Every connector run:** recorded in `source_runs` with metrics.
-8. Update `README.md` and `5th_june.md` checkboxes when items complete.
+8. Update `README.md` and `Task/June task/5th_june.md` checkboxes when items complete.
 
 ---
 
@@ -359,7 +359,7 @@ After implementation, ensure staging runs the new code:
 
 ## LAUNCH GATES — DEFINITION OF DONE (ALL MUST PASS)
 
-From `5th_june.md` §7. **You may not declare 100% until every box is checked.**
+From `Task/June task/5th_june.md` §7. **You may not declare 100% until every box is checked.**
 
 ### Developer success criteria
 - [ ] Every normalized entity and edge has ≥1 EvidenceRef
@@ -483,6 +483,6 @@ Phase 1 U.S. MVP: COMPLETE / INCOMPLETE
 
 ## START NOW
 
-Begin by reading `5th_june.md` and `INTELIGENCE Platform Credentials.pdf`, then execute the git branch setup. Work autonomously until all launch gates pass. Do not ask for permission between modules. Fix bugs yourself. Retest until green. Commit, push, open PR, and deliver `PHASE1_MVP_COMPLETION_REPORT.md`.
+Begin by reading `Task/June task/5th_june.md` and `INTELIGENCE Platform Credentials.pdf`, then execute the git branch setup. Work autonomously until all launch gates pass. Do not ask for permission between modules. Fix bugs yourself. Retest until green. Commit, push, open PR, and deliver `PHASE1_MVP_COMPLETION_REPORT.md`.
 
 **Success = 100% Phase 1 U.S. MVP with nothing missing, all credentials integrated, all tests green, browser verification passed, code on GitHub.**

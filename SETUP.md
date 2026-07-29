@@ -63,7 +63,7 @@ curl -X POST "http://localhost:3001/intelligence/generate?entity_name=Palantir%2
 curl -X POST "http://localhost:3001/intelligence/generate?entity_name=Peter%20Thiel&entity_type=person"
 ```
 
-See [17th_June.md](./17th_June.md) for v1.1 changes (LDA fix, deep narrative, E2E results).
+See [17th_June.md](./Task/June task/17th_June.md) for v1.1 changes (LDA fix, deep narrative, E2E results).
 
 ### Manual start (same stack)
 

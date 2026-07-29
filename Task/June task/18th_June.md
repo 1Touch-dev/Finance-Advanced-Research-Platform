@@ -2,7 +2,7 @@
 
 **Purpose:** Daily handoff after James reviewed Layer 1 v1.1 (17 Jun WhatsApp sent) and replied with **Layer 2 scope** — two-sided disclosure, relationship maps, media depth, LinkedIn/education, clickable entities, person timelines, visualizers, and a formal project plan. Apify researched as unified vendor for LinkedIn, PitchBook, news, and YouTube.
 
-**Prior docs:** [17th_June.md](./17th_June.md) (v1.1 shipped) · [16th_June.md](./16th_June.md) · [README.md](./README.md)
+**Prior docs:** [17th_June.md](./17th_June.md) (v1.1 shipped) · [16th_June.md](./16th_June.md) · [README.md](../../README.md)
 
 **Staging:** Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002`  
 **Branch:** `feature/us-50-state-registry-api` · **PR #2**  
@@ -404,7 +404,7 @@ flowchart LR
 
 | File | Planned change |
 |------|----------------|
-| `README.md` | Point to 18th_June.md; v1.2 status |
+| `../../README.md` | Point to 18th_June.md; v1.2 status |
 | `tests/` | Apify mock tests; LDA registrant-side tests |
 
 ---

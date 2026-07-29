@@ -36,7 +36,7 @@ def _already_seen(db: Session, item_id: int, ticker: str,
                 watchlist_item_id INTEGER NOT NULL,
                 investor_name VARCHAR NOT NULL,
                 ticker VARCHAR NOT NULL,
-                transaction VARCHAR NOT NULL,
+                txn_type VARCHAR NOT NULL,
                 value_usd FLOAT,
                 trade_date VARCHAR NOT NULL,
                 alerted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -116,7 +116,7 @@ def _send_for_item(item: WatchlistItem, trades: list):
           <tbody>{rows_html}</tbody>
         </table>
         <p style="color:#888;font-size:12px">Source: SEC Form 4 / 13F filings via yfinance.
-           <a href="http://localhost:3000/tracking">Manage My Alerts →</a></p>
+           <a href="http://localhost:3003/tracking">Manage My Alerts →</a></p>
         </body></html>"""
         result = sendgrid_client.send_email(item.notify_email, subject, body_html)
         if result.get("success"):

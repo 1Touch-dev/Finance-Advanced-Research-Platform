@@ -583,10 +583,10 @@ API registration for new keys: use `abhishekk@kyma.world` / `Kulkarni@2002`
 | File | Content |
 |------|---------|
 | `5th_July.md` | Latest sprint: RSS, yfinance, multi-agent, crypto, gov trading, valuation, institutional |
-| `25th_June.md` | RSS Phase 1 planning |
-| `24th_June.md` | API keys integration |
-| `23rd_June.md` | P1+P2+P3 entity tabs, exports |
-| `22nd_June.md` | v2.0 features (Apollo, Apify, tracking, compare) |
+| `Task/June task/25th_June.md` | RSS Phase 1 planning |
+| `Task/June task/24th_June.md` | API keys integration |
+| `Task/June task/23rd_June.md` | P1+P2+P3 entity tabs, exports |
+| `Task/June task/22nd_June.md` | v2.0 features (Apollo, Apify, tracking, compare) |
 | `james_requirements.md` | Full James requirements backlog |
 | `docs/REQUIREMENT_GAP_ANALYSIS.md` | Spec vs implementation gaps |
 | `SETUP.md` | Local + Docker setup |

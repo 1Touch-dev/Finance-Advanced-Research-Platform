@@ -2,7 +2,7 @@
 
 **Purpose:** Daily handoff for 25 Jun 2026 — James RSS/news vision analysed; platform status updated.  
 **Staging:** Web `http://184.72.123.188:3003` · API `http://184.72.123.188:3001` · Docs `http://184.72.123.188:3001/docs`  
-**Prior docs:** [24th_June.md](./24th_June.md) · [23rd_June.md](./23rd_June.md) · [README.md](./README.md)
+**Prior docs:** [24th_June.md](./24th_June.md) · [23rd_June.md](./23rd_June.md) · [README.md](../../README.md)
 
 ---
 
@@ -16,7 +16,7 @@
 | RSS ingestion module | 🔲 Not started — next workstream |
 | Event clustering + perspective synthesis | 🔲 Not started |
 | `25th_June.md` created | ✅ This file |
-| `README.md` updated | ✅ Complete |
+| `../../README.md` updated | ✅ Complete |
 
 ---
 

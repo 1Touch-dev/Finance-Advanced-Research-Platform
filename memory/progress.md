@@ -9,7 +9,7 @@
 - **New connectors:** Wikipedia REST, FundedAPI, SEC 13G/13D/Form D (all free, no extra keys)
 - **UI:** PayPal Mafia seeds (Thiel, Musk, Hoffman, Levchin, Sacks) + Thiel/Defense org group
 - **E2E verified:** Palantir + Peter Thiel flows pass on staging browser
-- Handoff: `17th_June.md`
+- Handoff: `Task/June task/17th_June.md`
 
 ## 16 June 2026 — Phase 3 Layer 1 v1 shipped
 
@@ -19,7 +19,7 @@
 - UI: `/intelligence` — Thiel demo seeds, 7-section report viewer, confidence badges
 - First live dossier: Palantir (PLTR) — $1.72B contracts, 11 graph edges, GPT narrative
 - James confirmed: Layer 1 scope, skip CA/Cobalt, demo theme Peter Thiel / tech / AI / defense
-- Handoff: `16th_June.md`
+- Handoff: `Task/June task/16th_June.md`
 
 ## Phase 2 — 50-state registry (11 June 2026)
 

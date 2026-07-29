@@ -15,7 +15,7 @@ You are an autonomous senior full-stack engineer agent working in **partnership*
 3. **BEA economic data connector** (#18) — Bureau of Economic Analysis API
 4. Keep **existing 17 gov connectors + Phase 1 MVP** working (do not regress)
 5. **Live E2E test** everything on staging using **Cursor Browser MCP** (`cursor-ide-browser`)
-6. **Update all docs** (README, `11th_June.md`, completion reports)
+6. **Update all docs** (README, `Task/June task/11th_June.md`, completion reports)
 7. **Commit, push, open PR** on GitHub
 8. Produce **`JAMES_REQUIREMENTS_VERIFICATION_REPORT.md`** — structured report for parent agent sign-off
 
@@ -25,7 +25,7 @@ You are an autonomous senior full-stack engineer agent working in **partnership*
 
 ## JAMES REQUIREMENTS (NON-NEGOTIABLE)
 
-Source: WhatsApp 9–11 June 2026, documented in `11th_June.md`.
+Source: WhatsApp 9–11 June 2026, documented in `Task/June task/11th_June.md`.
 
 | # | Requirement | Implementation |
 |---|-------------|----------------|
@@ -57,7 +57,7 @@ Source: WhatsApp 9–11 June 2026, documented in `11th_June.md`.
 | PM2 apps | `finance-api`, `finance-web`, `finance-admin` |
 | Infra | Postgres `:5433`, MinIO `:9000`, OpenSearch `:9200` |
 | Credentials | `.env` (gitignored) — read locally; never commit secrets |
-| Planning docs | `5th_june.md`, `10th_June.md`, `11th_June.md` |
+| Planning docs | `Task/June task/5th_june.md`, `Task/June task/10th_June.md`, `Task/June task/11th_June.md` |
 
 ### Uncommitted work on base branch (INCLUDE in your branch)
 
@@ -67,7 +67,7 @@ Before creating the new branch, **commit or carry forward** these local changes 
 - Anthropic live integration (`claude-sonnet-4-6`), skills status, finance `ai_narrative`
 - Admin source health dedupe, alerts retry
 - `scripts/seed-all-connectors.sh` env loading fix
-- `10th_June.md`, `11th_June.md` (new)
+- `Task/June task/10th_June.md`, `Task/June task/11th_June.md` (new)
 - `.env.example` updates
 
 **One logical commit** for Phase 1 fixes if not already pushed, then branch.
@@ -152,7 +152,7 @@ retrieved_at: str           # ISO8601
 
 **Tier D — Scrape (Playwright) for remaining ~40 states:**
 
-Use James’s SOS URLs from `11th_June.md` §8 / NASS: https://www.nass.org/business-services/corporate-registration
+Use James’s SOS URLs from `Task/June task/11th_June.md` §8 / NASS: https://www.nass.org/business-services/corporate-registration
 
 **Minimum viable scrape per state:** search for a known entity name (e.g. "Department", "Services", "Inc") → parse top 5 results → yield records.
 
@@ -224,7 +224,7 @@ Wire router in `apps/api/app/main.py`.
 ## STEP-BY-STEP EXECUTION PLAN
 
 ### Step 0 — Setup (30 min)
-- [ ] Read `11th_June.md`, `5th_june.md` §4 (connectors module)
+- [ ] Read `Task/June task/11th_June.md`, `Task/June task/5th_june.md` §4 (connectors module)
 - [ ] Commit pending Phase 1 local changes on base branch
 - [ ] Create branch `feature/us-50-state-registry-api`
 - [ ] `source venv/bin/activate` — ensure deps install
@@ -303,8 +303,8 @@ Update these files:
 | File | Updates |
 |------|---------|
 | `README.md` | Phase 2 status, 50-state registry, BEA, `/registry` API, new env vars |
-| `11th_June.md` | Mark completed items, actual timeline, state coverage table |
-| `10th_June.md` | Cross-reference Phase 2 branch |
+| `Task/June task/11th_June.md` | Mark completed items, actual timeline, state coverage table |
+| `Task/June task/10th_June.md` | Cross-reference Phase 2 branch |
 | `.env.example` | `BEA_API_USER_ID`, `COBALT_API_KEY`, `CA_SOS_API_KEY`, `REGISTRY_API_*` |
 | `docs/DEPLOYMENT.md` | seed-state-registry.sh, Playwright deps |
 | `PHASE2_COMPLETION_REPORT.md` | **NEW** — executive summary |
@@ -347,7 +347,7 @@ Return **PR URL** in final message.
 ### James requirements
 - [ ] **J1** 51/51 jurisdictions in `/registry/jurisdictions` with `last_status: success` or `partial` with ≥1 record
 - [ ] **J2** All records use same `state_entity` schema in `normalized` JSON
-- [ ] **J3** Tier A/B used where documented in `11th_June.md` before scrape
+- [ ] **J3** Tier A/B used where documented in `Task/June task/11th_June.md` before scrape
 - [ ] **J4** Playwright scraper framework exists + configs for scrape-tier states
 - [ ] **J5** No OpenCorporates API key required
 - [ ] **J6** Cobalt adapter exists, disabled without `COBALT_API_KEY`
@@ -457,7 +457,7 @@ REGISTRY_API_ADMIN_TOKEN=
 
 ## REFERENCE LINKS
 
-- Planning: `11th_June.md`, `10th_June.md`, `5th_june.md`
+- Planning: `Task/June task/11th_June.md`, `Task/June task/10th_June.md`, `Task/June task/5th_june.md`
 - NASS state directory: https://www.nass.org/business-services/corporate-registration
 - BEA developers: https://www.bea.gov/resources/for-developers
 - BEA API signup: https://apps.bea.gov/API/signup/

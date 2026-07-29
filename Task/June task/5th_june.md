@@ -7,7 +7,7 @@ Sources consolidated:
 - `Enterprise Intelligence Scaling Plan.pdf` (v1.0, May 25 2026)
 - `INTELIGENCE Platform Credentials.pdf` (local only — removed from git)
 - `1st_June.md`, `2nd_June.md`, `4th_june.md`
-- `docs/REQUIREMENT_GAP_ANALYSIS.md`, `docs/PHASE1_READINESS.md`, `README.md`
+- `../../docs/REQUIREMENT_GAP_ANALYSIS.md`, `../../docs/PHASE1_READINESS.md`, `../../README.md`
 - Live repo state on branch `feature/phase1-us-mvp-100pct` (Phase 1 sprint June 5)
 
 **Staging:** Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002`  
@@ -770,9 +770,9 @@ Week/sprint block J — Launch gate test matrix + staging demo rehearsal
 | `2nd_June.md` | repo | Master Phase 0–9 checklist to 100% |
 | `4th_june.md` | repo | June 4 status and standup notes |
 | `1st_June.md` | repo | June 1 API/SQLite fixes |
-| `docs/REQUIREMENT_GAP_ANALYSIS.md` | repo | Module gap analysis |
-| `docs/PHASE1_READINESS.md` | repo | Phase 1 setup and deferred items |
-| `README.md` | repo | Repo overview and quick start |
+| `../../docs/REQUIREMENT_GAP_ANALYSIS.md` | repo | Module gap analysis |
+| `../../docs/PHASE1_READINESS.md` | repo | Phase 1 setup and deferred items |
+| `../../README.md` | repo | Repo overview and quick start |
 
 ---
 

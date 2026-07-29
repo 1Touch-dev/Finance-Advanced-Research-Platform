@@ -27,6 +27,13 @@ ALERT_RECIPIENT_PHONE = os.getenv("ALERT_RECIPIENT_PHONE", "")
 
 def _get_tickers_for_rule(db: Session, rule: AlertRule) -> list:
     """Resolve which tickers to scan for this rule."""
+    # Prefer explicit tickers list in rule params
+    if rule.params and isinstance(rule.params, dict):
+        explicit = rule.params.get("tickers")
+        if explicit and isinstance(explicit, list) and len(explicit) > 0:
+            return [t.upper() for t in explicit if t]
+
+    # Fall back to watchlist items
     if rule.watchlist_id:
         rows = db.query(WatchlistItem).filter(
             WatchlistItem.watchlist_id == rule.watchlist_id,
@@ -106,7 +113,7 @@ def _send_notifications(trades: list, rule: AlertRule) -> dict:
           <tbody>{rows_html}</tbody>
         </table>
         <p style="color:#888;font-size:12px">Source: SEC Form 4 via yfinance. 
-           <a href="http://localhost:3000/gov-trading">View in Platform →</a></p>
+           <a href="http://localhost:3003/gov-trading">View in Platform →</a></p>
         </body></html>"""
         result = sendgrid_client.send_email(ALERT_RECIPIENT_EMAIL, subject, body_html)
         if result.get("success"):
@@ -148,7 +155,11 @@ def run_scan_for_rule(db: Session, rule: AlertRule, dry_run: bool = False) -> di
             "alerts": [],
         }
 
-    all_trades = scan_big_trades(tickers, threshold=threshold)
+    all_trades = scan_big_trades(
+        tickers,
+        threshold=threshold,
+        days=rule.params.get("lookback_days", 30) if rule.params and isinstance(rule.params, dict) else 30
+    )
     new_alerts = []
     skipped = 0
 

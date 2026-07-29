@@ -10,10 +10,13 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 
 | Area | Status |
 |------|--------|
-| **Overall** | **13 Jul 2026 — Full platform live · UI/UX overhaul · 60+ endpoints · Handoff ready** |
-| **Active branch** | `8th-july-sprint` |
+| **Overall** | **29 Jul 2026 — Trade alerts live (F-03/F-04) · Full platform · 60+ endpoints** |
+| **Active branch** | `feature/trade-alerts` |
 | **Full handoff** | **[Finance_Platform_Handoff.md](./Finance_Platform_Handoff.md)** ← **START HERE for new teammates** |
+| **API integrations** | **[docs/API_INTEGRATIONS_GUIDE.md](./docs/API_INTEGRATIONS_GUIDE.md)** — all external APIs (why / how they help) |
 | **Sprint log** | [5th_July.md](./5th_July.md) |
+| **Big Trade Alerts (F-03)** | ✅ SEC Form 4 scan · threshold · email/SMS · PM2 every 4h · UI at `/tracking` |
+| **Investment Alerts (F-04)** | ✅ Per-watchlist threshold · Form 4 + 13F · personal email/SMS · PM2 every 4h |
 | **RSS Worker** | ✅ 50 feeds · PM2 rss-poller · 2000+ articles · 15-min cycle |
 | **Crypto Intelligence** | ✅ CoinGecko · ETH/BTC wallets · Whale alerts · TTL cache |
 | **Gov Trading** | ✅ House PTR · SEC Form 4 · Politician tracker |
@@ -25,6 +28,7 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 | **UI/UX** | ✅ Dark sidebar · Tailwind design system · All pages redesigned (8 Jul) |
 | **Apollo.io** | ✅ Paid plan live · Org enrichment · People · Org chart |
 | **Staging** | Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002` · Docs `:3001/docs` |
+| **Local web** | `http://localhost:3003` (API `:3001`) |
 | **Nav pages** | 22+ pages: Dashboard, Intelligence, Saved, Stock, Valuation, Company, Expert, Institutional, Crypto, Gov Trading, Economics, Search, Graph, Registry, Timeline, Compare, Tracking, Alerts, Skills |
 
 ### ✅ v2.0 Features Shipped + Verified (22 Jun)
@@ -36,7 +40,7 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 | 3 | Apify social footprint | Twitter/X, Instagram, YouTube scrapers + social section in every report |
 | 4 | Private company intel | OpenCorporates (global registry) + GLEIF (LEI) + FinCEN + FDIC |
 | 5 | Per-entity RAG chat | Floating chat panel on reports — cited Q&A via `POST /chat/ask`; works without report too |
-| 6 | Tracking dashboard | Watchlist + daily digest worker + SendGrid/Twilio alerts at `/tracking` |
+| 6 | Tracking dashboard | Watchlist + daily digest worker + SendGrid/Twilio alerts at `/tracking` (+ F-03/F-04 big-trade & investment alerts) |
 | 7 | Polished `/entities/[id]` | Tabs: Overview, Relationships, Evidence, Timeline, Related. Aliases/identifiers as chips |
 | 8 | Person timeline | `/timeline` page — vertical + card view, 3 demo entities, filter by category |
 | 9 | FEC/FARA two-sided | FEC as registrant + as contributor; FARA as registrant + as foreign principal |
@@ -93,7 +97,7 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 | `/intelligence` | Full report + KPI dashboard toggle + floating RAG chat + PDF |
 | `/timeline` | Person/entity event timeline |
 | `/compare` | Entity comparison (radar + table + overlap) |
-| `/tracking` | Watchlist + daily digest |
+| `/tracking` | Watchlist + digest + **F-03/F-04 trade alerts** |
 | `/entities/[id]` | Polished entity profile |
 
 ### New API endpoints
@@ -116,6 +120,10 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 | DELETE | `/tracking/watchlist/{name}` | Remove from watchlist |
 | POST | `/tracking/digest/run` | Trigger daily digest |
 | GET | `/tracking/digest/logs` | Digest history |
+| POST | `/tracking/scan/insider-trades` | **F-03** — Big trade Form 4 scan (email/SMS) |
+| POST | `/tracking/scan/investments` | **F-04** — Watchlist investment threshold scan |
+| GET/POST/PATCH/DELETE | `/tracking/alert-rules` | **F-03** alert rule CRUD |
+| GET/PATCH | `/tracking/watchlist/{ticker}/threshold` | **F-04** per-ticker threshold + notify settings |
 
 
 For a detailed requirement-vs-implementation breakdown, see **[docs/REQUIREMENT_GAP_ANALYSIS.md](./docs/REQUIREMENT_GAP_ANALYSIS.md)**.  
@@ -147,18 +155,46 @@ For all James's requirements (v2.0 features, Jarvis Nexus, agent team), see **[j
 
 **Active branch:** `feature/layer2-kpi-filters-clickable-browser` · 4 commits today
 
+### ✅ Trade Alerts — F-03 + F-04 (Jul 2026)
+
+Architecture: **[docs/FEATURE_BIG_TRADE_ALERTS_ARCHITECTURE.md](./docs/FEATURE_BIG_TRADE_ALERTS_ARCHITECTURE.md)**
+
+| Feature | What it does | Data source | Delivery |
+|---------|--------------|-------------|----------|
+| **F-03 Big Trade Detection** | Scans configured tickers for large insider buys/sells above a USD threshold | SEC Form 4 via **yfinance** | Email (**SendGrid**) + SMS (**Twilio**) + in-app `alert_events` |
+| **F-04 Watchlist Investment Alerts** | Per-watchlist-item threshold; alerts when insider/institutional activity crosses it | Form 4 + institutional holders (13F-style) via **yfinance** | Per-user `notify_email` / `notify_phone` |
+
+**UI:** `/tracking` — set ticker on watchlist items, open **Set Alert** for F-04 thresholds, run **▶ Run Big-Trade Scan** for F-03 (uncheck Dry run for live email/SMS).
+
+**API (local `http://localhost:3001`):**
+
+```
+POST /tracking/scan/insider-trades?dry_run=false   # F-03 manual scan
+POST /tracking/scan/investments?dry_run=false      # F-04 manual scan
+GET|POST|PATCH|DELETE /tracking/alert-rules        # F-03 rule CRUD
+GET|PATCH /tracking/watchlist/{ticker}/threshold   # F-04 threshold settings
+```
+
+**PM2 cron** (see `ecosystem.config.js`):
+- `big-trade-scanner` — every 4 hours at `:00`
+- `investment-alert-scanner` — every 4 hours at `:30`
+
+**Env (see `.env.example`):** `BIG_TRADE_THRESHOLD`, `ALERT_SENDER_EMAIL`, `ALERT_RECIPIENT_EMAIL`, `ALERT_RECIPIENT_PHONE`, plus `SENDGRID_*` / `TWILIO_*`.
+
+> Production note: Twilio **Trial** only SMS’s verified numbers; use SendGrid **domain auth** before multi-user production From addresses.
+
 ## What's next (priority backlog)
 
 See **[Finance_Platform_Handoff.md §10](./Finance_Platform_Handoff.md)** for the full backlog. Top items:
 
 1. LLM-powered 10-K/10-Q MD&A synthesis (Phase 3)
-2. 13F quarter-over-quarter position diff
-3. Big Trade detection + email/SMS alerts (Form 4 > $X)
+2. 13F quarter-over-quarter position diff (true new buys vs current holders for F-04)
+3. Twilio upgrade + SendGrid domain authentication (production alerts)
 4. RSS Phase 2 — event clustering, facts, contradictions, perspectives
 5. Crawl4AI (replace Apify long-term)
 6. Congress.gov paid key · ALEPH/OCCRP · CA SOS · Google SSO credentials
 
-Active branch: **`8th-july-sprint`**
+Active branch: **`feature/trade-alerts`**
 
 For all James's requirements, see **[james_requirements.md](./james_requirements.md)**.
 
@@ -255,7 +291,7 @@ Every claim tagged **DOCUMENTED** / **REPORTED** / **ANALYTICAL**.
 - Ownership tree crawler (OpenOwnership / FinCEN BOI)
 - Officer cross-entity matching
 
-Full handoffs: **[17th_June.md](./17th_June.md)** · **[16th_June.md](./16th_June.md)**
+Full handoffs: **[17th_June.md](./Task/June task/17th_June.md)** · **[16th_June.md](./Task/June task/16th_June.md)**
 
 ---
 
@@ -400,8 +436,8 @@ Finance-Advanced-Research-Platform/
 │   └── docker-up.ps1
 ├── docs/             # Setup, gap analysis, demo data, Phase 1 readiness
 ├── memory/           # Project context & architecture notes
-├── 17th_June.md      # Latest daily handoff (Layer 1 v1.1 — lobbying fix, PayPal Mafia, E2E)
-├── 16th_June.md      # Layer 1 v1 ship status
+├── Task/
+│   └── June task/    # Daily June handoffs (1st_June.md … 25th_June.md)
 ├── tests/            # API + connector tests
 ├── docker-compose.yml
 ├── SETUP.md
@@ -470,7 +506,7 @@ Source contracts (YAML) are under `packages/connectors/us/*/source_contract.yml`
 | `/registry` | U.S. 50-state registry + OSINT |
 | `/timeline` | Person/entity event timeline |
 | `/compare` | Multi-entity comparison |
-| `/tracking` | Watchlist + daily digest |
+| `/tracking` | Watchlist + digest + **F-03/F-04 trade alerts** |
 | `/tracking/alerts` | Alert inbox |
 | `/skills` | Skills runner |
 | `/entities/[id]` | Entity profile (9 tabs) |
@@ -521,8 +557,8 @@ curl.exe -X POST http://localhost:3001/bootstrap
 
 | Service | Local | Staging (EC2) |
 |---------|-------|----------------|
-| Web | http://localhost:3000 | http://184.72.123.188:3003 |
-| **Intelligence UI** | http://localhost:3000/intelligence | http://184.72.123.188:3003/intelligence |
+| Web | http://localhost:3003 | http://184.72.123.188:3003 |
+| **Intelligence UI** | http://localhost:3003/intelligence | http://184.72.123.188:3003/intelligence |
 | API | http://localhost:3001 | http://184.72.123.188:3001 |
 | API health | http://localhost:3001/health | http://184.72.123.188:3001/health |
 | Admin | http://localhost:3002 | http://184.72.123.188:3002 |
@@ -539,13 +575,14 @@ curl.exe -X POST http://127.0.0.1:3001/demo/seed
 
 Then try:
 
-- http://localhost:3000/intelligence → click **Palantir Technologies** or **Peter Thiel** → **Generate Intelligence Report**
-- http://localhost:3000/search → query `apple`
-- http://localhost:3000/entities/1
-- http://localhost:3000/graph → entity ID `1`
-- http://localhost:3000/registry → search state registry records
-- http://localhost:3000/portfolio/1
-- http://localhost:3000/review/1
+- http://localhost:3003/intelligence → click **Palantir Technologies** or **Peter Thiel** → **Generate Intelligence Report**
+- http://localhost:3003/tracking → F-03 Big Trade Scan + F-04 Set Alert thresholds
+- http://localhost:3003/search → query `apple`
+- http://localhost:3003/entities/1
+- http://localhost:3003/graph → entity ID `1`
+- http://localhost:3003/registry → search state registry records
+- http://localhost:3003/portfolio/1
+- http://localhost:3003/review/1
 
 Details: **[docs/DEMO_DATA.md](./docs/DEMO_DATA.md)**
 
@@ -617,9 +654,11 @@ Coverage is **minimal** today (health stubs + connector sample runs). See gap an
 | [james_requirements.md](./james_requirements.md) | Full James requirements backlog |
 | [SETUP.md](./SETUP.md) | Local + Docker setup, troubleshooting |
 | [docs/REQUIREMENT_GAP_ANALYSIS.md](./docs/REQUIREMENT_GAP_ANALYSIS.md) | Spec vs repo, priorities |
+| [docs/FEATURE_BIG_TRADE_ALERTS_ARCHITECTURE.md](./docs/FEATURE_BIG_TRADE_ALERTS_ARCHITECTURE.md) | **F-03 / F-04** big trade + investment alert architecture |
+| [docs/API_INTEGRATIONS_GUIDE.md](./docs/API_INTEGRATIONS_GUIDE.md) | All external APIs — name, why, how they help |
 | [docs/DEMO_DATA.md](./docs/DEMO_DATA.md) | Demo seed and UI tour |
 | [api_credentials_audit.csv](./api_credentials_audit.csv) | API key audit trail |
-| [25th_June.md](./25th_June.md) · [24th_June.md](./24th_June.md) · [23rd_June.md](./23rd_June.md) | Earlier daily status docs |
+| [25th_June.md](./Task/June task/25th_June.md) · [24th_June.md](./Task/June task/24th_June.md) · [23rd_June.md](./Task/June task/23rd_June.md) | Earlier daily status docs |
 
 ---
 

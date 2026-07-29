@@ -59,4 +59,4 @@
 
 - Backend remains in Phase 1 foundation with broad API coverage and known depth gaps.
 - Frontend is now significantly more polished and usable than baseline.
-- System still needs planned roadmap work for full enterprise completeness (connectors hardening, search depth, auth/governance, etc.) per `2nd_June.md` master plan.
+- System still needs planned roadmap work for full enterprise completeness (connectors hardening, search depth, auth/governance, etc.) per `Task/June task/2nd_June.md` master plan.
