@@ -16,6 +16,7 @@ const links = [
   { href: '/graph', label: 'Graph' },
   { href: '/registry', label: 'Registry' },
   { href: '/economics', label: 'Economics' },
+  { href: '/institutional/position-diff', label: 'Institutional' },
   { href: '/stock', label: 'Stock' },
   { href: '/skills', label: 'Skills' },
 ];

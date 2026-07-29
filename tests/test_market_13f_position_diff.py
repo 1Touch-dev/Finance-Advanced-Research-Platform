@@ -31,6 +31,7 @@ from app.services.sec_13f_service import (
     filter_filing_records_for_period,
     get_or_fetch_13f_period_snapshot,
     group_compatible_positions,
+    identify_13f_xml_documents,
     load_13f_filing,
     load_13f_period_snapshot_from_cache,
     normalize_cik,
@@ -74,6 +75,18 @@ def _fixture_json_fetcher(url: str):
 
 def _fixture_text_fetcher(url: str):
     return _fixture_path_from_url(url).read_text()
+
+
+def _mock_json_fetcher_factory(mapping):
+    def _fetch(url: str):
+        return mapping[url]
+    return _fetch
+
+
+def _mock_text_fetcher_factory(mapping):
+    def _fetch(url: str):
+        return mapping[url]
+    return _fetch
 
 
 @pytest.fixture
@@ -264,6 +277,334 @@ def test_load_13f_filing_parses_metadata_and_normalizes_value_unit_to_usd():
     assert filing.positions[0].issuer_name == "Delta Corp"
     assert filing.positions[0].reported_value_usd == 50.0
     assert filing.positions[0].accession_number == "0001067983-26-000012"
+
+
+def test_identify_information_table_prefers_document_type_metadata_for_nonstandard_filename():
+    filing_record = SEC13FFilingRecord(
+        cik="0001067983",
+        accession_number="0001067983-26-100001",
+        form="13F-HR",
+        filing_date=date(2026, 5, 15),
+        report_period=date(2026, 3, 31),
+        primary_document="primary_doc.xml",
+    )
+    index_json = {
+        "directory": {
+            "item": [
+                {"name": "primary_doc.xml"},
+                {"name": "brka20260331positions.xml"},
+                {"name": "FilingSummary.xml"},
+            ]
+        }
+    }
+    base = "https://www.sec.gov/Archives/edgar/data/1067983/000106798326100001"
+    text_fetcher = _mock_text_fetcher_factory(
+        {
+            f"{base}/0001067983-26-100001-index.html": """
+            <table>
+              <tr><td>1</td><td></td><td><a href="primary_doc.xml">primary_doc.xml</a></td><td>13F-HR</td></tr>
+              <tr><td>2</td><td>Quarterly holdings</td><td><a href="brka20260331positions.xml">brka20260331positions.xml</a></td><td>INFORMATION TABLE</td></tr>
+            </table>
+            """,
+            f"{base}/primary_doc.xml": """
+            <edgarSubmission>
+              <formData><coverPage><reportCalendarOrQuarter>2026-03-31</reportCalendarOrQuarter><filingManager><name>Example Capital</name></filingManager></coverPage></formData>
+            </edgarSubmission>
+            """,
+            f"{base}/brka20260331positions.xml": """
+            <informationTable>
+              <infoTable>
+                <nameOfIssuer>Alpha</nameOfIssuer>
+                <titleOfClass>COM</titleOfClass>
+                <cusip>123456789</cusip>
+                <value>10</value>
+                <shrsOrPrnAmt><sshPrnamt>1</sshPrnamt></shrsOrPrnAmt>
+              </infoTable>
+            </informationTable>
+            """,
+            f"{base}/FilingSummary.xml": "<FilingSummary />",
+        }
+    )
+
+    documents = identify_13f_xml_documents(
+        index_json,
+        filing_record=filing_record,
+        text_fetcher=text_fetcher,
+    )
+    assert documents.primary_xml_name == "primary_doc.xml"
+    assert documents.information_table_xml_name == "brka20260331positions.xml"
+
+
+def test_load_13f_filing_detects_namespace_aware_information_table_with_nonstandard_filename():
+    filing_record = SEC13FFilingRecord(
+        cik="0001067983",
+        accession_number="0001067983-26-100002",
+        form="13F-HR",
+        filing_date=date(2026, 5, 15),
+        report_period=date(2026, 3, 31),
+        primary_document="coverpage.xml",
+    )
+    index_url = "https://www.sec.gov/Archives/edgar/data/1067983/000106798326100002/index.json"
+    base = "https://www.sec.gov/Archives/edgar/data/1067983/000106798326100002"
+    json_fetcher = _mock_json_fetcher_factory(
+        {
+            index_url: {
+                "directory": {
+                    "item": [
+                        {"name": "coverpage.xml"},
+                        {"name": "holdings-q1.xml"},
+                    ]
+                }
+            }
+        }
+    )
+    text_fetcher = _mock_text_fetcher_factory(
+        {
+            f"{base}/0001067983-26-100002-index.html": """
+            <table>
+              <tr><td>1</td><td></td><td><a href="coverpage.xml">coverpage.xml</a></td><td>13F-HR</td></tr>
+              <tr><td>2</td><td>Q1 2026 Holdings</td><td><a href="holdings-q1.xml">holdings-q1.xml</a></td><td>INFORMATION TABLE</td></tr>
+            </table>
+            """,
+            f"{base}/coverpage.xml": """
+            <edgarSubmission xmlns="http://www.sec.gov/edgar/thirteenffiler">
+              <formData><coverPage><reportCalendarOrQuarter>2026-03-31</reportCalendarOrQuarter><filingManager><name>Example Capital</name></filingManager></coverPage></formData>
+            </edgarSubmission>
+            """,
+            f"{base}/holdings-q1.xml": """
+            <ns:informationTable xmlns:ns="http://www.sec.gov/edgar/document/thirteenf/informationtable">
+              <ns:infoTable>
+                <ns:nameOfIssuer>Namespaced Alpha</ns:nameOfIssuer>
+                <ns:titleOfClass>COM</ns:titleOfClass>
+                <ns:cusip>123456789</ns:cusip>
+                <ns:value>250</ns:value>
+                <ns:shrsOrPrnAmt><ns:sshPrnamt>5</ns:sshPrnamt></ns:shrsOrPrnAmt>
+              </ns:infoTable>
+            </ns:informationTable>
+            """,
+        }
+    )
+
+    filing = load_13f_filing(
+        filing_record,
+        json_fetcher=json_fetcher,
+        text_fetcher=text_fetcher,
+    )
+    assert filing.positions[0].issuer_name == "Namespaced Alpha"
+    assert filing.positions[0].reported_value_usd == 250.0
+
+
+def test_primary_filing_xml_is_not_selected_as_information_table_when_multiple_xml_files_exist():
+    filing_record = SEC13FFilingRecord(
+        cik="0001067983",
+        accession_number="0001067983-26-100003",
+        form="13F-HR",
+        filing_date=date(2026, 5, 15),
+        report_period=date(2026, 3, 31),
+        primary_document="primary_doc.xml",
+    )
+    index_json = {
+        "directory": {
+            "item": [
+                {"name": "primary_doc.xml"},
+                {"name": "d74313d8k_htm.xml"},
+                {"name": "FilingSummary.xml"},
+                {"name": "custom_holdings.xml"},
+            ]
+        }
+    }
+    base = "https://www.sec.gov/Archives/edgar/data/1067983/000106798326100003"
+    text_fetcher = _mock_text_fetcher_factory(
+        {
+            f"{base}/0001067983-26-100003-index.html": """
+            <table>
+              <tr><td>1</td><td></td><td><a href="primary_doc.xml">primary_doc.xml</a></td><td>13F-HR</td></tr>
+              <tr><td>2</td><td>XBRL instance</td><td><a href="d74313d8k_htm.xml">d74313d8k_htm.xml</a></td><td>EX-101.INS</td></tr>
+              <tr><td>3</td><td>Holdings</td><td><a href="custom_holdings.xml">custom_holdings.xml</a></td><td>INFORMATION TABLE</td></tr>
+            </table>
+            """,
+            f"{base}/primary_doc.xml": """
+            <edgarSubmission><formData><coverPage><reportCalendarOrQuarter>2026-03-31</reportCalendarOrQuarter><filingManager><name>Example Capital</name></filingManager></coverPage></formData></edgarSubmission>
+            """,
+            f"{base}/d74313d8k_htm.xml": "<xbrl><context>not a 13f table</context></xbrl>",
+            f"{base}/FilingSummary.xml": "<FilingSummary />",
+            f"{base}/custom_holdings.xml": """
+            <informationTable><infoTable><nameOfIssuer>Correct Pick</nameOfIssuer><titleOfClass>COM</titleOfClass><cusip>111111111</cusip><value>12</value><shrsOrPrnAmt><sshPrnamt>2</sshPrnamt></shrsOrPrnAmt></infoTable></informationTable>
+            """,
+        }
+    )
+
+    documents = identify_13f_xml_documents(
+        index_json,
+        filing_record=filing_record,
+        text_fetcher=text_fetcher,
+    )
+    assert documents.primary_xml_name == "primary_doc.xml"
+    assert documents.information_table_xml_name == "custom_holdings.xml"
+
+
+def test_amendment_without_information_table_preserves_existing_snapshot_positions():
+    original = SEC13FFilingRecord(
+        cik="0001067983",
+        accession_number="0001067983-26-100004",
+        form="13F-HR",
+        filing_date=date(2026, 5, 1),
+        report_period=date(2026, 3, 31),
+        primary_document="primary_doc.xml",
+    )
+    amendment = SEC13FFilingRecord(
+        cik="0001067983",
+        accession_number="0001067983-26-100005",
+        form="13F-HR/A",
+        filing_date=date(2026, 5, 10),
+        report_period=date(2026, 3, 31),
+        primary_document="amendment.xml",
+    )
+
+    archives = {
+        "https://www.sec.gov/Archives/edgar/data/1067983/000106798326100004/index.json": {
+            "directory": {"item": [{"name": "primary_doc.xml"}, {"name": "holdings.xml"}]}
+        },
+        "https://www.sec.gov/Archives/edgar/data/1067983/000106798326100005/index.json": {
+            "directory": {"item": [{"name": "amendment.xml"}, {"name": "ck0000000000-ex99_a.pdf"}]}
+        },
+    }
+    base_original = "https://www.sec.gov/Archives/edgar/data/1067983/000106798326100004"
+    base_amendment = "https://www.sec.gov/Archives/edgar/data/1067983/000106798326100005"
+    texts = {
+        f"{base_original}/0001067983-26-100004-index.html": """
+        <table>
+          <tr><td>1</td><td></td><td><a href="primary_doc.xml">primary_doc.xml</a></td><td>13F-HR</td></tr>
+          <tr><td>2</td><td></td><td><a href="holdings.xml">holdings.xml</a></td><td>INFORMATION TABLE</td></tr>
+        </table>
+        """,
+        f"{base_original}/primary_doc.xml": """
+        <edgarSubmission><formData><coverPage><reportCalendarOrQuarter>2026-03-31</reportCalendarOrQuarter><filingManager><name>Example Capital</name></filingManager></coverPage></formData></edgarSubmission>
+        """,
+        f"{base_original}/holdings.xml": """
+        <informationTable><infoTable><nameOfIssuer>Original Alpha</nameOfIssuer><titleOfClass>COM</titleOfClass><cusip>123456789</cusip><value>15</value><shrsOrPrnAmt><sshPrnamt>3</sshPrnamt></shrsOrPrnAmt></infoTable></informationTable>
+        """,
+        f"{base_amendment}/0001067983-26-100005-index.html": """
+        <table>
+          <tr><td>1</td><td></td><td><a href="amendment.xml">amendment.xml</a></td><td>13F-HR/A</td></tr>
+        </table>
+        """,
+        f"{base_amendment}/amendment.xml": """
+        <edgarSubmission>
+          <formData>
+            <coverPage>
+              <reportCalendarOrQuarter>2026-03-31</reportCalendarOrQuarter>
+              <filingManager><name>Example Capital</name></filingManager>
+              <isAmendment>true</isAmendment>
+              <amendmentInfo><amendmentType>NEW HOLDINGS</amendmentType><amendmentNo>1</amendmentNo></amendmentInfo>
+            </coverPage>
+          </formData>
+        </edgarSubmission>
+        """,
+    }
+    snapshot = build_13f_reporting_period_snapshot(
+        [original, amendment],
+        json_fetcher=_mock_json_fetcher_factory(archives),
+        text_fetcher=_mock_text_fetcher_factory(texts),
+    )
+    assert [position.issuer_name for position in snapshot.positions] == ["Original Alpha"]
+    assert snapshot.warnings[0].code == "amendment_missing_information_table"
+
+
+def test_no_valid_information_table_returns_controlled_error():
+    filing_record = SEC13FFilingRecord(
+        cik="0001067983",
+        accession_number="0001067983-26-100006",
+        form="13F-HR",
+        filing_date=date(2026, 5, 15),
+        report_period=date(2026, 3, 31),
+        primary_document="primary_doc.xml",
+    )
+    index_url = "https://www.sec.gov/Archives/edgar/data/1067983/000106798326100006/index.json"
+    base = "https://www.sec.gov/Archives/edgar/data/1067983/000106798326100006"
+    json_fetcher = _mock_json_fetcher_factory(
+        {
+            index_url: {
+                "directory": {
+                    "item": [
+                        {"name": "primary_doc.xml"},
+                        {"name": "FilingSummary.xml"},
+                    ]
+                }
+            }
+        }
+    )
+    text_fetcher = _mock_text_fetcher_factory(
+        {
+            f"{base}/0001067983-26-100006-index.html": """
+            <table><tr><td>1</td><td></td><td><a href="primary_doc.xml">primary_doc.xml</a></td><td>13F-HR</td></tr></table>
+            """,
+            f"{base}/primary_doc.xml": """
+            <edgarSubmission><formData><coverPage><reportCalendarOrQuarter>2026-03-31</reportCalendarOrQuarter><filingManager><name>Example Capital</name></filingManager></coverPage></formData></edgarSubmission>
+            """,
+            f"{base}/FilingSummary.xml": "<FilingSummary />",
+        }
+    )
+
+    with pytest.raises(ValueError, match="information-table XML document"):
+        load_13f_filing(
+            filing_record,
+            json_fetcher=json_fetcher,
+            text_fetcher=text_fetcher,
+        )
+
+
+def test_regression_cik_1067983_nonstandard_information_table_filename_uses_metadata():
+    filing_record = SEC13FFilingRecord(
+        cik="0001067983",
+        accession_number="0001067983-26-227107",
+        form="13F-HR",
+        filing_date=date(2026, 5, 15),
+        report_period=date(2026, 3, 31),
+        primary_document="primary_doc.xml",
+    )
+    index_url = "https://www.sec.gov/Archives/edgar/data/1067983/000106798326227107/index.json"
+    base = "https://www.sec.gov/Archives/edgar/data/1067983/000106798326227107"
+    json_fetcher = _mock_json_fetcher_factory(
+        {
+            index_url: {
+                "directory": {
+                    "item": [
+                        {"name": "primary_doc.xml"},
+                        {"name": "ck0000000000-ex99_a.pdf"},
+                        {"name": "ck0000000000-ex99_b.pdf"},
+                        {"name": "brka20260331_positions.xml"},
+                    ]
+                }
+            }
+        }
+    )
+    text_fetcher = _mock_text_fetcher_factory(
+        {
+            f"{base}/0001067983-26-227107-index.html": """
+            <table>
+              <tr><td>1</td><td></td><td><a href="primary_doc.xml">primary_doc.xml</a></td><td>13F-HR</td></tr>
+              <tr><td>2</td><td>Confidential appendix</td><td><a href="ck0000000000-ex99_a.pdf">ck0000000000-ex99_a.pdf</a></td><td>EX-99.A</td></tr>
+              <tr><td>3</td><td>Confidential appendix</td><td><a href="ck0000000000-ex99_b.pdf">ck0000000000-ex99_b.pdf</a></td><td>EX-99.B</td></tr>
+              <tr><td>4</td><td>Quarterly holdings</td><td><a href="brka20260331_positions.xml">brka20260331_positions.xml</a></td><td>INFORMATION TABLE</td></tr>
+            </table>
+            """,
+            f"{base}/primary_doc.xml": """
+            <edgarSubmission><formData><coverPage><reportCalendarOrQuarter>2026-03-31</reportCalendarOrQuarter><filingManager><name>Example Capital Management</name></filingManager></coverPage></formData></edgarSubmission>
+            """,
+            f"{base}/brka20260331_positions.xml": """
+            <informationTable><infoTable><nameOfIssuer>Regression Holding</nameOfIssuer><titleOfClass>COM</titleOfClass><cusip>999999999</cusip><value>42</value><shrsOrPrnAmt><sshPrnamt>7</sshPrnamt></shrsOrPrnAmt></infoTable></informationTable>
+            """,
+        }
+    )
+
+    filing = load_13f_filing(
+        filing_record,
+        json_fetcher=json_fetcher,
+        text_fetcher=text_fetcher,
+    )
+    assert filing.positions[0].issuer_name == "Regression Holding"
+    assert filing.positions[0].reported_value_usd == 42.0
 
 
 def test_build_13f_reporting_period_snapshot_applies_restatement_and_supplemental_amendments():

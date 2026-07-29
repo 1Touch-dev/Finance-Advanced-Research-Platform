@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime
+import logging
 import os
 import re
 from typing import Any, Callable, Iterable, Sequence
@@ -47,6 +48,18 @@ _INFO_TABLE_NAME_RE = re.compile(r"(information[-_ ]?table|infotable)", re.IGNOR
 _PRIMARY_XML_NAME_RE = re.compile(r"(primary|13fhr|form13f)", re.IGNORECASE)
 _AMENDMENT_RESTATEMENT = "RESTATEMENT"
 _AMENDMENT_NEW_HOLDINGS = "NEW HOLDINGS"
+_INDEX_HTML_DOC_ROW_RE = re.compile(
+    r"<tr[^>]*>\s*"
+    r"<td[^>]*>\s*(?P<seq>.*?)\s*</td>\s*"
+    r"<td[^>]*>\s*(?P<description>.*?)\s*</td>\s*"
+    r"<td[^>]*>.*?<a[^>]+href=\"(?P<document>[^\"]+)\"[^>]*>.*?</a>\s*</td>\s*"
+    r"<td[^>]*>\s*(?P<type>.*?)\s*</td>",
+    re.IGNORECASE | re.DOTALL,
+)
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_WHITESPACE_RE = re.compile(r"\s+")
+
+logger = logging.getLogger(__name__)
 
 
 class PositionAmbiguityError(ValueError):
@@ -85,6 +98,13 @@ class SEC13FXmlDocuments:
 
 
 @dataclass(frozen=True)
+class SEC13FArchiveDocument:
+    name: str
+    type: str | None = None
+    description: str | None = None
+
+
+@dataclass(frozen=True)
 class ParsedSEC13FMetadata:
     cik: str
     accession_number: str
@@ -102,6 +122,7 @@ class ParsedSEC13FMetadata:
 class ParsedSEC13FFiling:
     metadata: ParsedSEC13FMetadata
     positions: list[PositionSnapshotEntry]
+    has_information_table: bool = True
 
 
 @dataclass(frozen=True)
@@ -432,39 +453,361 @@ def _build_filing_archive_file_url(
     )
 
 
-def identify_13f_xml_documents(
-    index_json: dict[str, Any], *, primary_document: str | None = None
-) -> SEC13FXmlDocuments:
-    items = index_json.get("directory", {}).get("item", [])
-    xml_names = [item.get("name") for item in items if str(item.get("name", "")).lower().endswith(".xml")]
-    xml_names = [name for name in xml_names if name]
-    if not xml_names:
+def _build_filing_detail_index_urls(
+    filing_record: SEC13FFilingRecord,
+    *,
+    archives_base_url: str = "https://www.sec.gov/Archives/edgar/data",
+) -> list[str]:
+    base = (
+        f"{archives_base_url}/{filing_record.archives_path_cik}/"
+        f"{filing_record.accession_number_compact}/{filing_record.accession_number}"
+    )
+    return [f"{base}-index.html", f"{base}-index.htm"]
+
+
+def _strip_html_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    without_tags = _HTML_TAG_RE.sub(" ", value)
+    collapsed = _WHITESPACE_RE.sub(" ", without_tags).strip()
+    return collapsed or None
+
+
+def _normalize_doc_metadata_text(value: str | None) -> str:
+    return normalize_issuer_name(value) or ""
+
+
+def _parse_13f_archive_documents_from_index_json(index_json: dict[str, Any]) -> list[SEC13FArchiveDocument]:
+    documents: list[SEC13FArchiveDocument] = []
+    for item in index_json.get("directory", {}).get("item", []):
+        name = item.get("name")
+        if not name:
+            continue
+        documents.append(
+            SEC13FArchiveDocument(
+                name=name,
+                type=item.get("type") or item.get("documentType"),
+                description=item.get("description") or item.get("documentDescription"),
+            )
+        )
+    return documents
+
+
+def _parse_13f_archive_documents_from_index_html(index_html: str) -> list[SEC13FArchiveDocument]:
+    documents: list[SEC13FArchiveDocument] = []
+    for match in _INDEX_HTML_DOC_ROW_RE.finditer(index_html):
+        document_name = _strip_html_text(match.group("document"))
+        if not document_name:
+            continue
+        documents.append(
+            SEC13FArchiveDocument(
+                name=document_name,
+                type=_strip_html_text(match.group("type")),
+                description=_strip_html_text(match.group("description")),
+            )
+        )
+    return documents
+
+
+def _merge_archive_documents(
+    json_documents: Sequence[SEC13FArchiveDocument],
+    html_documents: Sequence[SEC13FArchiveDocument],
+) -> list[SEC13FArchiveDocument]:
+    merged: dict[str, SEC13FArchiveDocument] = {}
+    for document in [*json_documents, *html_documents]:
+        key = document.name.lower()
+        existing = merged.get(key)
+        if existing is None:
+            merged[key] = document
+            continue
+        merged[key] = SEC13FArchiveDocument(
+            name=existing.name,
+            type=document.type or existing.type,
+            description=document.description or existing.description,
+        )
+    return list(merged.values())
+
+
+def _load_archive_documents(
+    filing_record: SEC13FFilingRecord,
+    index_json: dict[str, Any],
+    *,
+    text_fetcher: TextFetcher,
+    archives_base_url: str,
+) -> list[SEC13FArchiveDocument]:
+    json_documents = _parse_13f_archive_documents_from_index_json(index_json)
+    xml_json_documents = [document for document in json_documents if document.name.lower().endswith(".xml")]
+    has_inline_metadata = any(document.type or document.description for document in json_documents)
+    has_info_filename_hint = any(_INFO_TABLE_NAME_RE.search(document.name) for document in xml_json_documents)
+    has_primary_filename_hint = (
+        bool(filing_record.primary_document and filing_record.primary_document.lower().endswith(".xml"))
+        or any(_PRIMARY_XML_NAME_RE.search(document.name) for document in xml_json_documents)
+    )
+    if has_inline_metadata or (has_info_filename_hint and has_primary_filename_hint):
+        logger.info(
+            "13F accession %s form %s candidate documents=%s",
+            filing_record.accession_number,
+            filing_record.form,
+            [
+                {
+                    "name": document.name,
+                    "type": document.type,
+                    "description": document.description,
+                }
+                for document in json_documents
+            ],
+        )
+        return json_documents
+
+    html_documents: list[SEC13FArchiveDocument] = []
+    for detail_url in _build_filing_detail_index_urls(filing_record, archives_base_url=archives_base_url):
+        try:
+            html_documents = _parse_13f_archive_documents_from_index_html(text_fetcher(detail_url))
+            if html_documents:
+                break
+        except Exception as exc:  # pragma: no cover
+            logger.info(
+                "13F accession %s form %s could not load archive detail page %s: %s",
+                filing_record.accession_number,
+                filing_record.form,
+                detail_url,
+                exc,
+            )
+    documents = _merge_archive_documents(json_documents, html_documents)
+    logger.info(
+        "13F accession %s form %s candidate documents=%s",
+        filing_record.accession_number,
+        filing_record.form,
+        [
+            {
+                "name": document.name,
+                "type": document.type,
+                "description": document.description,
+            }
+            for document in documents
+        ],
+    )
+    return documents
+
+
+def _looks_like_information_table_xml(xml_text: str) -> tuple[bool, str]:
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError as exc:
+        return False, f"xml_parse_error:{exc}"
+    rows = _xml_findall_by_local_name(root, "infoTable")
+    if not rows:
+        return False, "missing_infoTable_rows"
+    valid_rows = 0
+    for row in rows:
+        if (
+            _xml_find_first_text(row, ("nameOfIssuer",))
+            and _xml_find_first_text(row, ("value",))
+            and _xml_find_first_text(row, ("shrsOrPrnAmt", "sshPrnamt"))
+        ):
+            valid_rows += 1
+    if valid_rows == 0:
+        return False, "infoTable_rows_missing_required_fields"
+    return True, f"validated_info_table_rows:{valid_rows}"
+
+
+def _looks_like_primary_13f_xml(xml_text: str) -> tuple[bool, str]:
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError as exc:
+        return False, f"xml_parse_error:{exc}"
+    manager_name = _xml_find_first_text(root, ("formData", "coverPage", "filingManager", "name"))
+    if manager_name is None:
+        manager_name = _xml_find_first_text(root, ("headerData", "filerInfo", "filer", "name"))
+    report_period = _xml_find_first_text(root, ("formData", "coverPage", "reportCalendarOrQuarter"))
+    if report_period is None:
+        report_period = _xml_find_first_text(root, ("headerData", "filerInfo", "periodOfReport"))
+    is_amendment = _xml_find_first_text(root, ("formData", "coverPage", "isAmendment"))
+    if manager_name and (report_period or is_amendment is not None):
+        return True, "validated_primary_13f_cover_page"
+    return False, "missing_primary_13f_structure"
+
+
+def _is_information_table_metadata(document: SEC13FArchiveDocument) -> bool:
+    normalized = _normalize_doc_metadata_text(
+        " ".join(filter(None, [document.type, document.description]))
+    )
+    return "INFORMATION TABLE" in normalized or bool(_INFO_TABLE_NAME_RE.search(document.name))
+
+
+def _is_primary_13f_metadata(document: SEC13FArchiveDocument, *, filing_form: str) -> bool:
+    normalized_type = _normalize_doc_metadata_text(document.type)
+    normalized_description = _normalize_doc_metadata_text(document.description)
+    normalized_form = _normalize_doc_metadata_text(filing_form)
+    if normalized_type == normalized_form:
+        return True
+    if normalized_form and normalized_form in normalized_description:
+        return True
+    return bool(_PRIMARY_XML_NAME_RE.search(document.name))
+
+
+def _select_information_table_document(
+    documents: Sequence[SEC13FArchiveDocument],
+    *,
+    filing_record: SEC13FFilingRecord,
+    text_fetcher: TextFetcher,
+    archives_base_url: str,
+) -> str:
+    xml_documents = [document for document in documents if document.name.lower().endswith(".xml")]
+    if not xml_documents:
         raise ValueError("SEC filing archive did not contain any XML documents")
 
-    info_candidates = [name for name in xml_names if _INFO_TABLE_NAME_RE.search(name)]
-    if not info_candidates:
-        raise ValueError("SEC filing archive did not contain an information-table XML document")
-    information_table_xml_name = sorted(info_candidates)[0]
-
-    primary_candidates = [name for name in xml_names if name != information_table_xml_name]
-    if primary_document and primary_document.lower().endswith(".xml"):
-        for candidate in primary_candidates:
-            if candidate.lower() == primary_document.lower():
-                return SEC13FXmlDocuments(
-                    primary_xml_name=candidate,
-                    information_table_xml_name=information_table_xml_name,
-                )
-    ranked_primary = sorted(
-        primary_candidates,
-        key=lambda name: (
-            0 if _PRIMARY_XML_NAME_RE.search(name) else 1,
-            name.lower(),
+    ranked_documents = sorted(
+        xml_documents,
+        key=lambda document: (
+            0 if _is_information_table_metadata(document) else 1,
+            document.name.lower(),
         ),
     )
-    if not ranked_primary:
+
+    for document in ranked_documents:
+        file_url = _build_filing_archive_file_url(
+            filing_record, document.name, archives_base_url=archives_base_url
+        )
+        try:
+            xml_text = text_fetcher(file_url)
+        except Exception as exc:
+            logger.info(
+                "13F accession %s form %s rejected information-table candidate %s: fetch_failed:%s",
+                filing_record.accession_number,
+                filing_record.form,
+                document.name,
+                exc,
+            )
+            continue
+        valid, reason = _looks_like_information_table_xml(xml_text)
+        if valid:
+            logger.info(
+                "13F accession %s form %s selected information-table document %s",
+                filing_record.accession_number,
+                filing_record.form,
+                document.name,
+            )
+            return document.name
+        logger.info(
+            "13F accession %s form %s rejected information-table candidate %s: %s",
+            filing_record.accession_number,
+            filing_record.form,
+            document.name,
+            reason,
+        )
+
+    raise ValueError("SEC filing archive did not contain an information-table XML document")
+
+
+def _select_primary_13f_document(
+    documents: Sequence[SEC13FArchiveDocument],
+    *,
+    filing_record: SEC13FFilingRecord,
+    text_fetcher: TextFetcher,
+    archives_base_url: str,
+    information_table_xml_name: str,
+    primary_document: str | None = None,
+) -> str:
+    xml_documents = [
+        document
+        for document in documents
+        if document.name.lower().endswith(".xml")
+        and document.name.lower() != information_table_xml_name.lower()
+    ]
+    if not xml_documents:
         raise ValueError("SEC filing archive did not contain a primary 13F XML document")
+
+    docs_by_name = {document.name.lower(): document for document in xml_documents}
+    ordered_names: list[str] = []
+    seen: set[str] = set()
+
+    if primary_document and primary_document.lower().endswith(".xml"):
+        ordered_names.append(primary_document.lower())
+        seen.add(primary_document.lower())
+
+    for document in sorted(
+        xml_documents,
+        key=lambda doc: (
+            0 if _is_primary_13f_metadata(doc, filing_form=filing_record.form) else 1,
+            doc.name.lower(),
+        ),
+    ):
+        lowered = document.name.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        ordered_names.append(lowered)
+
+    for lower_name in ordered_names:
+        document = docs_by_name.get(lower_name)
+        if document is None:
+            continue
+        file_url = _build_filing_archive_file_url(
+            filing_record, document.name, archives_base_url=archives_base_url
+        )
+        try:
+            xml_text = text_fetcher(file_url)
+        except Exception as exc:
+            logger.info(
+                "13F accession %s form %s rejected primary XML candidate %s: fetch_failed:%s",
+                filing_record.accession_number,
+                filing_record.form,
+                document.name,
+                exc,
+            )
+            continue
+        valid, reason = _looks_like_primary_13f_xml(xml_text)
+        if valid:
+            logger.info(
+                "13F accession %s form %s selected primary XML document %s",
+                filing_record.accession_number,
+                filing_record.form,
+                document.name,
+            )
+            return document.name
+        logger.info(
+            "13F accession %s form %s rejected primary XML candidate %s: %s",
+            filing_record.accession_number,
+            filing_record.form,
+            document.name,
+            reason,
+        )
+
+    raise ValueError("SEC filing archive did not contain a primary 13F XML document")
+
+
+def identify_13f_xml_documents(
+    index_json: dict[str, Any],
+    *,
+    filing_record: SEC13FFilingRecord,
+    text_fetcher: TextFetcher,
+    archives_base_url: str = "https://www.sec.gov/Archives/edgar/data",
+    primary_document: str | None = None,
+    documents: Sequence[SEC13FArchiveDocument] | None = None,
+) -> SEC13FXmlDocuments:
+    archive_documents = list(documents) if documents is not None else _load_archive_documents(
+        filing_record,
+        index_json,
+        text_fetcher=text_fetcher,
+        archives_base_url=archives_base_url,
+    )
+    information_table_xml_name = _select_information_table_document(
+        archive_documents,
+        filing_record=filing_record,
+        text_fetcher=text_fetcher,
+        archives_base_url=archives_base_url,
+    )
+    primary_xml_name = _select_primary_13f_document(
+        archive_documents,
+        filing_record=filing_record,
+        text_fetcher=text_fetcher,
+        archives_base_url=archives_base_url,
+        information_table_xml_name=information_table_xml_name,
+        primary_document=primary_document,
+    )
     return SEC13FXmlDocuments(
-        primary_xml_name=ranked_primary[0],
+        primary_xml_name=primary_xml_name,
         information_table_xml_name=information_table_xml_name,
     )
 
@@ -554,15 +897,59 @@ def load_13f_filing(
 ) -> ParsedSEC13FFiling:
     fetch_json = json_fetcher or _requests_json_fetcher
     fetch_text = text_fetcher or _requests_text_fetcher
-    index_json = fetch_json(build_filing_archive_index_url(filing_record, archives_base_url=archives_base_url))
-    xml_documents = identify_13f_xml_documents(index_json, primary_document=filing_record.primary_document)
+    text_cache: dict[str, str] = {}
 
-    primary_xml = fetch_text(
+    def fetch_text_cached(url: str) -> str:
+        if url not in text_cache:
+            text_cache[url] = fetch_text(url)
+        return text_cache[url]
+
+    index_json = fetch_json(build_filing_archive_index_url(filing_record, archives_base_url=archives_base_url))
+    documents = _load_archive_documents(
+        filing_record,
+        index_json,
+        text_fetcher=fetch_text_cached,
+        archives_base_url=archives_base_url,
+    )
+    try:
+        xml_documents = identify_13f_xml_documents(
+            index_json,
+            filing_record=filing_record,
+            text_fetcher=fetch_text_cached,
+            archives_base_url=archives_base_url,
+            primary_document=filing_record.primary_document,
+            documents=documents,
+        )
+    except ValueError as exc:
+        if filing_record.form.upper().endswith("/A") and "information-table XML document" in str(exc):
+            logger.warning(
+                "13F accession %s form %s has no valid information table; preserving amendment metadata only",
+                filing_record.accession_number,
+                filing_record.form,
+            )
+            primary_xml_name = _select_primary_13f_document(
+                documents,
+                filing_record=filing_record,
+                text_fetcher=fetch_text_cached,
+                archives_base_url=archives_base_url,
+                information_table_xml_name="__missing__",
+                primary_document=filing_record.primary_document,
+            )
+            primary_xml = fetch_text_cached(
+                _build_filing_archive_file_url(
+                    filing_record, primary_xml_name, archives_base_url=archives_base_url
+                )
+            )
+            metadata = parse_13f_primary_document(primary_xml, filing_record=filing_record)
+            return ParsedSEC13FFiling(metadata=metadata, positions=[], has_information_table=False)
+        raise
+
+    primary_xml = fetch_text_cached(
         _build_filing_archive_file_url(
             filing_record, xml_documents.primary_xml_name, archives_base_url=archives_base_url
         )
     )
-    info_table_xml = fetch_text(
+    info_table_xml = fetch_text_cached(
         _build_filing_archive_file_url(
             filing_record, xml_documents.information_table_xml_name, archives_base_url=archives_base_url
         )
@@ -570,7 +957,7 @@ def load_13f_filing(
 
     metadata = parse_13f_primary_document(primary_xml, filing_record=filing_record)
     positions = parse_13f_information_table(info_table_xml, filing_record=filing_record)
-    return ParsedSEC13FFiling(metadata=metadata, positions=positions)
+    return ParsedSEC13FFiling(metadata=metadata, positions=positions, has_information_table=True)
 
 
 def _filing_sort_key(filing: ParsedSEC13FFiling) -> tuple[int, date, str]:
@@ -620,6 +1007,15 @@ def build_13f_reporting_period_snapshot(
 
     for amendment in amendments:
         amendment_type = amendment.metadata.amendment_type
+        if not amendment.has_information_table:
+            warnings.append(
+                PositionDiffWarning(
+                    code="amendment_missing_information_table",
+                    message="Amendment metadata was loaded, but no valid information table was available.",
+                    key=amendment.metadata.accession_number,
+                )
+            )
+            continue
         if amendment_type == _AMENDMENT_RESTATEMENT:
             active_primary = amendment
             active_positions = [position.model_copy(deep=True) for position in amendment.positions]
