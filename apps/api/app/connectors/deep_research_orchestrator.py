@@ -605,6 +605,7 @@ def run_comprehensive_intelligence(
         "filing_notes": {},
         "beneficial_ownership": {},
         "board_interlocks": {},
+        "price_history": {},
         "risk_register": {},
     })
 
@@ -631,10 +632,18 @@ def run_comprehensive_intelligence(
                 # manager reported values in.
                 quote = {}
                 try:
-                    from app.connectors.market_data_connector import get_quote
+                    from app.connectors.market_data_connector import (
+                        get_quote, get_price_history,
+                    )
                     quote = get_quote(ticker) or {}
                 except Exception as e:
                     logger.warning("Quote unavailable for %s: %s", ticker, e)
+                try:
+                    from app.connectors.market_data_connector import get_price_history
+                    futures["price_history"] = executor.submit(
+                        get_price_history, ticker, 400)
+                except Exception as e:
+                    logger.warning("Price history unavailable for %s: %s", ticker, e)
                 futures["institutional"] = executor.submit(
                     get_institutional_holders, entity_name, ticker,
                     quote.get("shares_outstanding"), quote.get("price"))
@@ -733,6 +742,9 @@ def run_comprehensive_intelligence(
                         result["data_quality"]["sources_successful"] += 1
                     elif key == "beneficial_owners":
                         result["beneficial_ownership"] = data
+                        result["data_quality"]["sources_successful"] += 1
+                    elif key == "price_history":
+                        result["price_history"] = data
                         result["data_quality"]["sources_successful"] += 1
                 else:
                     result["data_quality"]["sources_failed"] += 1

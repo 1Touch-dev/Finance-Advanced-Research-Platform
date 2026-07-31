@@ -304,6 +304,135 @@ def get_peer_comparables(ticker: str, limit: int = 8) -> Dict[str, Any]:
     return {"ticker": ticker, "peers_analyzed": len(rows), "comparables": rows}
 
 
+# ─── Public: daily / weekly price history (D-01) ──────────────────────────────
+
+def _finnhub_candles(ticker: str, resolution: str, days: int) -> List[Dict[str, Any]]:
+    if not FINNHUB_KEY:
+        return []
+    end = int(time.time())
+    start = end - days * 86400
+    data = _get_json(f"{FINNHUB_BASE}/stock/candle", {
+        "symbol": ticker, "resolution": resolution,
+        "from": start, "to": end, "token": FINNHUB_KEY,
+    })
+    if not isinstance(data, dict) or data.get("s") != "ok":
+        return []
+    bars = []
+    for i, ts in enumerate(data.get("t") or []):
+        bars.append({
+            "date": time.strftime("%Y-%m-%d", time.gmtime(ts)),
+            "open": _num((data.get("o") or [None])[i]),
+            "high": _num((data.get("h") or [None])[i]),
+            "low": _num((data.get("l") or [None])[i]),
+            "close": _num((data.get("c") or [None])[i]),
+            "volume": _num((data.get("v") or [None])[i]),
+        })
+    return [b for b in bars if b.get("close") is not None]
+
+
+def _alpha_vantage_daily(ticker: str, days: int) -> List[Dict[str, Any]]:
+    if not ALPHA_VANTAGE_KEY:
+        return []
+    data = _get_json(ALPHA_VANTAGE_BASE, {
+        "function": "TIME_SERIES_DAILY_ADJUSTED",
+        "symbol": ticker, "outputsize": "full",
+        "apikey": ALPHA_VANTAGE_KEY,
+    })
+    series = (data or {}).get("Time Series (Daily)") or {}
+    bars = []
+    for date in sorted(series.keys())[-days:]:
+        row = series[date]
+        bars.append({
+            "date": date,
+            "open": _num(row.get("1. open")),
+            "high": _num(row.get("2. high")),
+            "low": _num(row.get("3. low")),
+            "close": _num(row.get("5. adjusted close") or row.get("4. close")),
+            "volume": _num(row.get("6. volume")),
+        })
+    return [b for b in bars if b.get("close") is not None]
+
+
+def _yahoo_daily(ticker: str, days: int) -> List[Dict[str, Any]]:
+    """Yahoo chart API — no key, used when Finnhub candles and AV are dark.
+
+    Finnhub's free plan returns 403 on /stock/candle; Alpha Vantage rate-limits
+    to five calls a day. Yahoo's chart endpoint is the free path that still
+    returns a daily series long enough for an event study.
+    """
+    span = "2y" if days > 400 else "1y" if days > 120 else "6mo"
+    try:
+        r = requests.get(
+            f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}",
+            params={"range": span, "interval": "1d", "events": "div,splits"},
+            headers={"User-Agent": "Mozilla/5.0 (compatible; FAR-Platform/1.0)"},
+            timeout=_TIMEOUT,
+        )
+        r.raise_for_status()
+        result = (r.json() or {}).get("chart", {}).get("result") or []
+        if not result:
+            return []
+        payload = result[0]
+        stamps = payload.get("timestamp") or []
+        quote = ((payload.get("indicators") or {}).get("quote") or [{}])[0]
+        bars = []
+        for i, ts in enumerate(stamps):
+            close = (quote.get("close") or [None])[i]
+            if close is None:
+                continue
+            bars.append({
+                "date": time.strftime("%Y-%m-%d", time.gmtime(ts)),
+                "open": _num((quote.get("open") or [None])[i]),
+                "high": _num((quote.get("high") or [None])[i]),
+                "low": _num((quote.get("low") or [None])[i]),
+                "close": float(close),
+                "volume": _num((quote.get("volume") or [None])[i]),
+            })
+        return bars[-days:]
+    except Exception as e:
+        log.warning("Yahoo price history %s: %s", ticker, e)
+        return []
+
+
+def get_price_history(ticker: str, days: int = 400,
+                      resolution: str = "D") -> Dict[str, Any]:
+    """Daily (or weekly) OHLCV bars — the D-01 prerequisite for event studies.
+
+    Chain: Finnhub → Alpha Vantage → Yahoo chart API. A bar that cannot be
+    retrieved is omitted rather than fabricated; callers that need n≥12 must
+    check length.
+    """
+    result: Dict[str, Any] = {
+        "ticker": ticker, "resolution": resolution, "bars": [],
+        "source": None, "source_url": None,
+    }
+    if resolution in ("D", "1"):
+        for source, fetch, url in (
+            ("finnhub",
+             lambda: _finnhub_candles(ticker, "D", days),
+             f"{FINNHUB_BASE}/stock/candle?symbol={ticker}&resolution=D"),
+            ("alpha_vantage",
+             lambda: _alpha_vantage_daily(ticker, days),
+             f"{ALPHA_VANTAGE_BASE}?function=TIME_SERIES_DAILY_ADJUSTED&symbol={ticker}"),
+            ("yahoo",
+             lambda: _yahoo_daily(ticker, days),
+             f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"),
+        ):
+            bars = fetch()
+            if bars:
+                result.update({"bars": bars, "source": source, "source_url": url})
+                return result
+    else:
+        bars = _finnhub_candles(ticker, resolution, days)
+        if bars:
+            result.update({
+                "bars": bars, "source": "finnhub",
+                "source_url": (f"{FINNHUB_BASE}/stock/candle?symbol={ticker}"
+                               f"&resolution={resolution}"),
+            })
+    return result
+
+
 # ─── Public: combined snapshot ────────────────────────────────────────────────
 
 def get_market_snapshot(ticker: str, include_peers: bool = False) -> Dict[str, Any]:
