@@ -1,6 +1,70 @@
 
 # Deep Intelligence Report Architecture Plan
 
+---
+
+## 🔴 0. TOPMOST PRIORITY — THE GAP AGAINST JAMES'S BRIEF (2026-07-31)
+
+**This section outranks everything below it.** Sections 1–5 track parity with
+the reference PDF and the free-source backlog. That work is now largely done.
+What follows is the distance between the current 45-page output and what James
+has actually asked for across the 14–31 July messages, stated plainly.
+
+### 0.1 Where we stand
+
+**Roughly half of the brief is built.** The half that rests on **filings a
+company is legally compelled to make** is strong, automated and ticker-agnostic.
+The half that rests on **news, the open web and people** has barely started.
+
+We have built the **spine** — everything a company is forced to disclose,
+pulled and cross-checked automatically for any ticker. That is the hard,
+reliable part and it is done. What is missing is the **flesh** — news, people
+histories, and the web research that turns "here are the facts" into "here is
+what is really going on."
+
+### 0.2 Shipped against the brief
+
+| # | James asked for | Where it lands in the report |
+|---|-----------------|------------------------------|
+| 1 | Data visualisation, graphs, tables | 12 figures embedded; was zero |
+| 2 | Every public contract broken down, checked for self-dealing | §11 prime award ledger + award integrity screens |
+| 3 | Lobbying, all details | §12 — every dollar, registrant, issue code, PAC |
+| 4 | Board members' other companies | §8.6 interlocks, from their own Section 16 filings |
+| 5 | Family entities, related-party dealing | §8.5 Item 404, including family employment |
+| 6 | Investors who also hold the competitors | §10.2 common ownership + allocation skew |
+| 7 | Subsidiaries and holding structures | §5.1 Exhibit 21, incl. offshore jurisdictions |
+| 8 | Insider behaviour against price | §9 + V-11 overlay on daily bars |
+| 9 | Timeline of events | §14 — 317 filing-derived events |
+| 10 | Valuation and what the market implies | §7 DCF, sensitivity grid, reverse-DCF |
+
+### 0.3 NOT built — ordered by what unblocks the most
+
+| # | Gap | Nature | Cost |
+|---|-----|--------|------|
+| **G-01** | **News — zero.** No articles, interviews, rumours, Reddit, whale tracking | Build — the single largest hole; James has asked for it four separate times | Free/cheap feeds exist |
+| **G-02** | **Employees.** Only board and named officers; no staff career histories | Build + source decision | LinkedIn/Apify ~$0.05/profile |
+| **G-03** | **"PayPal mafia" analysis.** Schools, who met whom, what they built together | Build on top of G-02 | Depends on G-02 |
+| **G-04** | **Family networks.** Wives/children/holding entities caught only when a filing names them; no active hunting | Build | Free — state registries, Form 3/4 addresses |
+| **G-05** | **Private-round co-investors.** Who else was in the round | **Blocked — no free path** | PitchBook/Crunchbase $6–20K/yr |
+| **G-06** | **Statistical correlations.** "Insiders sell before bad news" — price bars now exist, the maths does not | Build — event-study code | Free (D-01 shipped) |
+| **G-07** | **Multi-company comparison.** Four competitors, ownership only; not deep | Build | Free — peer financials partly held |
+| **G-08** | **Interactive reports.** Static PDF; cannot click, search or drill in | Build — product decision on format | Free |
+| **G-09** | **LinkedIn deep research.** Connector exists (461 lines), switched off | Wire + settle ToS position | ~$0.05/profile |
+| **G-10** | **Data-health alerts.** Nobody is notified when a source breaks | Build — ops, explicitly requested | Free |
+
+**Two of the ten need money** (G-05 outright, G-02/G-09 marginally). The other
+eight are engineering time against sources we already reach.
+
+### 0.4 Fix before this goes to a client
+
+**The lobbying section reports +3711% spend growth 2022→2026.** That is almost
+certainly sparse early-year data rather than a real trajectory. A number that
+large will be the first thing a reader challenges, and it undermines the exact
+totals sitting beside it. Verify the early-year LDA pagination before the
+report is shown externally.
+
+---
+
 ## Executive Summary
 
 **Current State**: 2-page NVIDIA report with placeholder data, ~5% data populated
