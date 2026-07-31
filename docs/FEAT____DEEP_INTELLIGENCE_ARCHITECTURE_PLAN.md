@@ -224,6 +224,89 @@ needs neither a purchase nor a policy decision.
 
 ---
 
+### 0.8 CONSOLIDATED TASK LIST — SINGLE SOURCE OF TRUTH (2026-08-01)
+
+**This is the only task list.** Everything else in this document is context.
+Tasks are ordered by value delivered per hour of work, not by difficulty.
+
+#### 🟢 TIER 1 — ENGINEERING ONLY (no purchase, no policy, no registration)
+
+| # | Task | Status | Why it matters | Est. |
+|---|------|--------|----------------|------|
+| **T-01** | **Foreign issuer validation** | 🔴 NOT STARTED | ADRs file no proxy, no Form 4. Pipeline likely crashes or returns empty. Run ASML, TM, SAP to expose what breaks | 2h |
+| **T-02** | **CIK/DUNS-keyed lookups** | 🔴 NOT STARTED | Name search is the single largest silent-error source. Northrop returns zero federal awards because "NORTHROP GRUMMAN" ≠ "NORTHROP GRUMMAN CORPORATION" | 4h |
+| **T-03** | **Margin null-safety verification** | ✅ DONE | Banks/REITs showed 0.0% gross margin instead of null. Committed 856d5f4 | — |
+| **T-04** | **JPM / bank full test** | ✅ DONE | 21 sections, 14 charts, bank peers auto-selected, no source failed | — |
+
+#### 🟡 TIER 2 — FREE REGISTRATION REQUIRED
+
+| # | Task | Status | Why it matters | Est. |
+|---|------|--------|----------------|------|
+| **T-05** | **Reddit API registration** | 🔴 NOT STARTED | G-05 news connector has Reddit code but returns 403 without `REDDIT_CLIENT_ID`/`SECRET`. Free signup at reddit.com/prefs/apps | 15m |
+| **T-06** | **LDA API key** | ✅ DONE | Added to .env.example. Raises anonymous ceiling for lobbying data | — |
+
+#### 🟠 TIER 3 — NEEDS JAMES'S DECISION (ToS / policy)
+
+| # | Task | Status | Blocker |
+|---|------|--------|---------|
+| **T-07** | **LinkedIn deep research (G-11)** | ❌ BLOCKED | 461-line connector exists, switched off. Needs ToS position |
+| **T-08** | **Employee career histories (G-07)** | ❌ BLOCKED | Same ToS decision as T-07 |
+
+#### 🔴 TIER 4 — NEEDS MONEY
+
+| # | Task | Status | Cost |
+|---|------|--------|------|
+| **T-09** | **Private-round co-investors (G-12)** | ❌ BLOCKED | PitchBook / Crunchbase $6–20K/yr |
+
+#### ⚪ TIER 5 — STRUCTURALLY IMPOSSIBLE
+
+| # | Task | Status | Why |
+|---|------|--------|-----|
+| **T-10** | **Advisors (G-06)** | ❌ NO FIX | No filing, no register. Only discoverable via news prose (G-05) |
+| **T-11** | **Founder track record (G-08)** | ⚠️ PARTIAL | Books/interviews/prior ventures require web scraping at scale |
+
+#### 📋 REMAINING P-SERIES (reference parity)
+
+| # | Task | Status | Priority |
+|---|------|--------|----------|
+| **P0-12** | **Government Action Precedent Library** | 🔴 NOT STARTED | P1 |
+| **P0-13** | **XLSX appendix (raw data export)** | 🔴 NOT STARTED | P2 |
+| **P0-14** | **Full quality-gate battery (10 gates)** | 🔴 NOT STARTED | P1 |
+
+---
+
+#### ✅ WHAT IS DONE AND STABLE
+
+The following are **built, wired, and verified across NVDA, LMT, JPM, TGT**:
+
+| G-series | Capability | File |
+|----------|------------|------|
+| G-01 | Statistical correlations | `correlation_service.py` |
+| G-02 | Co-occurrence graph (PayPal Mafia style) | `cooccurrence_service.py` |
+| G-03 | Multi-company comparison (11 metrics) | `peer_comparison_service.py` |
+| G-04 | Family and vehicle networks | `family_network_connector.py` |
+| G-05 | News, interviews (minus Reddit) | `news_intelligence_connector.py` |
+| G-09 | Data-health alerts | `data_health_service.py` |
+| G-10 | Interactive HTML report | `interactive_report_service.py` |
+
+**Quality fixes committed:**
+- `856d5f4` — Margin null-safety (banks/REITs)
+- `b3996a7` — Source-suspect explanations
+- `c978d9d` — Lobbying throttle handling
+- `b2a0976` — Board roster contamination
+- `3f0ca7d` — LMT family/peer defects
+- `7543f01` — G-series 7/12 complete
+
+---
+
+#### 🎯 NEXT ACTION (pick one and go)
+
+**If you have 15 minutes:** Register Reddit API (T-05)
+**If you have 2 hours:** Run foreign issuer test (T-01) — ASML or TM
+**If you have 4 hours:** CIK/DUNS-keyed lookups (T-02)
+
+---
+
 ## Executive Summary
 
 **Current State**: 2-page NVIDIA report with placeholder data, ~5% data populated
