@@ -177,7 +177,7 @@ Finance-Advanced-Research-Platform/
 - **House PTR disclosures** — Parses annual House Clerk FD.ZIP for STOCK Act filings
 - **Corporate insider trades** — SEC Form 4 via EDGAR EFTS
 - **Politician tracker** — Named politicians (Pelosi, McConnell, MTG, etc.) with their PTR filings + sponsored legislation
-- **Congress.gov integration** — Legislation data (limited by DEMO_KEY)
+- **Congress.gov integration** — Legislation data (now live on registered free key, F-05)
 
 **Key files:**
 - `apps/api/app/connectors/gov_trading_connector.py`
@@ -278,7 +278,7 @@ All keys are stored in `/home/ubuntu/Finance-Advanced-Research-Platform/.env`
 | `UK_COMPANIES_HOUSE_KEY` | UK Companies House | ✅ Live | UK company search |
 | `FEC_API_KEY` | FEC OpenData | ✅ Live | Political contributions |
 | `COURTLISTENER_API_TOKEN` | CourtListener | ✅ Live | Litigation data |
-| `CONGRESS_API_KEY` | Congress.gov | ✅ DEMO | Limited — needs paid key for full data |
+| `CONGRESS_API_KEY` | Congress.gov | ✅ Live | 1,000 req/hr — **completely free API, no paid tier exists** (fixed F-05, was incorrectly hardcoded to DEMO_KEY) |
 | `SENDGRID_API_KEY` | SendGrid | ✅ Configured | Email alerts |
 | `TWILIO_*` | Twilio | ✅ Configured | SMS alerts |
 | `GITHUB_TOKEN` | GitHub | ✅ Live | Code push/pull |
@@ -521,7 +521,7 @@ git push origin 8th-july-sprint
 | 1 | **LLM-powered 10-K/10-Q MD&A synthesis** | Phase 3 — needs OpenAI/Claude to summarize filings into investment thesis |
 | 2 | **13F quarter-over-quarter position diff** | Compare two consecutive 13F filings → new/added/reduced/exited |
 | 3 | **Big Trade detection + alerts** | Form 4 trades > $X threshold → email/SMS alert |
-| 4 | **Congress.gov full legislation** | Needs paid API key (DEMO_KEY is limited) |
+| 4 | **Congress.gov full legislation** | ✅ Done (F-05) — real key wired in, 8 new endpoints (search, bill detail/text/cosponsors, laws, committee, CRS reports, member votes) |
 | 5 | **Deeper RSS Phase 2** | Event clustering, fact extraction, contradiction detection, perspective labeling (James's 500-source vision) |
 | 6 | **Crawl4AI integration** | Replace Apify for long-term scraping (James preference) |
 

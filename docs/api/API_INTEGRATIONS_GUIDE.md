@@ -172,7 +172,7 @@ F-03 uses global `ALERT_RECIPIENT_PHONE`; F-04 uses each watchlist item’s `not
 
 | API name | Env var | Why we use it | How it helps |
 |----------|---------|---------------|--------------|
-| **Congress.gov** | `CONGRESS_API_KEY` | Members, sponsored legislation | Politician profiles + gov-trading context |
+| **Congress.gov** | `CONGRESS_API_KEY` | Members, sponsored legislation, bill search, laws, committees, CRS reports | Politician profiles + gov-trading context + F-05 legislation search/tracking. **Free API, no paid tier** — 1,000 req/hr on registered key vs 30 req/hr on public DEMO_KEY. Sign up: https://api.congress.gov/sign-up/ |
 | **FEC** | `FEC_API_KEY` | Campaign finance | Political funding / influence research |
 | **Regulations.gov** | `REGULATIONS_GOV_API_KEY` | Federal rulemaking dockets | Regulatory risk signals |
 | **GovInfo** | `GOVINFO_API_KEY` | Official publications / docs | Government document evidence |

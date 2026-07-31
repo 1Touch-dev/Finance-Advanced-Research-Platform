@@ -12,9 +12,10 @@ This is **not** a stock screener or a generic LLM report tool alone. It combines
 |------|--------|
 | **Overall** | **29 Jul 2026 — Trade alerts live (F-03/F-04) · Full platform · 60+ endpoints** |
 | **Active branch** | `feature/trade-alerts` |
-| **Full handoff** | **[Finance_Platform_Handoff.md](./Finance_Platform_Handoff.md)** ← **START HERE for new teammates** |
-| **API integrations** | **[docs/API_INTEGRATIONS_GUIDE.md](./docs/API_INTEGRATIONS_GUIDE.md)** — all external APIs (why / how they help) |
-| **Sprint log** | [5th_July.md](./5th_July.md) |
+| **Repository structure** | **Reorganized to 2026 monorepo best practices** ← See [RESTRUCTURE_PLAN.md](./RESTRUCTURE_PLAN.md) |
+| **Full handoff** | **[docs/handoff/Finance_Platform_Handoff.md](./docs/handoff/Finance_Platform_Handoff.md)** ← **START HERE for new teammates** |
+| **API integrations** | **[docs/api/API_INTEGRATIONS_GUIDE.md](./docs/api/API_INTEGRATIONS_GUIDE.md)** — all external APIs (why / how they help) |
+| **Sprint log** | [docs/archive/sprints/5th_July.md](./docs/archive/sprints/5th_July.md) |
 | **Big Trade Alerts (F-03)** | ✅ SEC Form 4 scan · threshold · email/SMS · PM2 every 4h · UI at `/tracking` |
 | **Investment Alerts (F-04)** | ✅ Per-watchlist threshold · Form 4 + 13F · personal email/SMS · PM2 every 4h |
 | **RSS Worker** | ✅ 50 feeds · PM2 rss-poller · 2000+ articles · 15-min cycle |
@@ -157,7 +158,7 @@ For all James's requirements (v2.0 features, Jarvis Nexus, agent team), see **[j
 
 ### ✅ Trade Alerts — F-03 + F-04 (Jul 2026)
 
-Architecture: **[docs/FEATURE_BIG_TRADE_ALERTS_ARCHITECTURE.md](./docs/FEATURE_BIG_TRADE_ALERTS_ARCHITECTURE.md)**
+Architecture: **[docs/features/FEATURE_BIG_TRADE_ALERTS_ARCHITECTURE.md](./docs/features/FEATURE_BIG_TRADE_ALERTS_ARCHITECTURE.md)**
 
 | Feature | What it does | Data source | Delivery |
 |---------|--------------|-------------|----------|
@@ -185,7 +186,7 @@ GET|PATCH /tracking/watchlist/{ticker}/threshold   # F-04 threshold settings
 
 ## What's next (priority backlog)
 
-See **[Finance_Platform_Handoff.md §10](./Finance_Platform_Handoff.md)** for the full backlog. Top items:
+See **[docs/handoff/Finance_Platform_Handoff.md §10](./docs/handoff/Finance_Platform_Handoff.md)** for the full backlog. Top items:
 
 1. LLM-powered 10-K/10-Q MD&A synthesis (Phase 3)
 2. 13F quarter-over-quarter position diff (true new buys vs current holders for F-04)
@@ -196,7 +197,7 @@ See **[Finance_Platform_Handoff.md §10](./Finance_Platform_Handoff.md)** for th
 
 Active branch: **`feature/trade-alerts`**
 
-For all James's requirements, see **[james_requirements.md](./james_requirements.md)**.
+For all James's requirements, see **[docs/requirements/james_requirements.md](./docs/requirements/james_requirements.md)**.
 
 ### Try it on staging
 
@@ -376,7 +377,7 @@ bash scripts/seed-state-registry.sh us_ny us_co  # specific states
 ```mermaid
 flowchart LR
   subgraph clients [Clients]
-    Web[Web Next.js :3000]
+    Web[Web Next.js :3003]
     Admin[Admin React :3002]
   end
   subgraph core [Core]
@@ -388,9 +389,12 @@ flowchart LR
     Redis[(Redis)]
     Vault[Evidence files]
   end
-  subgraph packages [Packages]
-    Finance[packages/finance]
-    Connectors[packages/connectors]
+  subgraph packages [Shared Packages]
+    Finance[finance]
+    Connectors[connectors]
+    Types[shared-types]
+    ConfigTS[config-typescript]
+    ConfigESLint[config-eslint]
   end
   Web --> API
   Admin --> API
@@ -399,6 +403,9 @@ flowchart LR
   API --> Vault
   API --> Finance
   Connectors --> API
+  Web -.-> Types
+  Admin -.-> Types
+  API -.-> Finance
 ```
 
 | Layer | Technology |
@@ -410,39 +417,72 @@ flowchart LR
 | DB (local default) | SQLite (`apps/api/local.db`) |
 | DB (Docker) | PostgreSQL 13 |
 | Queue | Redis 6 |
+| Monorepo | pnpm workspaces, Turborepo (optional) |
 
 ---
 
-## Repository structure
+## Repository structure (Updated: 2026 Best Practices)
 
 ```
 Finance-Advanced-Research-Platform/
-├── apps/
-│   ├── api/          # FastAPI — all REST domains
+├── apps/                           # Deployable applications
+│   ├── api/                       # FastAPI backend (Python 3.11)
 │   │   └── app/
-│   │       ├── api/intelligence.py      # Layer 1 intelligence API
-│   │       └── services/intelligence_service.py  # Report orchestrator
-│   ├── web/          # Next.js research UI (+ /intelligence page)
-│   ├── admin/        # React ops / health dashboard
-│   └── worker/       # Background jobs (Bull)
-├── packages/
-│   ├── finance/      # DCF, comps, technicals, market helpers
-│   ├── connectors/   # U.S. public-data connectors + SDK (17 federal + 51 state + BEA)
-│   └── reporting/    # Report templates (JSON)
-├── scripts/
-│   ├── local-start.ps1
-│   ├── local-stop.ps1
-│   ├── seed-state-registry.sh
-│   └── docker-up.ps1
-├── docs/             # Setup, gap analysis, demo data, Phase 1 readiness
-├── memory/           # Project context & architecture notes
-├── Task/
-│   └── June task/    # Daily June handoffs (1st_June.md … 25th_June.md)
-├── tests/            # API + connector tests
-├── docker-compose.yml
-├── SETUP.md
-└── .env.example
+│   │       ├── api/               # Route handlers
+│   │       ├── connectors/        # External data connectors
+│   │       ├── services/          # Business logic
+│   │       └── models.py          # Database models
+│   ├── web/                       # Next.js 12 frontend (React 17)
+│   ├── admin/                     # React admin dashboard
+│   └── worker/                    # Node.js background jobs
+│
+├── packages/                      # Shared libraries
+│   ├── finance/                   # DCF, comps, technicals, market helpers
+│   ├── connectors/                # U.S. public-data connectors (17 federal + 51 state)
+│   ├── config-typescript/         # Shared TypeScript configurations
+│   ├── config-eslint/             # Shared ESLint configurations
+│   └── shared-types/              # Common TypeScript types/interfaces
+│
+├── tooling/                       # Development tools
+│   ├── scripts/                   # Build/deployment scripts
+│   └── generators/                # Code generators (future)
+│
+├── docs/                          # Documentation (organized by purpose)
+│   ├── setup/                     # Setup & installation guides
+│   ├── architecture/              # Architecture decisions & diagrams
+│   ├── features/                  # Feature documentation
+│   ├── api/                       # API integration guides
+│   ├── deployment/                # Deployment documentation
+│   ├── handoff/                   # Team handoff documents
+│   ├── requirements/              # Requirements & specifications
+│   └── archive/                   # Historical logs & reports
+│       ├── sprints/               # Daily sprint logs
+│       ├── verification/          # Verification reports
+│       └── prompts/               # Agent prompts
+│
+├── tests/                         # Test suites
+├── .github/workflows/             # CI/CD pipelines
+│
+├── README.md                      # This file
+├── CONTRIBUTING.md                # Contribution guidelines
+├── CHANGELOG.md                   # Version history
+├── RESTRUCTURE_PLAN.md            # Restructure documentation
+├── package.json                   # Root workspace config
+├── pnpm-workspace.yaml            # pnpm workspaces
+├── turbo.json                     # Turborepo configuration
+├── tsconfig.json                  # Root TypeScript config
+├── docker-compose.yml             # Docker orchestration
+├── ecosystem.config.js            # PM2 process definitions
+└── .env.example                   # Environment template
 ```
+
+### Key Principles
+
+- **`apps/`** = Deployable units (frontend, backend, worker)
+- **`packages/`** = Shared libraries consumed by apps
+- **`tooling/`** = Development tools and scripts
+- **`docs/`** = All documentation, organized by purpose
+- **One-way dependencies**: apps → packages (never reverse)
 
 ---
 
@@ -584,7 +624,7 @@ Then try:
 - http://localhost:3003/portfolio/1
 - http://localhost:3003/review/1
 
-Details: **[docs/DEMO_DATA.md](./docs/DEMO_DATA.md)**
+Details: **[docs/setup/DEMO_DATA.md](./docs/setup/DEMO_DATA.md)**
 
 ---
 
@@ -606,7 +646,7 @@ curl.exe -X POST http://127.0.0.1:3001/bootstrap
 
 Install web/admin per app (`npm install` inside `apps/web` and `apps/admin`). Root `npm install` can fail on some Windows setups — install per app instead.
 
-Full instructions: **[SETUP.md](./SETUP.md)**
+Full instructions: **[docs/setup/SETUP.md](./docs/setup/SETUP.md)**
 
 ---
 
@@ -649,16 +689,22 @@ Coverage is **minimal** today (health stubs + connector sample runs). See gap an
 
 | Document | Description |
 |----------|-------------|
-| **[Finance_Platform_Handoff.md](./Finance_Platform_Handoff.md)** | **⭐ Full handoff for new teammates — architecture, features, APIs, backlog, credentials** |
-| [5th_July.md](./5th_July.md) | Latest sprint log — RSS, yfinance, multi-agent, crypto, gov, valuation, institutional |
-| [james_requirements.md](./james_requirements.md) | Full James requirements backlog |
-| [SETUP.md](./SETUP.md) | Local + Docker setup, troubleshooting |
-| [docs/REQUIREMENT_GAP_ANALYSIS.md](./docs/REQUIREMENT_GAP_ANALYSIS.md) | Spec vs repo, priorities |
-| [docs/FEATURE_BIG_TRADE_ALERTS_ARCHITECTURE.md](./docs/FEATURE_BIG_TRADE_ALERTS_ARCHITECTURE.md) | **F-03 / F-04** big trade + investment alert architecture |
-| [docs/API_INTEGRATIONS_GUIDE.md](./docs/API_INTEGRATIONS_GUIDE.md) | All external APIs — name, why, how they help |
-| [docs/DEMO_DATA.md](./docs/DEMO_DATA.md) | Demo seed and UI tour |
-| [api_credentials_audit.csv](./api_credentials_audit.csv) | API key audit trail |
-| [25th_June.md](./Task/June task/25th_June.md) · [24th_June.md](./Task/June task/24th_June.md) · [23rd_June.md](./Task/June task/23rd_June.md) | Earlier daily status docs |
+| **[docs/handoff/Finance_Platform_Handoff.md](./docs/handoff/Finance_Platform_Handoff.md)** | **⭐ Full handoff for new teammates — architecture, features, APIs, backlog, credentials** |
+| [docs/archive/sprints/5th_July.md](./docs/archive/sprints/5th_July.md) | Latest sprint log — RSS, yfinance, multi-agent, crypto, gov, valuation, institutional |
+| [docs/requirements/james_requirements.md](./docs/requirements/james_requirements.md) | Full James requirements backlog |
+| [docs/setup/SETUP.md](./docs/setup/SETUP.md) | Local + Docker setup, troubleshooting |
+| [docs/requirements/REQUIREMENT_GAP_ANALYSIS.md](./docs/requirements/REQUIREMENT_GAP_ANALYSIS.md) | Spec vs repo, priorities |
+| [docs/features/FEATURE_BIG_TRADE_ALERTS_ARCHITECTURE.md](./docs/features/FEATURE_BIG_TRADE_ALERTS_ARCHITECTURE.md) | **F-03 / F-04** big trade + investment alert architecture |
+| [docs/api/API_INTEGRATIONS_GUIDE.md](./docs/api/API_INTEGRATIONS_GUIDE.md) | All external APIs — name, why, how they help |
+| [docs/setup/DEMO_DATA.md](./docs/setup/DEMO_DATA.md) | Demo seed and UI tour |
+| [CONTRIBUTING.md](./CONTRIBUTING.md) | Contribution guidelines |
+| [CHANGELOG.md](./CHANGELOG.md) | Version history |
+| [RESTRUCTURE_PLAN.md](./RESTRUCTURE_PLAN.md) | Repository restructure documentation |
+
+### Archived Documentation
+- [docs/archive/sprints/](./docs/archive/sprints/) - Daily sprint logs
+- [docs/archive/verification/](./docs/archive/verification/) - Verification reports
+- [docs/archive/prompts/](./docs/archive/prompts/) - Agent prompts
 
 ---
 
