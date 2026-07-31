@@ -3027,6 +3027,7 @@ def _render_data_health(data: dict, entity_name: str) -> list:
         status = {
             "ok": "Returned",
             "empty": "Empty",
+            "suspect": "**Suspect**",
             "broken": "**Failed**",
             "not_run": "**Not run**",
         }.get(check["status"], check["status"])

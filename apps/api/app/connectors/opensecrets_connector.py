@@ -401,15 +401,79 @@ def fetch_individual_contributions(person_name: str, employer: str = "", cycle: 
 LDA_BASE = "https://lda.senate.gov/api/v1"
 
 
-def _fetch_lda_page(params: Dict[str, Any]) -> Dict[str, Any]:
-    try:
-        resp = requests.get(f"{LDA_BASE}/filings/", params=params,
-                            headers=HEADERS, timeout=30)
-        if resp.ok:
-            return resp.json()
-        logger.warning("LDA HTTP %s: %s", resp.status_code, resp.text[:200])
-    except Exception as e:
-        logger.warning("LDA fetch error: %s", e)
+# Once the register refuses a caller it refuses every subsequent request from
+# the same address, so retrying each of the seven yearly queries turns a dead
+# source into seven minutes of backoff. The first exhausted retry trips this
+# and the rest of the run skips the register and reports why.
+_LDA_STATE: Dict[str, Any] = {"blocked": False, "reason": ""}
+
+
+def reset_lda_circuit() -> None:
+    """Clear the breaker. For tests and for long-lived processes."""
+    _LDA_STATE.update(blocked=False, reason="")
+
+
+def _lda_headers() -> Dict[str, str]:
+    """Request headers for the Senate register, with a key when one is set.
+
+    Anonymous callers are throttled by IP and then refused outright with a 403
+    — which is how Lockheed's $131.2M and 410 filings became a silent zero
+    between two runs fifteen minutes apart. A key is free from
+    lda.senate.gov/api and raises the ceiling by roughly two orders of
+    magnitude, so it is read from the environment when present.
+    """
+    headers = dict(HEADERS)
+    key = os.getenv("LDA_API_KEY") or os.getenv("SENATE_LDA_API_KEY")
+    if key:
+        headers["Authorization"] = f"Token {key}"
+    return headers
+
+
+def _fetch_lda_page(params: Dict[str, Any], attempts: int = 4) -> Dict[str, Any]:
+    """One page of LDA filings, retried on throttling and transient faults.
+
+    403 is retried alongside the usual transient codes because the register
+    uses it for throttling as well as for genuine refusal, and the two are
+    indistinguishable from the response body.
+    """
+    if _LDA_STATE["blocked"]:
+        return {}
+
+    for attempt in range(attempts):
+        try:
+            resp = requests.get(f"{LDA_BASE}/filings/", params=params,
+                                headers=_lda_headers(), timeout=30)
+            if resp.ok:
+                return resp.json()
+            if resp.status_code in (403, 429, 500, 502, 503, 504):
+                # An IP throttle needs longer than a transient server fault.
+                base = 8 if resp.status_code in (403, 429) else 2
+                wait = float(resp.headers.get("Retry-After") or 0) or base * (2 ** attempt)
+                if attempt < attempts - 1:
+                    logger.warning("LDA HTTP %s — retrying in %.0fs (%d/%d)",
+                                   resp.status_code, wait, attempt + 1, attempts)
+                    time.sleep(min(wait, 60))
+                    continue
+                if resp.status_code in (403, 429):
+                    keyed = bool(os.getenv("LDA_API_KEY")
+                                 or os.getenv("SENATE_LDA_API_KEY"))
+                    _LDA_STATE.update(
+                        blocked=True,
+                        reason=(f"the Senate LDA register refused {attempts} "
+                                f"requests with HTTP {resp.status_code}"
+                                + ("" if keyed else
+                                   " and no LDA_API_KEY is set — the key is "
+                                   "free from lda.senate.gov/api and raises "
+                                   "the anonymous rate ceiling")))
+                    logger.warning("LDA circuit open: %s", _LDA_STATE["reason"])
+                    return {}
+            logger.warning("LDA HTTP %s: %s", resp.status_code, resp.text[:200])
+            return {}
+        except Exception as e:
+            if attempt < attempts - 1:
+                time.sleep(2 ** attempt)
+                continue
+            logger.warning("LDA fetch error: %s", e)
     return {}
 
 
@@ -537,6 +601,11 @@ def fetch_lobbying_summary(org_name: str, years: int = 7) -> Dict[str, Any]:
             y2 for y2, p in year_periods.items()
             if len(p) >= 4 and int(y2) < current_year))
     result["filings"].sort(key=lambda f: (f["year"], f["registrant"]), reverse=True)
+
+    # A refusal and a genuine absence of lobbying produce the same empty
+    # result, and only one of them is a fact about the issuer. Say which.
+    if _LDA_STATE["blocked"] and not result["filing_count"]:
+        result["error"] = _LDA_STATE["reason"]
 
     return result
 

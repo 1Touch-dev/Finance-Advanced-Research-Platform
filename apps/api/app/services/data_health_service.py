@@ -129,6 +129,47 @@ _CHECKS: List[Dict[str, Any]] = [
 ]
 
 
+def _flag_implausible_zeros(checks: List[Dict[str, Any]],
+                            data: Dict[str, Any]) -> None:
+    """Raise the severity of an empty result another source contradicts.
+
+    An empty register is normally unremarkable — most issuers do no lobbying
+    and hold no federal contracts. But a company with 234 federal awards that
+    discloses no lobbying at all is not a quiet company; it is a fetch that
+    failed. Nothing in the register itself can tell the two apart, so the
+    contradiction has to come from a second source.
+    """
+    by_key = {c["key"]: c for c in checks}
+
+    def _records(key: str) -> int:
+        check = by_key.get(key)
+        return int(check.get("records") or 0) if check else 0
+
+    contradictions = [
+        # (empty source, corroborating source, threshold, why it is implausible)
+        ("political_intelligence", "contract_intelligence", 25,
+         "the issuer holds {n} federal awards; a federal contractor of that "
+         "size disclosing no lobbying is far more likely to be a failed or "
+         "throttled fetch than a true zero"),
+        ("contract_intelligence", "political_intelligence", 25,
+         "the issuer filed {n} lobbying disclosures; that level of federal "
+         "engagement alongside no federal awards points at a name that did "
+         "not resolve rather than an absence of contracts"),
+    ]
+
+    for key, corroborator, threshold, reason in contradictions:
+        check = by_key.get(key)
+        if not check or check["status"] != "empty":
+            continue
+        count = _records(corroborator)
+        if count < threshold:
+            continue
+        check["status"] = "suspect"
+        check["severity"] = "degraded"
+        check["detail"] = ("source answered with no records, but "
+                           + reason.format(n=f"{count:,}"))
+
+
 def run_health_checks(data: Dict[str, Any]) -> Dict[str, Any]:
     """Per-source status for one report run."""
     checks: List[Dict[str, Any]] = []
@@ -168,7 +209,11 @@ def run_health_checks(data: Dict[str, Any]) -> Dict[str, Any]:
             "impact": spec["means"],
         })
 
-    failing = [c for c in checks if c["status"] in ("broken", "not_run")]
+    _flag_implausible_zeros(checks, data)
+
+    # "suspect" sits with the failures rather than the empties: another source
+    # contradicts it, so it is a probable break and should be treated as one.
+    failing = [c for c in checks if c["status"] in ("broken", "not_run", "suspect")]
     empty = [c for c in checks if c["status"] == "empty"]
     healthy = [c for c in checks if c["status"] == "ok"]
 
@@ -181,7 +226,9 @@ def run_health_checks(data: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "checked_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "checks": sorted(checks, key=lambda c: (
-            _ORDER.get(c["severity"], 3), c["status"] != "broken", c["source"])),
+            _ORDER.get(c["severity"], 3),
+            c["status"] not in ("broken", "suspect"), c["source"])),
+        "suspect": len([c for c in checks if c["status"] == "suspect"]),
         "healthy": len(healthy),
         "empty": len(empty),
         "failing": len(failing),

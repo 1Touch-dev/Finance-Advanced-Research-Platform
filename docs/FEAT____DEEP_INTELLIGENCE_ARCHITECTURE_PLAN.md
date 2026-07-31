@@ -163,6 +163,65 @@ periods against a closed year. Partial years are labelled in the table and
 excluded from the comparison, and where too few complete years exist the report
 states why no percentage is given instead of printing one.
 
+### 0.7 What running a second company exposed
+
+Everything above was built and checked against NVIDIA. Running the same
+pipeline against Lockheed Martin — a different filer, a different agent, a
+different proxy layout — broke four things that a single-ticker test could
+never have shown. Recording them because the lesson generalises: **the
+validation unit is a second issuer, not a second run.**
+
+| Defect | Why it survived NVIDIA | Fix |
+|---|---|---|
+| Proxy **section headings read as directors** | NVIDIA's compensation table parses cleanly, so the unchecked nominee path was never the only source. Lockheed's returned five headings and zero directors | Both roster paths now apply the same person-name test. Excluded on word boundaries, so Boardman and Letterman survive |
+| **Downstream contamination** from the above | Invisible — the roster was only ever spot-checked on NVIDIA | The family search took "Assessment" for a surname and reported three unrelated charities. The co-occurrence and news layers were running people searches against headings |
+| **Issuer listed as its own family vehicle** | NVIDIA's Section 16 filings happen not to include the company as reporting owner | Issuer excluded by name match |
+| **Zero indistinguishable from missing** | NVIDIA's peers all return federal data, so no zero ever appeared | Zero renders `none`, missing renders `—`. A zero federal footprint for a defence prime is flagged as a probable name-resolution failure rather than presented as fact |
+
+A fifth issue was precision rather than correctness. Surname-matched
+foundations returned nineteen rows for Lockheed, mostly museums and hospital
+wings. Matching now requires the naming convention family foundations
+actually use, and **where one surname returns several foundations the count is
+reported instead of a row** — attribution is not possible on a name test, and
+inventing one would be the exact failure the preceding passes removed.
+Lockheed drops from nineteen rows to two leads.
+
+#### The silent zero, caught in the act
+
+The clean Lockheed re-run reproduced the exact failure G-09 was built for, on
+a source that had worked fifteen minutes earlier. The Senate LDA register
+returned **$131.2M across 410 filings**, then **zero**. Nothing was wrong with
+the code — the register throttles anonymous callers by IP and then refuses
+them with a 403, and the connector recorded the refusal as an empty result.
+The health check filed it as a `notice`, reasoning that most issuers do no
+lobbying. For Lockheed Martin that is absurd on its face.
+
+Three changes, and the third is the general one:
+
+1. **Retry with backoff, and a free API key.** `LDA_API_KEY` from
+   lda.senate.gov/api raises the anonymous ceiling by orders of magnitude.
+   Added to `.env.example` alongside the Reddit credentials.
+2. **A circuit breaker.** Once the register refuses, every later query in the
+   run skips it. Retrying all seven yearly queries against a blocked IP cost
+   seven minutes; it now costs sixty seconds and returns a stated reason
+   instead of a zero.
+3. **Cross-source plausibility.** A source's own emptiness can never prove it
+   broke. A *second* source can. An issuer holding 234 federal awards and
+   disclosing no lobbying is now `suspect`/`degraded` and raises an alert,
+   because the two registers contradict each other. The same rule runs in
+   reverse for federal awards.
+
+This is the shape the health layer should have had from the start: **an empty
+register is only trustworthy when nothing else in the report argues with it.**
+
+**The open risk this leaves.** Every register in this pipeline is searched by
+company or person *name*. Name resolution is now the single largest source of
+silent error: Northrop and General Dynamics return zero federal records not
+because they have none but because the string did not match. The zeros are
+flagged in the report, but the durable fix is CIK- and DUNS-keyed lookup
+rather than name search, and that is the highest-value item remaining that
+needs neither a purchase nor a policy decision.
+
 ---
 
 ## Executive Summary
