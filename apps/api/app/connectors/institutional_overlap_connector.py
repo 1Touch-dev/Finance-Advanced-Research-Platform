@@ -62,34 +62,56 @@ def _safe_float(v) -> float:
 
 def _get_institutional_holders_yf(ticker: str) -> Dict[str, Dict[str, Any]]:
     """
-    Get institutional holders for a ticker using yfinance.
-    Returns dict of {holder_name: {shares, pct_held, value_usd}}.
+    Institutional holders for a ticker, keyed by manager name.
+
+    Reads SEC Form 13F-HR information tables. This previously called yfinance,
+    which is not installed and never has been, so every overlap calculation in
+    this module returned zeros against a fully working comparison engine. The
+    13F path is the same public filing the commercial feeds resell.
     """
-    holders = {}
+    holders: Dict[str, Dict[str, Any]] = {}
     try:
-        import yfinance as yf
+        from app.connectors.institutional_holdings_connector import (
+            get_institutional_holders,
+        )
+        from app.connectors.market_data_connector import get_quote
+        from app.connectors.sec_edgar_connector import get_filer_cik
+        from app.connectors.sec_http import sec_get_json
 
-        stock = yf.Ticker(ticker)
-        inst_df = stock.institutional_holders
+        quote = get_quote(ticker) or {}
+        shares_outstanding = quote.get("shares_outstanding")
 
-        if inst_df is not None and not inst_df.empty:
-            for _, row in inst_df.iterrows():
-                # Handle different column name formats
-                name = str(row.get("Holder") or row.get("Name") or "Unknown")
-                shares = int(_safe_float(row.get("Shares") or row.get("shares") or 0))
-                pct = float(_safe_float(row.get("pctHeld") or row.get("% Out") or row.get("Pct Held") or 0))
-                value = int(_safe_float(row.get("Value") or row.get("value") or 0))
-                date_rep = row.get("Date Reported") or row.get("dateReported")
+        # 13F information tables carry the issuer's registrant name, so the
+        # name must come from EDGAR rather than from a market vendor. Finnhub
+        # returns "Advanced Micro Devices, Inc." where the filing says
+        # "ADVANCED MICRO DEVICES INC", and the vendor name is absent for some
+        # tickers entirely.
+        entity_name = quote.get("company_name") or ticker
+        cik = get_filer_cik(ticker)
+        if cik:
+            submissions = sec_get_json(
+                f"https://data.sec.gov/submissions/CIK{cik.zfill(10)}.json") or {}
+            entity_name = submissions.get("name") or entity_name
 
-                holders[name] = {
-                    "shares": shares,
-                    "pct_held": pct,
-                    "value_usd": value,
-                    "date_reported": str(date_rep)[:10] if date_rep else "",
-                }
+        report = get_institutional_holders(
+            entity_name, ticker, shares_outstanding, quote.get("price")) or {}
 
-    except ImportError:
-        logger.warning("yfinance not available for institutional holders")
+        for holding in report.get("holders", []):
+            name = holding.get("institution")
+            if not name:
+                continue
+            shares = int(_safe_float(holding.get("shares")))
+            holders[name] = {
+                "shares": shares,
+                # Percentages are computed only where the share count is known,
+                # never estimated, matching the holdings connector's rule.
+                "pct_held": (shares / shares_outstanding * 100.0
+                             if shares_outstanding else 0.0),
+                "value_usd": int(_safe_float(holding.get("value"))),
+                "date_reported": (holding.get("report_date") or "")[:10],
+                "source_url": holding.get("source_url"),
+            }
+
     except Exception as e:
         logger.warning("Error fetching institutional holders for %s: %s", ticker, e)
 
@@ -260,19 +282,44 @@ def get_institutional_overlap(tickers: List[str]) -> Dict[str, Any]:
                 overlap_values.append(overlap_matrix.get(ticker1, {}).get(ticker2, 0))
     result["summary"]["avg_overlap_pct"] = round(sum(overlap_values) / len(overlap_values), 1) if overlap_values else 0
 
-    # Risk flags
-    if result["summary"]["avg_overlap_pct"] > 80:
-        result["risk_flags"].append({
-            "type": "high_correlation",
-            "severity": "HIGH",
-            "detail": f"Very high institutional overlap ({result['summary']['avg_overlap_pct']}%) - selling pressure may cascade",
-        })
-    elif result["summary"]["avg_overlap_pct"] > 60:
-        result["risk_flags"].append({
-            "type": "moderate_correlation",
-            "severity": "MEDIUM",
-            "detail": f"Moderate institutional overlap ({result['summary']['avg_overlap_pct']}%) - monitor for correlated movements",
-        })
+    # The holder universe is a curated poll of the largest 13F filers, not the
+    # complete share register. Every one of them holds every large-cap issuer,
+    # so the overlap percentage converges on 100% by construction and says
+    # nothing about the market. Flagging that as "selling pressure may cascade"
+    # reports the sampling method as though it were a finding, which is the
+    # failure this pipeline exists to prevent. The percentage is retained as a
+    # coverage statistic and labelled as one.
+    result["summary"]["overlap_is_sampling_artifact"] = True
+    result["summary"]["holder_universe"] = "curated poll of major 13F filers"
+
+    # What the same data does support: whether a manager weights one competitor
+    # differently from another. That is a real allocation decision, visible
+    # because the same filer reports all of them on one form.
+    for shared in result["shared_holders"]:
+        weights = {t: d.get("pct_held") or 0.0
+                   for t, d in (shared.get("details_by_ticker") or {}).items()}
+        held = {t: w for t, w in weights.items() if w > 0}
+        if len(held) < 2:
+            continue
+        top_ticker = max(held, key=held.get)
+        low_ticker = min(held, key=held.get)
+        if held[low_ticker] <= 0:
+            continue
+        skew = held[top_ticker] / held[low_ticker]
+        shared["weight_skew"] = round(skew, 2)
+        shared["overweight"] = top_ticker
+        shared["underweight"] = low_ticker
+        # A manager holding one peer at several times the weight of another is
+        # expressing a view. Below 2x it is closer to index tracking.
+        if skew >= 2.0:
+            result["risk_flags"].append({
+                "type": "allocation_skew",
+                "severity": "LOW",
+                "detail": (f"{shared['details_by_ticker'][top_ticker]['original_name']} "
+                           f"holds {held[top_ticker]:.2f}% of {top_ticker} against "
+                           f"{held[low_ticker]:.2f}% of {low_ticker}, a {skew:.1f}x "
+                           f"weighting difference between competitors"),
+            })
 
     # Check for dominant cross-holder
     if result["top_cross_holders"]:

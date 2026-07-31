@@ -811,43 +811,168 @@ def _extract_board_composition(soup: BeautifulSoup) -> Dict[str, Any]:
 
 
 
+# Item 404 of Regulation S-K requires an issuer to describe transactions with
+# directors, officers, 5% holders and their immediate families. The disclosure
+# is prose, so each statement is classified rather than pattern-matched to a
+# table.
+_RPT_HEADING = re.compile(
+    r"(transactions?\s+with\s+related\s+persons?|"
+    r"certain\s+relationships\s+and\s+related\s+(?:person\s+)?transactions?|"
+    # Apple titles the section "Related Party Policy and Transactions", so the
+    # two words cannot be required to be adjacent.
+    r"related\s+(?:party|person)\s+(?:policy\s+and\s+)?transactions?)", re.I)
+
+# Where the section ends. Item 404 is short and always followed by another
+# proxy heading; without a stop the read runs into compensation tables.
+_RPT_END = re.compile(
+    r"(security\s+ownership|equity\s+compensation\s+plan|audit\s+committee\s+report|"
+    r"proposal\s+\d|principal\s+account(?:ant|ing)\s+fees|delinquent\s+section\s+16|"
+    r"report\s+of\s+the\s+compensation|stockholder\s+proposals?\s+for|"
+    r"compensation\s+discussion\s+and\s+analysis|summary\s+compensation\s+table|"
+    r"director\s+compensation|pay\s+(?:versus|ratio)|outstanding\s+equity\s+awards|"
+    r"deferred\s+compensation|potential\s+payments\s+upon|"
+    r"questions?\s+and\s+answers|general\s+information\s+about)", re.I)
+
+# Vocabulary that only appears in an Item 404 disclosure. Used to choose
+# between candidate headings, since the phrase also appears in the contents
+# page and in the governance policy that describes how such transactions are
+# reviewed — neither of which is the disclosure itself.
+_RPT_BODY_SIGNAL = re.compile(
+    r"(immediate family|related person|beneficial owner of (?:more than )?5|"
+    r"5% (?:stock)?holder|is employed by|entered into an agreement with|"
+    r"indemnity agreement|arm'?s.length|no charge|"
+    r"contracts with entities|has a (?:direct or indirect )?material interest|"
+    r"there has not been.{0,40}any transaction|paid .{0,30}approximately \$)", re.I)
+
+# Compensation vocabulary. A candidate section dense in this is the executive
+# compensation discussion, not Item 404 — that misread put Walmart's deferred
+# salary elections and Coca-Cola's TSR modifiers into the related-party list.
+_COMP_SIGNAL = re.compile(
+    r"(PSUs?\b|RSUs? granted|TSR|vesting|performance period|"
+    r"annual incentive|base salary of|target bonus|payout|"
+    r"audit fees|tax fees|grant date fair value)", re.I)
+
+_FAMILY = re.compile(
+    r"\b(daughter|son|child|children|spouse|wife|husband|brother|sister|"
+    r"father|mother|parent|sibling|in-law|nephew|niece|cousin|"
+    r"immediate family member|family member|relative)\b", re.I)
+
+_ENTITY = re.compile(
+    r"\b([A-Z][\w.&'-]*(?:\s+[A-Z][\w.&'’-]*){0,4}\s*,?\s*"
+    r"(?:Inc\.?|LLC|L\.L\.C\.|Corp\.?|Corporation|Company|Foundation|"
+    r"Trust|Partners|L\.P\.|LP|Ltd\.?|Holdings|Ventures|Capital))\b")
+
+_AMOUNT = re.compile(r"\$\s?([\d,]+(?:\.\d+)?)\s*(billion|million|thousand)?", re.I)
+_SCALE = {"billion": 1e9, "million": 1e6, "thousand": 1e3, None: 1.0}
+
+# Indemnity agreements and director equity grants appear in every proxy and
+# describe no specific counterparty relationship. They are recorded so the
+# section is complete, but marked routine so the renderer can rank them last
+# rather than presenting them as findings.
+_ROUTINE = re.compile(
+    r"(indemnity agreement|indemnification agreement|"
+    r"granted RSUs to our non-employee directors|"
+    r"fullest extent permitted under)", re.I)
+
+# Every Item 404 section opens by describing the review policy and restating
+# the $120,000 reporting threshold the rule itself sets. Those sentences
+# contain a relationship word and a dollar figure and read exactly like a
+# transaction, but disclose none.
+_POLICY = re.compile(
+    r"(has adopted a written policy|for purposes of this policy|"
+    r"policy for the review|subject to certain exceptions|"
+    r"we will refer to these transactions|may not participate in the "
+    r"(?:discussion|approval)|no director may participate|"
+    r"reviews? and (?:approves?|ratifies)|"
+    r"amount involved exceeds|in which .{0,40}has a (?:direct or indirect )?"
+    r"material interest)", re.I)
+
+# Splitting on any full stop cuts "the son of Dr. Shah was approximately
+# $265,000" in half and drops the figure, so honorifics and the common
+# corporate abbreviations are excluded from the sentence boundary.
+_RPT_SENTENCE = re.compile(
+    r"(?<!\bMr\.)(?<!\bMrs\.)(?<!\bMs\.)(?<!\bDr\.)(?<!\bProf\.)(?<!\bJr\.)"
+    r"(?<!\bSr\.)(?<!\bInc\.)(?<!\bCorp\.)(?<!\bCo\.)(?<!\bLtd\.)(?<!\bNo\.)"
+    r"(?<!\bSt\.)(?<!\bU\.S\.)"
+    r"(?<=[.])\s+(?=[A-Z])")
+
+
 def _extract_related_party_transactions(soup: BeautifulSoup) -> List[Dict[str, Any]]:
+    """Item 404 related-person transactions, as described in the proxy.
+
+    This is the disclosure that names conflicts an issuer is obliged to admit
+    to: family members on payroll, entities a director controls trading with
+    the company, foundations buying from counterparties the company also deals
+    with. It is prose rather than tabular, so each statement is returned with
+    the sentence that supports it and a category, and nothing is inferred
+    beyond what the filing states.
     """
-    Extract related party transactions from proxy statement.
+    text = " ".join(soup.get_text(" ").split())
 
-    These are critical for detecting conflicts of interest.
-    """
-    transactions = []
+    # The heading appears in the contents page, in the governance policy that
+    # describes how such transactions are reviewed, and at the disclosure
+    # itself. Each candidate is scored on whether what follows reads like the
+    # disclosure, because taking either the first or the last occurrence picks
+    # the wrong one on different issuers.
+    # Ties are broken toward the later candidate. An issuer states the review
+    # policy first and the transactions themselves afterwards, so among equally
+    # scoring candidates the last is the disclosure — Photronics carries three
+    # and only the third, 120,000 characters in, holds the transactions.
+    best_section, best_score = "", -1
+    for heading in _RPT_HEADING.finditer(text):
+        start = heading.start()
+        end_match = _RPT_END.search(text, start + 80)
+        end = min(end_match.start() if end_match else len(text), start + 5000)
+        candidate = text[start:end]
+        if len(candidate.split()) < 25:
+            continue
+        score = (len(_RPT_BODY_SIGNAL.findall(candidate))
+                 - len(_COMP_SIGNAL.findall(candidate)))
+        if score >= best_score:
+            best_section, best_score = candidate, score
 
-    text = soup.get_text()
+    # A section that scores no positive signal is not the disclosure. Returning
+    # nothing is correct: many issuers genuinely report no related-person
+    # transaction, and Apple is one of them.
+    if not best_section:
+        return []
+    section = best_section
 
-    # Look for related party section
-    rpt_section_start = None
-    for pattern in [
-        r'related\s+(?:party|person)\s+transactions?',
-        r'transactions\s+with\s+related\s+persons?',
-        r'certain\s+relationships\s+and\s+related',
-    ]:
-        match = re.search(pattern, text.lower())
-        if match:
-            rpt_section_start = match.start()
-            break
+    transactions: List[Dict[str, Any]] = []
+    for sentence in _RPT_SENTENCE.split(section):
+        sentence = sentence.strip()
+        if len(sentence.split()) < 8:
+            continue
 
-    if rpt_section_start:
-        # Extract section (next ~5000 chars)
-        section_text = text[rpt_section_start:rpt_section_start + 5000]
+        family = _FAMILY.search(sentence)
+        entities = [e for e in _ENTITY.findall(sentence)
+                    if not re.fullmatch(r"(The\s+)?Company", e, re.I)]
+        amounts = [float(n.replace(",", "")) * _SCALE[(u or "").lower() or None]
+                   for n, u in _AMOUNT.findall(sentence)]
 
-        # Look for dollar amounts in this section
-        amount_pattern = re.compile(r'\$[\d,]+(?:\.\d+)?\s*(?:million|billion)?', re.IGNORECASE)
-        amounts = amount_pattern.findall(section_text)
+        if _POLICY.search(sentence):
+            category = "policy"
+        elif _ROUTINE.search(sentence):
+            category = "routine"
+        elif family:
+            category = "family employment" if re.search(
+                r"employ|compensation|salary", sentence, re.I) else "family relationship"
+        elif entities and amounts:
+            category = "entity transaction"
+        elif amounts:
+            category = "other"
+        else:
+            continue
 
-        # Look for person names near amounts
-        for amount in amounts[:10]:  # Limit to first 10
-            transactions.append({
-                "amount": amount,
-                "context": "Related party transaction disclosed in proxy",
-                "section": "Related Party Transactions",
-            })
+        transactions.append({
+            "category": category,
+            "relationship": family.group(1).lower() if family else None,
+            "counterparties": entities[:3],
+            "amounts": amounts,
+            "largest_amount": max(amounts) if amounts else None,
+            "is_routine": category in ("routine", "policy"),
+            "text": sentence,
+        })
 
     return transactions
 
