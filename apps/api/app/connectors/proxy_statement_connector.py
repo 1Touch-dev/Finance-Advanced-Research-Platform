@@ -332,7 +332,25 @@ _NON_DIRECTOR_TERMS = (
     "total", "company", "committee", "stock", "shares", "compensation",
     "aggregate", "average", "director compensation", "name", "all other",
     "executive officer", "nominee for", "beneficial owner",
+    # Section headings and contents-page entries. A proxy's navigation
+    # furniture is title-cased exactly like a name, so "Board Performance
+    # Assessment" satisfies the name pattern and enters the roster as a
+    # director unless the heading vocabulary is excluded outright.
+    "board", "governance", "leadership", "attendance", "performance",
+    "assessment", "biographies", "biography", "information", "structure",
+    "overview", "summary", "proposal", "election", "voting", "vote",
+    "meeting", "independence", "qualifications", "skills", "matrix",
+    "report of", "letter", "table of", "contents", "appendix", "annex",
+    "policy", "policies", "guidelines", "oversight", "engagement",
+    "highlights", "practices", "responsibilities", "frequently",
 )
+
+# Matched on word boundaries rather than as substrings: "Boardman" and
+# "Letterman" are surnames that contain heading words, and a substring test
+# would drop the director to exclude the heading.
+_NON_DIRECTOR_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(t) for t in _NON_DIRECTOR_TERMS) + r")\b",
+    re.I)
 
 _NAME_RE = re.compile(r"^[A-Z][A-Za-z.'\-]+(?:\s+(?:[A-Z]\.|[A-Z][A-Za-z.'\-]+|van|von|de|di|del|la))*"
                       r"(?:,?\s+(?:Jr|Sr|II|III|IV|Ph\.?D|M\.?D)\.?)?$")
@@ -356,7 +374,7 @@ def _looks_like_person(value: str) -> bool:
     text = _clean_person_cell(value)
     if not (4 <= len(text) <= 48) or len(text.split()) < 2:
         return False
-    if any(term in text.lower() for term in _NON_DIRECTOR_TERMS):
+    if _NON_DIRECTOR_RE.search(text):
         return False
     return bool(_NAME_RE.match(text))
 
@@ -718,7 +736,13 @@ def _extract_board_composition(soup: BeautifulSoup) -> Dict[str, Any]:
 
     # Directors who left during the year appear in the compensation table but
     # not on the slate; nominees appointed since appear only on the slate.
+    # The compensation-table path filters its rows through _looks_like_person;
+    # these two do not, and a contents page read as a nominee summary put five
+    # section headings on Lockheed's board. The same test is applied here so a
+    # heading cannot reach the roster by the side door.
     for key, profile in {**summary, **bios}.items():
+        if not _looks_like_person(profile.get("name") or ""):
+            continue
         if not any(_name_key(d["name"]) == key for d in board["directors"]):
             board["directors"].append({"name": profile["name"], "fees_earned": None,
                                        "source": "Director nominee disclosure"})
