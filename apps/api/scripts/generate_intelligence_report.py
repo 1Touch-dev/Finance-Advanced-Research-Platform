@@ -4057,25 +4057,44 @@ def generate_markdown_report(data: dict) -> str:
         year_breakdown = lobbying.get("year_breakdown") or {}
         if year_breakdown:
             ordered = sorted(year_breakdown.items(), key=lambda kv: str(kv[0]))
+            periods = lobbying.get("year_periods") or {}
+            counts = lobbying.get("year_filings") or {}
+            complete = set(lobbying.get("complete_years") or [])
             lines.append("### Spend by year")
             lines.append("")
-            lines.append("| Year | Disclosed spend | Change vs prior |")
-            lines.append("|------|-----------------|-----------------|")
+            lines.append("| Year | Disclosed spend | Filings | Quarters | Change vs prior |")
+            lines.append("|------|-----------------|--------:|---------:|-----------------|")
             prior_amt = None
             for year, amt in ordered:
-                if prior_amt:
+                # A change against a partial base year is arithmetic on two
+                # different things, so it is withheld rather than printed.
+                if prior_amt and str(year) in complete and prior_amt > 0:
                     change = f"{(amt - prior_amt) / prior_amt * 100:+.0f}%"
                 else:
                     change = "—"
-                lines.append(f"| {year} | {format_currency(amt)} | {change} |")
-                prior_amt = amt
+                quarters = periods.get(str(year))
+                lines.append(
+                    f"| {year} | {format_currency(amt)} "
+                    f"| {counts.get(str(year), '—')} "
+                    f"| {quarters if quarters else '—'}"
+                    f"{'' if str(year) in complete else ' (partial)'} "
+                    f"| {change} |")
+                prior_amt = amt if str(year) in complete else None
             lines.append("")
-            if len(ordered) >= 2 and ordered[0][1]:
-                first_y, first_a = ordered[0]
-                last_y, last_a = ordered[-1]
+
+            # The trajectory is measured only across years where all four
+            # quarterly periods were filed and the year has closed. An earlier
+            # version anchored on whichever year appeared first in the window;
+            # where that year held a single filing it produced growth rates in
+            # the thousands of percent that described our retrieval coverage
+            # rather than the issuer's spending.
+            full = [(y, a) for y, a in ordered if str(y) in complete]
+            if len(full) >= 2 and full[0][1]:
+                first_y, first_a = full[0]
+                last_y, last_a = full[-1]
                 traj = (last_a - first_a) / first_a * 100
                 lines.append(
-                    f"Across the window from {first_y} to {last_y}, "
+                    f"Across the complete years from {first_y} to {last_y}, "
                     f"disclosed spend moved {traj:+.0f}%. "
                     + ("A rising line against a stable federal footprint "
                        "is the pattern that usually precedes a regulatory "
@@ -4088,6 +4107,25 @@ def generate_markdown_report(data: dict) -> str:
                        "Spend has contracted over the window; that is "
                        "consistent with a resolved issue set or a shift "
                        "of activity into channels the LDA does not capture.")
+                )
+                lines.append("")
+            elif ordered:
+                lines.append(
+                    f"No growth rate is stated. The LDA register is filed "
+                    f"quarterly, and only {len(full)} of the "
+                    f"{len(ordered)} years retrieved carry all four periods "
+                    f"against a closed year. A percentage taken across a "
+                    f"partially covered year measures retrieval, not spending."
+                )
+                lines.append("")
+
+            partial = lobbying.get("partial_years") or []
+            if partial:
+                lines.append(
+                    f"Years marked partial ({', '.join(partial)}) are either "
+                    f"still in progress or returned fewer than four quarterly "
+                    f"periods. Their totals are real but are a floor, and they "
+                    f"are excluded from the comparison above."
                 )
                 lines.append("")
 

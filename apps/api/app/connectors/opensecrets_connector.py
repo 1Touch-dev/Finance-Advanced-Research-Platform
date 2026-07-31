@@ -442,6 +442,12 @@ def fetch_lobbying_summary(org_name: str, years: int = 7) -> Dict[str, Any]:
     issue_counts = defaultdict(int)
     firm_totals = defaultdict(float)
     year_totals = defaultdict(float)
+    # Filings and distinct reporting periods per year. LDA is filed quarterly
+    # per registrant, so a year carrying one filing is a year we have partial
+    # coverage of, not a year the client barely lobbied. Without this the
+    # first year in the window anchors a growth rate that is an artefact.
+    year_filings = defaultdict(int)
+    year_periods = defaultdict(set)
     # Search on the distinctive short form: LDA matches client names literally,
     # so "NVIDIA Corporation" misses filings registered as plain "NVIDIA".
     search_name = entity_search_term(org_name)
@@ -490,6 +496,11 @@ def fetch_lobbying_summary(org_name: str, years: int = 7) -> Dict[str, Any]:
                 result["total_spend"] += amount
                 result["filing_count"] += 1
                 year_totals[str(year)] += amount
+                year_filings[str(year)] += 1
+                period = (filing.get("filing_period_display")
+                          or filing.get("filing_period"))
+                if period:
+                    year_periods[str(year)].add(str(period))
                 firm_totals[registrant] += amount
                 if is_in_house:
                     result["in_house_spend"] += amount
@@ -512,6 +523,19 @@ def fetch_lobbying_summary(org_name: str, years: int = 7) -> Dict[str, Any]:
         reverse=True,
     )[:10]
     result["year_breakdown"] = dict(sorted(year_totals.items()))
+    result["year_filings"] = dict(sorted(year_filings.items()))
+    result["year_periods"] = {y: len(p) for y, p in sorted(year_periods.items())}
+    # A year is comparable when all four quarterly periods are present and it
+    # is not the year currently in progress. Anything else is a coverage
+    # artefact and must not anchor a growth rate.
+    result["complete_years"] = sorted(
+        y for y, periods in year_periods.items()
+        if len(periods) >= 4 and int(y) < current_year)
+    result["partial_years"] = sorted(
+        y for y in year_totals
+        if y not in set(
+            y2 for y2, p in year_periods.items()
+            if len(p) >= 4 and int(y2) < current_year))
     result["filings"].sort(key=lambda f: (f["year"], f["registrant"]), reverse=True)
 
     return result

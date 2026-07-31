@@ -422,6 +422,18 @@ def extract_financial_statements(facts: Dict[str, Any], years: int = 5) -> Dict[
         "NetIncome": ["NetIncomeLoss", "NetIncome", "ProfitLoss"],
         "EPS_Diluted": ["EarningsPerShareDiluted"],
         "EPS_Basic": ["EarningsPerShareBasic"],
+        # Research intensity is the one operating-expense line that separates
+        # otherwise similar issuers, and it is what a peer comparison of two
+        # semiconductor companies actually turns on.
+        "ResearchAndDevelopment": [
+            "ResearchAndDevelopmentExpense",
+            "ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost",
+            "ResearchAndDevelopmentExpenseSoftwareExcludingAcquiredInProcessCost",
+        ],
+        "SellingGeneralAdministrative": [
+            "SellingGeneralAndAdministrativeExpense",
+            "GeneralAndAdministrativeExpense",
+        ],
     }
 
     balance_concepts = {
