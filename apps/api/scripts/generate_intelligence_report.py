@@ -48,6 +48,26 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Charts. Absent matplotlib the report renders exactly as before, minus the
+# figures — every chart restates a table that is present either way.
+try:
+    from app.services import chart_service as charts
+    CHARTS_AVAILABLE = charts.CHARTS_AVAILABLE
+except Exception:  # pragma: no cover
+    charts = None
+    CHARTS_AVAILABLE = False
+
+FIGURE_COUNT = 0
+
+
+def _figure(lines):
+    """Count a chart and hand its markdown back to the caller."""
+    global FIGURE_COUNT
+    if lines:
+        FIGURE_COUNT += 1
+    return lines or []
+
+
 # Import Phase 2 orchestrator
 try:
     from app.connectors.deep_research_orchestrator import (
@@ -728,8 +748,685 @@ def _summary_findings(data: dict, entity_name: str, ticker: str) -> list:
                 f"the filing or dataset that evidences it."
             )))
 
+    # ── Network intelligence (P-series) ───────────────────────────────────
+    rpt = [t for t in (proxy.get("related_party_transactions") or [])
+           if not t.get("is_routine")]
+    if rpt:
+        largest = max((t.get("largest_amount") or 0) for t in rpt)
+        findings.append((80 if largest >= 1e6 else 55, (
+            f"The latest proxies disclose {len(rpt)} related-party passages "
+            f"under Item 404"
+            + (f", the largest at {format_currency(largest)}" if largest else "")
+            + ". Arrangements with family members of officers and directors, "
+              "and transactions with entities they control, are the conflicts "
+              "the financial statements do not surface on their own."
+        )))
+
+    interlocks = data.get("board_interlocks") or {}
+    current_seats = sum(p.get("current_seat_count") or 0
+                        for p in (interlocks.get("people") or []))
+    if current_seats:
+        shared = interlocks.get("shared_boards") or []
+        text = (
+            f"{current_seats} outside public-company seat"
+            f"{'' if current_seats == 1 else 's'} are currently held by this "
+            f"board's directors and officers, read from their own Section 16 "
+            f"filings"
+        )
+        if shared:
+            text += (f". {len(shared)} of those seats are shared by two or "
+                     f"more of this board — the interlock proper")
+        findings.append((70, text + "."))
+
+    investments = notes.get("investments") or []
+    roll = next((i for i in investments
+                 if i.get("kind") == "portfolio_rollforward"), None)
+    if roll and roll.get("closing_balance") and roll.get("net_additions"):
+        closing = roll["closing_balance"]
+        additions = roll["net_additions"]
+        findings.append((75, (
+            f"Private-company holdings carried under the measurement "
+            f"alternative closed the year at {format_currency(closing)}, of "
+            f"which {format_currency(additions)} was capital deployed during "
+            f"the year rather than revaluation — "
+            f"{additions / closing * 100:.0f}% of the book is current "
+            f"deployment."
+        )))
+
+    subs = (notes.get("subsidiaries") or {})
+    if (subs.get("total") or 0) >= 8:
+        holding = {"cayman islands", "bermuda", "luxembourg", "ireland",
+                   "netherlands", "british virgin islands", "jersey", "guernsey"}
+        by_j = subs.get("by_jurisdiction") or {}
+        offshore = sum(c for j, c in by_j.items() if j.lower() in holding)
+        if offshore:
+            findings.append((48, (
+                f"Exhibit 21 names {subs['total']} subsidiaries, {offshore} of "
+                f"them organised in jurisdictions used principally for holding "
+                f"and financing structures."
+            )))
+
+    overlap = data.get("institutional_overlap") or {}
+    analysis = overlap.get("overlap_analysis") or overlap
+    skew_flags = [f for f in (analysis.get("risk_flags") or [])
+                  if f.get("type") == "allocation_skew"]
+    if skew_flags:
+        findings.append((58, (
+            f"{len(skew_flags)} institutional manager"
+            f"{'' if len(skew_flags) == 1 else 's'} weight this issuer or a "
+            f"peer at two times or more the weight of another competitor in "
+            f"the same portfolio — an active allocation, not index tracking. "
+            f"{skew_flags[0].get('detail', '')}."
+        )))
+
+    trends = _network_trends(data)
+    overlaps = trends.get("n07_overlaps") or []
+    if overlaps:
+        findings.append((82, (
+            f"{len(overlaps)} cross-link"
+            f"{'' if len(overlaps) == 1 else 's'} appear between related-party "
+            f"counterparties, subsidiaries, private holdings and director "
+            f"affiliations — relationships that sit in separate filings and "
+            f"are invisible until the registers are read against each other. "
+            f"{overlaps[0]}"
+        )))
+    seats = trends.get("n01_competitor_seats") or []
+    if seats:
+        findings.append((78, (
+            f"{len(seats)} outside seat"
+            f"{'' if len(seats) == 1 else 's'} land on a competitor or named "
+            f"strategic counterparty. {seats[0]}"
+        )))
+    holder_timing = trends.get("n05_holder_timing") or []
+    if holder_timing:
+        findings.append((60, holder_timing[0]))
+    jurisdictions = trends.get("n06_jurisdictions") or []
+    if jurisdictions:
+        findings.append((50, jurisdictions[0]))
+
     findings.sort(key=lambda f: -f[0])
     return [text for _, text in findings]
+
+
+def _entity_key(name: str) -> str:
+    """Normalise a company or person name for fuzzy overlap matching."""
+    value = re.sub(r"[^a-z0-9 ]", " ", (name or "").lower())
+    value = re.sub(
+        r"\b(the|inc|corp|corporation|company|co|plc|ltd|limited|llc|lp|"
+        r"holdings?|group|foundation|trust|partners|management)\b", " ", value)
+    return " ".join(value.split())
+
+
+def _names_match(left: str, right: str) -> bool:
+    a, b = _entity_key(left), _entity_key(right)
+    if not a or not b or len(a) < 3 or len(b) < 3:
+        return False
+    return a == b or a in b or b in a
+
+
+def _competitor_universe(data: dict) -> list:
+    """Tickers and names of peers used for network matching."""
+    peers = list(COMPETITORS or [])
+    overlap = data.get("institutional_overlap") or {}
+    for ticker in overlap.get("competitors") or []:
+        if ticker and ticker.upper() not in {p.upper() for p in peers}:
+            peers.append(ticker.upper())
+    return peers
+
+
+def _named_counterparties(data: dict) -> list:
+    """Acquisition targets and other named strategic counterparties from notes."""
+    notes = data.get("filing_notes") or {}
+    named = []
+    for acq in notes.get("acquisitions") or []:
+        if acq.get("counterparty"):
+            named.append({
+                "name": acq["counterparty"],
+                "role": "acquisition counterparty",
+                "source": "10-K business combination / licence note",
+            })
+    for inv in notes.get("investments") or []:
+        if inv.get("kind") == "named_holding" and inv.get("name"):
+            named.append({
+                "name": inv["name"],
+                "role": "private holding",
+                "source": "ASC 321 note",
+            })
+        for company in inv.get("companies") or inv.get("holdings") or []:
+            name = company.get("name") if isinstance(company, dict) else company
+            if name:
+                named.append({
+                    "name": name,
+                    "role": "private holding",
+                    "source": "ASC 321 note",
+                })
+    return named
+
+
+def _network_competitor_seats(data: dict) -> list:
+    """N-01 — directors/officers with seats at competitors or named counterparties."""
+    interlocks = data.get("board_interlocks") or {}
+    peers = {p.upper() for p in _competitor_universe(data)}
+    counterparties = _named_counterparties(data)
+    findings = []
+    seen = set()
+
+    for person in interlocks.get("people") or []:
+        for seat in person.get("other_seats") or []:
+            ticker = (seat.get("ticker") or "").upper()
+            issuer = seat.get("issuer") or ticker
+            role = ", ".join(seat.get("roles") or []).lower() or "insider"
+            currency = "currently" if seat.get("current") else (
+                f"previously (last filed {seat.get('last_filed')})"
+                if seat.get("last_filed") else "previously")
+            match_role = None
+            if ticker and ticker in peers:
+                match_role = f"competitor {ticker}"
+            else:
+                for cp in counterparties:
+                    if _names_match(issuer, cp["name"]) or (
+                            ticker and _names_match(ticker, cp["name"])):
+                        match_role = f"{cp['role']} {cp['name']}"
+                        break
+            if not match_role:
+                continue
+            key = (person.get("name"), ticker or issuer, match_role)
+            if key in seen:
+                continue
+            seen.add(key)
+            findings.append(
+                f"{person.get('name')} {currency} reports at {issuer}"
+                + (f" ({ticker})" if ticker else "")
+                + f" as {role} — {match_role}."
+                + (f" Source: {seat.get('source_url')}."
+                   if seat.get("source_url") else "")
+            )
+    return findings
+
+
+def _network_co_holdings(data: dict) -> list:
+    """N-02 — institutions that hold the issuer and competitors at skewed weights."""
+    overlap = data.get("institutional_overlap") or {}
+    analysis = overlap.get("overlap_analysis") or overlap or {}
+    findings = []
+    for flag in analysis.get("risk_flags") or []:
+        if flag.get("type") == "allocation_skew" and flag.get("detail"):
+            findings.append(flag["detail"].rstrip(".") + ".")
+    # Dominant cross-holders are informative when the dollar weight is large.
+    for flag in analysis.get("risk_flags") or []:
+        if flag.get("type") == "dominant_cross_holder" and flag.get("detail"):
+            findings.append(flag["detail"].rstrip(".") + ".")
+    shared = analysis.get("shared_holders") or []
+    skewed = [h for h in shared
+              if (h.get("weight_skew") or 0) >= 2
+              and h.get("overweight")]
+    for holder in skewed[:6]:
+        details = holder.get("details_by_ticker") or {}
+        name = next((d.get("original_name") for d in details.values()
+                     if d.get("original_name")),
+                    holder.get("normalized_name", "Manager"))
+        text = (
+            f"{name} weights {holder['overweight']} at "
+            f"{holder['weight_skew']:.1f}x its position in the lightest peer "
+            f"it also holds — conviction relative to the rest of the set, not "
+            f"an index weight."
+        )
+        if text not in findings and not any(holder["overweight"] in f
+                                            and name.split()[0].lower() in f.lower()
+                                            for f in findings):
+            findings.append(text)
+    return findings[:8]
+
+
+def _network_invest_acq_cluster(data: dict) -> list:
+    """N-03 — whether private holdings cluster with acquisition counterparties.
+
+    The ASC 321 rollforward is usually aggregate-only. This fires only when
+    named holdings exist alongside named acquisitions — otherwise omitted.
+    """
+    counterparties = _named_counterparties(data)
+    holdings = [c for c in counterparties if c["role"] == "private holding"]
+    acqs = [c for c in counterparties if c["role"] == "acquisition counterparty"]
+    if not holdings or not acqs:
+        return []
+    findings = []
+    for hold in holdings:
+        for acq in acqs:
+            if _names_match(hold["name"], acq["name"]):
+                findings.append(
+                    f"{hold['name']} appears both as a private holding and as "
+                    f"an acquisition counterparty — the investment and the "
+                    f"business combination sit on the same entity."
+                )
+            # Shared token overlap of 2+ meaningful tokens is a weak signal;
+            # require a real name match only.
+    if holdings and acqs and not findings:
+        hold_names = ", ".join(h["name"] for h in holdings[:6])
+        acq_names = ", ".join(a["name"] for a in acqs[:6])
+        findings.append(
+            f"Named private holdings ({hold_names}) and acquisition "
+            f"counterparties ({acq_names}) do not overlap on the entities "
+            f"disclosed. Sector clustering cannot be tested further without "
+            f"issuer-named portfolio companies beyond the ASC 321 aggregate."
+        )
+    return findings
+
+
+def _network_personnel_moves(data: dict) -> list:
+    """N-04 — executives/directors who also sat at investees or acquirees."""
+    interlocks = data.get("board_interlocks") or {}
+    targets = _named_counterparties(data)
+    stakes = ((data.get("beneficial_ownership") or {}).get("stakes_in_others")
+              or [])
+    for stake in stakes:
+        if stake.get("subject"):
+            targets.append({
+                "name": stake["subject"],
+                "role": "5%+ investee",
+                "source": stake.get("form") or "Schedule 13",
+            })
+    if not targets:
+        return []
+
+    findings = []
+    seen = set()
+    for person in interlocks.get("people") or []:
+        for seat in person.get("other_seats") or []:
+            issuer = seat.get("issuer") or ""
+            for target in targets:
+                if not _names_match(issuer, target["name"]):
+                    continue
+                key = (person.get("name"), target["name"])
+                if key in seen:
+                    continue
+                seen.add(key)
+                when = ("currently" if seat.get("current")
+                        else f"as of last filing {seat.get('last_filed', '—')}")
+                findings.append(
+                    f"{person.get('name')} {when} reports at {issuer}, which "
+                    f"is also a {target['role']} of this issuer "
+                    f"({target['source']})."
+                )
+    return findings
+
+
+def _parse_iso_date(value: str):
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value[:10], "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return None
+
+
+def _network_holder_timing(data: dict) -> list:
+    """N-05 — 5%+ holders appearing near strategic announcements."""
+    holders = (data.get("beneficial_ownership") or {}).get("holders") or []
+    events = ((data.get("event_timeline") or {}).get("events") or [])
+    strategic = [
+        e for e in events
+        if e.get("event_type") in ("acquisition", "material_event",
+                                   "executive_change")
+        or (e.get("form_type") == "8-K"
+            and any((item.get("code") or "").startswith(("1.", "2.", "5.", "8."))
+                    for item in (e.get("items") or [{}])))
+        or (e.get("form_type") == "8-K"
+            and not e.get("items")
+            and e.get("event_type") != "earnings")
+    ]
+    findings = []
+    window = 90  # calendar days either side
+
+    for holder in holders:
+        filed = _parse_iso_date(holder.get("filed"))
+        if not filed or (holder.get("percent_of_class") or 0) < 5:
+            continue
+        nearby = []
+        for event in strategic:
+            ed = _parse_iso_date(event.get("date"))
+            if not ed:
+                continue
+            delta = (ed - filed).days
+            if abs(delta) <= window:
+                nearby.append((abs(delta), delta, event))
+        nearby.sort()
+        if not nearby:
+            continue
+        _, delta, event = nearby[0]
+        relation = ("after" if delta > 0 else "before" if delta < 0
+                    else "on the same day as")
+        days = abs(delta)
+        findings.append(
+            f"{holder.get('holder') or 'A 5%+ holder'} filed "
+            f"{holder.get('form') or 'Schedule 13'} on {holder.get('filed')} "
+            f"at {holder.get('percent_of_class')}% — {days} day"
+            f"{'' if days == 1 else 's'} {relation} "
+            f"{event.get('title') or event.get('form_type') or 'a strategic disclosure'} "
+            f"({event.get('date')}). Timing adjacency is not causation; both "
+            f"dates are on the public record."
+            + (f" Source: {holder.get('source_url')}."
+               if holder.get("source_url") else "")
+        )
+    return findings[:8]
+
+
+def _network_jurisdiction_mismatch(data: dict) -> list:
+    """N-06 — subsidiaries organised where no operations revenue is disclosed."""
+    notes = data.get("filing_notes") or {}
+    subs = (notes.get("subsidiaries") or {})
+    entities = subs.get("subsidiaries") or []
+    if not entities:
+        return []
+
+    geo = (((data.get("financial_intelligence") or {}).get("segments") or {})
+           .get("geographic") or [])
+    geo_keys = {_entity_key(g.get("name")) for g in geo if g.get("name")}
+    # United States covers Delaware / California / etc. domestic org.
+    us_aliases = {"united states", "us", "u s", "america", "north america"}
+    has_us_geo = any(k in us_aliases or "united states" in k for k in geo_keys)
+
+    domestic = {
+        "delaware", "california", "new york", "texas", "washington", "nevada",
+        "massachusetts", "illinois", "florida", "oregon", "colorado",
+        "united states", "usa", "u.s.", "u.s.a",
+    }
+    holding = {
+        "cayman islands", "bermuda", "luxembourg", "ireland", "netherlands",
+        "british virgin islands", "jersey", "guernsey", "mauritius", "curacao",
+        "barbados", "panama", "singapore", "hong kong", "switzerland",
+    }
+
+    findings = []
+    by_j = {}
+    for entity in entities:
+        j = (entity.get("jurisdiction") or "Not Stated").strip()
+        by_j.setdefault(j, []).append(entity.get("name") or "unnamed")
+
+    mismatched = []
+    for jurisdiction, names in by_j.items():
+        jkey = jurisdiction.lower().strip()
+        if jkey in ("not stated", ""):
+            continue
+        if jkey in domestic and has_us_geo:
+            continue
+        # Match geo segment names (Taiwan, China, Israel, …)
+        if any(_names_match(jurisdiction, g.get("name", "")) for g in geo):
+            continue
+        if any(jkey in gk or gk in jkey for gk in geo_keys if gk):
+            continue
+        mismatched.append((jurisdiction, names))
+
+    if mismatched and geo:
+        parts = []
+        for jurisdiction, names in sorted(mismatched, key=lambda x: -len(x[1])):
+            sample = ", ".join(names[:3])
+            extra = f" (+{len(names) - 3} more)" if len(names) > 3 else ""
+            parts.append(f"{jurisdiction} ({sample}{extra})")
+        geo_list = ", ".join(g.get("name") for g in geo if g.get("name"))
+        findings.append(
+            f"Exhibit 21 lists subsidiaries organised in "
+            f"{'; '.join(parts)}, none of which appear among the revenue "
+            f"geographies the issuer discloses ({geo_list}). Organisation "
+            f"jurisdiction is not the same as where revenue is recognised; "
+            f"the mismatch marks a legal footprint without a matching "
+            f"operations disclosure, not a finding about profit location."
+        )
+
+    offshore = [(j, names) for j, names in by_j.items()
+                if j.lower() in holding]
+    if offshore:
+        count = sum(len(n) for _, n in offshore)
+        named = ", ".join(
+            f"{len(names)} in {j}" for j, names in
+            sorted(offshore, key=lambda x: -len(x[1])))
+        findings.append(
+            f"{count} "
+            f"{'subsidiary sits' if count == 1 else 'subsidiaries sit'} "
+            f"in jurisdictions used principally for holding and financing "
+            f"structures — {named}. The exhibit states organisation only."
+        )
+    return findings
+
+
+def _network_trends(data: dict) -> dict:
+    """N-01..N-06 analyses. Empty lists are valid and omit their subsections."""
+    return {
+        "n01_competitor_seats": _network_competitor_seats(data),
+        "n02_co_holdings": _network_co_holdings(data),
+        "n03_invest_acq": _network_invest_acq_cluster(data),
+        "n04_personnel_moves": _network_personnel_moves(data),
+        "n05_holder_timing": _network_holder_timing(data),
+        "n06_jurisdictions": _network_jurisdiction_mismatch(data),
+        "n07_overlaps": _network_overlaps(data),
+    }
+
+
+def _network_overlaps(data: dict) -> list:
+    """N-07 — related-party counterparties against subsidiaries, investees and seats.
+
+    Each register is filed for a different purpose and never cross-references
+    the others. Reading them against each other is what turns three disclosures
+    into one finding.
+    """
+    proxy = data.get("proxy_intelligence") or {}
+    notes = data.get("filing_notes") or {}
+    interlocks = data.get("board_interlocks") or {}
+    beneficial = data.get("beneficial_ownership") or {}
+
+    counterparties = []
+    for entry in proxy.get("related_party_transactions") or []:
+        if entry.get("is_routine"):
+            continue
+        for name in entry.get("counterparties") or []:
+            counterparties.append((name, entry))
+        # A family arrangement names no counterparty entity; the relationship
+        # itself is the link to a director, and that is matched separately.
+        text = entry.get("sentence") or entry.get("text") or ""
+        for match in re.finditer(
+                r"\b([A-Z][\w.&'-]+(?:\s+[A-Z][\w.&'-]+){0,4})"
+                r"(?:\s*,?\s*(?:Inc|Corp|LLC|Ltd|Foundation|Company)\.?)", text):
+            counterparties.append((match.group(0).strip(" ,."), entry))
+
+    subsidiaries = [(s.get("name"), s)
+                    for s in ((notes.get("subsidiaries") or {}).get("subsidiaries")
+                              or []) if s.get("name")]
+    seats = []
+    for person in interlocks.get("people") or []:
+        for seat in person.get("other_seats") or []:
+            seats.append((seat.get("issuer") or seat.get("ticker"), person, seat))
+
+    stakes = [(s.get("subject"), s)
+              for s in (beneficial.get("stakes_in_others") or []) if s.get("subject")]
+
+    found = []
+    seen = set()
+
+    def record(key, text):
+        if key in seen:
+            return
+        seen.add(key)
+        found.append(text)
+
+    for name, entry in counterparties:
+        for sub_name, _sub in subsidiaries:
+            if _names_match(name, sub_name):
+                record(("sub", name.lower()), (
+                    f"{name} appears both as a related-party counterparty and "
+                    f"as a subsidiary named in Exhibit 21"
+                    + (f" — {format_currency(entry['largest_amount'])} disclosed"
+                       if entry.get("largest_amount") else "")
+                    + "."
+                ))
+        for issuer, person, seat in seats:
+            if _names_match(name, issuer):
+                record(("seat", name.lower(), person["name"].lower()), (
+                    f"{name} is a related-party counterparty and also an "
+                    f"issuer where {person['name']} reports under Section 16"
+                    + (f" as {', '.join(seat.get('roles') or []).lower()}"
+                       if seat.get("roles") else "")
+                    + "."
+                ))
+        for subject, stake in stakes:
+            if _names_match(name, subject):
+                record(("stake", name.lower()), (
+                    f"{name} appears as a related-party counterparty and as a "
+                    f"public company in which this issuer holds "
+                    f"{stake.get('percent_of_class')}%."
+                ))
+
+    # Directors who sit elsewhere at an entity that also shows up in the
+    # related-party prose, even when the counterparty extractor missed the name.
+    for entry in proxy.get("related_party_transactions") or []:
+        if entry.get("is_routine"):
+            continue
+        text = (entry.get("sentence") or entry.get("text") or "").lower()
+        for issuer, person, seat in seats:
+            key = _entity_key(issuer)
+            if key and len(key) >= 4 and key in text:
+                record(("prose", key, person["name"].lower()), (
+                    f"The related-party disclosure names {issuer}, where "
+                    f"{person['name']} also holds a "
+                    f"{', '.join(seat.get('roles') or ['role']).lower()}."
+                ))
+
+    return found
+
+
+def _evidence_linked_risks(data: dict, entity_name: str) -> list:
+    """Risks that name the filing or dataset that raises them.
+
+    The connector's register mixes filing-derived entries with industry
+    boilerplate. This list is built only from data the report holds, so every
+    entry can be opened against a source.
+    """
+    risks = []
+    proxy = data.get("proxy_intelligence") or {}
+    notes = data.get("filing_notes") or {}
+    interlocks = data.get("board_interlocks") or {}
+    insider = data.get("insider_transactions") or {}
+    lit = data.get("litigation_intelligence") or {}
+    overlap = ((data.get("institutional_overlap") or {}).get("overlap_analysis")
+               or data.get("institutional_overlap") or {})
+
+    rpt = [t for t in (proxy.get("related_party_transactions") or [])
+           if not t.get("is_routine") and (t.get("largest_amount") or 0) >= 120_000]
+    if rpt:
+        largest = max(t.get("largest_amount") or 0 for t in rpt)
+        risks.append({
+            "title": "Related-party concentration",
+            "category": "Governance",
+            "description": (
+                f"{len(rpt)} Item 404 disclosures in the proxies read, the "
+                f"largest at {format_currency(largest)}. A standing arrangement "
+                f"with a family member or controlled entity is a conflict the "
+                f"board must supervise continuously"
+            ),
+            "likelihood": "High",
+            "impact": "Medium" if largest < 1e7 else "High",
+            "risk_score": 6 if largest < 1e7 else 8,
+            "evidence": "DEF 14A Item 404 — Related Party Transactions",
+            "source_url": (proxy.get("proxy_filings_analyzed") or [{}])[0].get("url"),
+        })
+
+    sales = [t for t in (insider.get("transactions") or [])
+             if t.get("acquired_disposed") == "D" and t.get("open_market")
+             and t.get("value") and not t.get("is_10b5_1")]
+    if sales:
+        gross = sum(t["value"] for t in sales)
+        if gross >= 5e7:
+            risks.append({
+                "title": "Discretionary insider selling",
+                "category": "Governance",
+                "description": (
+                    f"{format_currency(gross)} of open-market disposals were "
+                    f"not under a 10b5-1 plan. Discretionary sales are timed by "
+                    f"the seller; plan sales are not"
+                ),
+                "likelihood": "High",
+                "impact": "Medium",
+                "risk_score": 6,
+                "evidence": "Form 4 open-market codes (S), excluding 10b5-1",
+            })
+
+    as_party = ((lit.get("federal_cases") or {}).get("summary") or {}).get(
+        "cases_as_party")
+    if as_party and as_party >= 3:
+        risks.append({
+            "title": "Active party litigation",
+            "category": "Legal",
+            "description": (
+                f"{as_party} federal matters name {entity_name} as a party. "
+                f"The contingencies note and the docket are not the same "
+                f"population; both are reported in the legal section"
+            ),
+            "likelihood": "High",
+            "impact": "Medium",
+            "risk_score": 6,
+            "evidence": "CourtListener party search + 10-K contingencies note",
+        })
+
+    for flag in (overlap.get("risk_flags") or []):
+        if flag.get("type") != "allocation_skew":
+            continue
+        risks.append({
+            "title": "Institutional allocation skew versus peers",
+            "category": "Ownership",
+            "description": flag.get("detail") or flag.get("description", ""),
+            "likelihood": "Medium",
+            "impact": "Low",
+            "risk_score": 3,
+            "evidence": "Form 13F-HR positions across peer tickers",
+        })
+
+    shared = interlocks.get("shared_boards") or []
+    if shared:
+        names = "; ".join(
+            f"{s['issuer']} ({', '.join(s['directors'])})" for s in shared[:3])
+        risks.append({
+            "title": "Shared outside board seats",
+            "category": "Governance",
+            "description": (
+                f"Two or more of this board sit together elsewhere: {names}. "
+                f"A shared seat among a single issuer's directors is uncommon "
+                f"under Clayton Act section 8 and worth examining"
+            ),
+            "likelihood": "Low",
+            "impact": "Medium",
+            "risk_score": 4,
+            "evidence": "Form 3 filings of each director's own CIK",
+        })
+
+    for overlap_text in _network_overlaps(data)[:3]:
+        risks.append({
+            "title": "Cross-register network overlap",
+            "category": "Governance",
+            "description": overlap_text.rstrip("."),
+            "likelihood": "Medium",
+            "impact": "Medium",
+            "risk_score": 5,
+            "evidence": "DEF 14A × Exhibit 21 × Section 16 × Schedule 13",
+        })
+
+    roll = next((i for i in (notes.get("investments") or [])
+                 if i.get("kind") == "portfolio_rollforward"), None)
+    if roll and (roll.get("net_additions") or 0) >= 1e9:
+        risks.append({
+            "title": "Rapid private-portfolio deployment",
+            "category": "Strategic",
+            "description": (
+                f"{format_currency(roll['net_additions'])} of net additions to "
+                f"non-marketable equity securities in a single year, against a "
+                f"closing balance of {format_currency(roll.get('closing_balance'))}. "
+                f"The note does not name the investees"
+            ),
+            "likelihood": "High",
+            "impact": "Medium",
+            "risk_score": 6,
+            "evidence": "10-K non-marketable equity securities note (ASC 321)",
+        })
+
+    risks.sort(key=lambda r: -r.get("risk_score", 0))
+    return risks
 
 
 def _render_federal(contracts: dict, entity_name: str) -> list:
@@ -794,6 +1491,9 @@ def _render_federal(contracts: dict, entity_name: str) -> list:
             f"research priorities would remove most of the footprint."
         )
         lines.append("")
+
+        if CHARTS_AVAILABLE:
+            lines.extend(_figure(charts.federal_obligations(contracts)))
 
     # ── Research versus procurement ──────────────────────────────────────
     # award_group separates definitive contracts from other transaction
@@ -1439,6 +2139,9 @@ def _render_segments(segments: dict, entity_name: str) -> list:
             )
         lines.append("")
 
+    if CHARTS_AVAILABLE:
+        lines.extend(_figure(charts.composition(segments)))
+
     if assets:
         lines.extend(table(assets, "Long-lived assets by region", unit="Carrying value"))
         top_assets = max(assets, key=lambda r: r["current"])
@@ -1544,6 +2247,79 @@ def _render_acquisitions(notes: dict, entity_name: str, m) -> list:
             )
             lines.append("")
     return lines
+
+
+def _render_network_trends(data: dict, entity_name: str) -> list:
+    """N-01..N-07 — analysis across the P-series registers. Omit empty legs."""
+    trends = _network_trends(data)
+    sections = [
+        ("n01_competitor_seats",
+         "Seats at competitors and strategic counterparties",
+         f"Section 16 filings name every other public issuer where a "
+         f"{entity_name} director or officer has reported. Those issuers are "
+         f"compared here to the peer set and to counterparties named in the "
+         f"business-combination and investment notes."),
+        ("n02_co_holdings",
+         "Institutions holding the issuer and its competitors",
+         f"The same 13F managers appear on {entity_name}'s register and on "
+         f"those of its peers. Overlap alone is uninformative for index "
+         f"managers; relative portfolio weight is what the filings support."),
+        ("n03_invest_acq",
+         "Private holdings and acquisitions",
+         "Named investees are read against acquisition counterparties. The "
+         "ASC 321 rollforward is often aggregate-only, so this subsection "
+         "appears only when the note names entities."),
+        ("n04_personnel_moves",
+         "Personnel movement into investees and acquirees",
+         f"Outside seats of {entity_name} insiders are matched to entities "
+         f"the issuer has acquired or in which it holds a disclosed stake."),
+        ("n05_holder_timing",
+         "5%+ holders around strategic announcements",
+         "Schedule 13D/G filing dates are compared to material 8-K and "
+         "acquisition dates in the chronology. Adjacency is recorded; "
+         "causation is not inferred."),
+        ("n06_jurisdictions",
+         "Subsidiary jurisdictions versus disclosed operations",
+         "Exhibit 21 organisation jurisdictions are read against the "
+         "geographic revenue breakdown. A legal footprint without a matching "
+         "operations disclosure is flagged as structure, not as tax finding."),
+        ("n07_overlaps",
+         "Cross-register overlaps",
+         "Related-party disclosures, the subsidiary list, beneficial-ownership "
+         "schedules and directors' outside seats are filed for different "
+         "purposes and never cite each other."),
+    ]
+    populated = [(key, title, intro, trends.get(key) or [])
+                 for key, title, intro in sections
+                 if trends.get(key)]
+    if not populated:
+        return []
+
+    n_findings = sum(len(items) for _k, _t, _i, items in populated)
+    lines = ["### Network analysis", ""]
+    lines.append(
+        f"The registers below were each built for a single disclosure purpose. "
+        f"Reading them against one another for {entity_name} produces "
+        f"{n_findings} finding{'' if n_findings == 1 else 's'} across "
+        f"{len(populated)} comparison"
+        f"{'' if len(populated) == 1 else 's'}. Empty comparisons are omitted "
+        f"rather than padded."
+    )
+    lines.append("")
+    for _key, title, intro, items in populated:
+        lines.append(f"#### {title}")
+        lines.append("")
+        lines.append(intro)
+        lines.append("")
+        for text in items[:12]:
+            lines.append(f"- {text}")
+        lines.append("")
+    return lines
+
+
+def _render_network_overlaps(data: dict, entity_name: str) -> list:
+    """Back-compat alias — full N-series lives in `_render_network_trends`."""
+    return _render_network_trends(data, entity_name)
 
 
 def _render_related_parties(proxy: dict, entity_name: str) -> list:
@@ -1782,6 +2558,11 @@ def _render_interlocks(interlocks: dict, entity_name: str,
             )
         lines.append("")
 
+    if CHARTS_AVAILABLE:
+        lines.extend(_figure(charts.interlock_network(
+            interlocks, entity_name,
+            name_formatter=lambda n: _person_name(n, known))))
+
     shared = interlocks.get("shared_boards") or []
     if shared:
         lines.append(
@@ -1920,6 +2701,9 @@ def _render_venture_portfolio(notes: dict, entity_name: str, m) -> list:
             lines.append(f"| {label} | {rendered} |")
     lines.append("")
 
+    if CHARTS_AVAILABLE:
+        lines.extend(_figure(charts.portfolio_rollforward(investments)))
+
     if opening and closing:
         multiple = closing / opening if opening else 0
         lines.append(
@@ -1974,6 +2758,9 @@ def _render_subsidiaries(notes: dict, entity_name: str) -> list:
     for jurisdiction, count in by_jurisdiction[:15]:
         lines.append(f"| {jurisdiction} | {count} |")
     lines.append("")
+
+    if CHARTS_AVAILABLE:
+        lines.extend(_figure(charts.subsidiary_jurisdictions(data)))
 
     # Jurisdictions that carry no operations are worth separating: an entity
     # organised there is a financing or holding structure, not a business.
@@ -2298,6 +3085,10 @@ def _render_balance_sheet(annual: list, metrics: dict, entity_name: str,
             )
         lines.append("")
 
+    if CHARTS_AVAILABLE:
+        lines.extend(_figure(charts.commitments(notes,
+                                                val(now, "OperatingCashFlow"))))
+
     lines.extend(_render_acquisitions(notes, entity_name, m))
     lines.extend(_render_venture_portfolio(notes, entity_name, m))
 
@@ -2377,6 +3168,9 @@ def _render_balance_sheet(annual: list, metrics: dict, entity_name: str,
         f"| **{share(cumulative_returned, cumulative_fcf)}** |"
     )
     lines.append("")
+
+    if CHARTS_AVAILABLE:
+        lines.extend(_figure(charts.capital_allocation(annual)))
 
     if cumulative_fcf:
         retained = cumulative_fcf - cumulative_returned
@@ -2664,14 +3458,22 @@ def _render_valuation(dcf: dict, consensus: dict, ticker: str,
         lines.append("| WACC \\ terminal growth | "
                      + " | ".join(f"{t * 100:.1f}%" for t in tg_col) + " |")
         lines.append("|---" * (len(tg_col) + 1) + "|")
+        grid = []
         for w in wacc_row:
-            cells = []
+            row, cells = [], []
             for t in tg_col:
                 v = _dcf_price(base_fcf, g0, t, w, horizon, net_debt, shares)
+                row.append(v)
                 cells.append(f"${v:,.0f}" if v else "n/m")
+            grid.append(row)
             marker = " **(base)**" if abs(w - wacc) < 1e-9 else ""
             lines.append(f"| **{w * 100:.2f}%**{marker} | " + " | ".join(cells) + " |")
         lines.append("")
+
+        if CHARTS_AVAILABLE:
+            lines.extend(_figure(charts.dcf_sensitivity(
+                wacc_row, tg_col, grid, base_wacc=wacc, base_growth=tg,
+                current=price)))
 
     # ── Scenarios ────────────────────────────────────────────────────────
     scenarios = dcf.get("scenarios") or {}
@@ -2765,6 +3567,8 @@ def _render_valuation(dcf: dict, consensus: dict, ticker: str,
 
 def generate_markdown_report(data: dict) -> str:
     """Generate comprehensive markdown report from Phase 2 data."""
+    global FIGURE_COUNT
+    FIGURE_COUNT = 0
     lines = []
 
     financial = data.get("financial_intelligence", {}) or {}
@@ -2903,8 +3707,12 @@ def generate_markdown_report(data: dict) -> str:
                 f"{r.get('strongBuy', 0)} strong buy, {r.get('buy', 0)} buy, "
                 f"{r.get('hold', 0)} hold, {r.get('sell', 0)} sell — "
                 f"{consensus.get('bullish_pct', 0)}% bullish across "
-                f"{consensus.get('ratings_total', 0)} analysts. Targets range "
-                f"${consensus.get('target_low', 0):,.0f}–${consensus.get('target_high', 0):,.0f}."
+                f"{consensus.get('ratings_total', 0)} analysts"
+                + (f". Targets range "
+                   f"${consensus['target_low']:,.0f}–"
+                   f"${consensus['target_high']:,.0f}."
+                   if consensus.get("target_low") and consensus.get("target_high")
+                   else ".")
             )
             lines.append("")
 
@@ -2945,6 +3753,9 @@ def generate_markdown_report(data: dict) -> str:
                 f"| {_pct(row.get('net_margin'))} |"
             )
         lines.append("")
+
+        if CHARTS_AVAILABLE:
+            lines.extend(_figure(charts.revenue_and_margin(annual)))
 
         if quarterly:
             lines.append("### Quarterly detail")
@@ -3098,6 +3909,7 @@ def generate_markdown_report(data: dict) -> str:
         lines.extend(_render_related_parties(proxy, entity_name))
         lines.extend(_render_interlocks(data.get("board_interlocks") or {},
                                         entity_name, proxy))
+        lines.extend(_render_network_overlaps(data, entity_name))
 
         for person in dossiers[:10]:
             lines.append(f"### {person.get('name', 'Unknown')}")
@@ -3146,6 +3958,11 @@ def generate_markdown_report(data: dict) -> str:
                              f"{format_currency(bucket.get('value'))} |")
             lines.append("")
 
+        if CHARTS_AVAILABLE:
+            lines.extend(_figure(charts.insider_disposals(insider)))
+            lines.extend(_figure(charts.insider_on_price(
+                insider, data.get("price_history") or {})))
+
         by_insider = insider.get("by_insider") or {}
         sellers = sorted(by_insider.items(), key=lambda kv: -kv[1].get("value_sold", 0))
         sellers = [s for s in sellers if s[1].get("value_sold")]
@@ -3188,6 +4005,10 @@ def generate_markdown_report(data: dict) -> str:
         lines.append("")
         lines.append(f"*{holdings.get('coverage', '')}*")
         lines.append("")
+
+        if CHARTS_AVAILABLE:
+            lines.extend(_figure(charts.institutional_concentration(holdings)))
+
         if holdings.get("stale_filers"):
             stale = ", ".join(f"{s['institution']} (last filed {s['last_filed']})"
                               for s in holdings["stale_filers"])
@@ -3211,27 +4032,93 @@ def generate_markdown_report(data: dict) -> str:
     if lobbying.get("filing_count") or pac.get("committee_found"):
         lines.append("## Lobbying and Political Activity")
         lines.append("")
-        lines.append(f"- **LDA filings:** {lobbying.get('filing_count', 0)}")
-        lines.append(f"- **Total disclosed spend:** {format_currency(lobbying.get('total_spend'))}")
-        lines.append(f"- **In-house:** {format_currency(lobbying.get('in_house_spend'))}")
-        lines.append(f"- **Outside firms:** {format_currency(lobbying.get('outside_firm_spend'))}")
-        lines.append(f"- **Source:** {lobbying.get('source_url') or '—'}")
+        total = lobbying.get("total_spend") or 0
+        filings = lobbying.get("filing_count") or 0
+        in_house = lobbying.get("in_house_spend") or 0
+        outside = lobbying.get("outside_firm_spend") or 0
+        lines.append(
+            f"{entity_name} discloses {format_currency(total)} of federal "
+            f"lobbying across {filings} Senate LDA filing"
+            f"{'' if filings == 1 else 's'}"
+            + (f", of which {format_currency(in_house)} "
+               f"({in_house / total * 100:.0f}%) is in-house and "
+               f"{format_currency(outside)} "
+               f"({outside / total * 100:.0f}%) is spent through outside "
+               f"registrants" if total and (in_house or outside) else "")
+            + ". LDA figures are what the registrant reported, not what was "
+              "actually spent influencing a particular bill; the register is "
+              "a floor on activity, not a measure of influence."
+        )
         lines.append("")
+        if lobbying.get("source_url"):
+            lines.append(f"Source: {lobbying['source_url']}")
+            lines.append("")
 
         year_breakdown = lobbying.get("year_breakdown") or {}
         if year_breakdown:
+            ordered = sorted(year_breakdown.items(), key=lambda kv: str(kv[0]))
             lines.append("### Spend by year")
             lines.append("")
-            lines.append("| Year | Disclosed spend |")
-            lines.append("|------|-----------------|")
-            for year, amt in sorted(year_breakdown.items(), reverse=True):
-                lines.append(f"| {year} | {format_currency(amt)} |")
+            lines.append("| Year | Disclosed spend | Change vs prior |")
+            lines.append("|------|-----------------|-----------------|")
+            prior_amt = None
+            for year, amt in ordered:
+                if prior_amt:
+                    change = f"{(amt - prior_amt) / prior_amt * 100:+.0f}%"
+                else:
+                    change = "—"
+                lines.append(f"| {year} | {format_currency(amt)} | {change} |")
+                prior_amt = amt
             lines.append("")
+            if len(ordered) >= 2 and ordered[0][1]:
+                first_y, first_a = ordered[0]
+                last_y, last_a = ordered[-1]
+                traj = (last_a - first_a) / first_a * 100
+                lines.append(
+                    f"Across the window from {first_y} to {last_y}, "
+                    f"disclosed spend moved {traj:+.0f}%. "
+                    + ("A rising line against a stable federal footprint "
+                       "is the pattern that usually precedes a regulatory "
+                       "fight rather than routine monitoring."
+                       if traj >= 25 else
+                       "Spend is broadly stable across the window, which "
+                       "reads as a standing Washington presence rather "
+                       "than a campaign timed to a single bill."
+                       if abs(traj) < 25 else
+                       "Spend has contracted over the window; that is "
+                       "consistent with a resolved issue set or a shift "
+                       "of activity into channels the LDA does not capture.")
+                )
+                lines.append("")
 
         firms = lobbying.get("top_firms") or []
         if firms:
             lines.append("### Registrants")
             lines.append("")
+            in_house_firms = [f for f in firms if f.get("in_house")]
+            outside_firms = [f for f in firms if not f.get("in_house")]
+            if outside_firms:
+                top = outside_firms[0]
+                lines.append(
+                    f"The largest outside registrant is "
+                    f"**{top.get('firm') or '—'}** at "
+                    f"{format_currency(top.get('amount'))}"
+                    + (f", followed by "
+                       f"{', '.join((f.get('firm') or '—') for f in outside_firms[1:4])}"
+                       if len(outside_firms) > 1 else "")
+                    + ". Outside firms are retained for access and subject "
+                      "expertise the issuer does not keep on staff; a "
+                      "concentration in one or two names is a relationship, "
+                      "not a commodity purchase."
+                )
+                lines.append("")
+            if in_house_firms:
+                lines.append(
+                    f"In-house lobbying is reported under "
+                    f"{', '.join((f.get('firm') or '—') for f in in_house_firms[:3])}"
+                    + "."
+                )
+                lines.append("")
             lines.append("| Registrant | Type | Disclosed spend |")
             lines.append("|------------|------|-----------------|")
             for f in firms:
@@ -3244,10 +4131,24 @@ def generate_markdown_report(data: dict) -> str:
         if issues:
             lines.append("### Issues lobbied")
             lines.append("")
+            top_names = [i[0] if isinstance(i, (list, tuple)) else i.get("issue", "")
+                         for i in issues[:5]]
+            lines.append(
+                f"The issues named most often across the filings are "
+                f"{', '.join(top_names)}. LDA issue codes are broad — "
+                f"\"Computer/Information Tech\" covers export controls, "
+                f"procurement and tax alike — so the code is a topic label, "
+                f"not a bill list."
+            )
+            lines.append("")
             lines.append("| Issue | Filings |")
             lines.append("|-------|---------|")
-            for issue, count in issues[:12]:
-                lines.append(f"| {issue} | {count} |")
+            for issue in issues[:12]:
+                if isinstance(issue, (list, tuple)):
+                    name, count = issue[0], issue[1]
+                else:
+                    name, count = issue.get("issue", "—"), issue.get("count", 0)
+                lines.append(f"| {name} | {count} |")
             lines.append("")
 
         # ── Corporate PAC ────────────────────────────────────────────────
@@ -3334,6 +4235,9 @@ def generate_markdown_report(data: dict) -> str:
                 lines.append(f"| {form} | {count} | {_FORM_PURPOSE.get(form, '—')} |")
             lines.append("")
 
+        if CHARTS_AVAILABLE:
+            lines.extend(_figure(charts.filing_cadence(timeline)))
+
         if by_category:
             spread = ", ".join(
                 f"{str(cat).lower()} {len(items) if isinstance(items, list) else items}"
@@ -3342,6 +4246,57 @@ def generate_markdown_report(data: dict) -> str:
                     key=lambda kv: -(len(kv[1]) if isinstance(kv[1], list) else kv[1]))
             )
             lines.append(f"By category: {spread}.")
+            lines.append("")
+
+        # Intensity and mix: what dominates the calendar is itself a signal
+        # before any individual filing is narrated.
+        lines.append("### Filing intensity")
+        lines.append("")
+        months = {}
+        for e in events:
+            month = (e.get("date") or "")[:7]
+            if month:
+                months[month] = months.get(month, 0) + 1
+        if months:
+            busiest = sorted(months.items(), key=lambda kv: -kv[1])[:3]
+            quietest = sorted(months.items(), key=lambda kv: kv[1])[:2]
+            avg = len(events) / max(len(months), 1)
+            lines.append(
+                f"Activity averaged {avg:.1f} filings a month across "
+                f"{len(months)} months. The busiest months were "
+                + ", ".join(f"{_month_label(m)} ({n})" for m, n in busiest)
+                + "; the quietest were "
+                + ", ".join(f"{_month_label(m)} ({n})" for m, n in quietest)
+                + ". A spike usually coincides with earnings, a proxy season "
+                "or a cluster of Form 4 activity rather than a single "
+                "one-off disclosure."
+            )
+            lines.append("")
+        form4 = form_counts.get("4") or form_counts.get("Form 4") or 0
+        eightk = form_counts.get("8-K") or 0
+        if form4 or eightk:
+            lines.append(
+                f"Form 4 insider filings account for "
+                f"{form4 / max(len(events), 1) * 100:.0f}% of the chronology "
+                f"({form4:,}); 8-K current reports for "
+                f"{eightk / max(len(events), 1) * 100:.0f}% ({eightk}). "
+                f"The narrative below keeps the 8-K and periodic reports and "
+                f"collapses open-market Form 4 activity into monthly totals "
+                f"so the material disclosures remain readable."
+            )
+            lines.append("")
+        highlights = timeline.get("highlights") or []
+        if highlights:
+            lines.append("### Highlights from the period")
+            lines.append("")
+            for item in highlights[:6]:
+                if isinstance(item, dict):
+                    lines.append(
+                        f"- {item.get('date', '')} — "
+                        f"{item.get('text') or item.get('title') or item}"
+                    )
+                else:
+                    lines.append(f"- {item}")
             lines.append("")
 
         # Material events only: routine Form 4/13G/144 noise is counted above
@@ -3394,47 +4349,96 @@ def generate_markdown_report(data: dict) -> str:
                 )
                 lines.append("")
 
-    # Risk Register
-    risk_register = data.get("risk_register", {})
-    if risk_register:
+    # Risk Register — evidence-linked entries first, then the connector's
+    # register with its stated basis. An entry that cannot name a filing is
+    # kept but labelled as assessment rather than evidence.
+    evidenced = _evidence_linked_risks(data, entity_name)
+    risk_register = data.get("risk_register", {}) or {}
+    if evidenced or risk_register:
         lines.append("## Risk Register")
         lines.append("")
-        risk_summary = risk_register.get("summary", {})
-        lines.append(f"**Overall Risk Profile:** {risk_summary.get('overall_risk_profile', 'UNKNOWN')}")
-        lines.append("")
-        lines.append("| Level | Count |")
-        lines.append("|-------|-------|")
-        lines.append(f"| Critical | {risk_summary.get('critical_risks', 0)} |")
-        lines.append(f"| High | {risk_summary.get('high_risks', 0)} |")
-        lines.append(f"| Medium | {risk_summary.get('medium_risks', 0)} |")
-        lines.append(f"| Low | {risk_summary.get('low_risks', 0)} |")
-        lines.append("")
-
-        top_risks = risk_register.get("top_risks", [])
-        if top_risks:
-            lines.append("### Top Risks")
+        if evidenced:
+            lines.append(
+                f"{len(evidenced)} risk"
+                f"{'' if len(evidenced) == 1 else 's'} below are raised by "
+                f"filings and datasets retrieved for this report. Each names "
+                f"the source that evidences it."
+            )
             lines.append("")
-            for i, risk in enumerate(top_risks[:8], 1):
-                scoring = " / ".join(filter(None, [
-                    f"likelihood {risk['likelihood'].lower()}" if risk.get("likelihood") else "",
-                    f"impact {risk['impact'].lower()}" if risk.get("impact") else "",
-                    f"score {risk['risk_score']}" if risk.get("risk_score") else "",
-                ]))
+            lines.append("### Evidence-linked risks")
+            lines.append("")
+            for i, risk in enumerate(evidenced[:10], 1):
                 heading = f"{i}. **{risk.get('title', '')}**"
                 if risk.get("category"):
                     heading += f" — {risk['category']}"
-                    if risk.get("subcategory"):
-                        heading += f", {risk['subcategory']}"
                 lines.append(heading)
                 if risk.get("description"):
                     lines.append(f"   - {risk['description']}.")
+                scoring = " / ".join(filter(None, [
+                    f"likelihood {risk['likelihood'].lower()}" if risk.get("likelihood") else "",
+                    f"impact {risk['impact'].lower()}" if risk.get("impact") else "",
+                    f"score {risk['risk_score']}" if risk.get("risk_score") is not None else "",
+                ]))
                 if scoring:
                     lines.append(f"   - Scored {scoring}.")
-                if risk.get("mitigants"):
-                    lines.append(f"   - Mitigants: {', '.join(risk['mitigants'])}.")
-                if risk.get("indicators"):
-                    lines.append(f"   - Leading indicators: {', '.join(risk['indicators'])}.")
-                lines.append(f"   - *Basis: {risk.get('data_source') or 'unattributed'}.*")
+                lines.append(f"   - *Evidence: {risk.get('evidence') or 'see above'}.*")
+                if risk.get("source_url"):
+                    lines.append(f"   - Source: {risk['source_url']}")
+                lines.append("")
+
+        risk_summary = risk_register.get("summary", {}) or {}
+        top_risks = risk_register.get("top_risks", []) or []
+        # Drop connector entries that restate an evidence-linked title, and
+        # demote industry-boilerplate sources so they cannot outrank filings.
+        evidenced_titles = {r.get("title", "").lower() for r in evidenced}
+        boilerplate = {"industry analysis", "standard assessment",
+                       "market analysis", ""}
+        filtered = [r for r in top_risks
+                    if r.get("title", "").lower() not in evidenced_titles]
+        filing_backed = [r for r in filtered
+                         if (r.get("data_source") or "").lower() not in boilerplate]
+        assessed = [r for r in filtered
+                    if (r.get("data_source") or "").lower() in boilerplate]
+
+        if risk_summary:
+            lines.append(
+                f"**Connector profile:** {risk_summary.get('overall_risk_profile', 'UNKNOWN')} "
+                f"({risk_summary.get('critical_risks', 0)} critical / "
+                f"{risk_summary.get('high_risks', 0)} high / "
+                f"{risk_summary.get('medium_risks', 0)} medium / "
+                f"{risk_summary.get('low_risks', 0)} low)."
+            )
+            lines.append("")
+
+        if filing_backed:
+            lines.append("### Filing-backed assessments")
+            lines.append("")
+            for i, risk in enumerate(filing_backed[:6], 1):
+                heading = f"{i}. **{risk.get('title', '')}**"
+                if risk.get("category"):
+                    heading += f" — {risk['category']}"
+                lines.append(heading)
+                if risk.get("description"):
+                    lines.append(f"   - {risk['description']}.")
+                lines.append(f"   - *Basis: {risk.get('data_source')}.*")
+                lines.append("")
+
+        if assessed:
+            lines.append("### General assessments")
+            lines.append("")
+            lines.append(
+                "The following are industry-standard risk framings rather than "
+                "findings raised by a specific filing retrieved for this "
+                "issuer. They are retained for completeness and labelled as "
+                "assessments."
+            )
+            lines.append("")
+            for i, risk in enumerate(assessed[:4], 1):
+                lines.append(
+                    f"{i}. **{risk.get('title', '')}** — "
+                    f"{risk.get('description', '').rstrip('.')}. "
+                    f"*Assessment basis: {risk.get('data_source') or 'unattributed'}.*"
+                )
             lines.append("")
 
     # Cross-reference findings
@@ -3452,13 +4456,29 @@ def generate_markdown_report(data: dict) -> str:
     lines.append("| Domain | Source |")
     lines.append("|--------|--------|")
     lines.append(f"| Financial statements | SEC XBRL companyfacts, CIK {financial.get('cik') or '—'} |")
+    lines.append("| Narrative notes, Exhibit 21, ASC 321 | 10-K HTML / XBRL exhibits (SEC EDGAR) |")
     lines.append("| Personnel and compensation | DEF 14A proxy statements (SEC EDGAR) |")
+    lines.append("| Board interlocks and 5% holders | Form 3 / Schedule 13D/G (SEC EDGAR) |")
     lines.append("| Insider transactions | Form 4 filings (SEC EDGAR) |")
+    lines.append("| Institutional overlap | 13F-HR from largest managers (SEC EDGAR) |")
     lines.append("| Federal awards | USASpending.gov API v2, all award-type groups |")
     lines.append("| Lobbying | Senate LDA API |")
     lines.append("| Litigation | CourtListener, SEC, FTC, DOJ, ITC, PTAB |")
+    price = data.get("price_history") or {}
+    price_bars = price.get("bars") or []
+    if price_bars or price.get("source") or price.get("provider"):
+        lines.append(
+            f"| Daily price history | "
+            f"{price.get('source') or price.get('provider') or 'market data'} "
+            f"({len(price_bars):,} bars) |"
+        )
     if dcf.get("market_data_provider"):
         lines.append(f"| Market and consensus data | {dcf['market_data_provider']} |")
+    if CHARTS_AVAILABLE and FIGURE_COUNT:
+        lines.append(
+            f"| Figures | Matplotlib PNG embedded via WeasyPrint "
+            f"({FIGURE_COUNT} chart{'' if FIGURE_COUNT == 1 else 's'} in this run) |"
+        )
     lines.append("")
 
     lines.append("### Reporting conventions")
@@ -3470,6 +4490,13 @@ def generate_markdown_report(data: dict) -> str:
                  "companies does not align with the calendar year.")
     lines.append("- Where a figure is quoted from a filing, the filing rather "
                  "than a data vendor is the cited source.")
+    lines.append("- Charts are drawn only from fields already tabulated in the "
+                 "report; a missing series omits the figure rather than inventing "
+                 "a shape.")
+    lines.append("- Network findings name a person or entity only when a filed "
+                 "document places them on both sides of the comparison.")
+    lines.append("- Statistical correlations, when present, state sample size n "
+                 "and are suppressed entirely where n < 12.")
     lines.append("")
 
     lines.append("### Quality gates")
@@ -3481,13 +4508,17 @@ def generate_markdown_report(data: dict) -> str:
     )
     lines.append("")
     lines.append("- Placeholder and sentinel strings are rejected, so a "
-                 "template fragment cannot reach the page as if it were data.")
+                 "template fragment cannot reach the page as if it were data. "
+                 "Embedded chart payloads are excluded from that scan so "
+                 "base64 content cannot false-trigger.")
     lines.append("- A minimum populated section count, so a run in which most "
                  "connectors failed does not ship as a thin but valid report.")
     lines.append("- A minimum word count, which catches a run that populated "
                  "its section headers but not their contents.")
     lines.append("- The subject company must be named, which catches a "
                  "misrouted ticker resolving to the wrong filer.")
+    lines.append("- Sections without supporting data are omitted, never filled "
+                 "with industry boilerplate presented as issuer-specific fact.")
     lines.append("")
 
     quality = data.get("data_quality", {}) or {}
@@ -3617,22 +4648,28 @@ def check_report_quality(markdown: str, ticker: str = "", entity_name: str = "")
     """
     issues = []
 
+    # Base64 chart payloads are opaque binary-as-text. Scanning them for
+    # placeholders matches random byte sequences ("TBD", "$0.00") that are not
+    # content — strip every data URI before the text checks run.
+    text = re.sub(r"data:image/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=\s]+",
+                  "[chart]", markdown)
+
     # Guard against another company's identifiers surviving in the output. A
     # hardcoded ticker once labelled every report's price line "NVDA" whatever
     # the subject was, and the numbers around it looked entirely plausible.
     subject_tokens = {t.upper() for t in
                       re.findall(r"[A-Za-z]{2,}", f"{ticker} {entity_name}")}
-    for foreign in re.findall(r"\b[A-Z]{2,5}\b(?= last traded| closed FY)", markdown):
+    for foreign in re.findall(r"\b[A-Z]{2,5}\b(?= last traded| closed FY)", text):
         if foreign not in subject_tokens:
             issues.append(f"Report references foreign ticker '{foreign}'")
 
     for pattern in PLACEHOLDER_PATTERNS:
-        count = markdown.count(pattern)
+        count = text.count(pattern)
         if count:
             issues.append(f"{count} occurrence(s) of placeholder '{pattern}'")
 
     # A heading immediately followed by another heading means an empty section.
-    lines = markdown.split("\n")
+    lines = text.split("\n")
     headings = [(i, l) for i, l in enumerate(lines) if l.startswith("## ")]
     for idx, (line_no, heading) in enumerate(headings):
         end = headings[idx + 1][0] if idx + 1 < len(headings) else len(lines)
@@ -3640,7 +4677,8 @@ def check_report_quality(markdown: str, ticker: str = "", entity_name: str = "")
         if not body:
             issues.append(f"Empty section: '{heading.strip('# ')}'")
 
-    word_count = len(markdown.split())
+    # Word count excludes the base64 payloads, which would otherwise dominate.
+    word_count = len(text.split())
     if word_count < 800:
         issues.append(f"Report body is thin ({word_count} words)")
 
@@ -3655,7 +4693,8 @@ def check_report_quality(markdown: str, ticker: str = "", entity_name: str = "")
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(
         description="Generate a deep intelligence report for any listed company.",
-        epilog="Examples:  %(prog)s --ticker AAPL      %(prog)s --ticker JPM --peers WFC,C,GS",
+        epilog="Examples:  %(prog)s --ticker AAPL      %(prog)s --ticker JPM --peers WFC,C,GS"
+               "      %(prog)s --from-json path/to/data.json",
     )
     parser.add_argument("--ticker", default="NVDA",
                         help="Stock ticker to analyse (default: NVDA)")
@@ -3665,13 +4704,27 @@ def parse_args(argv=None):
                         help="Comma-separated peer tickers (default: resolved from market data)")
     parser.add_argument("--years", type=int, default=5,
                         help="Years of history to retrieve (default: 5)")
+    parser.add_argument("--from-json", default="",
+                        help="Re-render markdown/PDF from a saved intelligence JSON "
+                             "(skips connector fetch)")
     return parser.parse_args(argv)
 
 
 def main(argv=None):
     args = parse_args(argv)
     peers = [p.strip().upper() for p in args.peers.split(",") if p.strip()] or None
-    configure(args.ticker, args.entity_name, peers)
+
+    phase2_data = {}
+    if args.from_json:
+        with open(args.from_json) as fh:
+            phase2_data = json.load(fh)
+        ticker = (phase2_data.get("ticker") or args.ticker or "NVDA").upper()
+        entity = (args.entity_name or phase2_data.get("entity_name") or "")
+        saved_peers = ((phase2_data.get("institutional_overlap") or {})
+                       .get("competitors")) or None
+        configure(ticker, entity, peers or saved_peers)
+    else:
+        configure(args.ticker, args.entity_name, peers)
 
     print("=" * 70)
     print("Deep Intelligence Report Generator (Phase 2)")
@@ -3682,7 +4735,7 @@ def main(argv=None):
     print()
 
     # Check Phase 2 availability
-    if PHASE2_AVAILABLE:
+    if PHASE2_AVAILABLE and not args.from_json:
         status = get_connector_status()
         print("Phase 2 Connector Status:")
         print(f"  Phase 1 connectors: {status.get('phase1_connectors', 0)}")
@@ -3691,30 +4744,35 @@ def main(argv=None):
         print(f"  Comprehensive ready: {status.get('comprehensive_ready', False)}")
         print()
 
-    # Step 1: Run Phase 2 comprehensive intelligence
-    print("[1/4] Running comprehensive intelligence gathering...")
-    print("      (This may take 2-5 minutes)")
-
-    start_time = time.time()
-
-    if PHASE2_AVAILABLE:
-        try:
-            phase2_data = run_comprehensive_intelligence(
-                entity_name=ENTITY_NAME,
-                ticker=TICKER,
-                competitors=COMPETITORS,
-                years=args.years,
-            )
-            elapsed = time.time() - start_time
-            print(f"      Phase 2 complete in {elapsed:.1f} seconds")
-            print(f"      Sources successful: {phase2_data.get('data_quality', {}).get('sources_successful', 0)}")
-            print(f"      Sources failed: {phase2_data.get('data_quality', {}).get('sources_failed', 0)}")
-        except Exception as e:
-            print(f"      Phase 2 failed: {e}")
-            phase2_data = {}
+    # Step 1: Run Phase 2 comprehensive intelligence (or load saved JSON)
+    if args.from_json:
+        print(f"[1/4] Loaded intelligence JSON: {args.from_json}")
+        print(f"      Sources successful: "
+              f"{phase2_data.get('data_quality', {}).get('sources_successful', 0)}")
     else:
-        print("      Phase 2 not available, using legacy mode")
-        phase2_data = {}
+        print("[1/4] Running comprehensive intelligence gathering...")
+        print("      (This may take 2-5 minutes)")
+
+        start_time = time.time()
+
+        if PHASE2_AVAILABLE:
+            try:
+                phase2_data = run_comprehensive_intelligence(
+                    entity_name=ENTITY_NAME,
+                    ticker=TICKER,
+                    competitors=COMPETITORS,
+                    years=args.years,
+                )
+                elapsed = time.time() - start_time
+                print(f"      Phase 2 complete in {elapsed:.1f} seconds")
+                print(f"      Sources successful: {phase2_data.get('data_quality', {}).get('sources_successful', 0)}")
+                print(f"      Sources failed: {phase2_data.get('data_quality', {}).get('sources_failed', 0)}")
+            except Exception as e:
+                print(f"      Phase 2 failed: {e}")
+                phase2_data = {}
+        else:
+            print("      Phase 2 not available, using legacy mode")
+            phase2_data = {}
 
     # Step 2: Generate markdown report
     print("\n[2/4] Generating markdown report...")
@@ -3733,6 +4791,11 @@ def main(argv=None):
     quality = check_report_quality(markdown_report, TICKER, ENTITY_NAME)
     print(f"      Quality gate: {'PASS' if quality['passed'] else 'FAIL'} "
           f"({quality['word_count']:,} words, {quality['section_count']} sections)")
+    if CHARTS_AVAILABLE:
+        print(f"      Charts embedded: {FIGURE_COUNT}"
+              + ("" if FIGURE_COUNT else " (none — data did not support a figure)"))
+    else:
+        print("      Charts embedded: unavailable (matplotlib not loaded)")
     for issue in quality["issues"]:
         print(f"        - {issue}")
 

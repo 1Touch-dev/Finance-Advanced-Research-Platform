@@ -948,42 +948,38 @@ and their career movements]
 
 ---
 
-## 4A. WHAT REMAINS — CONSOLIDATED VIEW (after the ninth pass)
+## 4A. WHAT REMAINS — CONSOLIDATED VIEW (after the eleventh pass)
 
-Every free-source P0 item is shipped. What is left divides into four kinds of
-work, and only two of them are blocked on anything outside our control.
+Every free-source P0 item is shipped. Charts, the full N-series scaffold,
+D-01 price history, and the cheap text-parity thickenings are in the PDF.
+What is left is correlations (event-study code), B-06 XLSX, and blocked
+sourcing decisions.
 
-**1. Charts. Nothing is built and this is now the biggest single gap.** The PDF
-contains zero images across 37 pages. Eleven of the thirteen V-series charts
-can be drawn from data already in the JSON — matplotlib, numpy and pandas are
-installed and the WeasyPrint rendering path is verified. This is the highest
-ratio of perceived quality to remaining effort in the whole backlog, and it is
-what separates the current output from something that reads as a terminal
-product rather than a long memo.
+**1. Charts — ✅ shipped.** `chart_service.py` draws every V-series figure
+the data supports (PNG at 200 dpi). NVDA embeds 12 figures / ~44 pages /
+~900 KB including V-11 (insider disposals on Yahoo daily bars). Missing
+series omit the figure; base64 SVG is never used (WeasyPrint blank-page bug).
 
-**2. The N-series, newly unblocked.** P-01, P-02, P-05, P-07 and P-09 all
-landed in the ninth pass, which were the five inputs the trend analysis was
-waiting on. Nothing in §4C.4 is built. N-07 — whether related-party
-counterparties overlap with subsidiaries, investees or director affiliations —
-is the highest-value item in the document and is reachable entirely from data
-now held in one report run.s
+**2. N-series — ✅ scaffold shipped (N-01..N-07).** `_network_trends` runs
+all seven comparisons; empty legs are omitted. On NVDA, N-02 (allocation
+skew) and N-06 (Israel/Singapore vs disclosed revenue geos) populate;
+N-01/N-03/N-04/N-05/N-07 correctly return empty because the filings do not
+support a match. Named ASC 321 holdings would unlock N-03/N-04 further.
 
-**3. Text parity, six sections, 2,526 words.** B-01 through B-06. None needs a
-new source; the material is retrieved and rendered tersely.
+**3. Text parity — B-01/B-02/B-03/B-04/B-05 thickened; B-06 remains.**
+Methodology now states chart provenance, price-history source, network
+rules and the n<12 correlation suppression. Chronology adds filing-intensity
+and mix analysis. B-06 (13-sheet XLSX appendix) is still open.
 
-**4. Genuinely blocked.** Three items, and they should be stated as budget or
-sourcing decisions rather than tracked as engineering work:
+**4. Genuinely blocked / next engineering.** D-01 is built (Finnhub → Alpha
+Vantage → Yahoo). V-11 is live. Correlations still need the event-study
+code itself (and D-02 for C-03/C-04):
 
 | Blocked item | Blocked on | Nature |
 |--------------|-----------|--------|
-| C-01, C-02, C-05, V-11 | D-01 daily price history | One connector; Finnhub and Alpha Vantage keys already work |
-| C-03, C-04 | D-02 quarterly XBRL from 10-Q facts | Takes financial n from 5 to 20+; without it any correlation is manufactured |
-| B-07, P-10 | Curated enforcement feed; paid VC database | No free path — a purchasing decision, not a build |
-
-D-01 deserves emphasis: it is a single connector against keys the pipeline
-already holds, and it unlocks three correlations plus a chart. It is the
-cheapest item on this list by a wide margin and the only prerequisite standing
-between the current report and the "find correlations" half of James's request.
+| C-01, C-02, C-05 | Event-study code (bars available via D-01) | Engineering |
+| C-03, C-04 | D-02 quarterly XBRL from 10-Q facts | Takes financial n from 5 to 20+ |
+| B-07, P-10 | Curated enforcement feed; paid VC database | Purchasing decision |
 
 ---
 
@@ -992,20 +988,21 @@ between the current report and the "find correlations" half of James's request.
 Measured against the eighth pass. Ordered cheapest first. Items here need no
 decision, only work.
 
-| ID | Item | Gap | Needs new data? | Priority |
-|----|------|-----|-----------------|----------|
-| B-01 | §1 Executive Summary — findings engine does not draw on every populated section | −361 words | No | P1 |
-| B-02 | §13 Risk Register — entries not evidence-linked to the filing that raises them | −194 words | No | P1 |
-| B-03 | §14 Methodology — quality gates and per-domain provenance stated, prose thin | −130 words | No | P2 |
-| B-04 | §8 Lobbying — totals exact ($14.0M / 54 filings), surrounding analysis absent | −431 words | No | P2 |
-| B-05 | §9 Event Chronology — 317 filing-derived events; reference cites testimony and press | −1,265 words | Yes — news/transcript feed | P2 |
-| B-06 | §15 Appendix — 13-sheet XLSX workbook (P1-12) | −187 words | No — openpyxl off the same data model | P2 |
-| B-07 | §12 Government Action Precedent Library | −2,312 words | Yes — curated enforcement feed | P3 |
+| ID | Item | Gap | Needs new data? | Priority | Status |
+|----|------|-----|-----------------|----------|--------|
+| B-01 | §1 Executive Summary — findings engine does not draw on every populated section | −361 words | No | P1 | ✅ Shipped — related-party, interlocks, venture, skew, N-01/N-05/N-06/N-07 all feed findings |
+| B-02 | §13 Risk Register — entries not evidence-linked to the filing that raises them | −194 words | No | P1 | ✅ Shipped — evidence-linked entries lead; boilerplate demoted to "General assessments" |
+| B-03 | §14 Methodology — quality gates and per-domain provenance stated, prose thin | −130 words | No | P2 | ✅ Shipped — chart provenance, price-history source, network rules, n<12 suppression |
+| B-04 | §8 Lobbying — totals exact ($14.0M / 54 filings), surrounding analysis absent | −431 words | No | P2 | ✅ Shipped — trajectory, in-house/outside split, registrant concentration, issue-code caveats |
+| B-05 | §9 Event Chronology — 317 filing-derived events; reference cites testimony and press | −1,265 words | Yes — news/transcript feed | P2 | ◐ Partial — filing-intensity, form mix and highlights added; news/transcript feed still absent |
+| B-06 | §15 Appendix — 13-sheet XLSX workbook (P1-12) | −187 words | No — openpyxl off the same data model | P2 | ☐ Open |
+| B-07 | §12 Government Action Precedent Library | −2,312 words | Yes — curated enforcement feed | P3 | ☐ Blocked — purchasing decision |
 
-Excluding B-07, the report sits 2,526 words from the reference across six
-sections. B-07 has no path from any source currently reachable: peer-name
-docket search for AMD returned `Amgen Inc v. Celltrion USA`, `State v. Bivings`
-and `In re: Zantac`. It stays omitted with the reason stated in Methodology.
+Five of the seven are closed and B-05 is partially closed from filing-derived
+data alone. B-06 is the only remaining item needing no new source. B-07 has no
+path from any source currently reachable: peer-name docket search for AMD
+returned `Amgen Inc v. Celltrion USA`, `State v. Bivings` and `In re: Zantac`.
+It stays omitted with the reason stated in Methodology.
 
 ---
 
@@ -1023,11 +1020,13 @@ being specified anyway.
 
 ### 4C.1 Data visualisation (V-series)
 
-**Status as of the ninth pass: not started. The current PDF contains zero
-images across 37 pages.** What was verified on 2026-07-31 was the rendering
-path, not an implementation — no chart code exists in the repository. This is
-now the largest single gap between the report and the standard James asked for,
-because everything below is buildable from data already held.
+**Status as of the tenth pass: shipped.** Eleven V-series charts render into
+the PDF for NVDA (composition, commitments, venture rollforward, capital
+allocation, DCF heatmap, interlock network, insider disposals, institutional
+concentration, federal obligations, filing cadence, revenue/margin). Figures
+are numbered, kept with their captions, and omitted when the data will not
+support them. V-11 and V-12 appear when D-01 bars / a large enough Exhibit 21
+are present.
 
 **Rendering path — verified 2026-07-31.** WeasyPrint 68.1 renders a matplotlib
 PNG embedded as a `data:` URI. It renders `data:image/svg+xml;utf8,` as well.
@@ -1159,25 +1158,24 @@ relationships that appear in public filings until that budget exists.
 
 ### 4C.4 Network trend analysis (N-series) — depends on the P-series
 
-**All five prerequisites shipped in v3.2, so the N-series is now unblocked and
-becomes the next work.** These are the "trends between investors, founders,
-employees and board seats" in concrete terms. Each is subject to the same n≥12
-suppression rule as §4C.2. Nothing in this table is built yet: the P-series
-produced the raw relationships, and the N-series is the analysis across them.
+**All five P-series prerequisites shipped in v3.2; N-01..N-07 analysis shipped
+in the eleventh pass.** These are the "trends between investors, founders,
+employees and board seats" in concrete terms. Empty comparisons are omitted
+rather than padded. Correlation-style n≥12 suppression still applies to the
+C-series, not to these register comparisons.
 
-| ID | Question the analysis answers | Inputs |
-|----|-------------------------------|--------|
-| N-01 | Which directors sit on boards of the issuer's suppliers, customers or competitors? | P-01 |
-| N-02 | Which institutions hold the issuer and its direct competitors simultaneously, and at what relative weight? | P-02 |
-| N-03 | Do the issuer's venture investments cluster in the same sub-sector as its acquisitions? | P-09 + notes parser |
-| N-04 | Do executives and directors move between the issuer and the entities it invests in or acquires? | P-01 + P-09 + Form 4 |
-| N-05 | Does a 5%+ holder appear on the register before or after a strategic announcement? | P-05 + timeline |
-| N-06 | Which subsidiaries are registered in jurisdictions inconsistent with disclosed operations? | P-07 |
-| N-07 | Do related-party counterparties overlap with subsidiaries, investees or director affiliations? | P-04 + P-07 + P-09 |
+| ID | Question the analysis answers | Inputs | Status |
+|----|-------------------------------|--------|--------|
+| N-01 | Which directors sit on boards of the issuer's suppliers, customers or competitors? | P-01 | ✅ Wired — empty when no peer/counterparty seat match |
+| N-02 | Which institutions hold the issuer and its direct competitors simultaneously, and at what relative weight? | P-02 | ✅ Wired — allocation-skew findings |
+| N-03 | Do the issuer's venture investments cluster in the same sub-sector as its acquisitions? | P-09 + notes parser | ✅ Wired — needs named ASC 321 holdings |
+| N-04 | Do executives and directors move between the issuer and the entities it invests in or acquires? | P-01 + P-09 + Form 4 | ✅ Wired — empty without named investee/acquiree seats |
+| N-05 | Does a 5%+ holder appear on the register before or after a strategic announcement? | P-05 + timeline | ✅ Wired — ±90d adjacency, no causation |
+| N-06 | Which subsidiaries are registered in jurisdictions inconsistent with disclosed operations? | P-07 | ✅ Wired — geo revenue vs Exhibit 21 |
+| N-07 | Do related-party counterparties overlap with subsidiaries, investees or director affiliations? | P-04 + P-07 + P-09 | ✅ Wired — omit when empty |
 
-N-07 is the highest-value item in the set and is reachable entirely from free
-sources. It is the closest free approximation to what a paid relationship
-database sells.
+All seven run under `### Network analysis` in the PDF. Empty legs are omitted.
+N-07 remains the highest-value item when it fires; on NVDA it correctly does not.
 
 **Standing constraint.** Every P-series finding names a natural person or a
 private relationship. The provenance rule that governs the rest of the report
