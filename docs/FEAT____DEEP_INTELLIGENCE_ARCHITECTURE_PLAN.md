@@ -37,25 +37,127 @@ what is really going on."
 | 9 | Timeline of events | §14 — 317 filing-derived events |
 | 10 | Valuation and what the market implies | §7 DCF, sensitivity grid, reverse-DCF |
 
-### 0.3 NOT built — ordered by what unblocks the most
+### 0.3 What James means by "PayPal Mafia" — decoded from the sources he sent
 
-| # | Gap | Nature | Cost |
-|---|-----|--------|------|
-| **G-01** | **News — zero.** No articles, interviews, rumours, Reddit, whale tracking | Build — the single largest hole; James has asked for it four separate times | Free/cheap feeds exist |
-| **G-02** | **Employees.** Only board and named officers; no staff career histories | Build + source decision | LinkedIn/Apify ~$0.05/profile |
-| **G-03** | **"PayPal mafia" analysis.** Schools, who met whom, what they built together | Build on top of G-02 | Depends on G-02 |
-| **G-04** | **Family networks.** Wives/children/holding entities caught only when a filing names them; no active hunting | Build | Free — state registries, Form 3/4 addresses |
-| **G-05** | **Private-round co-investors.** Who else was in the round | **Blocked — no free path** | PitchBook/Crunchbase $6–20K/yr |
-| **G-06** | **Statistical correlations.** "Insiders sell before bad news" — price bars now exist, the maths does not | Build — event-study code | Free (D-01 shipped) |
-| **G-07** | **Multi-company comparison.** Four competitors, ownership only; not deep | Build | Free — peer financials partly held |
-| **G-08** | **Interactive reports.** Static PDF; cannot click, search or drill in | Build — product decision on format | Free |
-| **G-09** | **LinkedIn deep research.** Connector exists (461 lines), switched off | Wire + settle ToS position | ~$0.05/profile |
-| **G-10** | **Data-health alerts.** Nobody is notified when a source breaks | Build — ops, explicitly requested | Free |
+On 31 July at 22:16 James sent seven links and one line of explanation:
+*"paypal mafia analysis, is so you understand the correlations."* The links
+are not a history lesson. They are a **specification**, and the Quartz /
+VentureBeat piece is the one that matters because it is the only one that
+quantifies the thing.
 
-**Two of the ten need money** (G-05 outright, G-02/G-09 marginally). The other
-eight are engineering time against sources we already reach.
+**What that analysis actually did**, in order:
 
-### 0.4 Fix before this goes to a client
+1. Fixed a **seed cohort** — 20 named people who overlapped at one company
+2. Followed each person to **every entity they later touched** — founded,
+   funded, advised, joined the board of, or ran a fund that invested
+3. Built a **co-investment graph**: 1,005 investments into 646 companies,
+   1995 → 2018
+4. Measured **edge weight as the count of shared portfolio companies** between
+   any two people
+5. Computed a **co-occurrence rate per person** — of the companies Thiel
+   backs, 31% also take money from another cohort member; Rabois 47%,
+   Sacks 46%, Levchin 41%, Banister 18%, Hoffman 16%
+6. Found the **core cluster** from edge weight alone: Sacks, Levchin, Rabois,
+   Thiel, Banister
+7. Plotted **activity over time** — 10–40 deals/year mid-2000s, ~100 in 2010,
+   70–130/year after
+8. Coded a **side attribute** (female founder present) and compared the cohort
+   against the industry base rate — 14% vs 15.5%
+9. Traced where the cluster ended up: **Founders Fund, Greylock, Craft,
+   Khosla, Sequoia, Valar, Mithril** — then into **defence contracts and
+   government policy roles**
+
+Steps 4, 5 and 6 are the correlation engine James keeps asking for. Step 9 is
+why he cares: the network's endpoint is **government contracts and policy
+influence**, which is the register we already hold in §11 and §12.
+
+The Fleximize and Leonie Wharton links are the second half of the message and
+they are about **format**, not content. Both are *interactive bubble charts* —
+click a person, see their companies; click a company, see who else is in it.
+That is the visual grammar he wants, and it is the reason G-08 (interactive
+output) sits higher than a static-PDF mindset would put it.
+
+**The transferable method, stated as our own requirement:** given any seed
+issuer, resolve every person attached to it, follow each person to every other
+entity, and report where the same people keep landing together — weighted by
+how often, plotted over time, and terminating in the contract and lobbying
+registers we already parse.
+
+### 0.4 The family and advisor correction (James, 31 July 22:20)
+
+> *"family members, might not be on payroll. They might be, other shareholders
+> or investors, with other companies or financial investment vehicles. They
+> might be, advisors, or similar. Analyze what positions family vs other
+> members have. Analyze employees deeply. Analyze board members. Analyze
+> advisors."*
+
+This is a **correction to what we built**, not a new feature. Our Item 404
+parser catches a family member only when the proxy names them **on the
+payroll**. James is saying that is the least interesting case and the easiest
+one to avoid. The positions that matter and that we currently miss:
+
+| Position family can hold | Where it is visible, free | Do we read it? |
+|--------------------------|---------------------------|----------------|
+| Shareholder in their own name | Proxy beneficial-ownership table; Form 3/4 | Partly — not flagged as family |
+| Holder via trust, LLC or partnership | Proxy footnotes name the vehicle | ❌ No |
+| Officer/director of a **different** company | Form 3 across their own CIK | ❌ Not for relatives |
+| Investor through a family office or fund | 13F, 13D/G filed by the vehicle | ❌ No |
+| Foundation trustee | IRS Form 990 (ProPublica API, free) | ❌ No |
+| Advisor — no title, no filing | Proxy prose, 8-K, press | ❌ No |
+| Counterparty to a related-party deal | Item 404 | ✅ Yes |
+
+The three free unlocks here are **proxy ownership footnotes** (which spell out
+"held by the Smith Family Trust, of which Mr Smith's spouse is trustee"),
+**Form 3/4 relationship codes and addresses**, and **Form 990 trustee lists**.
+None needs a vendor.
+
+**Advisors are the blind spot with no filing at all.** An advisor holds no
+office, files no Section 16 form and appears in no register. They surface only
+in prose — the proxy bio, an 8-K, a press release, a conference bio. That makes
+advisor coverage dependent on G-02 (news/web), which is why the two are
+sequenced together below.
+
+### 0.5 NOT built — ordered by priority, then by complexity within each tier
+
+James named the priority himself: **correlations first**. Within each tier
+items are ordered cheapest-first, so the top of each tier is the next thing to
+pick up.
+
+#### Tier 1 — Correlations and the people graph (James's stated top priority)
+
+| # | Gap | Complexity | Cost | Depends on |
+|---|-----|-----------|------|------------|
+| **G-01** | **Statistical correlations.** Insider sales vs subsequent price; 8-K event abnormal returns; 13F entry/exit levels. Price bars exist (D-01 shipped), the maths does not | Medium — event-study code, ±30 trading days, 10b5-1 sales as control | Free | Nothing — ready now |
+| **G-02** | **Co-occurrence graph (the PayPal-Mafia engine).** Seed → people → their other entities → who keeps landing together, edge-weighted by shared companies, plotted over time | High — but §0.3 steps 4–6 run on Form 3/4 + 13F we already hold | Free for public issuers | Partly built (P-01) |
+| **G-03** | **Multi-company comparison.** Four peers, ownership only. Needs financial, contract, lobbying and network comparison side by side | Medium | Free — peer financials partly held | Nothing |
+
+#### Tier 2 — People, family and the open web
+
+| # | Gap | Complexity | Cost | Depends on |
+|---|-----|-----------|------|------------|
+| **G-04** | **Family and vehicle networks.** Proxy ownership footnotes, trusts/LLCs, Form 3/4 relationship codes, Form 990 trustees. See §0.4 | Medium — parsers against sources already fetched | Free | Nothing |
+| **G-05** | **News, interviews, rumours, Reddit, whale tracking.** Currently zero. Asked for on 14, 21, 30 and 31 July | Medium — feed selection then entity resolution | Free/cheap feeds exist | Nothing |
+| **G-06** | **Advisors.** No office, no filing, prose-only | Medium | Free once G-05 lands | G-05 |
+| **G-07** | **Employee career histories.** Only board and named officers today. Schools, prior employers, who overlapped where | High | LinkedIn/Apify ~$0.05/profile | ToS decision |
+| **G-08** | **Founder track record.** Articles, books, interviews, prior ventures and how they ended | Medium | Free once G-05 lands | G-05 |
+
+#### Tier 3 — Format, operations and the one hard block
+
+| # | Gap | Complexity | Cost | Depends on |
+|---|-----|-----------|------|------------|
+| **G-09** | **Data-health alerts.** Nobody is notified when a source breaks. Explicitly requested | Low — cheapest item on the list | Free | Nothing |
+| **G-10** | **Interactive report.** Static PDF; James sent two interactive bubble charts as the target format | High — product decision on format first | Free | Format decision |
+| **G-11** | **LinkedIn deep research.** Connector exists (461 lines), switched off | Low to wire, blocked on policy | ~$0.05/profile | ToS decision |
+| **G-12** | **Private-round co-investors.** Who else was in the round | **Blocked — no free path exists** | PitchBook / Crunchbase $6–20K/yr | Purchase |
+
+**Only G-12 is genuinely blocked on money.** G-07 and G-11 need a cheap vendor
+plus a settled ToS position. The other nine are engineering time against
+sources the pipeline already reaches.
+
+**Cheapest three to start:** G-09 (alerts, low), G-01 (correlations, medium —
+and it is the stated top priority), G-04 (family vehicles, medium, free).
+
+### 0.6 Fix before this goes to a client
 
 **The lobbying section reports +3711% spend growth 2022→2026.** That is almost
 certainly sparse early-year data rather than a real trajectory. A number that
