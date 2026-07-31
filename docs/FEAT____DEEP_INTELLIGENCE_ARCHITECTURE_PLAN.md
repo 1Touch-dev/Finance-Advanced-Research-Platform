@@ -117,53 +117,51 @@ in prose — the proxy bio, an 8-K, a press release, a conference bio. That make
 advisor coverage dependent on G-02 (news/web), which is why the two are
 sequenced together below.
 
-### 0.5 NOT built — ordered by priority, then by complexity within each tier
+### 0.5 The G-series — status after the tenth pass (2026-08-01)
 
-James named the priority himself: **correlations first**. Within each tier
-items are ordered cheapest-first, so the top of each tier is the next thing to
-pick up.
+Seven of the twelve gaps are built, wired and verified against live runs. The
+five that remain need a purchase or a policy decision, not engineering time.
 
-#### Tier 1 — Correlations and the people graph (James's stated top priority)
+#### Tier 1 — Correlations and the people graph ✅ COMPLETE
 
-| # | Gap | Complexity | Cost | Depends on |
-|---|-----|-----------|------|------------|
-| **G-01** | **Statistical correlations.** Insider sales vs subsequent price; 8-K event abnormal returns; 13F entry/exit levels. Price bars exist (D-01 shipped), the maths does not | Medium — event-study code, ±30 trading days, 10b5-1 sales as control | Free | Nothing — ready now |
-| **G-02** | **Co-occurrence graph (the PayPal-Mafia engine).** Seed → people → their other entities → who keeps landing together, edge-weighted by shared companies, plotted over time | High — but §0.3 steps 4–6 run on Form 3/4 + 13F we already hold | Free for public issuers | Partly built (P-01) |
-| **G-03** | **Multi-company comparison.** Four peers, ownership only. Needs financial, contract, lobbying and network comparison side by side | Medium | Free — peer financials partly held | Nothing |
+| # | Gap | Status |
+|---|-----|--------|
+| **G-01** | **Statistical correlations** | ✅ `app/services/correlation_service.py`. Insider-sale event study using 10b5-1 sales as a same-issuer control, 8-K abnormal returns grouped by item code, lobbying-to-award cross-correlation at lag 0–3y. n<12 suppressed outright, Fisher-z intervals on every r, Bonferroni across the item groups. Negative results are returned and rendered |
+| **G-02** | **Co-occurrence graph** | ✅ `app/services/cooccurrence_service.py`. All six steps of §0.3 over two layers: people via Section 16 CIKs, capital via 13F. Clusters are connected components, not assertions |
+| **G-03** | **Multi-company comparison** | ✅ `app/services/peer_comparison_service.py`. Eleven metrics per peer across financials, federal awards, lobbying and insider behaviour, fetched in parallel. Ranks withheld unless every peer has the figure |
 
 #### Tier 2 — People, family and the open web
 
-| # | Gap | Complexity | Cost | Depends on |
-|---|-----|-----------|------|------------|
-| **G-04** | **Family and vehicle networks.** Proxy ownership footnotes, trusts/LLCs, Form 3/4 relationship codes, Form 990 trustees. See §0.4 | Medium — parsers against sources already fetched | Free | Nothing |
-| **G-05** | **News, interviews, rumours, Reddit, whale tracking.** Currently zero. Asked for on 14, 21, 30 and 31 July | Medium — feed selection then entity resolution | Free/cheap feeds exist | Nothing |
-| **G-06** | **Advisors.** No office, no filing, prose-only | Medium | Free once G-05 lands | G-05 |
-| **G-07** | **Employee career histories.** Only board and named officers today. Schools, prior employers, who overlapped where | High | LinkedIn/Apify ~$0.05/profile | ToS decision |
-| **G-08** | **Founder track record.** Articles, books, interviews, prior ventures and how they ended | Medium | Free once G-05 lands | G-05 |
+| # | Gap | Status |
+|---|-----|--------|
+| **G-04** | **Family and vehicle networks** | ✅ `app/connectors/family_network_connector.py`. Trusts, LLCs and partnerships filing Section 16 in their own right; vehicles sharing an insider surname; family foundations via Form 990 on ProPublica. Institutions separated so BlackRock is not filed as a family office |
+| **G-05** | **News, interviews, Reddit** | ✅ `app/connectors/news_intelligence_connector.py`. Google News plus dated archive windows, Finnhub, NYT, Guardian. Every item carries the rule that resolved it to the issuer. ⚠️ Reddit needs `REDDIT_CLIENT_ID`/`SECRET` — free registration, the public JSON endpoints have returned 403 since 2023 |
+| **G-06** | **Advisors** | ❌ Structurally invisible. No office, no Section 16 form, no register. The report now says so explicitly rather than leaving the absence unexplained. Reachable only through G-05 prose |
+| **G-07** | **Employee career histories** | ❌ Blocked on the same ToS decision as G-11 |
+| **G-08** | **Founder track record** | ⚠️ Partial. Coverage naming each director is surfaced through G-05; books, interviews and prior ventures are not |
 
 #### Tier 3 — Format, operations and the one hard block
 
-| # | Gap | Complexity | Cost | Depends on |
-|---|-----|-----------|------|------------|
-| **G-09** | **Data-health alerts.** Nobody is notified when a source breaks. Explicitly requested | Low — cheapest item on the list | Free | Nothing |
-| **G-10** | **Interactive report.** Static PDF; James sent two interactive bubble charts as the target format | High — product decision on format first | Free | Format decision |
-| **G-11** | **LinkedIn deep research.** Connector exists (461 lines), switched off | Low to wire, blocked on policy | ~$0.05/profile | ToS decision |
-| **G-12** | **Private-round co-investors.** Who else was in the round | **Blocked — no free path exists** | PitchBook / Crunchbase $6–20K/yr | Purchase |
+| # | Gap | Status |
+|---|-----|--------|
+| **G-09** | **Data-health alerts** | ✅ `app/services/data_health_service.py`. Separates "the source answered and there is nothing to disclose" from "the source did not answer" — the failure mode that made a missed fetch read as a clean bill of health. Twelve checks, three severities, log plus optional `DATA_HEALTH_WEBHOOK_URL` |
+| **G-10** | **Interactive report** | ✅ `app/services/interactive_report_service.py`. Single self-contained HTML from the same markdown as the PDF. Clickable bipartite network, full-text search that filters sections and table rows, sortable tables. No CDN, no framework, works offline |
+| **G-11** | **LinkedIn deep research** | ❌ Connector exists (461 lines), still switched off. **Needs a ToS decision, not code** |
+| **G-12** | **Private-round co-investors** | ❌ **Blocked on money.** PitchBook / Crunchbase, $6–20K/yr. Stated as absent in the report rather than approximated |
 
-**Only G-12 is genuinely blocked on money.** G-07 and G-11 need a cheap vendor
-plus a settled ToS position. The other nine are engineering time against
-sources the pipeline already reaches.
+**What is left needs a decision, not a sprint.** G-11 and G-07 are one ToS
+position away. G-12 is a purchase. G-06 and G-08 are as complete as free
+sources allow. Reddit is one free registration.
 
-**Cheapest three to start:** G-09 (alerts, low), G-01 (correlations, medium —
-and it is the stated top priority), G-04 (family vehicles, medium, free).
+### 0.6 Fixed before client release
 
-### 0.6 Fix before this goes to a client
-
-**The lobbying section reports +3711% spend growth 2022→2026.** That is almost
-certainly sparse early-year data rather than a real trajectory. A number that
-large will be the first thing a reader challenges, and it undermines the exact
-totals sitting beside it. Verify the early-year LDA pagination before the
-report is shown externally.
+**The +3711% lobbying growth artefact is resolved.** The rate anchored on
+whichever year appeared first in the retrieval window; where that year held a
+single filing it measured our coverage rather than the issuer's spending.
+Growth is now computed only across years carrying all four quarterly LDA
+periods against a closed year. Partial years are labelled in the table and
+excluded from the comparison, and where too few complete years exist the report
+states why no percentage is given instead of printing one.
 
 ---
 
