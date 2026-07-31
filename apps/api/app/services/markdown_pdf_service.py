@@ -123,6 +123,41 @@ code {
     padding: 0 2pt;
 }
 
+/* ── Figures ─────────────────────────────────────────────────────────── */
+/* A chart is set to the text measure so it aligns with the tables around it,
+   and is kept with its caption: a figure separated from its caption by a page
+   break is unreadable, and both are unreadable if the chart splits. */
+figure {
+    margin: 11pt 0 13pt 0;
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+figure img {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+figure figcaption {
+    margin-top: 4pt;
+    padding-top: 3pt;
+    border-top: 0.4pt solid var(--rule-light);
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 7pt;
+    line-height: 1.4;
+    color: var(--muted);
+    text-align: left;
+}
+
+figure figcaption .fig-label {
+    color: var(--accent);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-right: 4pt;
+}
+
 /* ── Cover ───────────────────────────────────────────────────────────── */
 .cover {
     page: cover;
@@ -538,6 +573,44 @@ def _style_references(soup) -> None:
         node.replace_with(*pieces)
 
 
+def _build_figures(soup, doc) -> int:
+    """Wrap each chart and the italic line under it in a numbered <figure>.
+
+    Markdown has no figure syntax, so the report emits an image paragraph
+    followed by an italic caption paragraph. Pairing them here is what lets the
+    two be kept on one page — a caption stranded at the top of the next page
+    describes a chart the reader can no longer see.
+    """
+    count = 0
+    for image in soup.find_all("img"):
+        holder = image.parent
+        if holder is None or holder.name != "p":
+            continue
+        count += 1
+        figure = doc.new_tag("figure")
+        holder.insert_before(figure)
+        figure.append(image.extract())
+
+        caption = holder.find_next_sibling()
+        text = ""
+        if caption is not None and caption.name == "p":
+            only_child = caption.find("em")
+            if only_child is not None and caption.get_text(strip=True) == \
+                    only_child.get_text(strip=True):
+                text = only_child.get_text()
+                caption.decompose()
+
+        figcaption = doc.new_tag("figcaption")
+        label = doc.new_tag("span")
+        label["class"] = "fig-label"
+        label.string = f"Figure {count}"
+        figcaption.append(label)
+        figcaption.append(text)
+        figure.append(figcaption)
+        holder.decompose()
+    return count
+
+
 def _build_contents(soup, doc):
     """Contents page listing every section with its real page number.
 
@@ -696,6 +769,7 @@ def convert_markdown_to_pdf(
         entity, ticker, subtitle = _strip_front_matter(soup)
         cover = _build_cover(soup, soup, entity or title, ticker, subtitle)
         contents = _build_contents(soup, soup)
+        _build_figures(soup, soup)
         _style_tables(soup)
         _mark_labels(soup)
         _style_references(soup)

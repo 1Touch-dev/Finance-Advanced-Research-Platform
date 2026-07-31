@@ -546,11 +546,11 @@ def build_dcf_valuation(ticker: str) -> dict:
             assessment = "SIGNIFICANTLY OVERVALUED"
 
     # ── Bear / Bull Scenarios ─────────────────────────────────────────────
-    def _scenario(growth_adj, wacc_adj):
-        """Re-run the model with shifted growth and its own discount rate."""
-        g = min(max(fcf_growth_5y + growth_adj, 0.01), 0.35)
-        w = max(wacc + wacc_adj, 0.04)
-        tg = min(terminal_growth, w - 0.01)
+    def _price_at(g, w, tg):
+        """Re-run the model at one point in the assumption space."""
+        g = min(max(g, 0.01), 0.35)
+        w = max(w, 0.04)
+        tg = min(tg, w - 0.01)
 
         pv = 0.0
         cash_flow = base_fcf
@@ -562,6 +562,10 @@ def build_dcf_valuation(ticker: str) -> dict:
         ev = pv + tv / ((1 + w) ** PROJECTION_YEARS)
         eq = max(ev - net_debt, 0)
         return round(eq / shares_out, 2) if shares_out > 0 else None
+
+    def _scenario(growth_adj, wacc_adj):
+        return _price_at(fcf_growth_5y + growth_adj, wacc + wacc_adj,
+                         terminal_growth)
 
     return {
         "ticker": ticker,
