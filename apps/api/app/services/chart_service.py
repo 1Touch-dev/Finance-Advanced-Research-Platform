@@ -859,3 +859,269 @@ def federal_obligations(contracts: Dict[str, Any]) -> List[str]:
                  "Awards where the issuer or a named subsidiary is the prime "
                  "recipient. Gaps between years are years with no award, not "
                  "missing data.")
+
+
+# ---------------------------------------------------------------------------
+# V-14  Peer comparison — the metrics where a bar chart adds to the table
+# ---------------------------------------------------------------------------
+
+@_safe
+def peer_metric_bars(comparison: Dict[str, Any]) -> List[str]:
+    """Margins and research intensity across the peer set.
+
+    Only the percentage rows are drawn. Revenue across a peer set spans an
+    order of magnitude and a bar chart of it is one tall bar and four stubs,
+    which the table already says better.
+    """
+    rows = (comparison or {}).get("rows") or []
+    companies = (comparison or {}).get("companies") or []
+    if len(companies) < 2:
+        return []
+
+    tickers = [c["ticker"] for c in companies]
+    subject = (comparison or {}).get("subject")
+    wanted = ("Gross margin", "Operating margin", "Net margin",
+              "R&D as % of revenue")
+    drawn = [r for r in rows
+             if r["metric"] in wanted
+             and sum(1 for t in tickers
+                     if isinstance(r["values"].get(t), (int, float))) >= 2]
+    if not drawn:
+        return []
+
+    _style()
+    fig, axes = plt.subplots(len(drawn), 1,
+                             figsize=(COLUMN_INCHES, 1.5 * len(drawn) + 0.4),
+                             sharex=True)
+    if len(drawn) == 1:
+        axes = [axes]
+
+    for ax, row in zip(axes, drawn):
+        values = [row["values"].get(t) for t in tickers]
+        # The subject is the amber bar. A reader should not have to find it.
+        colours = [ACCENT if t == subject else SERIES[1] for t in tickers]
+        positions = range(len(tickers))
+        ax.bar(positions, [v if isinstance(v, (int, float)) else 0
+                           for v in values],
+               color=colours, width=0.62)
+        for x, value in zip(positions, values):
+            if isinstance(value, (int, float)):
+                ax.text(x, value, f"{value:.0f}%", ha="center",
+                        va="bottom" if value >= 0 else "top",
+                        fontsize=6.5, color=MUTED)
+        ax.set_title(row["metric"], loc="left", pad=4)
+        ax.set_ylabel("%")
+        ax.grid(axis="x", visible=False)
+        ax.axhline(0, color=RULE, linewidth=0.6)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+
+    axes[-1].set_xticks(range(len(tickers)))
+    axes[-1].set_xticklabels(tickers)
+    fig.tight_layout(h_pad=1.2)
+    return _emit(fig, "Peer margins and research intensity",
+                 f"{subject} in amber. Bars are each company's most recent "
+                 f"annual filing; fiscal calendars differ and the period end "
+                 f"per company is stated in the table above. A missing bar is "
+                 f"a metric that company did not report, not a zero.")
+
+
+# ---------------------------------------------------------------------------
+# V-15  Co-occurrence graph
+# ---------------------------------------------------------------------------
+
+@_safe
+def cooccurrence_graph(graph: Dict[str, Any]) -> List[str]:
+    """The capital layer as a bipartite plot of managers against issuers.
+
+    A force-directed node graph is the conventional choice and the wrong one
+    here: at this size it produces a hairball whose layout is a property of
+    the seed rather than of the data. A bipartite plot makes the same edges
+    countable, and countable is what a reader needs from this.
+    """
+    institutional = (graph or {}).get("institutional") or {}
+    managers = institutional.get("managers") or []
+    if len(managers) < 3:
+        return []
+
+    issuers = sorted({i for m in managers for i in m["issuers"]})
+    if len(issuers) < 2:
+        return []
+    managers = managers[:14]
+
+    _style()
+    height = max(2.4, 0.26 * len(managers) + 1.0)
+    fig, ax = plt.subplots(figsize=(COLUMN_INCHES, height))
+
+    left_x, right_x = 0.0, 1.0
+    manager_y = {m["name"]: i for i, m in enumerate(reversed(managers))}
+    step = max(1, len(managers) - 1) / max(1, len(issuers) - 1)
+    issuer_y = {name: i * step for i, name in enumerate(issuers)}
+
+    for manager in managers:
+        for issuer in manager["issuers"]:
+            if issuer not in issuer_y:
+                continue
+            ax.plot([left_x, right_x],
+                    [manager_y[manager["name"]], issuer_y[issuer]],
+                    color=RULE, linewidth=0.5, alpha=0.75, zorder=1)
+
+    ax.scatter([left_x] * len(managers),
+               [manager_y[m["name"]] for m in managers],
+               s=[max(18, min(120, 14 * (m.get("count") or 1)))
+                  for m in managers],
+               color=SERIES[0], zorder=3)
+    ax.scatter([right_x] * len(issuers), [issuer_y[i] for i in issuers],
+               s=70, color=ACCENT, zorder=3)
+
+    for manager in managers:
+        ax.text(left_x - 0.03, manager_y[manager["name"]],
+                manager["name"][:34], ha="right", va="center",
+                fontsize=6.5, color=BODY)
+    for issuer in issuers:
+        ax.text(right_x + 0.03, issuer_y[issuer], issuer, ha="left",
+                va="center", fontsize=7, color=INK, fontweight="bold")
+
+    ax.set_xlim(-0.55, 1.4)
+    ax.axis("off")
+    ax.set_title("Managers holding the issuer and its peers", loc="left",
+                 pad=8)
+    return _emit(fig, "Institutional co-occurrence across the peer set",
+                 f"Each line is a 13F position. {len(managers)} managers "
+                 f"against {len(issuers)} issuers; node size is the number of "
+                 f"issuers that manager holds. Holding several competitors at "
+                 f"once is ordinary for an index manager and is shown here to "
+                 f"be counted, not to be read as intent.")
+
+
+# ---------------------------------------------------------------------------
+# V-16  Cohort activity over time
+# ---------------------------------------------------------------------------
+
+@_safe
+def cohort_activity(graph: Dict[str, Any]) -> List[str]:
+    """New outside board seats taken by the cohort, per year."""
+    activity = (graph or {}).get("activity_by_year") or []
+    if len(activity) < 4:
+        return []
+
+    years = [row["year"] for row in activity]
+    counts = [row["new_seats"] for row in activity]
+
+    fig, ax = _axes(2.0)
+    ax.bar(years, counts, color=SERIES[1], width=0.62)
+    ax.set_ylabel("New seats")
+    ax.grid(axis="x", visible=False)
+    ax.set_title("Outside board seats taken up by the cohort, by year",
+                 loc="left", pad=6)
+    for x, y in zip(years, counts):
+        ax.text(x, y, str(y), ha="center", va="bottom", fontsize=6.5,
+                color=MUTED)
+    fig.autofmt_xdate(rotation=45, ha="right")
+    return _emit(fig, "Cohort board activity by year",
+                 "Dated from each person's first Section 16 filing at that "
+                 "issuer, so a seat held before the person began reporting "
+                 "electronically will date from the filing rather than the "
+                 "appointment.")
+
+
+# ---------------------------------------------------------------------------
+# V-17  News volume by month
+# ---------------------------------------------------------------------------
+
+@_safe
+def news_volume(news: Dict[str, Any]) -> List[str]:
+    """Resolved coverage per month, split by tone."""
+    summary = (news or {}).get("summary") or {}
+    by_month = summary.get("by_month") or []
+    if len(by_month) < 4:
+        return []
+
+    articles = news.get("articles") or []
+    months = [m for m, _ in by_month]
+    index = {m: i for i, m in enumerate(months)}
+    stacks = {"negative": [0] * len(months),
+              "neutral": [0] * len(months),
+              "positive": [0] * len(months)}
+    for article in articles:
+        date = article.get("date")
+        if not date or date[:7] not in index:
+            continue
+        stacks.get(article.get("tone") or "neutral",
+                   stacks["neutral"])[index[date[:7]]] += 1
+
+    fig, ax = _axes(2.2)
+    bottom = [0] * len(months)
+    for tone, colour in (("positive", SERIES[3]), ("neutral", SERIES[1]),
+                         ("negative", ACCENT)):
+        ax.bar(months, stacks[tone], bottom=bottom, color=colour,
+               width=0.7, label=tone.title())
+        bottom = [b + v for b, v in zip(bottom, stacks[tone])]
+
+    ax.set_ylabel("Articles")
+    ax.grid(axis="x", visible=False)
+    ax.legend(loc="upper left", ncol=3, bbox_to_anchor=(0, 1.16))
+    ax.set_title("Resolved coverage by month", loc="left", pad=16)
+    if len(months) > 14:
+        for i, label in enumerate(ax.get_xticklabels()):
+            label.set_visible(i % max(1, len(months) // 12) == 0)
+    fig.autofmt_xdate(rotation=45, ha="right")
+    return _emit(fig, "News volume by month",
+                 "Only articles that resolve to the issuer are counted. "
+                 "Recent months are denser because archive retrieval thins "
+                 "with age — the shape is coverage available to us, not "
+                 "coverage published.")
+
+
+# ---------------------------------------------------------------------------
+# V-18  Insider timing — discretionary against plan
+# ---------------------------------------------------------------------------
+
+@_safe
+def insider_timing_distribution(correlations: Dict[str, Any]) -> List[str]:
+    """Mean forward return after each sale type, with its interval."""
+    timing = (correlations or {}).get("insider_timing") or {}
+    if timing.get("suppressed") or timing.get("discretionary_mean_pct") is None:
+        return []
+
+    labels, values, errors, counts = [], [], [], []
+    labels.append("Discretionary")
+    values.append(timing["discretionary_mean_pct"])
+    counts.append(timing.get("discretionary_n"))
+    if timing.get("ci_low_pct") is not None:
+        errors.append((timing["discretionary_mean_pct"] - timing["ci_low_pct"]))
+    else:
+        errors.append(0)
+
+    if timing.get("plan_mean_pct") is not None:
+        labels.append("10b5-1 plan")
+        values.append(timing["plan_mean_pct"])
+        counts.append(timing.get("plan_n"))
+        errors.append(0)
+
+    if len(labels) < 2:
+        return []
+
+    fig, ax = _axes(1.9)
+    positions = range(len(labels))
+    ax.bar(positions, values, color=[ACCENT, SERIES[2]][:len(labels)],
+           width=0.45,
+           yerr=[errors, errors], capsize=4,
+           error_kw={"elinewidth": 0.8, "ecolor": MUTED})
+    ax.axhline(0, color=RULE, linewidth=0.7)
+    ax.set_xticks(list(positions))
+    ax.set_xticklabels([f"{l}\nn={c}" for l, c in zip(labels, counts)])
+    ax.set_ylabel(f"Mean {timing.get('window_days', 30)}-day return (%)")
+    ax.grid(axis="x", visible=False)
+    ax.set_title("Share price after insider sales, by sale type",
+                 loc="left", pad=6)
+
+    verdict = ("The two differ at p<0.05."
+               if timing.get("differs_from_plan") else
+               f"The two are indistinguishable "
+               f"(p={timing.get('p_vs_plan', '—')}).")
+    return _emit(fig, "Forward return after insider sales by type",
+                 f"Whiskers are the 95% interval on the discretionary mean. "
+                 f"Plan sales are the control: their dates were fixed months "
+                 f"in advance and carry no information about the week they "
+                 f"execute in. {verdict}")

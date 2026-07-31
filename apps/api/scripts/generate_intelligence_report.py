@@ -113,6 +113,7 @@ TIMESTAMP = ""
 OUTPUT_FILENAME = ""
 OUTPUT_MD = ""
 OUTPUT_JSON = ""
+OUTPUT_HTML = ""
 
 
 def resolve_entity_name(ticker: str) -> str:
@@ -158,7 +159,7 @@ def _slug(name: str) -> str:
 def configure(ticker: str, entity_name: str = "", competitors: list = None) -> None:
     """Bind the module-level report configuration for one run."""
     global ENTITY_NAME, TICKER, COMPETITORS
-    global TIMESTAMP, OUTPUT_FILENAME, OUTPUT_MD, OUTPUT_JSON
+    global TIMESTAMP, OUTPUT_FILENAME, OUTPUT_MD, OUTPUT_JSON, OUTPUT_HTML
 
     TICKER = ticker.upper().strip()
     ENTITY_NAME = entity_name or resolve_entity_name(TICKER)
@@ -169,6 +170,7 @@ def configure(ticker: str, entity_name: str = "", competitors: list = None) -> N
     OUTPUT_FILENAME = f"{slug}_Intelligence_Report_{TIMESTAMP}.pdf"
     OUTPUT_MD = f"{slug}_Intelligence_Report_{TIMESTAMP}.md"
     OUTPUT_JSON = f"{slug}_Intelligence_Data_{TIMESTAMP}.json"
+    OUTPUT_HTML = f"{slug}_Intelligence_Report_{TIMESTAMP}.html"
 
 
 def format_currency(value, billions=False):
@@ -2249,6 +2251,715 @@ def _render_acquisitions(notes: dict, entity_name: str, m) -> list:
     return lines
 
 
+def _render_correlations(data: dict, entity_name: str) -> list:
+    """C-series — measured relationships, and the ones we declined to measure.
+
+    The negative results are printed on purpose. A reader who only ever sees
+    findings cannot tell whether we looked and found nothing or never looked,
+    and the second is what most research documents quietly do.
+    """
+    correlations = data.get("correlations") or {}
+    if not correlations or not correlations.get("ran"):
+        return []
+
+    lines = ["## Statistical Correlations", ""]
+    lines.append(
+        f"Every relationship below is co-movement between two series that "
+        f"{entity_name} or its regulators published. None of it is causal, and "
+        f"the phrasing does not imply otherwise. A finding built on fewer than "
+        f"{correlations.get('min_sample', 12)} observations is withheld rather "
+        f"than printed with a caveat, because a caveat gets read as a hedge "
+        f"and an absence gets read correctly."
+    )
+    lines.append("")
+
+    bars = correlations.get("price_bars") or 0
+    if bars:
+        lines.append(
+            f"The price series behind these tests is {bars} daily closes from "
+            f"{correlations.get('price_source') or 'market data'}."
+        )
+        lines.append("")
+
+    # ── Insider sale timing ───────────────────────────────────────────────
+    timing = correlations.get("insider_timing") or {}
+    if timing:
+        lines.append("### Do discretionary insider sales precede weakness?")
+        lines.append("")
+        window = timing.get("window_days", 30)
+        if timing.get("suppressed"):
+            lines.append(
+                f"Not measured. {timing.get('reason', 'insufficient sample')}."
+            )
+            lines.append("")
+        else:
+            lines.append(
+                f"A 10b5-1 sale is scheduled months ahead, so its date says "
+                f"nothing about what the seller knew that week. A discretionary "
+                f"sale is chosen. Comparing the two holds the issuer, the "
+                f"period and the people constant, which is what removes the "
+                f"market drift that would otherwise have to be modelled."
+            )
+            lines.append("")
+            lines.append(f"| Sale type | Dates | Mean {window}-day return after |")
+            lines.append("|-----------|------:|-------------------------------:|")
+            lines.append(
+                f"| Discretionary | {timing.get('discretionary_n')} "
+                f"| {timing.get('discretionary_mean_pct'):+.2f}% |"
+                if timing.get("discretionary_mean_pct") is not None else
+                f"| Discretionary | {timing.get('discretionary_n')} | — |")
+            if timing.get("plan_mean_pct") is not None:
+                lines.append(
+                    f"| 10b5-1 plan | {timing.get('plan_n')} "
+                    f"| {timing.get('plan_mean_pct'):+.2f}% |")
+            lines.append("")
+
+            if timing.get("ci_low_pct") is not None:
+                lines.append(
+                    f"The discretionary mean carries a 95% interval of "
+                    f"{timing['ci_low_pct']:+.2f}% to {timing['ci_high_pct']:+.2f}% "
+                    f"(p={timing.get('p_vs_zero')} against no move)."
+                )
+                lines.append("")
+
+            if timing.get("p_vs_plan") is not None:
+                spread = timing.get("spread_pct", 0)
+                if timing.get("differs_from_plan"):
+                    lines.append(
+                        f"Discretionary sales are followed by returns "
+                        f"{spread:+.2f} percentage points different from plan "
+                        f"sales, and that gap clears significance "
+                        f"(p={timing['p_vs_plan']}). It is a difference in "
+                        f"timing, not a finding about intent, and nothing in "
+                        f"the filings speaks to intent."
+                    )
+                else:
+                    lines.append(
+                        f"**No relationship.** The gap between discretionary "
+                        f"and plan sales is {spread:+.2f} percentage points at "
+                        f"p={timing['p_vs_plan']}, which is indistinguishable "
+                        f"from zero on this sample. Discretionary sellers at "
+                        f"{entity_name} are not, on this evidence, timing "
+                        f"their sales any better than the calendar does. That "
+                        f"is a result worth stating: the opposite would have "
+                        f"been reported here in the same terms."
+                    )
+                lines.append("")
+            elif timing.get("plan_note"):
+                lines.append(f"No control group — {timing['plan_note']}.")
+                lines.append("")
+
+    # ── 8-K abnormal returns ──────────────────────────────────────────────
+    events = correlations.get("event_returns") or {}
+    if events:
+        lines.append("### Price response to 8-K disclosure, by item")
+        lines.append("")
+        if events.get("suppressed"):
+            lines.append(f"Not measured. {events.get('reason')}.")
+            if events.get("largest_group"):
+                lines.append("")
+                lines.append(
+                    f"The largest single item group holds "
+                    f"{events['largest_group']} filings across "
+                    f"{events.get('item_codes_seen')} distinct item codes. "
+                    f"Widening the price window would raise the count and "
+                    f"lower the precision; it is left where it is."
+                )
+            lines.append("")
+        else:
+            lines.append(
+                f"{events['total_events']} 8-K filings fall inside the price "
+                f"window, grouped by the item code each reported. Returns are "
+                + ("adjusted for the market over the same days."
+                   if events.get("adjusted") else
+                   "**raw, not market-adjusted** — no index series was "
+                   "retrieved for this run, so a sector-wide move would show "
+                   "here as though it were company-specific.")
+            )
+            lines.append("")
+            lines.append(f"| Item | Reports | Filings | Mean {events['window_days']}-day return | p |")
+            lines.append("|------|---------|--------:|------------------------:|--:|")
+            for group in events["groups"]:
+                marker = " \\*" if group.get("significant") else ""
+                lines.append(
+                    f"| {group['item']} | {group['label']} | {group['n']} "
+                    f"| {group['mean_pct']:+.2f}%{marker} "
+                    f"| {group.get('p', '—')} |")
+            lines.append("")
+            lines.append(
+                f"\\* clears p<{events['threshold']}, the 0.05 threshold "
+                f"divided by the {events['tests_run']} groups tested. Testing "
+                f"several groups at 0.05 buys a false positive by "
+                f"construction, so the bar moves with the number of tests."
+            )
+            lines.append("")
+            if events.get("suppressed_groups"):
+                lines.append(
+                    f"{events['suppressed_groups']} further item code"
+                    f"{'' if events['suppressed_groups'] == 1 else 's'} "
+                    f"appeared too few times to measure and are omitted."
+                )
+                lines.append("")
+
+    # ── Lobbying against awards ───────────────────────────────────────────
+    lag = correlations.get("lobbying_lag") or {}
+    if lag:
+        lines.append("### Lobbying spend against federal awards")
+        lines.append("")
+        if lag.get("negative_result"):
+            lines.append(
+                f"**Not measurable on annual data.** Pairing disclosed "
+                f"lobbying with obligations at lags of nought to three years "
+                f"yields at most {lag.get('max_pairs', 0)} matched year"
+                f"{'' if lag.get('max_pairs') == 1 else 's'}, against a "
+                f"minimum of {lag.get('min_sample')}. The LDA register is "
+                f"quarterly and awards are dated to the day, so this becomes "
+                f"answerable at quarterly granularity; at annual granularity "
+                f"any coefficient would be an artefact of four or five points."
+            )
+        else:
+            best = lag.get("best") or {}
+            stat = best.get("result") or {}
+            lines.append(
+                f"The strongest association falls at a lag of "
+                f"{best.get('lag_years')} year"
+                f"{'' if best.get('lag_years') == 1 else 's'}: r={stat.get('r')} "
+                f"across {stat.get('n')} paired years, 95% interval "
+                f"{stat.get('ci_low')} to {stat.get('ci_high')}, p={stat.get('p')}. "
+                f"Lobbying and contracting both scale with the size of a "
+                f"company's federal business, so a positive coefficient is "
+                f"expected without either driving the other."
+            )
+        lines.append("")
+
+    return lines
+
+
+def _render_cooccurrence(data: dict, entity_name: str) -> list:
+    """G-02 — the co-occurrence graph over people and over capital."""
+    graph = data.get("cooccurrence") or {}
+    if not graph:
+        return []
+
+    lines = ["## Network Co-occurrence", ""]
+    lines.append(
+        f"This section asks one question in two places: when the people and "
+        f"the institutions attached to {entity_name} appear somewhere else, do "
+        f"they appear somewhere else *together*? An edge here is two parties "
+        f"filing at the same third entity. It is a fact about filings and not "
+        f"evidence of coordination."
+    )
+    lines.append("")
+    lines.append(f"*Method.* {graph.get('method')}")
+    lines.append("")
+
+    # ── People layer ──────────────────────────────────────────────────────
+    lines.append("### People")
+    lines.append("")
+    lines.append(
+        f"{graph.get('cohort_size', 0)} insiders report at "
+        f"{graph.get('entities_reached', 0)} outside entities between them."
+    )
+    lines.append("")
+
+    if graph.get("negative_result"):
+        lines.append(f"**No shared entities.** {graph['negative_result']}")
+        lines.append("")
+    elif graph.get("edges"):
+        lines.append("| Person A | Person B | Shared entities | Which |")
+        lines.append("|----------|----------|----------------:|-------|")
+        for edge in graph["edges"][:15]:
+            lines.append(
+                f"| {edge['a']} | {edge['b']} | {edge['weight']} "
+                f"| {', '.join(edge['shared'][:3])} |")
+        lines.append("")
+
+        rates = [r for r in graph.get("overlap_rates") or []
+                 if r["shared_entities"]]
+        if rates:
+            lines.append(
+                "Per person, the share of their outside entities that another "
+                "member of this cohort also reports at. This is the figure the "
+                "published analysis of the PayPal cohort reported per member "
+                "— 31% for Thiel, 47% for Rabois — and it is the most portable "
+                "number here because it needs no external benchmark to read."
+            )
+            lines.append("")
+            lines.append("| Person | Entities | Shared | Overlap rate |")
+            lines.append("|--------|---------:|-------:|-------------:|")
+            for row in rates[:12]:
+                lines.append(
+                    f"| {row['name']} | {row['entities']} "
+                    f"| {row['shared_entities']} | {row['overlap_rate']:.0f}% |")
+            lines.append("")
+
+        for cluster in (graph.get("clusters") or [])[:3]:
+            lines.append(
+                f"**Cluster of {cluster['size']}.** "
+                f"{', '.join(cluster['members'])} are joined by "
+                f"{cluster['edges']} shared-entity edge"
+                f"{'' if cluster['edges'] == 1 else 's'} across "
+                f"{len(cluster['shared_entities'])} entities "
+                f"(density {cluster['density']}). Membership is a connected "
+                f"component of the filing graph, not a judgement about who "
+                f"belongs together."
+            )
+            lines.append("")
+
+    activity = graph.get("activity_by_year") or []
+    if len(activity) > 2:
+        lines.append("| Year | New outside seats taken |")
+        lines.append("|------|------------------------:|")
+        for row in activity:
+            lines.append(f"| {row['year']} | {row['new_seats']} |")
+        lines.append("")
+
+    # ── Capital layer ─────────────────────────────────────────────────────
+    institutional = graph.get("institutional") or {}
+    if institutional:
+        lines.append("### Capital")
+        lines.append("")
+        lines.append(
+            f"Section 8 of the Clayton Act constrains the people layer; it "
+            f"does not constrain capital. {institutional['manager_count']} "
+            f"managers hold {entity_name} and at least one peer, and they are "
+            f"joined by {institutional['edge_count']} shared-issuer edges."
+        )
+        lines.append("")
+
+        fully = institutional.get("fully_shared") or []
+        if fully:
+            lines.append(
+                f"Every one of these managers holds all "
+                f"{len(fully)} issuers examined — {', '.join(fully)}. A "
+                f"co-occurrence rate of 100% across a sector is what index "
+                f"construction looks like from the inside, not a finding "
+                f"about intent, but it does mean the same handful of votes "
+                f"is cast at every company in the comparison."
+            )
+            lines.append("")
+
+        lines.append("| Manager | Issuers held | Which |")
+        lines.append("|---------|-------------:|-------|")
+        for manager in institutional["managers"][:12]:
+            lines.append(
+                f"| {manager['name']} | {manager['count']} "
+                f"| {', '.join(manager['issuers'])} |")
+        lines.append("")
+
+    # ── Endpoints ─────────────────────────────────────────────────────────
+    endpoints = graph.get("endpoints") or {}
+    capital_entities = endpoints.get("capital_entities") or []
+    if capital_entities:
+        lines.append("### Where the network lands")
+        lines.append("")
+        lines.append(
+            f"The published analysis of the PayPal cohort ends by tracing it "
+            f"into the funds its members came to run, and from there into "
+            f"defence contracts and policy roles. That endpoint is the reason "
+            f"the exercise is worth doing. Of the entities this cohort "
+            f"reaches, {len(capital_entities)} are investment-management "
+            f"vehicles: {', '.join(capital_entities[:8])}."
+        )
+        lines.append("")
+        lines.append(endpoints.get("note", ""))
+        lines.append("")
+
+    if graph.get("limits"):
+        lines.append(f"*Limits.* {graph['limits']}")
+        lines.append("")
+
+    return lines
+
+
+def _render_family_network(data: dict, entity_name: str) -> list:
+    """G-04 — positions relatives can hold that the payroll test misses."""
+    family = data.get("family_network") or {}
+    profile = family.get("position_profile") or {}
+    if not profile:
+        return []
+
+    lines = ["## Family, Trusts and Investment Vehicles", ""]
+    lines.append(
+        f"A relative on the payroll is the easiest position to find and the "
+        f"least interesting one, because it is also the easiest to avoid. The "
+        f"positions that matter are held through a vehicle — a trust, a family "
+        f"partnership, an LLC or a foundation — and each of those is visible "
+        f"in a free register. This section reads those registers for "
+        f"{entity_name} rather than relying on the proxy's Item 404 disclosure "
+        f"alone."
+    )
+    lines.append("")
+
+    census = family.get("position_census") or []
+    if census:
+        lines.append("| Position | Where it would be visible | Found |")
+        lines.append("|----------|---------------------------|------:|")
+        for row in census:
+            found = ("not readable from filings" if row["found"] is None
+                     else str(row["found"]))
+            lines.append(f"| {row['position']} | {row['visible_in']} | {found} |")
+        lines.append("")
+
+    vehicles = family.get("vehicles") or []
+    if vehicles:
+        lines.append("### Vehicles filing against the issuer")
+        lines.append("")
+        lines.append("| Vehicle | Kind | Disclosed value | Filings |")
+        lines.append("|---------|------|----------------:|--------:|")
+        for vehicle in vehicles[:15]:
+            lines.append(
+                f"| {vehicle['name']} | {vehicle['kind'].title()} "
+                f"| {format_currency(vehicle.get('value'))} "
+                f"| {vehicle.get('transactions', '—')} |")
+        lines.append("")
+    else:
+        lines.append(
+            f"No trust, partnership or limited-liability vehicle files under "
+            f"Section 16 against {entity_name}, and the proxy ownership table "
+            f"names none beyond the institutional managers. Insiders here hold "
+            f"directly. That is a real finding about how this issuer's "
+            f"ownership is structured, not a gap in the search."
+        )
+        lines.append("")
+
+    links = family.get("surname_links") or []
+    if links:
+        lines.append("### Vehicles sharing an insider's surname")
+        lines.append("")
+        for link in links[:10]:
+            lines.append(f"**{link['vehicle']}** — {link['basis']}")
+            lines.append("")
+
+    foundations = family.get("foundations") or []
+    if foundations:
+        lines.append("### Foundations carrying an insider's surname")
+        lines.append("")
+        lines.append(
+            "A private foundation files an IRS Form 990 naming its trustees "
+            "and stating the assets under their control. The match below is "
+            "on name only and is a lead to verify, not an established link."
+        )
+        lines.append("")
+        lines.append("| Foundation | Location | EIN | Matched on |")
+        lines.append("|------------|----------|-----|------------|")
+        for foundation in foundations[:12]:
+            place = ", ".join(x for x in (foundation.get("city"),
+                                          foundation.get("state")) if x)
+            lines.append(
+                f"| {foundation['name']} | {place or '—'} "
+                f"| {foundation['ein']} | {foundation['matched_on']} |")
+        lines.append("")
+
+    institutional = family.get("institutional_vehicles") or []
+    if institutional:
+        lines.append(
+            f"{len(institutional)} further vehicle"
+            f"{'' if len(institutional) == 1 else 's'} on the register "
+            f"({', '.join(v['name'] for v in institutional[:5])}) "
+            f"{'is' if len(institutional) == 1 else 'are'} identifiable as "
+            f"asset managers and excluded from the analysis above."
+        )
+        lines.append("")
+
+    lines.append(
+        "**The blind spot.** An advisor holds no office, files no Section 16 "
+        "form and appears in no register. Advisory roles exist only in prose "
+        "— interviews, announcements, conference billing — which is why they "
+        "are reachable through the news layer and nowhere else in this "
+        "document."
+    )
+    lines.append("")
+    if family.get("sources"):
+        lines.append(f"*Sources.* {'; '.join(family['sources'])}.")
+        lines.append("")
+    return lines
+
+
+def _render_peer_comparison(data: dict, entity_name: str) -> list:
+    """G-03 — the subject against peers on every axis we can source free."""
+    comparison = data.get("peer_comparison") or {}
+    rows = comparison.get("rows") or []
+    if not rows:
+        return []
+
+    companies = comparison.get("companies") or []
+    tickers = [c["ticker"] for c in companies]
+    subject = comparison.get("subject")
+
+    lines = ["## Peer Comparison", ""]
+    lines.append(
+        f"{entity_name} against {len(comparison.get('peers') or [])} peers on "
+        f"the registers used throughout this report — SEC facts, USAspending, "
+        f"the Senate LDA register and Section 16. The ownership comparison "
+        f"sits in its own section above; this is everything else."
+    )
+    lines.append("")
+    lines.append(f"*{comparison.get('fiscal_note', '')}*")
+    lines.append("")
+
+    header = "| Metric | " + " | ".join(tickers) + " | Coverage |"
+    divider = "|--------|" + "|".join("---:" for _ in tickers) + "|---------:|"
+    lines.append(header)
+    lines.append(divider)
+
+    def _cell(value, fmt):
+        if value is None:
+            return "—"
+        if fmt == "money":
+            return format_currency(value)
+        if fmt == "pct":
+            return f"{value:.1f}%"
+        return f"{value:,.0f}"
+
+    for row in rows:
+        cells = []
+        for ticker in tickers:
+            text = _cell(row["values"].get(ticker), row["format"])
+            if row.get("leader") == ticker and text != "—":
+                text = f"**{text}**"
+            cells.append(text)
+        lines.append(f"| {row['metric']} | " + " | ".join(cells)
+                     + f" | {row['coverage']} |")
+    lines.append("")
+
+    lines.append(
+        f"Bold marks the highest value in each row. {comparison['complete_metrics']} "
+        f"of {comparison['total_metrics']} metrics are available for every "
+        f"company; where one is missing the row is still shown but no ranking "
+        f"is stated, because ranking four companies out of five describes our "
+        f"retrieval rather than the market."
+    )
+    lines.append("")
+
+    periods = [f"{c['ticker']} to {c.get('period_end') or 'an unstated date'}"
+               for c in companies if c.get("period_end")]
+    if periods:
+        lines.append(f"Fiscal periods: {'; '.join(periods)}.")
+        lines.append("")
+
+    # Where the subject sits, in prose, on the rows that ranked.
+    ranked = [r for r in rows if r.get("subject_rank")]
+    if ranked:
+        leads = [r["metric"] for r in ranked if r["subject_rank"] == 1]
+        trails = [r["metric"] for r in ranked
+                  if r["subject_rank"] == len(tickers)]
+        if leads:
+            lines.append(
+                f"{entity_name} leads the set on {len(leads)} of "
+                f"{len(ranked)} ranked metrics: {', '.join(leads).lower()}."
+            )
+            lines.append("")
+        if trails:
+            lines.append(
+                f"It sits last on {', '.join(trails).lower()}. A low federal "
+                f"or lobbying figure is a statement about where a company's "
+                f"revenue comes from, not about how well it is run."
+            )
+            lines.append("")
+
+    errors = comparison.get("errors") or {}
+    if errors:
+        lines.append(
+            "Retrieval notes: "
+            + "; ".join(f"{k} ({'; '.join(v)})" for k, v in errors.items())
+            + "."
+        )
+        lines.append("")
+    return lines
+
+
+def _render_news(data: dict, entity_name: str) -> list:
+    """G-05 — coverage, themes and the people named in them."""
+    news = data.get("news_intelligence") or {}
+    articles = news.get("articles") or []
+    summary = news.get("summary") or {}
+    if not articles and not news.get("sources_failed"):
+        return []
+
+    lines = ["## News, Coverage and the Open Web", ""]
+
+    if not articles:
+        lines.append(
+            f"No coverage could be resolved to {entity_name}. Sources "
+            f"attempted: {', '.join(news.get('sources_failed') or [])}."
+        )
+        lines.append("")
+        return lines
+
+    date_range = summary.get("date_range") or []
+    lines.append(
+        f"{summary.get('article_count', 0)} articles resolved to "
+        f"{entity_name}"
+        + (f", spanning {date_range[0]} to {date_range[1]}"
+           if len(date_range) == 2 and all(date_range) else "")
+        + f". A further {news.get('dropped_unresolved', 0)} items were "
+        f"returned by the same queries and dropped because they could not be "
+        f"tied to the issuer — a headline naming a sector is not coverage of "
+        f"a company, and padding this section with near-matches would make it "
+        f"unreadable."
+    )
+    lines.append("")
+
+    queried = news.get("sources_queried") or []
+    if queried:
+        lines.append(
+            "Sources: "
+            + ", ".join(f"{s['source']} ({s['returned']})" for s in queried)
+            + "."
+        )
+        lines.append("")
+
+    themes = summary.get("themes") or []
+    if themes:
+        lines.append("### What the coverage is about")
+        lines.append("")
+        lines.append("| Theme | Articles |")
+        lines.append("|-------|---------:|")
+        for theme, count in themes:
+            lines.append(f"| {theme.title()} | {count} |")
+        lines.append("")
+
+    outlets = summary.get("top_outlets") or []
+    if outlets:
+        lines.append(
+            "Most frequent outlets: "
+            + ", ".join(f"{name} ({count})" for name, count in outlets[:8])
+            + "."
+        )
+        lines.append("")
+
+    mentions = news.get("people_mentions") or []
+    if mentions:
+        lines.append("### Insiders named in coverage")
+        lines.append("")
+        lines.append(
+            "The join between this section and the filings: an article about "
+            "the issuer that also names a director carries more than one that "
+            "does not."
+        )
+        lines.append("")
+        for person in mentions[:8]:
+            lines.append(f"**{person['person']}** — {person['count']} article"
+                         f"{'' if person['count'] == 1 else 's'}")
+            for article in person["articles"][:3]:
+                lines.append(f"- {article['date'] or '—'} — {article['title']}")
+            lines.append("")
+
+    lines.append("### Recent coverage")
+    lines.append("")
+    lines.append("| Date | Outlet | Headline | Themes |")
+    lines.append("|------|--------|----------|--------|")
+    for article in articles[:25]:
+        title = (article.get("title") or "").replace("|", "-")[:100]
+        lines.append(
+            f"| {article.get('date') or '—'} | {article.get('outlet') or '—'} "
+            f"| {title} | {', '.join(article.get('themes') or [])} |")
+    lines.append("")
+
+    tone = summary.get("tone") or {}
+    if tone:
+        lines.append(
+            f"Headline tone across the set: {tone.get('positive', 0)} "
+            f"positive, {tone.get('neutral', 0)} neutral, "
+            f"{tone.get('negative', 0)} negative. This is keyword counting on "
+            f"headlines, not sentiment analysis, and it should be read as a "
+            f"rough shape rather than a measurement."
+        )
+        lines.append("")
+
+    reddit = news.get("reddit") or []
+    if reddit:
+        lines.append("### Retail discussion")
+        lines.append("")
+        lines.append(
+            "Reddit threads mentioning the issuer. Retail chatter is not "
+            "evidence about the business and is separated from the coverage "
+            "above for that reason."
+        )
+        lines.append("")
+        lines.append("| Subreddit | Score | Thread |")
+        lines.append("|-----------|------:|--------|")
+        for post in reddit[:10]:
+            lines.append(f"| {post.get('outlet')} | {post.get('score') or 0} "
+                         f"| {(post.get('title') or '')[:80]} |")
+        lines.append("")
+    elif news.get("reddit_unavailable_reason"):
+        lines.append(
+            f"*Retail discussion is not included: "
+            f"{news['reddit_unavailable_reason']}*"
+        )
+        lines.append("")
+
+    failed = news.get("sources_failed") or []
+    if failed:
+        lines.append(f"Sources that returned nothing: {', '.join(failed)}.")
+        lines.append("")
+    return lines
+
+
+def _render_data_health(data: dict, entity_name: str) -> list:
+    """G-09 — which sources answered, and what an empty one might mean."""
+    health = data.get("data_health") or {}
+    checks = health.get("checks") or []
+    if not checks:
+        return []
+
+    lines = ["## Source Coverage for This Run", ""]
+    lines.append(
+        f"{health['healthy']} of {health['total']} sources returned data "
+        f"({health['coverage_pct']}% coverage), checked at "
+        f"{health.get('checked_at')}. This table exists because a broken "
+        f"connector does not raise an error — it returns nothing, and nothing "
+        f"renders as \"no such transactions were disclosed\". A reader cannot "
+        f"tell a clean company from a failed fetch unless the report says "
+        f"which one this was."
+    )
+    lines.append("")
+    lines.append("| Source | Status | Records | Consequence if absent |")
+    lines.append("|--------|--------|--------:|-----------------------|")
+    for check in checks:
+        status = {
+            "ok": "Returned",
+            "empty": "Empty",
+            "broken": "**Failed**",
+            "not_run": "**Not run**",
+        }.get(check["status"], check["status"])
+        lines.append(
+            f"| {check['source']} | {status} "
+            f"| {check['records'] or '—'} "
+            f"| {check['impact'] if check['status'] != 'ok' else '—'} |")
+    lines.append("")
+
+    alerts = health.get("alerts") or []
+    if alerts:
+        lines.append(
+            f"{len(alerts)} source{'' if len(alerts) == 1 else 's'} triggered "
+            f"an alert on this run. Sections depending on them are absent from "
+            f"this document rather than empty."
+        )
+        lines.append("")
+        alert = (health.get("alert") or {})
+        if alert.get("webhook_configured"):
+            lines.append(
+                "An alert was dispatched to the configured webhook."
+                if alert.get("delivered") else
+                "A webhook is configured but delivery failed; the alert is in "
+                "the run log.")
+        else:
+            lines.append(
+                "No alert webhook is configured. Set `DATA_HEALTH_WEBHOOK_URL` "
+                "to a Slack or Teams incoming-webhook address and these "
+                "alerts will be delivered as they happen rather than being "
+                "found here after the fact."
+            )
+        lines.append("")
+    else:
+        lines.append("No source failed on this run.")
+        lines.append("")
+    return lines
+
+
 def _render_network_trends(data: dict, entity_name: str) -> list:
     """N-01..N-07 — analysis across the P-series registers. Omit empty legs."""
     trends = _network_trends(data)
@@ -3798,6 +4509,13 @@ def generate_markdown_report(data: dict) -> str:
     lines.extend(_render_segments(financial.get("segments") or {}, entity_name))
     lines.extend(_render_subsidiaries(notes, entity_name))
 
+    # ── Peer Comparison ──────────────────────────────────────────────────
+    # Placed straight after the issuer's own financials: a margin is only
+    # readable against the margins of companies selling into the same market.
+    lines.extend(_render_peer_comparison(data, entity_name))
+    lines.extend(_figure(charts.peer_metric_bars(
+        data.get("peer_comparison") or {})))
+
     # ── Balance Sheet and Capital Allocation ─────────────────────────────
     if annual:
         lines.extend(_render_balance_sheet(annual, metrics, entity_name, notes))
@@ -3907,9 +4625,15 @@ def generate_markdown_report(data: dict) -> str:
             lines.append("")
 
         lines.extend(_render_related_parties(proxy, entity_name))
+        lines.extend(_render_family_network(data, entity_name))
         lines.extend(_render_interlocks(data.get("board_interlocks") or {},
                                         entity_name, proxy))
         lines.extend(_render_network_overlaps(data, entity_name))
+        lines.extend(_render_cooccurrence(data, entity_name))
+        lines.extend(_figure(charts.cooccurrence_graph(
+            data.get("cooccurrence") or {})))
+        lines.extend(_figure(charts.cohort_activity(
+            data.get("cooccurrence") or {})))
 
         for person in dossiers[:10]:
             lines.append(f"### {person.get('name', 'Unknown')}")
@@ -4239,6 +4963,18 @@ def generate_markdown_report(data: dict) -> str:
     if litigation:
         lines.extend(_render_legal(litigation, entity_name, notes))
 
+    # ── News and the Open Web ────────────────────────────────────────────
+    lines.extend(_render_news(data, entity_name))
+    lines.extend(_figure(charts.news_volume(
+        data.get("news_intelligence") or {})))
+
+    # ── Statistical Correlations ─────────────────────────────────────────
+    # After the registers and the coverage, because every input it consumes
+    # has by now been shown to the reader in its own section.
+    lines.extend(_render_correlations(data, entity_name))
+    lines.extend(_figure(charts.insider_timing_distribution(
+        data.get("correlations") or {})))
+
     # ── Event Chronology ─────────────────────────────────────────────────
     timeline = data.get("event_timeline", {}) or {}
     events = timeline.get("events") or []
@@ -4519,6 +5255,8 @@ def generate_markdown_report(data: dict) -> str:
         )
     lines.append("")
 
+    lines.extend(_render_data_health(data, entity_name))
+
     lines.append("### Reporting conventions")
     lines.append("")
     lines.append("- Figures are US GAAP in millions of USD unless otherwise labelled.")
@@ -4745,7 +5483,125 @@ def parse_args(argv=None):
     parser.add_argument("--from-json", default="",
                         help="Re-render markdown/PDF from a saved intelligence JSON "
                              "(skips connector fetch)")
+    parser.add_argument("--no-news", action="store_true",
+                        help="Skip the news, interview and open-web fetch")
+    parser.add_argument("--no-peers", action="store_true",
+                        help="Skip the peer comparison fetch (the slowest stage)")
+    parser.add_argument("--refetch", action="store_true",
+                        help="With --from-json, refetch the network-bound "
+                             "enrichment instead of reusing what was saved")
     return parser.parse_args(argv)
+
+
+def enrich(data: dict, ticker: str, entity_name: str,
+           peers=None, want_news: bool = True, want_peers: bool = True,
+           reuse: bool = True) -> dict:
+    """Run the analyses that sit on top of the fetched registers.
+
+    Split into two kinds. Pure computation — correlations, the co-occurrence
+    graph, data health — is always recomputed, because it costs nothing and
+    re-running a report after changing the maths should show the new maths.
+    Network-bound work — news, foundations, peer financials — is reused from
+    the saved payload unless `reuse` is off, which is what keeps `--from-json`
+    a seconds-long operation rather than a repeat of the full fetch.
+    """
+    print("\n[1b/4] Analysis layer")
+
+    def _cached(key):
+        return data.get(key) if reuse else None
+
+    # ── News and the open web (G-05) ──────────────────────────────────────
+    if want_news and not _cached("news_intelligence"):
+        try:
+            from app.connectors.news_intelligence_connector import (
+                get_news_intelligence)
+            people = [d.get("name") for d
+                      in ((data.get("proxy_intelligence") or {})
+                          .get("board_composition") or {}).get("directors") or []
+                      if d.get("name")]
+            data["news_intelligence"] = get_news_intelligence(
+                entity_name, ticker, people=people)
+            summary = data["news_intelligence"].get("summary") or {}
+            print(f"      News: {summary.get('article_count', 0)} articles "
+                  f"resolved from "
+                  f"{len(data['news_intelligence'].get('sources_queried') or [])} sources")
+        except Exception as error:
+            print(f"      News failed: {error}")
+            data["news_intelligence"] = {"error": str(error)[:200]}
+    elif _cached("news_intelligence"):
+        print("      News: reused from saved payload")
+
+    # ── Family, trust and vehicle networks (G-04) ─────────────────────────
+    if not _cached("family_network"):
+        try:
+            from app.connectors.family_network_connector import get_family_network
+            data["family_network"] = get_family_network(
+                entity_name,
+                data.get("proxy_intelligence") or {},
+                data.get("insider_transactions") or {},
+                include_foundations=want_news)
+            profile = data["family_network"].get("position_profile") or {}
+            print(f"      Family vehicles: {profile.get('vehicles_identified', 0)} "
+                  f"candidate, {profile.get('surname_linked', 0)} surname-linked, "
+                  f"{profile.get('foundations', 0)} foundations")
+        except Exception as error:
+            print(f"      Family network failed: {error}")
+
+    # ── Peer comparison (G-03) ────────────────────────────────────────────
+    if want_peers and not _cached("peer_comparison"):
+        try:
+            from app.services.peer_comparison_service import compare_peers
+            data["peer_comparison"] = compare_peers(ticker, data, peers or [])
+            comparison = data.get("peer_comparison") or {}
+            print(f"      Peers: {comparison.get('complete_metrics', 0)}"
+                  f"/{comparison.get('total_metrics', 0)} metrics complete "
+                  f"across {len(comparison.get('peers') or [])} companies")
+        except Exception as error:
+            print(f"      Peer comparison failed: {error}")
+    elif _cached("peer_comparison"):
+        print("      Peers: reused from saved payload")
+
+    # ── Correlations (G-01) ───────────────────────────────────────────────
+    try:
+        from app.services.correlation_service import run_all
+        data["correlations"] = run_all(data)
+        print(f"      Correlations: {data['correlations'].get('ran', 0)} "
+              f"analyses on {data['correlations'].get('price_bars', 0)} price bars")
+    except Exception as error:
+        print(f"      Correlations failed: {error}")
+
+    # ── Co-occurrence graph (G-02) ────────────────────────────────────────
+    try:
+        from app.services.cooccurrence_service import build_cooccurrence
+        graph = build_cooccurrence(data, entity_name)
+        data["cooccurrence"] = graph
+        if graph:
+            institutional = graph.get("institutional") or {}
+            print(f"      Network: {graph.get('cohort_size', 0)} people over "
+                  f"{graph.get('entities_reached', 0)} entities, "
+                  f"{graph.get('edge_count', 0)} people edges, "
+                  f"{institutional.get('edge_count', 0)} capital edges")
+    except Exception as error:
+        print(f"      Co-occurrence failed: {error}")
+
+    # ── Data health (G-09) ────────────────────────────────────────────────
+    try:
+        from app.services.data_health_service import run_health_checks, send_alert
+        health = run_health_checks(data)
+        data["data_health"] = health
+        delivery = send_alert(health, entity_name, ticker)
+        data["data_health"]["alert"] = delivery
+        print(f"      Health: {health['healthy']}/{health['total']} sources "
+              f"({health['coverage_pct']}%)"
+              + (f" — {len(health['alerts'])} alert(s)"
+                 if health.get("alerts") else ""))
+        for alert in health.get("alerts") or []:
+            print(f"        [{alert['severity']}] {alert['source']}: "
+                  f"{alert['detail']}")
+    except Exception as error:
+        print(f"      Health checks failed: {error}")
+
+    return data
 
 
 def main(argv=None):
@@ -4811,6 +5667,13 @@ def main(argv=None):
         else:
             print("      Phase 2 not available, using legacy mode")
             phase2_data = {}
+
+    # Step 1b: the analysis layer on top of the fetched registers
+    if phase2_data:
+        phase2_data = enrich(
+            phase2_data, TICKER, ENTITY_NAME, peers=COMPETITORS,
+            want_news=not args.no_news, want_peers=not args.no_peers,
+            reuse=bool(args.from_json) and not args.refetch)
 
     # Step 2: Generate markdown report
     print("\n[2/4] Generating markdown report...")
@@ -4882,6 +5745,26 @@ def main(argv=None):
             import traceback
             traceback.print_exc()
 
+    # The interactive rendering is built from the same markdown as the PDF, so
+    # the two cannot disagree about content — only about what you can do with it.
+    html_path = os.path.join(output_base, OUTPUT_HTML)
+    try:
+        from app.services.interactive_report_service import (
+            generate_interactive_report)
+        result = generate_interactive_report(
+            markdown_report, phase2_data, html_path, ENTITY_NAME, TICKER)
+        if result.get("written"):
+            print(f"      Interactive: {html_path}")
+            print(f"      Interactive size: {result['bytes']:,} bytes, "
+                  f"{result['sections']} sections, {result['nodes']} nodes, "
+                  f"{result['links']} connections")
+        else:
+            print(f"      Interactive skipped: {result.get('reason')}")
+            html_path = ""
+    except Exception as e:
+        print(f"      Interactive report failed: {e}")
+        html_path = ""
+
     # Summary
     print("\n" + "=" * 70)
     print("REPORT GENERATION COMPLETE")
@@ -4891,7 +5774,11 @@ def main(argv=None):
     print(f"  JSON: {json_path}")
     if os.path.exists(pdf_path):
         print(f"  PDF: {pdf_path}")
+    if html_path and os.path.exists(html_path):
+        print(f"  Interactive: {html_path}")
     print(f"\nOpen markdown: open '{md_path}'")
+    if html_path and os.path.exists(html_path):
+        print(f"Open interactive: open '{html_path}'")
 
     return 0
 
