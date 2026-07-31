@@ -34,7 +34,7 @@ import sys
 import json
 import time
 import logging
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -1546,6 +1546,476 @@ def _render_acquisitions(notes: dict, entity_name: str, m) -> list:
     return lines
 
 
+def _render_related_parties(proxy: dict, entity_name: str) -> list:
+    """Item 404 disclosures: who inside the company transacts with it.
+
+    A related-party transaction is disclosed precisely because the counterparty
+    is not at arm's length. The proxy states the relationship and the amount,
+    which together are the conflict — neither is inferable from the financials.
+    """
+    transactions = (proxy or {}).get("related_party_transactions") or []
+    real = [t for t in transactions if not t.get("is_routine")]
+    if not real:
+        return []
+
+    # Several proxies are read, and each restates the prior two years, so one
+    # standing arrangement appears many times. Grouping by the insider named in
+    # the disclosure turns that repetition into what it actually is: an
+    # arrangement with a history, rather than a list of separate transactions.
+    def principal(text: str) -> str:
+        match = re.search(
+            r"\bof\s+((?:Mr|Mrs|Ms|Dr)\.?\s+[A-Z][\w'-]+"
+            r"|[A-Z][\w'-]+(?:[- ][A-Z][\w'-]+){1,2})", text or "")
+        if not match:
+            return ""
+        return match.group(1).split()[-1].strip(",.")
+
+    def fiscal_year(text: str) -> str:
+        match = re.search(r"[Ff]iscal(?:\s+year)?\s+(\d{4})", text or "")
+        return match.group(1) if match else ""
+
+    groups: dict = {}
+    for entry in real:
+        text = entry.get("sentence") or entry.get("text", "")
+        key = (entry.get("category"), principal(text)
+               or (entry.get("counterparties") or [""])[0].lower())
+        groups.setdefault(key, []).append(entry)
+
+    lines = ["### Related-party transactions", ""]
+    lines.append(
+        f"Item 404 of Regulation S-K requires {entity_name} to disclose any "
+        f"transaction above $120,000 in which a director, executive officer, "
+        f"five percent holder or an immediate family member of one of them has "
+        f"a material interest. The proxies read here carry {len(real)} such "
+        f"passages, describing {len(groups)} distinct "
+        f"{'arrangement' if len(groups) == 1 else 'arrangements'} — each proxy "
+        f"restates the two preceding years, so a standing arrangement recurs "
+        f"across filings."
+    )
+    lines.append("")
+
+    ordered = sorted(
+        groups.items(),
+        key=lambda kv: max((e.get("largest_amount") or 0) for e in kv[1]),
+        reverse=True)
+
+    for (category, who), entries in ordered:
+        entries = sorted(entries, key=lambda e: e.get("largest_amount") or 0,
+                         reverse=True)
+        named = next((c for e in entries for c in (e.get("counterparties") or [])),
+                     None)
+        relationship = next((e.get("relationship") for e in entries
+                             if e.get("relationship")), None)
+
+        if category == "family employment" and who:
+            heading = f"Family members of {who} on the payroll"
+        elif named:
+            heading = named
+        else:
+            heading = {
+                "family employment": "Employment of a family member",
+                "entity transaction": "Transaction with a related entity",
+            }.get(category or "", "Related-party disclosure")
+
+        opening = f"**{heading}.**"
+        # The heading already names the insider for a family arrangement, and a
+        # single disclosure often covers more than one relative.
+        if relationship and not (category == "family employment" and who):
+            opening += (f" The proxy identifies the counterparty as the "
+                        f"{relationship} of a named officer or director.")
+        largest = max((e.get("largest_amount") or 0) for e in entries)
+        if largest:
+            opening += (f" The largest amount disclosed is "
+                        f"{format_currency(largest)}.")
+        lines.append(opening)
+        lines.append("")
+
+        # Quote each distinct passage once, newest fiscal year first, and drop
+        # a passage that adds no figure where a quantified one already stands.
+        quoted, seen = [], set()
+        for entry in entries:
+            text = " ".join((entry.get("sentence")
+                             or entry.get("text", "")).split())
+            if text.lower() in seen:
+                continue
+            seen.add(text.lower())
+            quoted.append((fiscal_year(text), entry.get("largest_amount"), text))
+
+        quantified = [q for q in quoted if q[1]]
+        for year, _amount, text in sorted(
+                quantified or quoted, key=lambda q: q[0], reverse=True):
+            lines.append(f"> {text}")
+            lines.append("")
+        if quantified and len(quoted) > len(quantified):
+            context = next(t for _, amount, t in quoted if not amount)
+            lines.append(f"The arrangement is introduced as: {context}")
+            lines.append("")
+
+    routine = [t for t in transactions if t.get("is_routine")]
+    if routine:
+        lines.append(
+            f"A further {len(routine)} passage"
+            f"{'' if len(routine) == 1 else 's'} in the same section "
+            f"{'restates' if len(routine) == 1 else 'restate'} the review policy "
+            f"or the $120,000 threshold itself rather than describing a "
+            f"transaction, and {'is' if len(routine) == 1 else 'are'} excluded."
+        )
+        lines.append("")
+    return lines
+
+
+def _render_interlocks(interlocks: dict, entity_name: str) -> list:
+    """Other public-company seats held by this issuer's directors and officers."""
+    people = (interlocks or {}).get("people") or []
+    if not people:
+        return []
+
+    summary = interlocks.get("summary", {})
+    current = [p for p in people if p.get("current_seat_count")]
+
+    lines = ["### Board interlocks and outside seats", ""]
+    lines.append(
+        f"Every person who reports under Section 16 keeps a single SEC "
+        f"identifier for life, across every issuer where they serve. Reading "
+        f"back the issuers named in their initial ownership statements gives "
+        f"each individual's other public-company roles from their own sworn "
+        f"filings. Of {summary.get('people_checked', 0)} "
+        f"{entity_name} insiders checked, {len(people)} have reported at "
+        f"another issuer and {len(current)} hold a seat that is still active."
+    )
+    lines.append("")
+    lines.append(
+        f"Nothing in Section 16 records a departure, so a role counts as "
+        f"current here only where the person has filed at that issuer since "
+        f"{summary.get('current_since', 'the cutoff')}; a two-year window spans "
+        f"an annual grant cycle, which a sitting director would normally trigger."
+    )
+    lines.append("")
+
+    for person in people[:12]:
+        active = [s for s in person["other_seats"] if s.get("current")]
+        lapsed = [s for s in person["other_seats"] if not s.get("current")]
+        roles = ", ".join(person.get("roles_at_issuer") or []) or "insider"
+
+        if active:
+            described = "; ".join(
+                f"{s['issuer']}"
+                + (f" ({s['ticker']})" if s.get("ticker") else "")
+                + f" as {', '.join(s['roles']).lower()}" if s.get("roles")
+                else s["issuer"] for s in active)
+            lines.append(
+                f"**{person['name']}** — {roles} at {entity_name} — currently "
+                f"reports at {described}."
+            )
+        else:
+            lines.append(
+                f"**{person['name']}** — {roles} at {entity_name} — reports no "
+                f"other active seat."
+            )
+        if lapsed:
+            history = ", ".join(
+                f"{s['issuer']} (last filed {s['last_filed']})"
+                for s in lapsed[:6])
+            lines.append("")
+            lines.append(
+                f"Earlier roles, where the last filing at the issuer predates "
+                f"the currency window: {history}."
+                + (f" A further {len(lapsed) - 6} are on file."
+                   if len(lapsed) > 6 else "")
+            )
+        lines.append("")
+
+    shared = interlocks.get("shared_boards") or []
+    if shared:
+        lines.append(
+            "Two or more of this board sit together elsewhere, which is the "
+            "interlock proper rather than an individual's unrelated seat:"
+        )
+        lines.append("")
+        for entry in shared:
+            lines.append(f"- **{entry['issuer']}** — "
+                         f"{', '.join(entry['directors'])}.")
+        lines.append("")
+    else:
+        lines.append(
+            "No two of these people sit on the same outside board. That is the "
+            "expected result: section 8 of the Clayton Act prohibits a person "
+            "from serving as a director of two competing corporations, so a "
+            "shared seat among a single issuer's directors is uncommon and "
+            "worth examining where it occurs."
+        )
+        lines.append("")
+    return lines
+
+
+def _render_beneficial_ownership(beneficial: dict, entity_name: str) -> list:
+    """Five percent holders from Schedule 13D and 13G."""
+    holders = (beneficial or {}).get("holders") or []
+    stakes = (beneficial or {}).get("stakes_in_others") or []
+    if not holders and not stakes:
+        return []
+
+    lines = ["### Five percent holders (Schedule 13D/G)", ""]
+    if holders:
+        activist = beneficial.get("activist_filings", 0)
+        lines.append(
+            f"A Schedule 13 is triggered by crossing five percent of a class, "
+            f"which makes it a different record from a 13F: it captures "
+            f"strategic and insider blocks a quarterly manager report never "
+            f"shows, and the choice of form states intent. A 13D asserts a "
+            f"purpose of influencing control; a 13G disclaims it. "
+            f"{entity_name} has {beneficial.get('passive_filings', 0)} passive "
+            f"and {activist} control-intent "
+            f"{'filing' if activist == 1 else 'filings'} on record."
+        )
+        lines.append("")
+        lines.append("| Holder | Percent of class | Form | Filed | Stated intent |")
+        lines.append("|--------|-----------------|------|-------|---------------|")
+        for holder in holders[:15]:
+            lines.append(
+                f"| {holder['holder']} "
+                f"| {holder['percent_of_class']:.2f}% "
+                f"| {holder['form']} | {holder['filed']} "
+                f"| {holder['intent']} |"
+            )
+        lines.append("")
+        read = beneficial.get("passive_filings", 0) + activist
+        lines.append(
+            f"Each figure is the percentage stated in that holder's most recent "
+            f"schedule, so the dates differ by holder and none is restated to a "
+            f"common measurement point. {read} schedules were read and "
+            f"{len(holders)} carried a percentage in a form that could be "
+            f"parsed; the remainder are amendments that restate an exhibit "
+            f"without repeating the cover-page figures."
+        )
+        lines.append("")
+        newest = max((h["filed"] for h in holders), default="")
+        if newest and newest < (date.today() - timedelta(days=550)).isoformat():
+            lines.append(
+                f"The most recent of these was filed {newest}. A Schedule 13 is "
+                f"amended only when a position changes materially, so an "
+                f"interval of this length is not itself unusual — but these "
+                f"percentages are the last stated positions, not current ones."
+            )
+            lines.append("")
+        for holder in holders:
+            if holder.get("purpose"):
+                lines.append(
+                    f"**{holder['holder']}** filed on a control-intent basis. "
+                    f"The stated purpose reads:"
+                )
+                lines.append("")
+                lines.append(f"> {holder['purpose']}")
+                lines.append("")
+
+    if stakes:
+        lines.append(
+            f"The same schedules run in the other direction. {entity_name} has "
+            f"itself crossed five percent of another public company and filed "
+            f"accordingly, which places these positions on the public record "
+            f"where an ordinary corporate investment would not appear:"
+        )
+        lines.append("")
+        for stake in stakes[:10]:
+            lines.append(
+                f"- **{stake['subject']}** — {stake['percent_of_class']:.2f}% "
+                f"of the class, {stake['form']} filed {stake['filed']}."
+            )
+        lines.append("")
+    return lines
+
+
+def _render_venture_portfolio(notes: dict, entity_name: str, m) -> list:
+    """The private-equity portfolio from the non-marketable securities note."""
+    investments = (notes or {}).get("investments") or []
+    rollforward = next((i for i in investments
+                        if i.get("kind") == "portfolio_rollforward"), None)
+    if not rollforward:
+        return []
+
+    opening = rollforward.get("opening_balance") or 0
+    closing = rollforward.get("closing_balance") or 0
+    additions = rollforward.get("net_additions") or 0
+
+    lines = ["### Private company holdings", ""]
+    lines.append(
+        f"Equity stakes in companies with no public market are carried under "
+        f"the measurement alternative and disclosed as a rollforward rather "
+        f"than a holdings list. The note does not name the investees, but it "
+        f"does size the programme, and the year's movement is the clearest "
+        f"available measure of how much capital {entity_name} is directing "
+        f"into private companies."
+    )
+    lines.append("")
+    lines.append("| Movement | Amount |")
+    lines.append("|----------|--------|")
+    for field, label in (("opening_balance", "Balance at start of year"),
+                         ("net_additions", "Net additions"),
+                         ("unrealized_gains", "Unrealised gains"),
+                         ("impairments", "Impairments and unrealised losses"),
+                         ("sales", "Sales and reclassifications"),
+                         ("closing_balance", "Balance at end of year")):
+        value = rollforward.get(field)
+        if value is not None:
+            # A rollforward reads as a column of movements, so a reduction is
+            # shown in brackets rather than with a sign inside the currency.
+            rendered = f"({m(abs(value))})" if value < 0 else m(value)
+            lines.append(f"| {label} | {rendered} |")
+    lines.append("")
+
+    if opening and closing:
+        multiple = closing / opening if opening else 0
+        lines.append(
+            f"The portfolio moved from {m(opening)} to {m(closing)}"
+            + (f", a {multiple:.1f}-fold increase" if multiple >= 1.5 else "")
+            + (f", of which {m(additions)} is new capital deployed rather than "
+               f"revaluation of positions already held" if additions else "")
+            + "."
+        )
+        if additions and closing:
+            lines.append("")
+            lines.append(
+                f"That distinction matters: {additions / closing * 100:.0f}% of "
+                f"the closing balance arrived during the year, so the position "
+                f"reflects current deployment rather than an accumulated legacy "
+                f"book."
+            )
+        lines.append("")
+
+    for entry in investments:
+        if entry.get("kind") == "disclosure":
+            lines.append(f"The note also states {entry['measure']} of "
+                         f"{m(entry['amount'])}.")
+            lines.append("")
+    return lines
+
+
+def _render_subsidiaries(notes: dict, entity_name: str) -> list:
+    """Legal structure from Exhibit 21."""
+    data = (notes or {}).get("subsidiaries") or {}
+    entities = data.get("subsidiaries") or []
+    if not entities:
+        return []
+
+    by_jurisdiction = sorted((data.get("by_jurisdiction") or {}).items(),
+                             key=lambda kv: -kv[1])
+    total = len(entities)
+
+    lines = ["## Corporate Structure", "", "### Subsidiaries and jurisdictions", ""]
+    lines.append(
+        f"Item 601(b)(21) requires the 10-K to list significant subsidiaries "
+        f"and the jurisdiction in which each is organised. It is the only "
+        f"public statement of {entity_name}'s legal structure. The exhibit "
+        f"names {total} "
+        f"{'entity' if total == 1 else 'entities'} across "
+        f"{len([j for j, _ in by_jurisdiction if j != 'Not Stated'])} "
+        f"jurisdictions."
+    )
+    lines.append("")
+    lines.append("| Jurisdiction | Entities |")
+    lines.append("|--------------|---------:|")
+    for jurisdiction, count in by_jurisdiction[:15]:
+        lines.append(f"| {jurisdiction} | {count} |")
+    lines.append("")
+
+    # Jurisdictions that carry no operations are worth separating: an entity
+    # organised there is a financing or holding structure, not a business.
+    holding = {"cayman islands", "bermuda", "luxembourg", "ireland",
+               "netherlands", "british virgin islands", "jersey", "guernsey",
+               "mauritius", "curacao", "barbados", "panama"}
+    offshore = [(j, c) for j, c in by_jurisdiction if j.lower() in holding]
+    if offshore:
+        named = ", ".join(f"{count} in {jurisdiction}"
+                          for jurisdiction, count in offshore)
+        share = sum(c for _, c in offshore) / total * 100
+        lines.append(
+            f"{sum(c for _, c in offshore)} of the {total} entities "
+            f"({share:.0f}%) are organised in jurisdictions used principally "
+            f"for holding and financing structures — {named}. The exhibit "
+            f"states where each entity is organised and nothing about what it "
+            f"does, so this is a structural observation and not a finding about "
+            f"where profit is recognised."
+        )
+        lines.append("")
+
+    lines.append("The full list as filed:")
+    lines.append("")
+    for entity in entities[:120]:
+        jurisdiction = entity.get("jurisdiction") or "jurisdiction not stated"
+        lines.append(f"- {entity['name']} — {jurisdiction}")
+    if len(entities) > 120:
+        lines.append(f"- ...and {len(entities) - 120} further entities in the "
+                     f"exhibit.")
+    lines.append("")
+    if data.get("source_url"):
+        lines.append(f"Source: [Exhibit 21]({data['source_url']}).")
+        lines.append("")
+    return lines
+
+
+def _render_overlap(overlap: dict, entity_name: str) -> list:
+    """Where the same managers hold this issuer and its competitors."""
+    # The peer comparison wraps the analysis; a single-issuer run returns it flat.
+    analysis = (overlap or {}).get("overlap_analysis") or overlap or {}
+    shared = analysis.get("shared_holders") or []
+    if not shared:
+        return []
+
+    summary = analysis.get("summary") or {}
+    lines = ["### Common ownership with competitors", ""]
+    lines.append(
+        f"The same institutions appear on the register of {entity_name} and of "
+        f"its competitors. The overlap itself is not informative — an index "
+        f"manager holds every large issuer by construction, and because this "
+        f"comparison polls a curated set of the largest filers rather than the "
+        f"whole 13F universe, the overlap rate converges on 100% whatever the "
+        f"issuer. What the same filings do support is the relative weight each "
+        f"manager assigns."
+    )
+    lines.append("")
+    lines.append("| Manager | Held across | Combined value | Relative weight | Reads as |")
+    lines.append("|---------|-------------|----------------|-----------------|----------|")
+    for holder in shared[:15]:
+        details = holder.get("details_by_ticker") or {}
+        name = next((d.get("original_name") for d in details.values()
+                     if d.get("original_name")), holder.get("normalized_name", "—"))
+        skew = holder.get("weight_skew")
+        if skew is None:
+            skew_text, reading = "—", "not comparable"
+        else:
+            skew_text = f"{skew:.2f}x"
+            reading = ("conviction" if skew >= 2 else
+                       "index tracking" if skew <= 1.3 else "mild tilt")
+            if holder.get("overweight") and skew >= 2:
+                reading += f" in {holder['overweight']}"
+        lines.append(
+            f"| {name} | {holder.get('count', 0)} issuers "
+            f"| {format_currency(holder.get('total_value_across_all'))} "
+            f"| {skew_text} | {reading} |"
+        )
+    lines.append("")
+    lines.append(
+        "Relative weight compares how much of a manager's own portfolio sits "
+        "in this issuer against the same manager's position in the peer named "
+        "in its filings. A manager tracking an index reproduces the market's "
+        "weights and lands near 1.0; a wide spread is an active decision. That "
+        "the index trackers cluster together while the active managers scatter "
+        "is what indicates the measure is reading something real."
+    )
+    lines.append("")
+
+    flags = [f for f in (analysis.get("risk_flags") or [])
+             if f.get("type") == "allocation_skew"]
+    for flag in flags[:6]:
+        lines.append(f"- {flag.get('detail') or flag.get('description', '')}")
+    if flags:
+        lines.append("")
+    if summary.get("holder_universe"):
+        lines.append(f"Holder universe: {summary['holder_universe']}.")
+        lines.append("")
+    return lines
+
+
 def _render_balance_sheet(annual: list, metrics: dict, entity_name: str,
                           notes: dict = None) -> list:
     """Balance sheet and capital allocation, section 6.
@@ -1772,6 +2242,7 @@ def _render_balance_sheet(annual: list, metrics: dict, entity_name: str,
         lines.append("")
 
     lines.extend(_render_acquisitions(notes, entity_name, m))
+    lines.extend(_render_venture_portfolio(notes, entity_name, m))
 
     # ── 6.3 Working capital cycle ────────────────────────────────────────
     revenue = val(now, "Revenues")
@@ -2457,6 +2928,7 @@ def generate_markdown_report(data: dict) -> str:
 
     # ── Segment, Geographic and Customer Concentration ───────────────────
     lines.extend(_render_segments(financial.get("segments") or {}, entity_name))
+    lines.extend(_render_subsidiaries(notes, entity_name))
 
     # ── Balance Sheet and Capital Allocation ─────────────────────────────
     if annual:
@@ -2566,6 +3038,10 @@ def generate_markdown_report(data: dict) -> str:
                          f" — {sop.get('source', 'source unrecorded')}.")
             lines.append("")
 
+        lines.extend(_render_related_parties(proxy, entity_name))
+        lines.extend(_render_interlocks(data.get("board_interlocks") or {},
+                                        entity_name))
+
         for person in dossiers[:10]:
             lines.append(f"### {person.get('name', 'Unknown')}")
             lines.append(f"**{person.get('title', '')}**")
@@ -2660,6 +3136,11 @@ def generate_markdown_report(data: dict) -> str:
                               for s in holdings["stale_filers"])
             lines.append(f"Excluded as no longer filing under the polled CIK: {stale}.")
             lines.append("")
+
+        lines.extend(_render_beneficial_ownership(
+            data.get("beneficial_ownership") or {}, entity_name))
+        lines.extend(_render_overlap(
+            data.get("institutional_overlap") or {}, entity_name))
 
     # ── Federal Contracting ──────────────────────────────────────────────
     contracts = data.get("contract_intelligence", {}) or {}

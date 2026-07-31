@@ -323,6 +323,54 @@ reach no court, and carries the ASC 450 assessment — that liabilities are
 reasonably possible but not probable, so nothing is accrued — which no external
 source has. §10 now leads with the note and treats the docket as corroboration.
 
+### ✅ RESOLVED: THE P0 NETWORK LAYER (2026-07-31, ninth pass)
+
+All six free-source network capabilities now reach the PDF. Two were broken
+connectors, four were not built. Findings below are from live runs, not
+fixtures.
+
+**P-02 institutional overlap** read holders through yfinance, which is not
+installed, so a complete comparison engine returned zeros for every input. It
+also emitted a HIGH-severity flag reading "very high institutional overlap
+(100%) — selling pressure may cascade". That 100% is an artifact of polling a
+curated list of the largest 13F filers, all of whom hold every large-cap by
+construction; the connector was reporting our sampling method as a market
+observation, the same defect class as the fabricated say-on-pay flag. Replaced
+with allocation skew, which the same filings genuinely support. The validation
+is that index trackers cluster at 1.15–1.27x while active managers scatter:
+Wellington 21.5x toward AVGO over INTC, Fidelity 4.4x toward NVDA over AMD.
+
+**P-04 related-party** emitted bare dollar amounts captioned "Related party
+transaction disclosed in proxy". Rewritten, it finds Huang's daughter and son
+at $1,232,000 and $1,320,000, the Huang Foundation's $108.3M GPU compute
+agreement with CoreWeave, Walmart's $48.1M to a company owned by McMillon's
+brother-in-law, and JPMorgan's $25.6M of Aladdin payments to BlackRock.
+Rendering groups by the insider named rather than listing each passage: a proxy
+restates the prior two years, so 13 passages for NVIDIA are 3 standing
+arrangements, and the grouped view shows the escalation from $370K to $1.23M
+that a flat list hides.
+
+**P-01 board interlocks** — built, but not as this plan specified. See the
+implementation note in §4C.3: the peer-roster comparison the plan called for
+cannot work, because the Clayton Act prohibits the interlock it searches for.
+
+**P-05 beneficial ownership**, **P-07 Exhibit 21** and **P-09 the venture
+portfolio** were built from scratch. P-09 reads the ASC 321 rollforward rather
+than prose, which is where the disclosure actually lives: NVIDIA's private
+holdings went from $3,387M to $22,251M on $17,444M of net additions, so 78% of
+the closing balance is capital deployed during the year rather than revaluation.
+
+Three faults caught only by running the basket. Splitting sentences on any full
+stop cut "the son of Dr. Shah was approximately $265,000" in half and dropped
+every figure. Taking the last heading match ran Walmart and Coca-Cola into the
+compensation tables, reporting TSR modifiers as related-party transactions. And
+the policy boilerplate restating the rule's own $120,000 threshold reads exactly
+like a transaction — that one would have shipped a fake finding to every issuer.
+
+Coverage is honest rather than uniform: Photronics files no Exhibit 21, and
+JPMorgan and Walmart disclose no non-marketable rollforward. Those sections are
+omitted with the reason stated instead of padded.
+
 ---
 
 ## 📊 GAP ANALYSIS: Current Output vs Reference Report
@@ -1003,20 +1051,38 @@ perceived value.
 
 | ID | Capability | Source | Cost | Priority | State |
 |----|------------|--------|------|----------|-------|
-| P-04 | Related-party transactions | DEF 14A Item 404 | Free | **P0** | Parser exists in `proxy_statement_connector.py`, unrendered |
-| P-07 | Subsidiary and affiliate map | 10-K Exhibit 21 | Free | **P0** | Not built — Ex. 21 is in the filing index already fetched |
-| P-02 | Institutional overlap — managers holding this issuer and its peers | 13F-HR, already parsed | Free | **P0** | Connector exists (469 lines), unwired |
-| P-01 | Board interlocks — shared directorships across issuers | DEF 14A across peer CIKs | Free | **P0** | Connector exists (859 lines), unwired, untested |
-| P-05 | Beneficial ownership above 5%, activist stakes | SC 13D/G | Free | **P0** | Not built |
-| P-09 | Company's own venture and strategic investments | 10-K non-marketable equity securities note | Free | **P0** | Reachable now via `filing_notes_connector.py` |
+| P-04 | Related-party transactions | DEF 14A Item 404 | Free | **P0** | ✅ **Shipped v3.2** — parser rewritten, rendered under Key Personnel |
+| P-07 | Subsidiary and affiliate map | 10-K Exhibit 21 | Free | **P0** | ✅ **Shipped v3.2** — `filing_notes_connector.get_subsidiaries`, own report section |
+| P-02 | Institutional overlap — managers holding this issuer and its peers | 13F-HR, already parsed | Free | **P0** | ✅ **Shipped v3.2** — repointed at 13F, allocation skew replaces the artifact flag |
+| P-01 | Board interlocks — shared directorships across issuers | Form 3 across each insider's own CIK | Free | **P0** | ✅ **Shipped v3.2** — `board_interlock_connector.get_board_interlocks` |
+| P-05 | Beneficial ownership above 5%, activist stakes | SC 13D/G | Free | **P0** | ✅ **Shipped v3.2** — `board_interlock_connector.get_beneficial_owners`, both directions |
+| P-09 | Company's own venture and strategic investments | 10-K non-marketable equity securities note | Free | **P0** | ✅ **Shipped v3.2** — ASC 321 rollforward parsed and rendered |
 | P-08 | Auditor, counsel and banker relationships | 10-K, DEF 14A, 8-K | Free | P1 | Not built |
 | P-03 | Revolving door — officials moving between agency and issuer | Federal directories + proxy bios | Free | P1 | Not built |
 | P-06 | Executive career histories | LinkedIn via Apify | ~$0.05/profile | Phase 3+ | Exists, unwired; ToS position must be settled before use |
 | P-10 | **Co-investors in a given funding round** | PitchBook / Crunchbase | $6–20K/yr | Phase 3+ | **No free path — see below** |
 
-P-04 and P-07 are the cheapest genuine wins. Item 404 related-party disclosure
-is already parsed and simply never rendered, and Exhibit 21 sits in filing
-indexes the pipeline already downloads.
+**Implementation note on P-01, added after building it.** The plan specified
+board interlocks as a comparison of DEF 14A rosters across peer CIKs. That
+approach is close to worthless and the reason is legal, not technical: section
+8 of the Clayton Act prohibits one person from serving as a director of two
+competing corporations, so a peer-restricted interlock search is designed to
+return nothing. The route actually used inverts it. A person keeps one CIK for
+life across every issuer where they report under Section 16, and Form 3 is
+filed once per issuer relationship — so the issuers named in an individual's
+Form 3 filings are exactly the public companies where they have served, in any
+industry. This is both cheaper (one request per relationship, not per peer
+proxy) and complete. Nothing in Section 16 records a departure, so a seat
+counts as current only where the person has filed at that issuer within two
+years; that window spans an annual grant cycle.
+
+**P-05 runs in both directions.** EDGAR indexes a Schedule 13 under both the
+subject company and the filer, so an issuer's own submissions contain the
+schedules others filed about it *and* the schedules it filed about its five
+percent stakes in other public companies. The second set was not anticipated in
+this plan and is a finding in its own right — it places corporate positions on
+the public record that would otherwise be invisible. Walmart's Schedule 13G
+naming Ibotta is what surfaced the distinction.
 
 **P-10 is the one capability with no free substitute, and it should not be
 promised.** The 10-K non-marketable equity securities note discloses *what* an
@@ -1030,9 +1096,11 @@ relationships that appear in public filings until that budget exists.
 
 ### 4C.4 Network trend analysis (N-series) — depends on the P-series
 
-Once P-01, P-02, P-05, P-07 and P-09 land, the following become computable.
-These are the "trends between investors, founders, employees and board seats"
-in concrete terms. Each is subject to the same n≥12 suppression rule as §4C.2.
+**All five prerequisites shipped in v3.2, so the N-series is now unblocked and
+becomes the next work.** These are the "trends between investors, founders,
+employees and board seats" in concrete terms. Each is subject to the same n≥12
+suppression rule as §4C.2. Nothing in this table is built yet: the P-series
+produced the raw relationships, and the N-series is the analysis across them.
 
 | ID | Question the analysis answers | Inputs |
 |----|-------------------------------|--------|

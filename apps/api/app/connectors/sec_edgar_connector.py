@@ -1279,11 +1279,15 @@ def _parse_form4_document(xml_text: str, filing_date: str, source_url: str) -> L
                     roles.append(label)
         owners.append({
             "name": _val(owner, "reportingOwnerId/rptOwnerName") or "Unknown",
+            # The owner's own CIK. A person keeps one CIK across every issuer
+            # they report at, which is what makes their other board seats
+            # discoverable without a commercial directory.
+            "cik": (_val(owner, "reportingOwnerId/rptOwnerCik") or "").lstrip("0"),
             "roles": roles,
             "title": title,
         })
     if not owners:
-        owners = [{"name": "Unknown", "roles": [], "title": ""}]
+        owners = [{"name": "Unknown", "cik": "", "roles": [], "title": ""}]
 
     # The 10b5-1 checkbox lives at document level. Many filers leave it unset and
     # disclose the plan in a footnote instead, so both are consulted — but a
@@ -1319,6 +1323,7 @@ def _parse_form4_document(xml_text: str, filing_date: str, source_url: str) -> L
                     "date": _val(txn, "transactionDate") or filing_date,
                     "filing_date": filing_date,
                     "insider": owner["name"],
+                    "insider_cik": owner.get("cik", ""),
                     "roles": owner["roles"],
                     "title": owner["title"],
                     "security": _val(txn, "securityTitle"),

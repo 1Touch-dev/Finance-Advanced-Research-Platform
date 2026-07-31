@@ -361,8 +361,9 @@ def compare_competitor_ownership(primary_ticker: str, competitors: List[str]) ->
     }
 
     # Identify holders unique to primary
-    primary_holders = set(_normalize_holder_name(h) for h in
-                          overlap.get("holders_by_ticker", {}).get(primary_ticker, {}).get("top_5", []))
+    primary_holders = set(
+        _normalize_holder_name(h.get("holder", "")) for h in
+        overlap.get("holders_by_ticker", {}).get(primary_ticker, {}).get("top_5", []))
 
     all_competitor_holders = set()
     for comp in competitors:

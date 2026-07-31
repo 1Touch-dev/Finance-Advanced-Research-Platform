@@ -274,6 +274,248 @@ _NOTE_TOPICS = (
 )
 
 
+_EXHIBIT_ROW = re.compile(r"<tr[^>]*>(.*?)</tr>", re.S)
+_CELL = re.compile(r"<t[dh][^>]*>(.*?)</t[dh]>", re.S)
+_TAG = re.compile(r"<[^>]+>")
+
+# Jurisdictions an issuer names in Exhibit 21. Matching a closed list rather
+# than "the second column" because the exhibit has no mandated layout: some
+# issuers use a two-column table, others a single indented list.
+_JURISDICTION = re.compile(
+    r"\b(Delaware|California|Nevada|New York|Texas|Arkansas|Washington|Ohio|"
+    r"Illinois|Florida|Michigan|Georgia|Virginia|Massachusetts|Minnesota|"
+    r"Arizona|Colorado|Missouri|Indiana|Pennsylvania|Wisconsin|Utah|Oregon|"
+    r"North Carolina|South Carolina|New Jersey|Maryland|Connecticut|Iowa|"
+    r"Kansas|Tennessee|Alabama|Louisiana|Oklahoma|Kentucky|Nebraska|"
+    r"United States|U\.S\.A?\.?|"
+    r"Cayman Islands|British Virgin Islands|Bermuda|Luxembourg|Ireland|"
+    r"Netherlands|Switzerland|Singapore|Hong Kong|China|Taiwan|Japan|Korea|"
+    r"India|Israel|Germany|France|United Kingdom|England|Canada|Australia|"
+    r"Mexico|Brazil|Chile|Argentina|Spain|Italy|Sweden|Denmark|Norway|"
+    r"Finland|Poland|Belgium|Austria|Malaysia|Thailand|Vietnam|Indonesia|"
+    r"Philippines|Barbados|Panama|Mauritius|Jersey|Guernsey|Curacao|"
+    r"Puerto Rico|Costa Rica|South Africa|Turkey|Russia|Ukraine)\b", re.I)
+
+# Rows that are headings, column labels or footnotes rather than subsidiaries.
+_NOT_A_SUBSIDIARY = re.compile(
+    r"^(name|entity|subsidiar|jurisdiction|state or|state of|country|"
+    r"organi[sz]ation|organi[sz]ed|incorporat|place of|list of|exhibit|"
+    r"the following|percent|ownership|note|as of|december|january|"
+    r"significant|domestic|international|foreign|\(?\d+\)?)\b", re.I)
+
+# An entity name carries a legal-form suffix. Requiring one discards headings
+# that survive the pattern above ("Subsidiaries of Registrant (All 100% owned)")
+# without discarding unsuffixed trading names, which are checked separately.
+_LEGAL_FORM = re.compile(
+    r"\b(inc|corp|corporation|company|co|llc|l\.l\.c|lp|l\.p|llp|plc|ltd|"
+    r"limited|gmbh|ag|sa|s\.a|sas|nv|n\.v|bv|b\.v|ab|as|a/s|oy|kk|k\.k|"
+    r"pte|pty|srl|s\.r\.l|spa|s\.p\.a|kft|sp\.? ?z ?o\.?o|aps|holdings?|"
+    r"group|trust|partnership|unlimited|association|bank|s\.? ?de ?r\.?l)"
+    r"\.?$", re.I)
+
+
+def get_subsidiaries(cik: str) -> Dict[str, Any]:
+    """The issuer's subsidiaries and their jurisdictions, from Exhibit 21.
+
+    Item 601(b)(21) requires a 10-K to list significant subsidiaries and where
+    each is organised. It is the only public statement of an issuer's legal
+    structure, and it is what makes a jurisdiction concentration visible —
+    entities in Cayman or Luxembourg against operations disclosed elsewhere.
+
+    An issuer may omit the exhibit when it has no significant subsidiary, so
+    an empty result is a valid outcome rather than a failure.
+    """
+    result: Dict[str, Any] = {
+        "subsidiaries": [], "by_jurisdiction": {}, "source_url": None,
+    }
+
+    from app.connectors.sec_edgar_connector import find_latest_filing
+    filing = find_latest_filing(cik, "10-K")
+    if not filing:
+        return result
+
+    base = filing["base_url"]
+    index = sec_get_text(f"{base}/{filing['accession']}-index.html") or ""
+
+    # The typed table is the only place the exhibit number appears; filenames
+    # are not standardised and "ex321" matches a naive search for exhibit 21.
+    # Column order varies by filer agent, so locate the cells by shape rather
+    # than by position.
+    document = None
+    for row in _EXHIBIT_ROW.findall(index):
+        cells = [_TAG.sub("", c).replace("&nbsp;", " ").strip()
+                 for c in _CELL.findall(row)]
+        cells = [c for c in cells if c]
+        if not any(re.fullmatch(r"EX-21(\.\d+)?", c, re.I) for c in cells):
+            continue
+        document = next((c.split()[0] for c in cells
+                         if re.search(r"\.(htm|html|txt)$", c.split()[0], re.I)), None)
+        if document:
+            break
+    if not document:
+        return result
+
+    result["source_url"] = f"{base}/{document}"
+    body = sec_get_text(result["source_url"])
+    if not body:
+        return result
+
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:
+        return result
+
+    soup = BeautifulSoup(body, "html.parser")
+    # Several issuers head the exhibit with their own name; it is the parent,
+    # not a subsidiary of itself.
+    registrant = ((sec_get_json(
+        f"https://data.sec.gov/submissions/CIK{str(cik).zfill(10)}.json") or {})
+        .get("name") or "").strip().lower()
+    seen = {registrant} if registrant else set()
+
+    def record(name: str, jurisdiction: Optional[str]) -> None:
+        name = " ".join(name.replace("\xa0", " ").split()).strip(" .:,")
+        name = re.sub(r"\s*\(\d+\)$", "", name)  # footnote marker
+        if (len(name) < 3 or len(name) > 120 or name.lower() in seen
+                or _NOT_A_SUBSIDIARY.match(name)):
+            return
+        # A heading has no legal form and no jurisdiction beside it. An entity
+        # has at least one of the two.
+        if not _LEGAL_FORM.search(name) and not jurisdiction:
+            return
+        seen.add(name.lower())
+        result["subsidiaries"].append({"name": name, "jurisdiction": jurisdiction})
+
+    rows = soup.find_all("tr")
+    if rows:
+        for row in rows:
+            cells = [" ".join(c.get_text(" ", strip=True).split())
+                     for c in row.find_all(["td", "th"])]
+            cells = [c for c in cells if c]
+            if not cells:
+                continue
+            jurisdiction = next(
+                (c for c in cells[1:] if _JURISDICTION.fullmatch(c.strip())), None)
+            if jurisdiction is None and len(cells) > 1:
+                match = _JURISDICTION.search(cells[-1])
+                jurisdiction = match.group(1) if match else None
+            record(cells[0], jurisdiction)
+    else:
+        # Some issuers file the exhibit as plain paragraphs, one entity a line.
+        for line in soup.get_text("\n").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            match = _JURISDICTION.search(line)
+            if match:
+                record(line[:match.start()].strip(" \t-–—:,"), match.group(1))
+            else:
+                record(line, None)
+
+    for entry in result["subsidiaries"]:
+        key = (entry["jurisdiction"] or "Not stated").title()
+        result["by_jurisdiction"][key] = result["by_jurisdiction"].get(key, 0) + 1
+    result["total"] = len(result["subsidiaries"])
+    return result
+
+
+# The non-marketable equity securities note is where a public company's private
+# venture portfolio appears — the holdings side of the question paid databases
+# answer. ASC 321's measurement alternative requires a rollforward, which is
+# what carries the year's deployment; the surrounding prose carries the rest.
+_NON_MARKETABLE = re.compile(
+    r"non-?marketable|privately held|equity securities without readily "
+    r"determinable|measurement alternative", re.I)
+
+# Rollforward captions. Issuers word these differently but the ASC 321 shape is
+# consistent, and each caption is followed by the current year then the prior.
+_ROLLFORWARD = {
+    "opening_balance": r"balance(?:\s+as)?\s+at\s+(?:the\s+)?beginning\s+of\s+"
+                       r"(?:the\s+)?(?:period|year)|beginning\s+balance",
+    "net_additions": r"net\s+additions|additions|purchases(?:\s+and\s+"
+                     r"contributions)?|investments\s+made",
+    "unrealized_gains": r"(?<!and\s)unrealized\s+gains?(?:\s+\(losses\))?|"
+                        r"upward\s+adjustments?",
+    "impairments": r"impairments?(?:\s+and\s+unrealized\s+losses)?|"
+                   r"downward\s+adjustments?",
+    "sales": r"sales(?:\s+and\s+distributions)?|dispositions|"
+             r"reclassifications?",
+    "closing_balance": r"balance(?:\s+as)?\s+at\s+(?:the\s+)?end\s+of\s+"
+                       r"(?:the\s+)?(?:period|year)|ending\s+balance",
+}
+
+# A rendered figure: optionally parenthesised (negative), optionally $-prefixed.
+_FIGURE = r"\$?\s*(\(?[\d][\d,]*\)?)"
+
+
+def _rendered_number(token: str) -> Optional[float]:
+    negative = token.startswith("(")
+    digits = token.strip("()").replace(",", "")
+    if not digits.isdigit():
+        return None
+    value = float(digits)
+    return -value if negative else value
+
+
+def _extract_investments(paragraphs: List[str]) -> List[Dict[str, Any]]:
+    """The private-equity portfolio rollforward and the prose around it."""
+    found: List[Dict[str, Any]] = []
+
+    for paragraph in paragraphs:
+        if not _NON_MARKETABLE.search(paragraph):
+            continue
+        scale = _detect_scale(paragraph)
+
+        movements = {}
+        for field, caption in _ROLLFORWARD.items():
+            match = re.search(rf"(?:{caption})\s*(?:\(\d\)\s*)?{_FIGURE}",
+                              paragraph, re.I)
+            if not match:
+                continue
+            value = _rendered_number(match.group(1))
+            if value is not None:
+                movements[field] = value * scale
+
+        # A rollforward without both endpoints is a caption that happened to
+        # match; without it the figures cannot be tied to a period.
+        if "opening_balance" in movements and "closing_balance" in movements:
+            movements["kind"] = "portfolio_rollforward"
+            movements["sentence"] = paragraph[:400]
+            found.append(movements)
+            continue
+
+        for sentence in _sentences(paragraph):
+            if not _NON_MARKETABLE.search(sentence):
+                continue
+            match = re.search(
+                r"(cumulative gross unrealized gains?|carrying value|"
+                r"aggregate carrying amount|fair value)[^.$]{0,90}"
+                r"\$\s?([\d,.]+)\s*(billion|million)?", sentence, re.I)
+            if not match:
+                continue
+            amount = _to_usd(match.group(2), match.group(3))
+            if amount < 1e7:
+                continue
+            found.append({
+                "kind": "disclosure",
+                "measure": match.group(1).lower(),
+                "amount": amount,
+                "sentence": sentence,
+            })
+
+    rollforwards = [f for f in found if f.get("kind") == "portfolio_rollforward"]
+    disclosures: Dict[float, Dict[str, Any]] = {}
+    for item in found:
+        if item.get("kind") == "disclosure":
+            disclosures.setdefault(item["amount"], item)
+
+    # Keep the largest rollforward: an issuer may present both a consolidated
+    # and a segment-level table, and the consolidated one is the portfolio.
+    rollforwards.sort(key=lambda r: r.get("closing_balance", 0), reverse=True)
+    return rollforwards[:1] + sorted(
+        disclosures.values(), key=lambda i: i["amount"], reverse=True)
+
+
 def get_filing_notes(cik: str) -> Dict[str, Any]:
     """Narrative notes from the latest 10-K, with the figures stated in them."""
     result: Dict[str, Any] = {
@@ -281,6 +523,7 @@ def get_filing_notes(cik: str) -> Dict[str, Any]:
         "commitments": [],
         "legal_matters": [],
         "acquisitions": [],
+        "investments": [],
         "source_url": None,
         "fiscal_period_end": None,
     }
@@ -334,6 +577,8 @@ def get_filing_notes(cik: str) -> Dict[str, Any]:
         if "commitments" in topics:
             result["commitments"].extend(_extract_commitments(paragraphs, scale))
             result["legal_matters"].extend(_extract_legal_matters(paragraphs))
+        if "investments" in topics:
+            result["investments"].extend(_extract_investments(paragraphs))
         # An acquisition may be described in a note named after the target, so
         # the content decides rather than the title.
         result["acquisitions"].extend(_extract_acquisitions(paragraphs))
@@ -357,5 +602,14 @@ def get_filing_notes(cik: str) -> Dict[str, Any]:
     for matter in result["legal_matters"]:
         unique_matters.setdefault(matter["text"][:120], matter)
     result["legal_matters"] = list(unique_matters.values())
+
+    unique_investments: Dict[Any, Dict[str, Any]] = {}
+    for investment in result["investments"]:
+        key = (investment.get("kind"),
+               investment.get("amount", investment.get("closing_balance")))
+        unique_investments.setdefault(key, investment)
+    result["investments"] = list(unique_investments.values())
+
+    result["subsidiaries"] = get_subsidiaries(cik)
 
     return result

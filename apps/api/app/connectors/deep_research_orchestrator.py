@@ -107,6 +107,7 @@ try:
         get_institutional_holders,
     )
     from app.connectors.filing_notes_connector import get_filing_notes
+    from app.connectors.board_interlock_connector import get_beneficial_owners
     SEC_EDGAR_AVAILABLE = True
 except ImportError:
     SEC_EDGAR_AVAILABLE = False
@@ -115,6 +116,14 @@ except ImportError:
     def get_insider_transactions(*args, **kwargs): return {}
     def get_institutional_holders(*args, **kwargs): return {}
     def get_filing_notes(*args, **kwargs): return {}
+    def get_beneficial_owners(*args, **kwargs): return {}
+
+try:
+    from app.connectors.board_interlock_connector import get_board_interlocks
+    BOARD_INTERLOCK_AVAILABLE = True
+except ImportError:
+    BOARD_INTERLOCK_AVAILABLE = False
+    def get_board_interlocks(*args, **kwargs): return {}
 
 try:
     from app.connectors.entity_network_connector import (
@@ -594,6 +603,8 @@ def run_comprehensive_intelligence(
         "event_timeline": {},
         "valuation_analysis": {},
         "filing_notes": {},
+        "beneficial_ownership": {},
+        "board_interlocks": {},
         "risk_register": {},
     })
 
@@ -627,6 +638,8 @@ def run_comprehensive_intelligence(
                 futures["institutional"] = executor.submit(
                     get_institutional_holders, entity_name, ticker,
                     quote.get("shares_outstanding"), quote.get("price"))
+                futures["beneficial_owners"] = executor.submit(
+                    get_beneficial_owners, cik)
             else:
                 logger.warning("No CIK for %s; skipping insider and 13F analysis",
                                ticker)
@@ -718,10 +731,29 @@ def run_comprehensive_intelligence(
                     elif key == "filing_notes":
                         result["filing_notes"] = data
                         result["data_quality"]["sources_successful"] += 1
+                    elif key == "beneficial_owners":
+                        result["beneficial_ownership"] = data
+                        result["data_quality"]["sources_successful"] += 1
                 else:
                     result["data_quality"]["sources_failed"] += 1
             except Exception as e:
                 logger.warning("Phase 2 research task %s failed: %s", key, e)
+                result["data_quality"]["sources_failed"] += 1
+
+    # Board interlocks run after the Form 4 sweep rather than beside it: the
+    # reporting owner's CIK comes out of those filings, and it is the key that
+    # locates each person's other issuers.
+    if BOARD_INTERLOCK_AVAILABLE and result.get("insider_transactions"):
+        cik = get_filer_cik(ticker) if ticker else None
+        if cik:
+            logger.info("Starting board interlock analysis for %s", ticker)
+            try:
+                result["board_interlocks"] = get_board_interlocks(
+                    result["insider_transactions"].get("transactions", []),
+                    cik, entity_name)
+                result["data_quality"]["sources_successful"] += 1
+            except Exception as e:
+                logger.warning("Board interlock analysis failed: %s", e)
                 result["data_quality"]["sources_failed"] += 1
 
     # 8. Generate Risk Register (requires all other data)
