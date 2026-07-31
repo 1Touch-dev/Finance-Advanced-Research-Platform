@@ -371,6 +371,22 @@ Coverage is honest rather than uniform: Photronics files no Exhibit 21, and
 JPMorgan and Walmart disclose no non-marketable rollforward. Those sections are
 omitted with the reason stated instead of padded.
 
+**Rendering caught a defect the connectors could not see.** EDGAR stores an
+individual reporting owner surname-first and in capitals, so the section
+initially read "COXE TENCH", "SEAWELL A BROOKE". The proxy writes the same
+people correctly, so names are now matched against the board roster and the
+compensation table and the proxy's spelling is preferred; failing a match the
+name is title-cased and the leading surname moved to the end. Corporate filers
+are excluded from the reordering, since a ten percent owner is often a firm and
+"BLACKROCK INC" must not become "Inc Blackrock".
+
+**Verified state after the ninth pass.** NVDA 14,539 words / 17 sections / 37
+PDF pages, 15 of 15 sources, zero failures. The new material occupies §5
+Corporate Structure, §6.2 Private company holdings, §8.5 Related-party
+transactions, §8.6 Board interlocks, §10.1 Five percent holders and §10.2
+Common ownership. All six appear in the table of contents with correct section
+numbering and page references.
+
 ---
 
 ## 📊 GAP ANALYSIS: Current Output vs Reference Report
@@ -932,6 +948,45 @@ and their career movements]
 
 ---
 
+## 4A. WHAT REMAINS — CONSOLIDATED VIEW (after the ninth pass)
+
+Every free-source P0 item is shipped. What is left divides into four kinds of
+work, and only two of them are blocked on anything outside our control.
+
+**1. Charts. Nothing is built and this is now the biggest single gap.** The PDF
+contains zero images across 37 pages. Eleven of the thirteen V-series charts
+can be drawn from data already in the JSON — matplotlib, numpy and pandas are
+installed and the WeasyPrint rendering path is verified. This is the highest
+ratio of perceived quality to remaining effort in the whole backlog, and it is
+what separates the current output from something that reads as a terminal
+product rather than a long memo.
+
+**2. The N-series, newly unblocked.** P-01, P-02, P-05, P-07 and P-09 all
+landed in the ninth pass, which were the five inputs the trend analysis was
+waiting on. Nothing in §4C.4 is built. N-07 — whether related-party
+counterparties overlap with subsidiaries, investees or director affiliations —
+is the highest-value item in the document and is reachable entirely from data
+now held in one report run.s
+
+**3. Text parity, six sections, 2,526 words.** B-01 through B-06. None needs a
+new source; the material is retrieved and rendered tersely.
+
+**4. Genuinely blocked.** Three items, and they should be stated as budget or
+sourcing decisions rather than tracked as engineering work:
+
+| Blocked item | Blocked on | Nature |
+|--------------|-----------|--------|
+| C-01, C-02, C-05, V-11 | D-01 daily price history | One connector; Finnhub and Alpha Vantage keys already work |
+| C-03, C-04 | D-02 quarterly XBRL from 10-Q facts | Takes financial n from 5 to 20+; without it any correlation is manufactured |
+| B-07, P-10 | Curated enforcement feed; paid VC database | No free path — a purchasing decision, not a build |
+
+D-01 deserves emphasis: it is a single connector against keys the pipeline
+already holds, and it unlocks three correlations plus a chart. It is the
+cheapest item on this list by a wide margin and the only prerequisite standing
+between the current report and the "find correlations" half of James's request.
+
+---
+
 ## 4B. OPEN BACKLOG — REFERENCE PARITY (tracked)
 
 Measured against the eighth pass. Ordered cheapest first. Items here need no
@@ -968,6 +1023,12 @@ being specified anyway.
 
 ### 4C.1 Data visualisation (V-series)
 
+**Status as of the ninth pass: not started. The current PDF contains zero
+images across 37 pages.** What was verified on 2026-07-31 was the rendering
+path, not an implementation — no chart code exists in the repository. This is
+now the largest single gap between the report and the standard James asked for,
+because everything below is buildable from data already held.
+
 **Rendering path — verified 2026-07-31.** WeasyPrint 68.1 renders a matplotlib
 PNG embedded as a `data:` URI. It renders `data:image/svg+xml;utf8,` as well.
 It silently produces a blank page for base64-encoded SVG — a chart pipeline
@@ -993,8 +1054,10 @@ imported clip art and undoes the work of N22.
 | V-07 | Filing cadence over time by form type | §13 | Yes — 317 dated events |
 | V-08 | Institutional position concentration | §9 | Yes — 9 managers |
 | V-09 | Federal obligations by agency and year | §10 | Partial — awards carry no action date; needs the date field added |
-| V-10 | Board interlock network graph | §7 | No — needs C-04 |
-| V-11 | Insider transactions overlaid on price history | §8 | No — needs D-01 |
+| V-10 | Board interlock network graph | §8 | **Yes as of the ninth pass** — P-01 supplies the edges |
+| V-11 | Insider transactions overlaid on price history | §9 | No — needs D-01 |
+| V-12 | Subsidiary count by jurisdiction | §5 | **Yes as of the ninth pass** — P-07 |
+| V-13 | Private-portfolio rollforward waterfall | §6 | **Yes as of the ninth pass** — P-09 |
 
 Every chart must also be reachable as a table. A figure that cannot be read as
 numbers fails the same provenance standard the rest of the report is held to.

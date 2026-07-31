@@ -1664,11 +1664,67 @@ def _render_related_parties(proxy: dict, entity_name: str) -> list:
     return lines
 
 
-def _render_interlocks(interlocks: dict, entity_name: str) -> list:
+_NAME_SUFFIX = re.compile(r"^(jr|sr|ii|iii|iv|md|phd|dr|mr|mrs|ms)$", re.I)
+
+
+_CORPORATE = re.compile(
+    r"\b(inc|corp|corporation|co|llc|lp|llp|plc|ltd|limited|company|"
+    r"holdings?|group|trust|partners|management|capital|advisors|fund|"
+    r"bank|associates|foundation)\b\.?", re.I)
+
+
+def _name_token_set(name: str) -> set:
+    """Significant words in a person's name, ignoring initials and suffixes."""
+    return {t.lower() for t in re.split(r"[^A-Za-z]+", name or "")
+            if len(t) > 1 and not _NAME_SUFFIX.match(t)}
+
+
+def _person_name(edgar_name: str, known: list) -> str:
+    """A reporting owner's name as a reader would write it.
+
+    EDGAR stores an individual reporting owner surname-first and usually in
+    capitals — "SEAWELL A BROOKE". The proxy writes the same person as
+    "A. Brooke Seawell", so where the two can be matched the proxy's rendering
+    is used. Failing a match the name is title-cased and the leading surname
+    moved to the end, which is the convention EDGAR documents for individuals.
+    """
+    tokens = _name_token_set(edgar_name)
+    if not tokens:
+        return edgar_name
+
+    for candidate in known:
+        if len(tokens & _name_token_set(candidate)) >= 2:
+            return candidate
+
+    # A reporting owner can be a firm rather than a person — a ten percent
+    # holder usually is — and a firm's name is already in reading order.
+    words = [w for w in re.split(r"\s+", (edgar_name or "").strip()) if w]
+    if (_CORPORATE.search(edgar_name or "") or len(words) < 2
+            or not all(re.fullmatch(r"[A-Za-z.'’-]+", w) for w in words)):
+        return edgar_name.title() if edgar_name.isupper() else edgar_name
+
+    surname, rest = words[0], words[1:]
+    suffix = [w for w in rest if _NAME_SUFFIX.match(w.strip("."))]
+    rest = [w for w in rest if not _NAME_SUFFIX.match(w.strip("."))]
+    ordered = rest + [surname] + suffix
+    return " ".join(w.title() if w.isupper() or w.islower() else w
+                    for w in ordered)
+
+
+def _render_interlocks(interlocks: dict, entity_name: str,
+                       proxy: dict = None) -> list:
     """Other public-company seats held by this issuer's directors and officers."""
     people = (interlocks or {}).get("people") or []
     if not people:
         return []
+
+    # The proxy spells these people's names properly; EDGAR does not.
+    proxy = proxy or {}
+    known = [d.get("name") for d in
+             ((proxy.get("board_composition") or {}).get("directors") or [])
+             if d.get("name")]
+    known += [c.get("name") for c in (proxy.get("compensation_table") or [])
+              if c.get("name")]
 
     summary = interlocks.get("summary", {})
     current = [p for p in people if p.get("current_seat_count")]
@@ -1696,6 +1752,7 @@ def _render_interlocks(interlocks: dict, entity_name: str) -> list:
         active = [s for s in person["other_seats"] if s.get("current")]
         lapsed = [s for s in person["other_seats"] if not s.get("current")]
         roles = ", ".join(person.get("roles_at_issuer") or []) or "insider"
+        person = dict(person, name=_person_name(person["name"], known))
 
         if active:
             described = "; ".join(
@@ -1733,8 +1790,8 @@ def _render_interlocks(interlocks: dict, entity_name: str) -> list:
         )
         lines.append("")
         for entry in shared:
-            lines.append(f"- **{entry['issuer']}** — "
-                         f"{', '.join(entry['directors'])}.")
+            named = ", ".join(_person_name(d, known) for d in entry["directors"])
+            lines.append(f"- **{entry['issuer']}** — {named}.")
         lines.append("")
     else:
         lines.append(
@@ -3040,7 +3097,7 @@ def generate_markdown_report(data: dict) -> str:
 
         lines.extend(_render_related_parties(proxy, entity_name))
         lines.extend(_render_interlocks(data.get("board_interlocks") or {},
-                                        entity_name))
+                                        entity_name, proxy))
 
         for person in dossiers[:10]:
             lines.append(f"### {person.get('name', 'Unknown')}")
