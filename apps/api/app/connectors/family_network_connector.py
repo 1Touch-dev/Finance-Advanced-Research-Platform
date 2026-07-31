@@ -92,6 +92,43 @@ def is_institution(name: str) -> bool:
     return any(token in lowered for token in _INSTITUTIONS)
 
 
+# Words that appear in proxy section headings the board parser sometimes
+# returns as though they were directors — "Board Performance Assessment",
+# "Frequently Requested Information". Left unfiltered these become surnames
+# and then get searched for as family foundations, which is how a run against
+# Lockheed produced the Society For Personality Assessment Foundation.
+_NOT_A_SURNAME = {
+    "assessment", "attendance", "biographies", "information", "structure",
+    "leadership", "performance", "committee", "governance", "compensation",
+    "nominee", "nominees", "director", "directors", "board", "officer",
+    "officers", "executive", "summary", "overview", "meeting", "meetings",
+    "independence", "qualifications", "skills", "matrix", "election",
+    "proposal", "proposals", "voting", "audit", "report", "biography",
+    "experience", "background", "highlights", "requested", "frequently",
+    "continued", "table", "contents", "other", "name", "age", "since",
+}
+
+
+def looks_like_person(name: str) -> bool:
+    """Whether a name plausibly belongs to a human being.
+
+    A conservative test, because the cost of a false positive here is a wrong
+    family link in the report and the cost of a false negative is one missing
+    surname among several dozen.
+    """
+    text = (name or "").strip()
+    if not text or classify_holder(text) or is_institution(text):
+        return False
+    tokens = [t for t in re.split(r"[\s,]+", text) if t]
+    if not 2 <= len(tokens) <= 5:
+        return False
+    words = {re.sub(r"[^a-z]", "", t.lower()) for t in tokens}
+    if words & _NOT_A_SURNAME:
+        return False
+    # A real name is letters, hyphens, apostrophes and initials only.
+    return all(re.fullmatch(r"[A-Za-z][A-Za-z'\-\.]*", t) for t in tokens)
+
+
 def _http_get(url: str, params: Optional[dict] = None) -> Optional[dict]:
     try:
         response = requests.get(url, params=params, timeout=_TIMEOUT,
@@ -217,11 +254,11 @@ def _insider_people(insider: Dict[str, Any],
 
     for row in (insider or {}).get("transactions") or []:
         name = (row.get("insider") or "").strip()
-        if not name or classify_holder(name):
+        if not name or classify_holder(name) or not looks_like_person(name):
             continue
         # Form 4 reporting-owner names are always surname-first.
         key = surname_of(name, edgar_order=True)
-        if not key:
+        if not key or key in _NOT_A_SURNAME:
             continue
         entry = people.setdefault(key, {"names": set(), "roles": set(),
                                         "source": "Section 16"})
@@ -232,11 +269,11 @@ def _insider_people(insider: Dict[str, Any],
     board = (proxy or {}).get("board_composition") or {}
     for director in board.get("directors") or []:
         name = (director.get("name") or "").strip()
-        if not name:
+        if not name or not looks_like_person(name):
             continue
         # A proxy prints names the way the person writes them.
         key = surname_of(name, edgar_order=False)
-        if not key:
+        if not key or key in _NOT_A_SURNAME:
             continue
         entry = people.setdefault(key, {"names": set(), "roles": set(),
                                         "source": "DEF 14A"})
@@ -257,28 +294,38 @@ def foundations_for(surnames: List[str], entity_name: str = "",
     A family foundation is a disclosure surface most readers never check: the
     990 is public, names its trustees, and states the assets under their
     control. ProPublica's index is free and needs no key.
+
+    The issuer's own corporate foundation is returned too but flagged as such.
+    A company foundation and a family foundation are different objects, and
+    filing the first under the second would be the same mistake as calling
+    BlackRock someone's family office.
     """
     found: List[Dict[str, Any]] = []
     seen_eins: Set[str] = set()
 
-    queries = [f"{s} foundation" for s in surnames[:8] if len(s) > 3]
+    corporate_token = ""
+    queries: List[tuple] = []
     if entity_name:
-        queries.insert(0, f"{entity_name.split()[0]} foundation")
+        corporate_token = entity_name.split()[0].lower()
+        queries.append((f"{entity_name.split()[0]} foundation", True))
+    queries += [(f"{s} foundation", False) for s in surnames[:8]
+                if len(s) > 3 and s not in _NOT_A_SURNAME]
 
-    for query in queries:
+    for query, is_corporate in queries:
         payload = _http_get(PROPUBLICA_SEARCH, {"q": query})
         time.sleep(0.2)
         if not payload:
             continue
+        token = query.split()[0].lower()
         for org in (payload.get("organizations") or [])[:limit_per_name]:
             ein = str(org.get("ein") or "")
             name = org.get("name") or ""
             if not ein or ein in seen_eins:
                 continue
-            # The query is a substring search, so confirm the surname is
-            # actually in the returned name before keeping it.
-            token = query.split()[0].lower()
-            if token not in name.lower():
+            # ProPublica searches loosely, so confirm the token is actually a
+            # whole word in the returned name. A substring test matched
+            # "Assessment" inside three unrelated charities on the first run.
+            if not re.search(rf"\b{re.escape(token)}\b", name.lower()):
                 continue
             seen_eins.add(ein)
             found.append({
@@ -288,9 +335,33 @@ def foundations_for(surnames: List[str], entity_name: str = "",
                 "city": org.get("city"),
                 "subsection": org.get("subseccd"),
                 "matched_on": token,
+                "strength": _foundation_strength(name, token),
+                "corporate": bool(is_corporate)
+                             or (corporate_token and corporate_token in name.lower()),
                 "source_url": f"https://projects.propublica.org/nonprofits/organizations/{ein}",
             })
     return found
+
+
+def _foundation_strength(name: str, surname: str) -> str:
+    """How much weight a surname match on a foundation name can carry.
+
+    A family foundation is named to a near-fixed convention: the surname,
+    optionally "Family", then "Foundation". "Carlson Family Foundation" fits
+    it. "Burritt Museum Foundation" and "The Montana Cahill Foundation" carry
+    the surname but describe something else, and treating those as family
+    links would fill the section with leads that go nowhere.
+    """
+    cleaned = re.sub(r"[^a-z\s]", " ", (name or "").lower())
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    cleaned = re.sub(r"^the\s+", "", cleaned)
+    cleaned = re.sub(r"\s+(inc|incorporated|trust|tr|ltd|corp)$", "", cleaned)
+    if re.fullmatch(rf"{re.escape(surname)}( family| charitable| family charitable)?"
+                    r"( foundation| fund)", cleaned):
+        return "pattern match"
+    if cleaned.startswith(f"{surname} "):
+        return "surname leads the name"
+    return "surname appears in the name"
 
 
 def foundation_detail(ein: str) -> Dict[str, Any]:
@@ -346,8 +417,15 @@ def get_family_network(entity_name: str,
         if entry["name"].lower() not in known:
             vehicles.append(entry)
 
+    # The issuer files Section 16 against itself on a director's behalf, so it
+    # appears in its own reporting-owner list. It is not a family vehicle.
+    issuer_key = re.sub(r"[^a-z]", "", (entity_name or "").lower())
     for vehicle in vehicles:
         vehicle["institutional"] = is_institution(vehicle["name"])
+        vehicle["is_issuer"] = bool(issuer_key) and re.sub(
+            r"[^a-z]", "", vehicle["name"].lower()) == issuer_key
+
+    vehicles = [v for v in vehicles if not v["is_issuer"]]
 
     # Only the non-institutional ones are candidates for a family link.
     candidates = [v for v in vehicles if not v["institutional"]]

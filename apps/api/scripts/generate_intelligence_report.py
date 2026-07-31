@@ -2632,23 +2632,95 @@ def _render_family_network(data: dict, entity_name: str) -> list:
             lines.append("")
 
     foundations = family.get("foundations") or []
-    if foundations:
+    corporate = [f for f in foundations if f.get("corporate")]
+    personal = [f for f in foundations if not f.get("corporate")]
+
+    # A family foundation follows a naming convention. Matches that fit it are
+    # worth a reader's time; matches that merely contain the surname are not,
+    # and listing both together would bury the first set in the second.
+    strong = [f for f in personal if f.get("strength") == "pattern match"]
+    weak = [f for f in personal if f not in strong]
+
+    # Where one surname returns several foundations in different states, no
+    # single one can be attributed to the insider on a name test alone. The
+    # count is the finding; picking a row would be inventing the link.
+    by_surname = {}
+    for foundation in strong:
+        by_surname.setdefault(foundation.get("matched_on", "—"), []).append(foundation)
+    resolved = {s: f for s, f in by_surname.items() if len(f) == 1}
+    ambiguous = {s: f for s, f in by_surname.items() if len(f) > 1}
+
+    if strong:
         lines.append("### Foundations carrying an insider's surname")
         lines.append("")
         lines.append(
             "A private foundation files an IRS Form 990 naming its trustees "
-            "and stating the assets under their control. The match below is "
-            "on name only and is a lead to verify, not an established link."
+            "and stating the assets under their control, which makes it one "
+            "of the few places a family's money is visible without a "
+            "subscription. Each row below is a **lead to verify against the "
+            "990 itself, not an established link**: the match is on surname, "
+            "surnames are not unique, and this test cannot distinguish a "
+            "director's family foundation from a stranger who shares the "
+            "name. Only names following the usual family-foundation "
+            "convention are shown."
         )
         lines.append("")
-        lines.append("| Foundation | Location | EIN | Matched on |")
-        lines.append("|------------|----------|-----|------------|")
-        for foundation in foundations[:12]:
-            place = ", ".join(x for x in (foundation.get("city"),
-                                          foundation.get("state")) if x)
+        if resolved:
+            lines.append("| Foundation | Location | EIN | Surname |")
+            lines.append("|------------|----------|-----|---------|")
+            for surname, group in sorted(resolved.items())[:12]:
+                foundation = group[0]
+                place = ", ".join(x for x in (foundation.get("city"),
+                                              foundation.get("state")) if x)
+                lines.append(
+                    f"| {foundation['name']} | {place or '—'} "
+                    f"| {foundation['ein']} | {surname} |")
+            lines.append("")
+
+        if ambiguous:
+            total = sum(len(g) for g in ambiguous.values())
+            detail = "; ".join(
+                f"{surname} ({len(group)}, in "
+                + ", ".join(sorted({g.get('state') or '?' for g in group}))
+                + ")"
+                for surname, group in sorted(ambiguous.items())[:6])
             lines.append(
-                f"| {foundation['name']} | {place or '—'} "
-                f"| {foundation['ein']} | {foundation['matched_on']} |")
+                f"**{len(ambiguous)} surnames cannot be resolved.** "
+                f"{total} foundations match them, spread across different "
+                f"states — {detail}. Where a surname returns more than one "
+                f"foundation, no single one can be attributed to the insider "
+                f"on a name test, so none is named here. Resolving these "
+                f"means reading the trustee list on each 990."
+            )
+            lines.append("")
+
+        if weak:
+            lines.append(
+                f"A further {len(weak)} registered charities carry an "
+                f"insider's surname inside a longer name — a museum, a "
+                f"hospital wing, a place name. Those are excluded: the "
+                f"surname in them is far more likely to be coincidence than "
+                f"a family link."
+            )
+            lines.append("")
+    elif personal:
+        lines.append(
+            f"{len(personal)} registered charities carry an insider's surname "
+            f"somewhere in their name, but none follow the naming convention "
+            f"a family foundation normally uses, so none are listed. On a "
+            f"surname-only test that is the correct outcome to report."
+        )
+        lines.append("")
+
+    if corporate:
+        lines.append(
+            f"{entity_name} also runs "
+            f"{len(corporate)} foundation{'' if len(corporate) == 1 else 's'} "
+            f"in its own name ("
+            + ", ".join(f["name"] for f in corporate[:4])
+            + "). A corporate foundation is a different object from a family "
+              "one and is listed separately for that reason."
+        )
         lines.append("")
 
     institutional = family.get("institutional_vehicles") or []
@@ -2706,6 +2778,12 @@ def _render_peer_comparison(data: dict, entity_name: str) -> list:
     def _cell(value, fmt):
         if value is None:
             return "—"
+        # A real zero and a value we could not retrieve mean opposite things,
+        # and the report's em-dash convention renders both as "—". In a
+        # comparison table that turns "this company has no federal business"
+        # into "we did not check", so zero is written out here.
+        if value == 0:
+            return "none"
         if fmt == "money":
             return format_currency(value)
         if fmt == "pct":
@@ -2728,9 +2806,36 @@ def _render_peer_comparison(data: dict, entity_name: str) -> list:
         f"of {comparison['total_metrics']} metrics are available for every "
         f"company; where one is missing the row is still shown but no ranking "
         f"is stated, because ranking four companies out of five describes our "
-        f"retrieval rather than the market."
+        f"retrieval rather than the market. A cell reading *none* is a zero "
+        f"the source returned; *—* is a figure the source did not carry."
     )
     lines.append("")
+
+    # A zero federal or lobbying figure is retrieved by matching the company's
+    # name against a register. For a company that plainly has such business
+    # the zero is a name-resolution failure, and saying so is more useful than
+    # letting the reader treat it as a fact about the company.
+    zero_rows = []
+    for row in rows:
+        if row["metric"] not in ("Federal obligations", "Federal awards",
+                                 "Lobbying disclosed", "LDA filings"):
+            continue
+        zeros = [t for t in tickers if row["values"].get(t) == 0]
+        if zeros:
+            zero_rows.append((row["metric"], zeros))
+    if zero_rows:
+        affected = sorted({t for _, ts in zero_rows for t in ts})
+        lines.append(
+            f"**Treat the zeros with suspicion.** "
+            f"{', '.join(affected)} return no records on "
+            + ", ".join(m.lower() for m, _ in zero_rows)
+            + ". These registers are searched by company name, and a large "
+              "listed company almost always files under several. A zero here "
+              "is more likely a name that did not resolve than an absence of "
+              "activity, and it should be confirmed against the register "
+              "directly before being used."
+        )
+        lines.append("")
 
     periods = [f"{c['ticker']} to {c.get('period_end') or 'an unstated date'}"
                for c in companies if c.get("period_end")]
