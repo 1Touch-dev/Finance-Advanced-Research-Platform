@@ -113,6 +113,20 @@ except ImportError:
     MULTI_AGENT_AVAILABLE = False
     def run_investment_intelligence(ticker, company_name=""): return {}
 
+# Deep Research Orchestrator (Phase 1: LinkedIn, FPDS, Political, 13F Overlap)
+try:
+    from app.connectors.deep_research_orchestrator import (
+        run_deep_intelligence,
+        get_deep_intelligence_summary,
+        check_connector_availability,
+    )
+    DEEP_RESEARCH_AVAILABLE = True
+except ImportError:
+    DEEP_RESEARCH_AVAILABLE = False
+    def run_deep_intelligence(*args, **kwargs): return {}
+    def get_deep_intelligence_summary(data): return {}
+    def check_connector_availability(): return {}
+
 
 INTELLIGENCE_KIND = "entity_network_intel"
 ENHANCED_INTELLIGENCE_KIND = "enhanced_entity_intel"
@@ -1859,6 +1873,25 @@ def generate_enhanced_intelligence_report(
         except Exception as e:
             logger.warning(f"Multi-agent intelligence error: {e}")
 
+    # 2d. Run deep research orchestrator (LinkedIn, FPDS, Political, 13F Overlap)
+    deep_intel = {}
+    deep_intel_summary = {}
+    if DEEP_RESEARCH_AVAILABLE and entity_type == "org":
+        try:
+            # Extract known executives from Apollo data for deeper research
+            known_execs = [p.get("name") for p in people_data[:10] if p.get("name")]
+            # Run comprehensive deep intelligence gathering
+            deep_intel = run_deep_intelligence(
+                entity_name=entity_name,
+                ticker=ticker or "",
+                entity_type=entity_type,
+                known_executives=known_execs,
+            )
+            if deep_intel:
+                deep_intel_summary = get_deep_intelligence_summary(deep_intel)
+        except Exception as e:
+            logger.warning(f"Deep research orchestrator error: {e}")
+
     # 3. Generate enhanced narrative sections
     enhanced_sections = []
     if ENHANCED_NARRATIVE_AVAILABLE:
@@ -1876,6 +1909,7 @@ def generate_enhanced_intelligence_report(
                 technicals_data=technicals_data,
                 people_data=people_data,
                 relationships=relationships,
+                deep_intel=deep_intel,  # Phase 1 deep research data
                 include_investment_thesis=include_investment_thesis,
                 include_swot=include_swot,
                 include_risk_matrix=include_risk_matrix,
@@ -1997,6 +2031,10 @@ def generate_enhanced_intelligence_report(
         # Key personnel data
         "people_data": people_data if people_data else None,
 
+        # Deep Intelligence (Phase 1: LinkedIn, FPDS, Political, 13F Overlap)
+        "deep_intel": deep_intel if deep_intel else None,
+        "deep_intel_summary": deep_intel_summary if deep_intel_summary else None,
+
         # Data sources
         "data_sources": {
             **base_report.get("data_sources", {}),
@@ -2006,6 +2044,7 @@ def generate_enhanced_intelligence_report(
             "enhanced_narrative": ENHANCED_NARRATIVE_AVAILABLE,
             "multi_agent": MULTI_AGENT_AVAILABLE and ticker is not None,
             "apollo_people": APOLLO_AVAILABLE and len(people_data) > 0,
+            "deep_research": DEEP_RESEARCH_AVAILABLE,
         },
 
         # Summary (merge base + enhanced)
@@ -2024,6 +2063,14 @@ def generate_enhanced_intelligence_report(
             "multi_agent_composite_score": multi_agent_intel.get("composite_score") if multi_agent_intel else None,
             "multi_agent_conviction": multi_agent_intel.get("conviction") if multi_agent_intel else None,
             "key_personnel_count": len(people_data) if people_data else 0,
+            # Deep intelligence summary (Phase 1)
+            "deep_intel_executives_profiled": deep_intel_summary.get("key_findings", {}).get("executives_profiled", 0) if deep_intel_summary else 0,
+            "deep_intel_board_interlocks": deep_intel_summary.get("key_findings", {}).get("board_interlocks", 0) if deep_intel_summary else 0,
+            "deep_intel_federal_contracts_total": deep_intel_summary.get("key_findings", {}).get("federal_contracts_total", 0) if deep_intel_summary else 0,
+            "deep_intel_lobbying_spend": deep_intel_summary.get("key_findings", {}).get("lobbying_total_spend", 0) if deep_intel_summary else 0,
+            "deep_intel_revolving_door_count": deep_intel_summary.get("key_findings", {}).get("revolving_door_count", 0) if deep_intel_summary else 0,
+            "deep_intel_risk_flags_count": deep_intel_summary.get("risk_flags_count", 0) if deep_intel_summary else 0,
+            "deep_intel_high_severity_flags": deep_intel_summary.get("high_severity_flags", 0) if deep_intel_summary else 0,
         },
     }
 
@@ -2043,6 +2090,7 @@ def generate_enhanced_intelligence_report(
         "risk_matrix":       risk_matrix,
         "financial_health":  financial_health,
         "financial_data":    result["financial_data"],
+        "deep_intel":        deep_intel_summary,  # Phase 1 deep research summary
         "sections_data":     {s.get("name", "Section"): s.get("data", {}) for s in all_sections},
     })
     return result

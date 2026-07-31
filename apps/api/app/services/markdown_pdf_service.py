@@ -5,6 +5,7 @@ Uses WeasyPrint to convert markdown to beautifully formatted PDF reports
 with professional styling suitable for enterprise intelligence reports.
 """
 import io
+import re
 import markdown
 from datetime import datetime
 from typing import Optional
@@ -16,352 +17,647 @@ try:
 except ImportError:
     WEASYPRINT_OK = False
 
-# Professional CSS styling for intelligence reports
+# Print stylesheet for the intelligence report.
+#
+# The design target is an institutional research note rather than a web page:
+# a dark cover, a contents page with real page references, numbered sections,
+# and dense rule-separated tables with right-aligned figures. The previous
+# stylesheet used web conventions — heavy filled table headers, generous row
+# padding, left-aligned numbers — which read as a dashboard and wasted roughly
+# half of each page.
 REPORT_CSS = """
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
 :root {
-    --primary: #6366f1;
-    --primary-dark: #4f46e5;
-    --bg-dark: #0f172a;
-    --bg-card: #1e293b;
-    --text-primary: #f8fafc;
-    --text-secondary: #94a3b8;
-    --text-muted: #64748b;
-    --border: #334155;
-    --success: #22c55e;
-    --warning: #f59e0b;
-    --danger: #ef4444;
-    --info: #3b82f6;
+    --navy: #12283F;
+    --navy-deep: #0B1A2B;
+    --ink: #14202E;
+    --body: #253546;
+    --muted: #64748B;
+    --accent: #B45309;
+    --rule: #D7DEE6;
+    --rule-light: #EBEFF4;
+    --tint: #F6F8FA;
+    --neg: #A32020;
 }
 
+/* ── Page furniture ──────────────────────────────────────────────────── */
 @page {
     size: letter;
-    margin: 1.5cm 1.8cm;
+    margin: 20mm 18mm 18mm 18mm;
+
     @top-left {
-        content: "ENTERPRISE INTELLIGENCE PLATFORM";
-        font-size: 8pt;
-        color: #6366f1;
-        font-family: 'Inter', sans-serif;
+        content: string(doctitle);
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        font-size: 7pt;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #8494A5;
+        vertical-align: bottom;
+        padding-bottom: 3mm;
     }
     @top-right {
-        content: "CONFIDENTIAL";
-        font-size: 8pt;
-        color: #94a3b8;
-        font-family: 'Inter', sans-serif;
+        content: string(section);
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        font-size: 7pt;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #8494A5;
+        vertical-align: bottom;
+        padding-bottom: 3mm;
     }
-    @bottom-center {
-        content: "Page " counter(page) " of " counter(pages);
-        font-size: 8pt;
-        color: #64748b;
-        font-family: 'Inter', sans-serif;
+    @bottom-left {
+        content: "Public records and open sources · Research only";
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        font-size: 6.5pt;
+        color: #9AA7B4;
+    }
+    @bottom-right {
+        content: counter(page) " / " counter(pages);
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        font-size: 7pt;
+        font-weight: 600;
+        color: var(--navy);
     }
 }
 
-@page:first {
+/* The cover carries no running heads or folio. */
+@page cover {
+    margin: 0;
     @top-left { content: none; }
     @top-right { content: none; }
+    @bottom-left { content: none; }
+    @bottom-right { content: none; }
 }
 
-* {
-    box-sizing: border-box;
+@page contents {
+    @top-right { content: "Contents"; }
 }
 
+/* ── Base typography ─────────────────────────────────────────────────── */
 body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    font-size: 10pt;
-    line-height: 1.6;
-    color: #1e293b;
-    background: white;
+    font-family: Charter, Georgia, 'Times New Roman', serif;
+    font-size: 9.4pt;
+    line-height: 1.52;
+    color: var(--body);
     margin: 0;
     padding: 0;
+    -weasy-hyphens: auto;
+    hyphens: auto;
+    /* Break only long words, and never leave a stub of one or two letters. */
+    -weasy-hyphenate-limit-chars: 8 4 4;
+    hyphenate-limit-chars: 8 4 4;
+    text-align: justify;
 }
 
-/* Typography */
-h1 {
-    font-size: 24pt;
+p { margin: 0 0 7pt 0; orphans: 2; widows: 2; }
+
+a { color: var(--navy); text-decoration: none; border-bottom: 0.4pt solid #C3CEDA; }
+
+strong { color: var(--ink); font-weight: 600; }
+
+em { color: var(--muted); }
+
+code {
+    font-family: Menlo, Consolas, monospace;
+    font-size: 8pt;
+    background: var(--tint);
+    padding: 0 2pt;
+}
+
+/* ── Cover ───────────────────────────────────────────────────────────── */
+.cover {
+    page: cover;
+    page-break-after: always;
+    background: var(--navy-deep);
+    color: #FFFFFF;
+    height: 279.4mm;
+    width: 215.9mm;
+    padding: 26mm 22mm;
+    box-sizing: border-box;
+    text-align: left;
+}
+.cover-rule {
+    width: 34mm;
+    height: 2.4pt;
+    background: var(--accent);
+    margin-bottom: 9mm;
+}
+.cover-org {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 8pt;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #7E93A8;
+    margin-bottom: 24mm;
+}
+.cover-entity {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 30pt;
     font-weight: 700;
-    color: #0f172a;
-    border-bottom: 3px solid #6366f1;
-    padding-bottom: 12px;
-    margin-top: 30px;
-    margin-bottom: 20px;
-    page-break-after: avoid;
+    line-height: 1.1;
+    letter-spacing: -0.015em;
+    color: #FFFFFF;
+    margin: 0 0 4mm 0;
+}
+.cover-ticker {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 11pt;
+    font-weight: 500;
+    letter-spacing: 0.10em;
+    color: var(--accent);
+    margin-bottom: 14mm;
+}
+.cover-kind {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 13pt;
+    font-weight: 300;
+    letter-spacing: 0.03em;
+    color: #C8D4E0;
+    padding-top: 5mm;
+    border-top: 0.6pt solid #2C4257;
+    margin-bottom: 16mm;
+}
+.cover-facts {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    margin-bottom: 8mm;
+}
+.cover-facts td {
+    border: none;
+    padding: 2.1mm 0;
+    border-bottom: 0.4pt solid #24384B;
+    vertical-align: baseline;
+}
+.cover-facts .k {
+    font-size: 7.5pt;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: #7E93A8;
+    width: 42mm;
+}
+.cover-facts .v {
+    font-size: 9.5pt;
+    color: #F2F6FA;
+    font-weight: 500;
+    text-align: left;
+}
+.cover-foot {
+    position: absolute;
+    bottom: 22mm;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 7.5pt;
+    line-height: 1.6;
+    color: #6D8296;
+    text-align: left;
+}
+.cover-class {
+    display: inline-block;
+    font-size: 7pt;
+    font-weight: 600;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 0.7pt solid var(--accent);
+    padding: 1.6mm 3.4mm;
+    margin-bottom: 5mm;
 }
 
-h1:first-of-type {
-    font-size: 28pt;
-    text-align: center;
-    border-bottom: none;
-    margin-top: 60px;
-    color: #1e293b;
+/* ── Contents ────────────────────────────────────────────────────────── */
+.contents {
+    page: contents;
+    page-break-after: always;
 }
+.contents h2 {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 15pt;
+    font-weight: 700;
+    color: var(--navy);
+    letter-spacing: -0.01em;
+    margin: 0 0 8mm 0;
+    padding: 0 0 3mm 0;
+    border-bottom: 1.4pt solid var(--navy);
+    counter-increment: none;
+}
+.contents h2::before { content: none; }
+.contents ol { list-style: none; margin: 0; padding: 0; counter-reset: toc; }
+.contents li {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 9.2pt;
+    padding: 2.5mm 0;
+    border-bottom: 0.4pt solid var(--rule-light);
+    counter-increment: toc;
+}
+.contents li a {
+    color: var(--ink);
+    border: none;
+    text-decoration: none;
+}
+.contents li a::before {
+    content: counter(toc, decimal-leading-zero);
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 8pt;
+    margin-right: 5mm;
+}
+.contents li a::after {
+    content: target-counter(attr(href), page);
+    float: right;
+    color: var(--navy);
+    font-weight: 600;
+}
+
+/* ── Headings ────────────────────────────────────────────────────────── */
+h1 { display: none; }
 
 h2 {
-    font-size: 16pt;
-    font-weight: 600;
-    color: #334155;
-    margin-top: 24px;
-    margin-bottom: 12px;
+    string-set: section content();
+    counter-increment: sec;
+    counter-reset: sub;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 15pt;
+    font-weight: 700;
+    letter-spacing: -0.012em;
+    color: var(--navy);
+    margin: 11mm 0 5mm 0;
+    padding-bottom: 2.6mm;
+    border-bottom: 1.4pt solid var(--navy);
     page-break-after: avoid;
+    page-break-before: auto;
+    text-align: left;
+}
+h2::before {
+    content: counter(sec) ". ";
+    color: var(--accent);
 }
 
 h3 {
-    font-size: 13pt;
+    counter-increment: sub;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 10.2pt;
     font-weight: 600;
-    color: #475569;
-    margin-top: 18px;
-    margin-bottom: 10px;
+    color: var(--ink);
+    margin: 7mm 0 2.6mm 0;
     page-break-after: avoid;
-}
-
-h4 {
-    font-size: 11pt;
-    font-weight: 600;
-    color: #6366f1;
-    margin-top: 14px;
-    margin-bottom: 8px;
-    page-break-after: avoid;
-}
-
-p {
-    margin-bottom: 10px;
-    text-align: justify;
-    orphans: 3;
-    widows: 3;
-}
-
-/* Lists */
-ul, ol {
-    margin-left: 0;
-    padding-left: 24px;
-    margin-bottom: 12px;
-}
-
-li {
-    margin-bottom: 6px;
-    line-height: 1.5;
-}
-
-li > ul, li > ol {
-    margin-top: 6px;
-    margin-bottom: 6px;
-}
-
-/* Tables */
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 16px 0 24px 0;
-    font-size: 9pt;
-    page-break-inside: avoid;
-}
-
-thead {
-    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-}
-
-th {
-    padding: 12px 10px;
     text-align: left;
-    font-weight: 600;
-    color: white;
-    font-size: 9pt;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    border: none;
 }
-
-td {
-    padding: 10px;
-    border-bottom: 1px solid #e2e8f0;
-    vertical-align: top;
-}
-
-tr:nth-child(even) {
-    background-color: #f8fafc;
-}
-
-tr:hover {
-    background-color: #f1f5f9;
-}
-
-/* Strong/Bold for key metrics */
-strong {
-    font-weight: 600;
-    color: #1e293b;
-}
-
-/* Code blocks for data */
-code {
-    background: #f1f5f9;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-family: 'SF Mono', 'Fira Code', monospace;
-    font-size: 9pt;
-    color: #6366f1;
-}
-
-pre {
-    background: #1e293b;
-    color: #e2e8f0;
-    padding: 16px;
-    border-radius: 8px;
-    overflow-x: auto;
-    font-size: 9pt;
-    line-height: 1.5;
-    margin: 16px 0;
-}
-
-pre code {
-    background: transparent;
-    color: inherit;
-    padding: 0;
-}
-
-/* Horizontal rules */
-hr {
-    border: none;
-    border-top: 2px solid #e2e8f0;
-    margin: 30px 0;
-    page-break-after: avoid;
-}
-
-/* Blockquotes for highlights */
-blockquote {
-    border-left: 4px solid #6366f1;
-    background: linear-gradient(90deg, #f8fafc 0%, white 100%);
-    margin: 16px 0;
-    padding: 16px 20px;
-    font-style: italic;
-    color: #475569;
-}
-
-/* Special styling for key sections */
-.executive-dashboard {
-    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-    color: white;
-    padding: 24px;
-    border-radius: 12px;
-    margin: 24px 0;
-}
-
-/* Recommendation badges */
-.recommendation-buy {
-    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-    color: white;
-    padding: 8px 20px;
-    border-radius: 20px;
-    font-weight: 700;
-    display: inline-block;
-}
-
-.recommendation-hold {
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-    color: white;
-    padding: 8px 20px;
-    border-radius: 20px;
-    font-weight: 700;
-    display: inline-block;
-}
-
-.recommendation-sell {
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-    color: white;
-    padding: 8px 20px;
-    border-radius: 20px;
-    font-weight: 700;
-    display: inline-block;
-}
-
-/* Grade badges */
-.grade-a { color: #22c55e; font-weight: 700; font-size: 18pt; }
-.grade-b { color: #3b82f6; font-weight: 700; font-size: 18pt; }
-.grade-c { color: #f59e0b; font-weight: 700; font-size: 18pt; }
-.grade-d { color: #f97316; font-weight: 700; font-size: 18pt; }
-.grade-f { color: #ef4444; font-weight: 700; font-size: 18pt; }
-
-/* Risk colors */
-.risk-critical { color: #ef4444; font-weight: 600; }
-.risk-high { color: #f97316; font-weight: 600; }
-.risk-medium { color: #f59e0b; font-weight: 600; }
-.risk-low { color: #22c55e; font-weight: 600; }
-
-/* SWOT Grid styling */
-.swot-strength { color: #22c55e; }
-.swot-weakness { color: #ef4444; }
-.swot-opportunity { color: #3b82f6; }
-.swot-threat { color: #f59e0b; }
-
-/* Cover page styling */
-.cover-meta {
-    text-align: center;
-    color: #64748b;
-    font-size: 10pt;
-    margin-top: 20px;
-}
-
-.cover-badge {
-    text-align: center;
-    margin: 40px 0;
-}
-
-/* Footer styling */
-.footer {
-    margin-top: 40px;
-    padding-top: 20px;
-    border-top: 2px solid #e2e8f0;
-    text-align: center;
-    color: #64748b;
-    font-size: 9pt;
-}
-
-/* Print optimizations */
-@media print {
-    body {
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-    }
-
-    h1, h2, h3, h4 {
-        page-break-after: avoid;
-    }
-
-    table, figure, img {
-        page-break-inside: avoid;
-    }
-
-    p {
-        orphans: 3;
-        widows: 3;
-    }
-}
-
-/* Confidence tag styling */
-em {
-    font-style: normal;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-size: 8pt;
+h3::before {
+    content: counter(sec) "." counter(sub) "  ";
+    color: var(--muted);
     font-weight: 500;
 }
 
-/* Data source tags */
-.source-documented {
-    background: #dcfce7;
-    color: #166534;
+h4 {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 9pt;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 5mm 0 2mm 0;
+    page-break-after: avoid;
+    text-align: left;
 }
 
-.source-reported {
-    background: #fef3c7;
-    color: #92400e;
+/* A paragraph that is only bold text acts as a sub-label (director names,
+   matter captions). Keep it with the prose that follows it. */
+p.label {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 9.4pt;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 5mm 0 1.4mm 0;
+    page-break-after: avoid;
+    text-align: left;
 }
 
-.source-analytical {
-    background: #dbeafe;
-    color: #1e40af;
+/* ── Tables ──────────────────────────────────────────────────────────── */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 3.5mm 0 6mm 0;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 8.2pt;
+    font-variant-numeric: tabular-nums;
+    page-break-inside: auto;
+    /* Column headings are short phrases; hyphenating them produced
+       "REVEN-UE" and "NET IN-COME". */
+    -weasy-hyphens: none;
+    hyphens: none;
+    text-align: left;
+}
+
+thead { display: table-header-group; }
+
+th {
+    font-size: 6.9pt;
+    font-weight: 700;
+    letter-spacing: 0.085em;
+    text-transform: uppercase;
+    color: var(--navy);
+    background: transparent;
+    text-align: left;
+    padding: 0 3mm 1.8mm 0;
+    border-bottom: 1pt solid var(--navy);
+    vertical-align: bottom;
+}
+
+td {
+    padding: 1.7mm 3mm 1.7mm 0;
+    border-bottom: 0.35pt solid var(--rule-light);
+    color: var(--body);
+    vertical-align: top;
+    text-align: left;
+}
+
+th:last-child, td:last-child { padding-right: 0; }
+
+tbody tr:last-child td { border-bottom: 0.7pt solid var(--rule); }
+
+/* Figures read down a column, so they are right-aligned and set in
+   tabular figures. Detected per column at build time. */
+th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.neg { color: var(--neg); }
+
+/* A row whose first cell is bold is a total. */
+tr.total td {
+    font-weight: 700;
+    color: var(--ink);
+    border-top: 0.7pt solid var(--navy);
+    border-bottom: none;
+    background: var(--tint);
+}
+
+table.compact td { padding-top: 1.1mm; padding-bottom: 1.1mm; }
+
+/* Keep short tables whole; let long ones break across pages. */
+table.short { page-break-inside: avoid; }
+
+/* ── Lists ───────────────────────────────────────────────────────────── */
+ul, ol { margin: 0 0 6pt 0; padding-left: 5mm; }
+li { margin-bottom: 2.4pt; padding-left: 1mm; }
+ul li::marker { color: var(--accent); }
+ol li::marker { color: var(--accent); font-weight: 600; font-size: 8.5pt; }
+
+/* ── Rules and callouts ──────────────────────────────────────────────── */
+hr {
+    border: none;
+    border-top: 0.5pt solid var(--rule);
+    margin: 7mm 0;
+}
+
+blockquote {
+    margin: 4mm 0;
+    padding: 3mm 0 3mm 5mm;
+    border-left: 2pt solid var(--accent);
+    color: var(--ink);
+    font-style: normal;
+}
+
+/* Source attributions set in italics at the end of a block. */
+em.source, p em:only-child {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 7.6pt;
+    color: var(--muted);
+    font-style: normal;
+}
+
+/* Accession numbers, docket numbers and award identifiers are provenance,
+   not argument: they should be findable without interrupting the sentence. */
+span.ref {
+    font-family: Menlo, Consolas, monospace;
+    font-size: 7pt;
+    color: #8494A5;
+    -weasy-hyphens: none;
+    hyphens: none;
 }
 """
+
+
+_NUMERIC_CELL = re.compile(
+    r"^[\s]*[-+(]?\s*(?:US)?\$?\s*\d[\d,\.]*\s*"
+    r"(?:%|x|bn|m|k|M|B|T|K|days?)?\s*\)?[\s]*$"
+)
+_DASH = {"—", "-", "–", "n/m", "N/A", ""}
+
+
+def _looks_numeric(text: str) -> bool:
+    text = (text or "").strip()
+    if text in _DASH:
+        return True          # a gap in a figure column is still a figure column
+    return bool(_NUMERIC_CELL.match(text))
+
+
+def _style_tables(soup) -> None:
+    """Right-align figure columns and mark total rows.
+
+    Markdown carries no column alignment, so it is inferred: a column whose
+    data cells are predominantly numeric is a figure column. Left-aligned
+    figures are the single clearest sign of a document that was laid out by a
+    web template rather than typeset.
+    """
+    for table in soup.find_all("table"):
+        rows = table.find_all("tr")
+        if not rows:
+            continue
+        body_rows = [r for r in rows if r.find_all("td")]
+        headers = rows[0].find_all(["th", "td"])
+        width = len(headers)
+
+        for col in range(width):
+            values, filled = [], 0
+            for row in body_rows:
+                cells = row.find_all("td")
+                if col < len(cells):
+                    text = cells[col].get_text(strip=True)
+                    values.append(text)
+                    if text.strip() not in _DASH:
+                        filled += 1
+            if not values or not filled:
+                continue
+            numeric = sum(1 for v in values if _looks_numeric(v))
+            # The first column is the row label even when it holds a year.
+            if col > 0 and numeric / len(values) >= 0.8:
+                if col < len(headers):
+                    headers[col]["class"] = headers[col].get("class", []) + ["num"]
+                for row in body_rows:
+                    cells = row.find_all("td")
+                    if col < len(cells):
+                        cells[col]["class"] = cells[col].get("class", []) + ["num"]
+
+        # A row whose label is entirely bold is a total or subtotal.
+        for row in body_rows:
+            first = row.find("td")
+            if first and first.find("strong") and first.get_text(strip=True):
+                if first.get_text(strip=True) == first.find("strong").get_text(strip=True):
+                    row["class"] = row.get("class", []) + ["total"]
+
+        # Short tables are kept whole; longer ones may break, with the header
+        # repeating. Holding a large table together pushed it to the next page
+        # and left a third of the previous one empty.
+        if len(body_rows) <= 7:
+            table["class"] = table.get("class", []) + ["short"]
+
+
+def _mark_labels(soup) -> None:
+    """Tag paragraphs that are wholly bold so they set as sub-headings."""
+    for p in soup.find_all("p"):
+        strong = p.find("strong")
+        if not strong:
+            continue
+        if p.get_text(strip=True) == strong.get_text(strip=True):
+            p["class"] = p.get("class", []) + ["label"]
+
+
+_REFERENCE = re.compile(
+    r"\b(\d{10}-\d{2}-\d{6}"          # EDGAR accession number
+    # Federal docket number, including the judge initials a court appends to
+    # it — 4:18-cv-07669-HSG is one identifier and breaks if split.
+    r"|\d{1,2}:\d{2}-[a-z]{2}-\d{3,6}(?:-[A-Z]{2,4})?"
+    r"|\d{4}-\d{3,4}-[A-Z]{3,4}"        # Delaware Chancery case number
+    r"|[A-Z0-9]{6,}-\d{2}-[A-Z0-9-]{4,})\b"  # federal award identifier
+)
+
+
+def _style_references(soup) -> None:
+    """Set identifiers in monospace so they read as citations, not prose."""
+    from bs4 import NavigableString
+    for node in list(soup.find_all(string=_REFERENCE.search)):
+        if node.parent.name in ("code", "a", "span", "th"):
+            continue
+        pieces, last = [], 0
+        for match in _REFERENCE.finditer(node):
+            if match.start() > last:
+                pieces.append(NavigableString(node[last:match.start()]))
+            span = soup.new_tag("span")
+            span["class"] = "ref"
+            span.string = match.group(0)
+            pieces.append(span)
+            last = match.end()
+        if last < len(node):
+            pieces.append(NavigableString(node[last:]))
+        node.replace_with(*pieces)
+
+
+def _build_contents(soup, doc):
+    """Contents page listing every section with its real page number.
+
+    Page references resolve at layout time through target-counter, so they stay
+    correct as content shifts between runs.
+    """
+    sections = [h for h in soup.find_all("h2") if h.get("id")]
+    if len(sections) < 3:
+        return None
+    nav = doc.new_tag("div")
+    nav["class"] = "contents"
+    heading = doc.new_tag("h2")
+    heading.string = "Contents"
+    nav.append(heading)
+    ordered = doc.new_tag("ol")
+    for h in sections:
+        li = doc.new_tag("li")
+        link = doc.new_tag("a", href=f"#{h['id']}")
+        link.string = h.get_text()
+        li.append(link)
+        ordered.append(li)
+    nav.append(ordered)
+    return nav
+
+
+def _build_cover(soup, doc, entity: str, ticker: str, subtitle: str):
+    """Cover page assembled from the report's own front matter.
+
+    The identity table and the classification line are lifted out of the body
+    so they are not repeated once they appear on the cover.
+    """
+    cover = doc.new_tag("div")
+    cover["class"] = "cover"
+
+    rule = doc.new_tag("div"); rule["class"] = "cover-rule"; cover.append(rule)
+    org = doc.new_tag("div"); org["class"] = "cover-org"
+    org.string = "Enterprise Intelligence Platform"
+    cover.append(org)
+
+    name = doc.new_tag("div"); name["class"] = "cover-entity"
+    name.string = entity
+    cover.append(name)
+
+    if ticker:
+        tick = doc.new_tag("div"); tick["class"] = "cover-ticker"
+        tick.string = ticker
+        cover.append(tick)
+
+    kind = doc.new_tag("div"); kind["class"] = "cover-kind"
+    kind.string = subtitle or "Intelligence Report"
+    cover.append(kind)
+
+    # The entity identity table is the first table in the document.
+    identity = soup.find("table")
+    facts = []
+    if identity:
+        for row in identity.find_all("tr"):
+            cells = row.find_all(["td", "th"])
+            if len(cells) == 2:
+                key = cells[0].get_text(strip=True)
+                value = cells[1].get_text(strip=True)
+                if key.lower() not in ("field", "") and value:
+                    facts.append((key, value))
+        identity.decompose()
+    if facts:
+        table = doc.new_tag("table"); table["class"] = "cover-facts"
+        for key, value in facts:
+            tr = doc.new_tag("tr")
+            k = doc.new_tag("td"); k["class"] = "k"; k.string = key
+            v = doc.new_tag("td"); v["class"] = "v"; v.string = value
+            tr.append(k); tr.append(v); table.append(tr)
+        cover.append(table)
+
+    foot = doc.new_tag("div"); foot["class"] = "cover-foot"
+    badge = doc.new_tag("div"); badge["class"] = "cover-class"
+    badge.string = "Internal use only — not for distribution"
+    foot.append(badge)
+    note = doc.new_tag("div")
+    note.string = (
+        f"Prepared {datetime.now().strftime('%d %B %Y')} from public records and "
+        f"open sources. Research use only — not legal, investment, or tax advice."
+    )
+    foot.append(note)
+    cover.append(foot)
+    return cover
+
+
+def _strip_front_matter(soup) -> tuple:
+    """Remove the markdown front matter the cover now carries.
+
+    Returns the entity name, ticker and report kind read out of it.
+    """
+    entity, ticker, subtitle = "", "", ""
+    h1 = soup.find("h1")
+    if h1:
+        text = h1.get_text(strip=True)
+        for sep in ("—", "–", "-"):
+            if sep in text:
+                entity, subtitle = [p.strip() for p in text.split(sep, 1)]
+                break
+        else:
+            entity = text
+        h1.decompose()
+
+    # The classification block is a single paragraph of bold key/value pairs.
+    for p in soup.find_all("p")[:3]:
+        text = p.get_text(" ", strip=True)
+        if "Classification:" in text or "Report Date:" in text:
+            match = re.search(r"Ticker:\s*([A-Za-z:\. ]+)", text)
+            if match:
+                ticker = match.group(1).strip()
+            p.decompose()
+            break
+
+    # A horizontal rule closed the front matter.
+    first_hr = soup.find("hr")
+    if first_hr and not first_hr.find_previous("h2"):
+        first_hr.decompose()
+
+    return entity, ticker, subtitle
 
 
 def convert_markdown_to_pdf(
@@ -370,12 +666,17 @@ def convert_markdown_to_pdf(
     title: str = "Intelligence Report"
 ) -> bytes:
     """
-    Convert markdown content to a beautifully formatted PDF.
+    Render report markdown as a typeset PDF.
+
+    The markdown is the single source of truth for content; everything here is
+    presentation. A cover and contents page are synthesised from the document's
+    own front matter, sections are numbered, and figure columns are detected
+    and right-aligned.
 
     Args:
         markdown_content: The markdown text to convert
         output_path: Optional path to save the PDF file
-        title: Document title for metadata
+        title: Document title for metadata and the running head
 
     Returns:
         PDF bytes
@@ -383,38 +684,46 @@ def convert_markdown_to_pdf(
     if not WEASYPRINT_OK:
         raise RuntimeError("WeasyPrint is not installed. Run: pip install weasyprint")
 
-    # Convert markdown to HTML
     md = markdown.Markdown(
-        extensions=[
-            'tables',
-            'fenced_code',
-            'codehilite',
-            'toc',
-            'attr_list',
-            'md_in_html',
-        ]
+        extensions=['tables', 'fenced_code', 'codehilite', 'toc', 'attr_list',
+                    'md_in_html']
     )
-    html_content = md.convert(markdown_content)
+    body_html = md.convert(markdown_content)
 
-    # Wrap in full HTML document
-    full_html = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>{title}</title>
-    </head>
-    <body>
-        {html_content}
-    </body>
-    </html>
-    """
+    try:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(body_html, "html.parser")
+        entity, ticker, subtitle = _strip_front_matter(soup)
+        cover = _build_cover(soup, soup, entity or title, ticker, subtitle)
+        contents = _build_contents(soup, soup)
+        _style_tables(soup)
+        _mark_labels(soup)
+        _style_references(soup)
+        parts = [str(cover)]
+        if contents:
+            parts.append(str(contents))
+        parts.append(str(soup))
+        body_html = "".join(parts)
+        running_title = entity or title
+    except ImportError:
+        running_title = title
 
-    # Configure fonts
+    full_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{title}</title>
+    <style>
+        html {{ counter-reset: sec; }}
+        body {{ string-set: doctitle "{running_title}"; }}
+    </style>
+</head>
+<body>
+{body_html}
+</body>
+</html>"""
+
     font_config = FontConfiguration()
-
-    # Create PDF
     html = HTML(string=full_html)
     css = CSS(string=REPORT_CSS, font_config=font_config)
 
@@ -422,10 +731,7 @@ def convert_markdown_to_pdf(
         html.write_pdf(output_path, stylesheets=[css], font_config=font_config)
         with open(output_path, 'rb') as f:
             return f.read()
-    else:
-        pdf_bytes = html.write_pdf(stylesheets=[css], font_config=font_config)
-        return pdf_bytes
-
+    return html.write_pdf(stylesheets=[css], font_config=font_config)
 
 def _clean_news_text(text: str) -> str:
     """Clean news text by removing JSON metadata and URLs."""

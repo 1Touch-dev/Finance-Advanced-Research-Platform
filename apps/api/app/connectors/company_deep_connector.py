@@ -50,30 +50,28 @@ def _get_text(url, timeout=15) -> str:
 # ─── CIK Resolution ──────────────────────────────────────────────────────────
 
 def get_cik_for_ticker(ticker: str) -> Optional[str]:
-    """Resolve company CIK from ticker symbol via SEC EDGAR."""
+    """
+    Resolve company CIK from ticker symbol via SEC EDGAR.
+
+    Delegates to the resolver in sec_edgar_connector, which caches the ticker
+    map on disk. This module previously kept its own in-process cache and
+    refetched the map every run; under SEC rate limiting that lookup failed and
+    took valuation, institutional ownership and proxy data down with it, since
+    all three resolve their CIK through here. One resolver and one cache means
+    a throttled response cannot empty half the report.
+    """
     ticker = ticker.upper().strip()
     if ticker in _cik_cache:
         return _cik_cache[ticker]
-    try:
-        r = requests.get(
-            "https://www.sec.gov/cgi-bin/browse-edgar",
-            params={"action": "getcompany", "company": ticker, "type": "10-K",
-                    "dateb": "", "owner": "include", "count": 5, "output": "atom"},
-            headers=SEC_HEADERS, timeout=10
-        )
-        # Try ticker map
-        map_data = requests.get(
-            "https://www.sec.gov/files/company_tickers.json",
-            headers=SEC_HEADERS, timeout=10
-        ).json()
-        for entry in map_data.values():
-            if entry.get("ticker", "").upper() == ticker:
-                cik = str(entry["cik_str"]).zfill(10)
-                _cik_cache[ticker] = cik
-                return cik
-    except Exception as e:
-        log.warning("CIK lookup error for %s: %s", ticker, e)
-    return None
+
+    from app.connectors.sec_edgar_connector import get_cik_from_ticker
+
+    cik = get_cik_from_ticker(ticker)
+    if cik:
+        _cik_cache[ticker] = cik
+    else:
+        log.warning("Ticker %s could not be resolved to a CIK", ticker)
+    return cik
 
 
 def get_company_info(ticker: str) -> dict:
