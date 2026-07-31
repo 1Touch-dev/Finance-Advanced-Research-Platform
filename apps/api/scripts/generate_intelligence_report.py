@@ -3031,10 +3031,19 @@ def _render_data_health(data: dict, entity_name: str) -> list:
             "broken": "**Failed**",
             "not_run": "**Not run**",
         }.get(check["status"], check["status"])
+        # For a suspect or failed source the standing "consequence if absent"
+        # note is the wrong thing to print: it explains what a legitimate zero
+        # would mean, when the whole point of the status is that this zero is
+        # probably not legitimate. The reason displaces it.
+        if check["status"] in ("suspect", "broken"):
+            note = check.get("detail") or check["impact"]
+        elif check["status"] != "ok":
+            note = check["impact"]
+        else:
+            note = "—"
         lines.append(
             f"| {check['source']} | {status} "
-            f"| {check['records'] or '—'} "
-            f"| {check['impact'] if check['status'] != 'ok' else '—'} |")
+            f"| {check['records'] or '—'} | {note} |")
     lines.append("")
 
     alerts = health.get("alerts") or []
