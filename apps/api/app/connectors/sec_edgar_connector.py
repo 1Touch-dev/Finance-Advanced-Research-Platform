@@ -383,6 +383,28 @@ def get_company_submissions(cik: str, forms: Optional[List[str]] = None,
     return result
 
 
+_MARGIN_SOURCES = (
+    ("gross_margin", "GrossProfit"),
+    ("operating_margin", "OperatingIncome"),
+    ("net_margin", "NetIncome"),
+)
+
+
+def _set_margins(row: Dict[str, Any], revenue: float) -> None:
+    """Attach margins, but only where the numerator was actually reported.
+
+    Defaulting a missing numerator to zero turns "this issuer does not report
+    gross profit" into "this issuer earns a 0.0% gross margin", which is a
+    claim rather than a gap. Banks and REITs never report gross profit and
+    most banks never report operating income, so on those filers every margin
+    line read 0.0%. It went unnoticed because the two companies the pipeline
+    was built against both report all three.
+    """
+    for field, source in _MARGIN_SOURCES:
+        value = row.get(source)
+        row[field] = round(value / revenue * 100, 2) if value is not None else None
+
+
 def extract_financial_statements(facts: Dict[str, Any], years: int = 5) -> Dict[str, Any]:
     """
     Extract key financial statement data from XBRL company facts.
@@ -751,9 +773,7 @@ def extract_financial_statements(facts: Dict[str, Any], years: int = 5) -> Dict[
                 ttm[metric] = sum(vals)
         rev = ttm.get("Revenues")
         if rev:
-            ttm["gross_margin"] = round((ttm.get("GrossProfit", 0)) / rev * 100, 2)
-            ttm["operating_margin"] = round((ttm.get("OperatingIncome", 0)) / rev * 100, 2)
-            ttm["net_margin"] = round((ttm.get("NetIncome", 0)) / rev * 100, 2)
+            _set_margins(ttm, rev)
         result["ttm"] = ttm
 
     # Calculate key metrics from latest period
@@ -764,9 +784,7 @@ def extract_financial_statements(facts: Dict[str, Any], years: int = 5) -> Dict[
         for row in result["income_statement"]:
             rev = row.get("Revenues") or 0
             if rev:
-                row["gross_margin"] = round((row.get("GrossProfit", 0) or 0) / rev * 100, 2)
-                row["operating_margin"] = round((row.get("OperatingIncome", 0) or 0) / rev * 100, 2)
-                row["net_margin"] = round((row.get("NetIncome", 0) or 0) / rev * 100, 2)
+                _set_margins(row, rev)
             ocf = row.get("OperatingCashFlow") or 0
             capex = row.get("CapEx") or 0
             if ocf:
