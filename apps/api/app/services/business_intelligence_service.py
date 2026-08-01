@@ -794,9 +794,8 @@ def render_business_model_markdown(data: Dict[str, Any]) -> List[str]:
     industry = bm.get("industry_classification", {})
 
     if not desc.get("paragraphs") and not industry:
-        lines.append("Business model data not available from SEC filings.")
-        lines.append("")
-        return lines
+        # Return empty - don't show "not available" message
+        return []
 
     # Industry classification
     if industry:
@@ -857,9 +856,8 @@ def render_revenue_structure_markdown(data: Dict[str, Any]) -> List[str]:
     summary = rs.get("summary", {})
 
     if not segments and not geographic:
-        lines.append("Segment revenue data not available from SEC filings.")
-        lines.append("")
-        return lines
+        # Return empty - don't show "not available" message
+        return []
 
     # Summary metrics
     if summary:
@@ -946,9 +944,8 @@ def render_brand_portfolio_markdown(data: Dict[str, Any]) -> List[str]:
     summary = bp.get("portfolio_summary", {})
 
     if not brands and not products:
-        lines.append("Brand portfolio data not available from SEC filings.")
-        lines.append("")
-        return lines
+        # Return empty - don't show "not available" message
+        return []
 
     # Summary
     if summary:
@@ -990,9 +987,8 @@ def render_industry_outlook_markdown(data: Dict[str, Any]) -> List[str]:
     regulatory = io.get("regulatory_environment", {})
 
     if not sector_outlook:
-        lines.append("Industry outlook data not available.")
-        lines.append("")
-        return lines
+        # Return empty - don't show "not available" message
+        return []
 
     # Industry classification
     lines.append(f"**Sector:** {sector_outlook.get('sector', 'N/A')}")

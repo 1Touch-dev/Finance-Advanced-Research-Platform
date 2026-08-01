@@ -568,21 +568,37 @@ def render_family_network_markdown(data: Dict[str, Any]) -> List[str]:
     linked_count = profile.get("surname_linked", 0)
     foundation_count = profile.get("foundations", 0)
 
-    if not any([vehicles, surname_links, foundations]):
+    # Filter foundations to only count valid ones
+    valid_foundations = [
+        f for f in foundations
+        if f.get("foundation_name") and
+           f.get("foundation_name") != "Unknown Foundation" and
+           f.get("match_strength", "weak") != "weak"
+    ]
+    valid_foundation_count = len(valid_foundations)
+
+    if not any([vehicles, surname_links, valid_foundations]):
+        # Don't show section if nothing meaningful found
+        return []
+
+    # Build summary showing only what was found
+    findings = []
+    if people_count > 0:
+        findings.append(f"**{people_count} reporting insiders**")
+    if vehicle_count > 0:
+        findings.append(f"**{vehicle_count} vehicles** (trusts, LLCs, partnerships)")
+    if linked_count > 0:
+        findings.append(f"**{linked_count} surname-linked positions**")
+    if valid_foundation_count > 0:
+        findings.append(f"**{valid_foundation_count} foundations**")
+
+    if findings:
         lines.append(
-            f"No family-linked vehicles or foundations were identified for "
-            f"{entity_name} insiders in the analyzed filings."
+            f"Analysis of Section 16 filings and proxy statements for {entity_name} "
+            f"identified {', '.join(findings[:-1])}"
+            + (f", and {findings[-1]}" if len(findings) > 1 else findings[0] if findings else "") + "."
         )
         lines.append("")
-        return lines
-
-    lines.append(
-        f"Analysis of Section 16 filings and proxy statements for {entity_name} "
-        f"identified **{people_count} reporting insiders**, **{vehicle_count} "
-        f"vehicles** (trusts, LLCs, partnerships), **{linked_count} surname-linked "
-        f"positions**, and **{foundation_count} foundations**."
-    )
-    lines.append("")
 
     # Position Census Table
     if census:
@@ -642,30 +658,40 @@ def render_family_network_markdown(data: Dict[str, Any]) -> List[str]:
     # Foundations
     if foundations:
         lines.append("### Foundations")
-        lines.append("")
-        lines.append(
-            f"{len(foundations)} private foundation(s) were identified with names "
-            f"matching insider surnames:"
-        )
-        lines.append("")
+        # Filter to only show foundations with actual names and non-weak matches
+        valid_foundations = [
+            f for f in foundations
+            if f.get("foundation_name") and
+               f.get("foundation_name") != "Unknown Foundation" and
+               f.get("match_strength", "weak") != "weak"
+        ]
 
-        for f in foundations[:8]:
-            name = f.get("foundation_name", "Unknown Foundation")
-            ein = f.get("ein", "")
-            assets = f.get("assets")
-            year = f.get("tax_year")
-            surname = f.get("surname", "")
-            strength = f.get("match_strength", "weak")
-
-            lines.append(f"**{name}**")
-            if ein:
-                lines.append(f"- EIN: {ein}")
-            if assets:
-                lines.append(f"- Total assets: ${assets:,.0f}")
-            if year:
-                lines.append(f"- Tax year: {year}")
-            lines.append(f"- Surname match: {surname.title()} ({strength})")
+        if valid_foundations:
             lines.append("")
+            lines.append(
+                f"{len(valid_foundations)} private foundation(s) were identified with names "
+                f"matching insider surnames:"
+            )
+            lines.append("")
+
+            for f in valid_foundations[:8]:
+                name = f.get("foundation_name")
+                ein = f.get("ein", "")
+                assets = f.get("assets")
+                year = f.get("tax_year")
+                surname = f.get("surname", "")
+                strength = f.get("match_strength", "")
+
+                lines.append(f"**{name}**")
+                if ein:
+                    lines.append(f"- EIN: {ein}")
+                if assets:
+                    lines.append(f"- Total assets: ${assets:,.0f}")
+                if year:
+                    lines.append(f"- Tax year: {year}")
+                if surname:
+                    lines.append(f"- Surname match: {surname.title()}")
+                lines.append("")
 
     # Source note
     sources = data.get("sources", [])
