@@ -441,9 +441,8 @@ def render_founder_track_record_markdown(track_record: Dict[str, Any]) -> List[s
     stats = track_record.get("aggregate_stats", {})
 
     if not profiles:
-        lines.append("No executive track record data available.")
-        lines.append("")
-        return lines
+        # Return empty - don't show "not available" message
+        return []
 
     lines.append(
         f"Research covered {len(profiles)} executives, identifying "
