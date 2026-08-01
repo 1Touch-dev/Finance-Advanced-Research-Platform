@@ -343,6 +343,12 @@ _NON_DIRECTOR_TERMS = (
     "report of", "letter", "table of", "contents", "appendix", "annex",
     "policy", "policies", "guidelines", "oversight", "engagement",
     "highlights", "practices", "responsibilities", "frequently",
+    # Additional section headers commonly parsed as names
+    "director nominees", "nominees", "ceo pay", "pay ratio", "pay versus",
+    "executive compensation", "stockholder", "shareholder", "fiscal year",
+    "annual meeting", "corporate responsibility", "sustainability",
+    "environmental", "social", "esg", "diversity", "inclusion",
+    "risk management", "cybersecurity", "audit", "nominating",
 )
 
 # Matched on word boundaries rather than as substrings: "Boardman" and

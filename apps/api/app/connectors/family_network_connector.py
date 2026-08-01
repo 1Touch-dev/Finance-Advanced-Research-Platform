@@ -569,11 +569,12 @@ def render_family_network_markdown(data: Dict[str, Any]) -> List[str]:
     foundation_count = profile.get("foundations", 0)
 
     # Filter foundations to only count valid ones
+    # Fields are "name" and "strength" from foundations_for()
     valid_foundations = [
         f for f in foundations
-        if f.get("foundation_name") and
-           f.get("foundation_name") != "Unknown Foundation" and
-           f.get("match_strength", "weak") != "weak"
+        if f.get("name") and
+           f.get("name") != "Unknown Foundation" and
+           f.get("strength", "surname appears in the name") in ("pattern match", "surname leads the name")
     ]
     valid_foundation_count = len(valid_foundations)
 
@@ -658,12 +659,13 @@ def render_family_network_markdown(data: Dict[str, Any]) -> List[str]:
     # Foundations
     if foundations:
         lines.append("### Foundations")
-        # Filter to only show foundations with actual names and non-weak matches
+        # Filter to only show foundations with actual names and strong matches
+        # Fields are "name" and "strength" from foundations_for()
         valid_foundations = [
             f for f in foundations
-            if f.get("foundation_name") and
-               f.get("foundation_name") != "Unknown Foundation" and
-               f.get("match_strength", "weak") != "weak"
+            if f.get("name") and
+               f.get("name") != "Unknown Foundation" and
+               f.get("strength", "surname appears in the name") in ("pattern match", "surname leads the name")
         ]
 
         if valid_foundations:
@@ -675,12 +677,12 @@ def render_family_network_markdown(data: Dict[str, Any]) -> List[str]:
             lines.append("")
 
             for f in valid_foundations[:8]:
-                name = f.get("foundation_name")
+                name = f.get("name")
                 ein = f.get("ein", "")
                 assets = f.get("assets")
                 year = f.get("tax_year")
-                surname = f.get("surname", "")
-                strength = f.get("match_strength", "")
+                surname = f.get("matched_on", "")  # Field is "matched_on" not "surname"
+                strength = f.get("strength", "")
 
                 lines.append(f"**{name}**")
                 if ein:

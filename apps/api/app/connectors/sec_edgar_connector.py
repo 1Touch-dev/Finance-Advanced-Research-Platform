@@ -946,10 +946,13 @@ def find_latest_filing(cik: str, form: str) -> Optional[Dict[str, Any]]:
         except ValueError:
             return None
         accession = block["accessionNumber"][index]
+        primary_docs = block.get("primaryDocument", [])
+        primary_doc = primary_docs[index] if index < len(primary_docs) else None
         return {
             "accession": accession,
             "report_date": (block.get("reportDate") or [None] * (index + 1))[index],
             "filing_date": (block.get("filingDate") or [None] * (index + 1))[index],
+            "primary_document": primary_doc,
             "base_url": (f"{SEC_WWW_BASE}/Archives/edgar/data/{int(cik)}/"
                          f"{accession.replace('-', '')}"),
         }
@@ -1020,7 +1023,7 @@ def get_segment_data(cik: str,
         if not name or not filename:
             continue
         short = html.unescape(name.group(1))
-        if "Details" not in short or _NOT_A_SEGMENT_NOTE.search(short):
+        if "Detail" not in short or _NOT_A_SEGMENT_NOTE.search(short):
             continue
         note, _, detail = short.partition(" - ")
         detail = detail or short

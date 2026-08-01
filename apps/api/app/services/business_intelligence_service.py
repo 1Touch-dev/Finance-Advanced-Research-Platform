@@ -141,20 +141,33 @@ def _get_sic_info(cik: str) -> Dict[str, Any]:
 
 # ── Business Model Extraction ─────────────────────────────────────────────────
 
+# Patterns to find business description start - in priority order
+# GENERAL is common in tech company 10-Ks (Microsoft, etc.)
 _ITEM1_PATTERNS = [
+    re.compile(r"\bGENERAL\b(?=\s+[A-Z][a-z])", re.M),  # "GENERAL Microsoft is..."
     re.compile(r"item\s*1[.\s:]+business\b", re.I),
     re.compile(r"item\s*1[.\s:]+description of business", re.I),
-    re.compile(r"^business$", re.I | re.M),
     re.compile(r"overview of (?:our )?business", re.I),
+    re.compile(r"(?:^|\n)business\s*\n", re.I | re.M),
 ]
 
-_ITEM1A_BOUNDARY = re.compile(r"item\s*1a[.\s:]+risk factors", re.I)
-_ITEM2_BOUNDARY = re.compile(r"item\s*2[.\s:]+properties", re.I)
+_ITEM1A_BOUNDARY = re.compile(r"item\s*1a[.\s:–—-]+risk\s*factors", re.I)
+_ITEM2_BOUNDARY = re.compile(r"item\s*2[.\s:–—-]+properties", re.I)
+# Additional boundaries that might appear before Item 1A
+_SECTION_BOUNDARIES = [
+    re.compile(r"\bPART\s+I+\s*Item\s*1A\b", re.I),
+    re.compile(r"\bRISK\s+FACTORS\b"),  # All caps section header
+    re.compile(r"\bInformation about our Executive Officers\b", re.I),
+]
 
 # Clean extracted text
 _BOILERPLATE = re.compile(
     r"table of contents|click here|page \d+|^\s*\d+\s*$|"
-    r"forward.?looking|cautionary|statement regarding", re.I)
+    r"forward.?looking|cautionary|statement regarding|"
+    r"^\s*index\s*$|^\s*\d+\s+PART", re.I)
+
+# Detect TOC entries (short lines with page numbers)
+_TOC_LINE = re.compile(r"^.{10,80}\s+\d{1,3}\s*$", re.M)
 
 
 def _extract_business_description(html: str, max_paragraphs: int = 15) -> Dict[str, Any]:
@@ -173,24 +186,30 @@ def _extract_business_description(html: str, max_paragraphs: int = 15) -> Dict[s
         "competitive_position": [],
     }
 
-    # Find Item 1 start
+    # Find Item 1 / Business description start
     item1_start = None
     for pattern in _ITEM1_PATTERNS:
-        match = pattern.search(full_text)
-        if match:
+        for match in pattern.finditer(full_text):
+            # Skip TOC entries - check if followed by actual content (50+ chars before next section)
+            after_match = full_text[match.end():match.end()+200]
+            # TOC entries have page numbers shortly after
+            if re.match(r"^\s*\d{1,3}\s", after_match):
+                continue
+            # Good match - actual content follows
             item1_start = match.start()
+            break
+        if item1_start is not None:
             break
 
     if item1_start is None:
         return result
 
-    # Find Item 1A or Item 2 boundary
+    # Find section boundary (Item 1A, Risk Factors, etc.)
     item1_end = len(full_text)
-    for boundary in [_ITEM1A_BOUNDARY, _ITEM2_BOUNDARY]:
-        match = boundary.search(full_text, item1_start + 100)
+    for boundary in [_ITEM1A_BOUNDARY, _ITEM2_BOUNDARY] + _SECTION_BOUNDARIES:
+        match = boundary.search(full_text, item1_start + 500)  # Skip at least 500 chars
         if match:
             item1_end = min(item1_end, match.start())
-            break
 
     # Extract text
     business_text = full_text[item1_start:item1_end]
