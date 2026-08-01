@@ -345,10 +345,11 @@ _NON_DIRECTOR_TERMS = (
     "highlights", "practices", "responsibilities", "frequently",
     # Additional section headers commonly parsed as names
     "director nominees", "nominees", "ceo pay", "pay ratio", "pay versus",
-    "executive compensation", "stockholder", "shareholder", "fiscal year",
-    "annual meeting", "corporate responsibility", "sustainability",
-    "environmental", "social", "esg", "diversity", "inclusion",
-    "risk management", "cybersecurity", "audit", "nominating",
+    "executive compensation", "stockholder", "shareholder", "shareholders",
+    "principal", "fiscal year", "annual meeting", "corporate responsibility",
+    "sustainability", "environmental", "social", "esg", "diversity", "inclusion",
+    "risk management", "cybersecurity", "audit", "nominating", "security ownership",
+    "beneficial", "ownership",
 )
 
 # Matched on word boundaries rather than as substrings: "Boardman" and
