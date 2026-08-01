@@ -416,7 +416,7 @@ def analyze_contract_probability(
 
     # Fetch historical awards
     current_fy = datetime.now().year if datetime.now().month >= 10 else datetime.now().year - 1
-    awards = _fetch_usaspending_awards(company_name, fiscal_year=current_fy, limit=200)
+    awards = _fetch_usaspending_awards(company_name, fiscal_year=current_fy, limit=100)
 
     # Calculate win rate metrics
     win_metrics = _calculate_win_rate(awards, company_name)
