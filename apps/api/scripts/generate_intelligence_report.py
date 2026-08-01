@@ -39,6 +39,21 @@ from datetime import date, datetime, timedelta
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Load environment variables from .env file (project root)
+try:
+    from dotenv import load_dotenv
+    # Try multiple locations for .env
+    env_paths = [
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), ".env"),  # project root
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"),  # apps/api
+    ]
+    for env_path in env_paths:
+        if os.path.exists(env_path):
+            load_dotenv(env_path)
+            break
+except ImportError:
+    pass  # dotenv not installed, rely on system environment
+
 # Set environment variables if needed
 os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://user:password@127.0.0.1:5433/mydb")
 
@@ -5339,6 +5354,63 @@ def generate_markdown_report(data: dict) -> str:
             lines.append(f"- **[{finding.get('severity', '')}]** {finding.get('detail', '')}")
         lines.append("")
 
+    # ── Phase 3: Deep Intelligence Sections ──────────────────────────────
+
+    # Founder Track Record
+    founder_track = data.get("founder_track_record", {}) or {}
+    if founder_track.get("executive_profiles"):
+        try:
+            from app.connectors.founder_track_record_connector import (
+                render_founder_track_record_markdown,
+            )
+            lines.extend(render_founder_track_record_markdown(founder_track))
+        except Exception as e:
+            logger.warning("Founder track record render failed: %s", e)
+
+    # Rumors and Next Steps Analysis
+    rumors = data.get("rumors_analysis", {}) or {}
+    if rumors.get("summary"):
+        try:
+            from app.connectors.rumors_analysis_connector import (
+                render_rumors_analysis_markdown,
+            )
+            lines.extend(render_rumors_analysis_markdown(rumors))
+        except Exception as e:
+            logger.warning("Rumors analysis render failed: %s", e)
+
+    # Contract Probability Analysis
+    contract_prob = data.get("contract_probability", {}) or {}
+    if contract_prob.get("historical_performance"):
+        try:
+            from app.services.contract_probability_service import (
+                render_contract_probability_markdown,
+            )
+            lines.extend(render_contract_probability_markdown(contract_prob))
+        except Exception as e:
+            logger.warning("Contract probability render failed: %s", e)
+
+    # Deep Comparative Analysis
+    deep_comp = data.get("deep_comparative", {}) or {}
+    if deep_comp.get("category_comparisons"):
+        try:
+            from app.services.deep_comparative_service import (
+                render_deep_comparative_markdown,
+            )
+            lines.extend(render_deep_comparative_markdown(deep_comp))
+        except Exception as e:
+            logger.warning("Deep comparative render failed: %s", e)
+
+    # Family Network Analysis
+    family_net = data.get("family_network", {}) or {}
+    if family_net.get("executives") or family_net.get("foundations"):
+        try:
+            from app.connectors.family_network_connector import (
+                render_family_network_markdown,
+            )
+            lines.extend(render_family_network_markdown(family_net))
+        except Exception as e:
+            logger.warning("Family network render failed: %s", e)
+
     # ── Methodology ──────────────────────────────────────────────────────
     lines.append("## Methodology and Sources")
     lines.append("")
@@ -5353,6 +5425,17 @@ def generate_markdown_report(data: dict) -> str:
     lines.append("| Federal awards | USASpending.gov API v2, all award-type groups |")
     lines.append("| Lobbying | Senate LDA API |")
     lines.append("| Litigation | CourtListener, SEC, FTC, DOJ, ITC, PTAB |")
+    # Phase 3 sources
+    if data.get("founder_track_record"):
+        lines.append("| Founder track record | Google Books API, Open Library, Apify web scraping |")
+    if data.get("rumors_analysis"):
+        lines.append("| Rumors and next steps | NewsAPI, Alpha Vantage, Twitter/X via Apify |")
+    if data.get("contract_probability"):
+        lines.append("| Contract probability | USASpending.gov, SAM.gov |")
+    if data.get("deep_comparative"):
+        lines.append("| Deep comparative analysis | Alpha Vantage, Financial Modeling Prep, SEC EDGAR XBRL |")
+    if data.get("family_network"):
+        lines.append("| Family network | Form 990 (ProPublica), Section 16 filings, LinkedIn via Apify |")
     price = data.get("price_history") or {}
     price_bars = price.get("bars") or []
     if price_bars or price.get("source") or price.get("provider"):

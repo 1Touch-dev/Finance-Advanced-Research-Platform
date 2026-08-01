@@ -500,3 +500,177 @@ def get_family_network(entity_name: str,
          "found": None},
     ]
     return result
+
+
+def research_family_network(entity_name: str, ticker: str = "") -> Dict[str, Any]:
+    """
+    High-level wrapper for family network research.
+
+    This is the entry point for the deep_research_orchestrator.
+    It fetches proxy and insider data, then calls get_family_network.
+    """
+    from app.connectors.proxy_statement_connector import get_proxy_intelligence
+    from app.connectors.sec_edgar_connector import get_filer_cik, get_insider_transactions
+
+    result = {
+        "entity_name": entity_name,
+        "ticker": ticker,
+        "executives": [],
+        "vehicles": [],
+        "surname_links": [],
+        "foundations": [],
+        "position_profile": {},
+    }
+
+    try:
+        # Get proxy data
+        proxy = {}
+        if ticker:
+            proxy = get_proxy_intelligence(ticker, years=2) or {}
+
+        # Get insider transactions
+        insider = {}
+        if ticker:
+            cik = get_filer_cik(ticker)
+            if cik:
+                insider = get_insider_transactions(cik) or {}
+
+        # Run family network analysis
+        network = get_family_network(
+            entity_name=entity_name,
+            proxy=proxy,
+            insider=insider,
+            include_foundations=True,
+        )
+
+        result.update(network)
+
+    except Exception as e:
+        logger.warning("Family network research failed for %s: %s", entity_name, e)
+
+    return result
+
+
+def render_family_network_markdown(data: Dict[str, Any]) -> List[str]:
+    """Render family network analysis as markdown."""
+    lines = ["## Family Network Analysis", ""]
+
+    entity_name = data.get("entity_name", "Company")
+    profile = data.get("position_profile", {}) or {}
+    vehicles = data.get("vehicles", []) or []
+    surname_links = data.get("surname_links", []) or []
+    foundations = data.get("foundations", []) or []
+    census = data.get("position_census", []) or []
+
+    # Overview
+    people_count = profile.get("people_identified", 0)
+    vehicle_count = profile.get("vehicles_identified", 0)
+    linked_count = profile.get("surname_linked", 0)
+    foundation_count = profile.get("foundations", 0)
+
+    if not any([vehicles, surname_links, foundations]):
+        lines.append(
+            f"No family-linked vehicles or foundations were identified for "
+            f"{entity_name} insiders in the analyzed filings."
+        )
+        lines.append("")
+        return lines
+
+    lines.append(
+        f"Analysis of Section 16 filings and proxy statements for {entity_name} "
+        f"identified **{people_count} reporting insiders**, **{vehicle_count} "
+        f"vehicles** (trusts, LLCs, partnerships), **{linked_count} surname-linked "
+        f"positions**, and **{foundation_count} foundations**."
+    )
+    lines.append("")
+
+    # Position Census Table
+    if census:
+        lines.append("### Position Census")
+        lines.append("")
+        lines.append("| Position Type | Visible In | Found |")
+        lines.append("|--------------|------------|-------|")
+        for row in census:
+            found = row.get("found")
+            found_str = str(found) if found is not None else "N/A"
+            lines.append(
+                f"| {row.get('position', 'Unknown')} "
+                f"| {row.get('visible_in', 'Unknown')} "
+                f"| {found_str} |"
+            )
+        lines.append("")
+
+    # Surname-linked vehicles (key findings)
+    if surname_links:
+        lines.append("### Family-Linked Holdings")
+        lines.append("")
+        lines.append(
+            "The following vehicles contain surnames matching known insiders, "
+            "suggesting potential family connections:"
+        )
+        lines.append("")
+
+        for link in surname_links[:10]:
+            vehicle = link.get("vehicle", "Unknown")
+            kind = link.get("kind", "vehicle")
+            surname = link.get("surname", "")
+            roles = ", ".join(link.get("insider_roles", []))
+
+            lines.append(f"**{vehicle}** ({kind})")
+            lines.append(
+                f"- Surname match: *{surname.title()}*"
+            )
+            if roles:
+                lines.append(f"- Insider role(s): {roles}")
+            if link.get("value"):
+                lines.append(f"- Reported value: ${link['value']:,.0f}")
+            if link.get("basis"):
+                lines.append(f"- > {link['basis']}")
+            lines.append("")
+
+    # All vehicles by type
+    by_kind = profile.get("vehicles_by_kind", {}) or {}
+    if by_kind:
+        lines.append("### Vehicle Breakdown by Type")
+        lines.append("")
+        lines.append("| Vehicle Type | Count |")
+        lines.append("|--------------|-------|")
+        for kind, count in sorted(by_kind.items(), key=lambda x: -x[1]):
+            lines.append(f"| {kind.title()} | {count} |")
+        lines.append("")
+
+    # Foundations
+    if foundations:
+        lines.append("### Foundations")
+        lines.append("")
+        lines.append(
+            f"{len(foundations)} private foundation(s) were identified with names "
+            f"matching insider surnames:"
+        )
+        lines.append("")
+
+        for f in foundations[:8]:
+            name = f.get("foundation_name", "Unknown Foundation")
+            ein = f.get("ein", "")
+            assets = f.get("assets")
+            year = f.get("tax_year")
+            surname = f.get("surname", "")
+            strength = f.get("match_strength", "weak")
+
+            lines.append(f"**{name}**")
+            if ein:
+                lines.append(f"- EIN: {ein}")
+            if assets:
+                lines.append(f"- Total assets: ${assets:,.0f}")
+            if year:
+                lines.append(f"- Tax year: {year}")
+            lines.append(f"- Surname match: {surname.title()} ({strength})")
+            lines.append("")
+
+    # Source note
+    sources = data.get("sources", [])
+    if sources:
+        lines.append(f"*Sources: {', '.join(sources)}.*")
+        lines.append("")
+
+    return lines

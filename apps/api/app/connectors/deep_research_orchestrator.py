@@ -195,6 +195,63 @@ except ImportError:
     def generate_risk_register(*args, **kwargs): return {}
     def generate_risk_register_markdown(*args): return ""
 
+# ── Phase 3 Connector Imports (Deep Intelligence) ────────────────────────────
+
+try:
+    from app.connectors.founder_track_record_connector import (
+        get_founder_track_record,
+        render_founder_track_record_markdown,
+    )
+    FOUNDER_TRACK_RECORD_AVAILABLE = True
+except ImportError:
+    FOUNDER_TRACK_RECORD_AVAILABLE = False
+    def get_founder_track_record(*args, **kwargs): return {}
+    def render_founder_track_record_markdown(*args): return []
+
+try:
+    from app.connectors.rumors_analysis_connector import (
+        analyze_rumors_and_next_steps,
+        render_rumors_analysis_markdown,
+    )
+    RUMORS_ANALYSIS_AVAILABLE = True
+except ImportError:
+    RUMORS_ANALYSIS_AVAILABLE = False
+    def analyze_rumors_and_next_steps(*args, **kwargs): return {}
+    def render_rumors_analysis_markdown(*args): return []
+
+try:
+    from app.services.contract_probability_service import (
+        analyze_contract_probability,
+        render_contract_probability_markdown,
+    )
+    CONTRACT_PROBABILITY_AVAILABLE = True
+except ImportError:
+    CONTRACT_PROBABILITY_AVAILABLE = False
+    def analyze_contract_probability(*args, **kwargs): return {}
+    def render_contract_probability_markdown(*args): return []
+
+try:
+    from app.services.deep_comparative_service import (
+        run_deep_comparative_analysis,
+        render_deep_comparative_markdown,
+    )
+    DEEP_COMPARATIVE_AVAILABLE = True
+except ImportError:
+    DEEP_COMPARATIVE_AVAILABLE = False
+    def run_deep_comparative_analysis(*args, **kwargs): return {}
+    def render_deep_comparative_markdown(*args): return []
+
+try:
+    from app.connectors.family_network_connector import (
+        research_family_network,
+        render_family_network_markdown,
+    )
+    FAMILY_NETWORK_AVAILABLE = True
+except ImportError:
+    FAMILY_NETWORK_AVAILABLE = False
+    def research_family_network(*args, **kwargs): return {}
+    def render_family_network_markdown(*args): return []
+
 
 def _run_with_timeout(func, args=(), kwargs=None, timeout: int = 120):
     """Run a function with timeout, return None on error."""
@@ -581,7 +638,7 @@ def run_comprehensive_intelligence(
         related_entities=related_entities,
     )
 
-    # Expand research_scope to include Phase 2
+    # Expand research_scope to include Phase 2 and Phase 3
     result["research_scope"].update({
         "sec_edgar": SEC_EDGAR_AVAILABLE and bool(ticker),
         "entity_network": ENTITY_NETWORK_AVAILABLE,
@@ -590,10 +647,17 @@ def run_comprehensive_intelligence(
         "timeline": TIMELINE_AVAILABLE and bool(ticker),
         "valuation": VALUATION_AVAILABLE and bool(ticker),
         "risk_register": RISK_REGISTER_AVAILABLE,
+        # Phase 3 - Deep Intelligence
+        "founder_track_record": FOUNDER_TRACK_RECORD_AVAILABLE,
+        "rumors_analysis": RUMORS_ANALYSIS_AVAILABLE,
+        "contract_probability": CONTRACT_PROBABILITY_AVAILABLE,
+        "deep_comparative": DEEP_COMPARATIVE_AVAILABLE and bool(competitors),
+        "family_network": FAMILY_NETWORK_AVAILABLE,
     })
 
-    # Initialize Phase 2 result fields
+    # Initialize Phase 2 and Phase 3 result fields
     result.update({
+        # Phase 2
         "financial_intelligence": {},
         "insider_transactions": {},
         "institutional_holdings": {},
@@ -607,6 +671,12 @@ def run_comprehensive_intelligence(
         "board_interlocks": {},
         "price_history": {},
         "risk_register": {},
+        # Phase 3 - Deep Intelligence
+        "founder_track_record": {},
+        "rumors_analysis": {},
+        "contract_probability": {},
+        "deep_comparative": {},
+        "family_network": {},
     })
 
     futures = {}
@@ -708,7 +778,65 @@ def run_comprehensive_intelligence(
                 ticker,
             )
 
-        # Collect Phase 2 results
+        # ── Phase 3 Research Tasks ──────────────────────────────────────────
+
+        # 8. Founder Track Record (books, interviews, prior ventures)
+        if result["research_scope"]["founder_track_record"]:
+            # Get executives from personnel intelligence or proxy
+            exec_dossiers = result.get("personnel_intelligence", {}).get("executive_dossiers", [])
+            if exec_dossiers:
+                logger.info("Starting founder track record research for %s", entity_name)
+                futures["founder_track_record"] = executor.submit(
+                    get_founder_track_record,
+                    exec_dossiers,
+                    entity_name,
+                    ticker,
+                    True,  # deep_search
+                )
+
+        # 9. Rumors and Next Steps Analysis
+        if result["research_scope"]["rumors_analysis"]:
+            logger.info("Starting rumors analysis for %s", ticker or entity_name)
+            futures["rumors_analysis"] = executor.submit(
+                analyze_rumors_and_next_steps,
+                entity_name,
+                ticker,
+                30,  # days_back
+                True,  # include_social
+            )
+
+        # 10. Contract Probability Analysis
+        if result["research_scope"]["contract_probability"]:
+            logger.info("Starting contract probability analysis for %s", entity_name)
+            futures["contract_probability"] = executor.submit(
+                analyze_contract_probability,
+                entity_name,
+                ticker,
+                None,  # naics_codes
+                None,  # keywords
+                None,  # total_revenue
+            )
+
+        # 11. Deep Comparative Analysis
+        if result["research_scope"]["deep_comparative"] and competitors:
+            logger.info("Starting deep comparative analysis for %s vs %s", ticker, competitors)
+            futures["deep_comparative"] = executor.submit(
+                run_deep_comparative_analysis,
+                ticker,
+                competitors,
+                None,  # target_cik
+            )
+
+        # 12. Family Network Analysis
+        if result["research_scope"]["family_network"]:
+            logger.info("Starting family network analysis for %s", entity_name)
+            futures["family_network"] = executor.submit(
+                research_family_network,
+                entity_name,
+                ticker,
+            )
+
+        # Collect Phase 2 and Phase 3 results
         for key, future in futures.items():
             try:
                 data = future.result(timeout=180)
@@ -746,10 +874,26 @@ def run_comprehensive_intelligence(
                     elif key == "price_history":
                         result["price_history"] = data
                         result["data_quality"]["sources_successful"] += 1
+                    # Phase 3 results
+                    elif key == "founder_track_record":
+                        result["founder_track_record"] = data
+                        result["data_quality"]["sources_successful"] += 1
+                    elif key == "rumors_analysis":
+                        result["rumors_analysis"] = data
+                        result["data_quality"]["sources_successful"] += 1
+                    elif key == "contract_probability":
+                        result["contract_probability"] = data
+                        result["data_quality"]["sources_successful"] += 1
+                    elif key == "deep_comparative":
+                        result["deep_comparative"] = data
+                        result["data_quality"]["sources_successful"] += 1
+                    elif key == "family_network":
+                        result["family_network"] = data
+                        result["data_quality"]["sources_successful"] += 1
                 else:
                     result["data_quality"]["sources_failed"] += 1
             except Exception as e:
-                logger.warning("Phase 2 research task %s failed: %s", key, e)
+                logger.warning("Research task %s failed: %s", key, e)
                 result["data_quality"]["sources_failed"] += 1
 
     # Board interlocks run after the Form 4 sweep rather than beside it: the
@@ -794,8 +938,8 @@ def run_comprehensive_intelligence(
     result["research_duration_seconds"] = round(time.time() - start_time, 2)
 
     # Add research version
-    result["research_version"] = "2.0"
-    result["phase"] = "comprehensive"
+    result["research_version"] = "3.0"
+    result["phase"] = "comprehensive_deep_intelligence"
 
     return result
 
@@ -863,6 +1007,12 @@ def check_connector_availability() -> Dict[str, bool]:
         "timeline": TIMELINE_AVAILABLE,
         "valuation": VALUATION_AVAILABLE,
         "risk_register": RISK_REGISTER_AVAILABLE,
+        # Phase 3 - Deep Intelligence
+        "founder_track_record": FOUNDER_TRACK_RECORD_AVAILABLE,
+        "rumors_analysis": RUMORS_ANALYSIS_AVAILABLE,
+        "contract_probability": CONTRACT_PROBABILITY_AVAILABLE,
+        "deep_comparative": DEEP_COMPARATIVE_AVAILABLE,
+        "family_network": FAMILY_NETWORK_AVAILABLE,
     }
 
 
@@ -887,11 +1037,21 @@ def get_connector_status() -> Dict[str, Any]:
         availability["risk_register"],
     ])
 
+    phase3_count = sum([
+        availability["founder_track_record"],
+        availability["rumors_analysis"],
+        availability["contract_probability"],
+        availability["deep_comparative"],
+        availability["family_network"],
+    ])
+
     return {
         "availability": availability,
         "phase1_connectors": phase1_count,
         "phase2_connectors": phase2_count,
-        "total_available": phase1_count + phase2_count,
+        "phase3_connectors": phase3_count,
+        "total_available": phase1_count + phase2_count + phase3_count,
         "comprehensive_ready": phase2_count >= 5,
-        "version": "2.0",
+        "deep_intelligence_ready": phase3_count >= 3,
+        "version": "3.0",
     }
