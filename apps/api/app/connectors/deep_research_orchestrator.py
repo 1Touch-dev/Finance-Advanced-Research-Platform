@@ -948,11 +948,16 @@ def run_comprehensive_intelligence(
 
         # Source 1: Proxy intelligence - board directors and NEOs
         proxy = result.get("proxy_intelligence", {})
-        for director in proxy.get("board", {}).get("directors", []):
-            if director.get("name"):
+        # Try both "board" and "board_composition" keys
+        board = proxy.get("board_composition", {}) or proxy.get("board", {})
+        for director in board.get("directors", []):
+            name = director.get("name", "")
+            # Skip section headers that got parsed as names
+            if name and not any(skip in name.lower() for skip in
+                    ["nominee", "ratio", "shareholder", "compensation", "committee"]):
                 executives.append({
-                    "name": director["name"],
-                    "title": director.get("principal_position") or "Director",
+                    "name": name,
+                    "title": director.get("principal_position") or director.get("title") or "Director",
                 })
         for neo in proxy.get("named_executive_officers", []):
             name = neo.get("name") or neo.get("executive")
@@ -962,19 +967,21 @@ def run_comprehensive_intelligence(
                     "title": neo.get("title") or neo.get("position") or "Executive Officer",
                 })
 
-        # Source 2: Insider transactions (Form 4 filers)
+        # Source 2: Insider transactions (Form 4 filers) - use actual field name "insider"
         if not executives:
             insider_txns = result.get("insider_transactions", {}).get("transactions", [])
             seen_names = set()
             for txn in insider_txns:
-                name = txn.get("owner_name") or txn.get("reporting_owner_name")
+                # The correct field is "insider", not "owner_name"
+                name = txn.get("insider") or txn.get("owner_name") or txn.get("reporting_owner_name")
+                title = txn.get("title") or (txn.get("roles", ["Insider"])[0] if txn.get("roles") else "Insider")
                 if name and name not in seen_names:
                     seen_names.add(name)
                     executives.append({
                         "name": name,
-                        "title": txn.get("relationship") or "Insider",
+                        "title": title,
                     })
-                if len(executives) >= 10:
+                if len(executives) >= 15:
                     break
 
         if executives:
