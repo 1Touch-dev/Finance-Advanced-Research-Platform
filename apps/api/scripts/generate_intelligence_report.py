@@ -5411,6 +5411,17 @@ def generate_markdown_report(data: dict) -> str:
         except Exception as e:
             logger.warning("Family network render failed: %s", e)
 
+    # Business Intelligence (Business Model, Revenue Structure, Brand Portfolio, Industry Outlook)
+    biz_intel = data.get("business_intelligence", {}) or {}
+    if biz_intel.get("business_model") or biz_intel.get("revenue_structure"):
+        try:
+            from app.services.business_intelligence_service import (
+                render_all_business_intelligence_markdown,
+            )
+            lines.extend(render_all_business_intelligence_markdown(biz_intel))
+        except Exception as e:
+            logger.warning("Business intelligence render failed: %s", e)
+
     # ── Methodology ──────────────────────────────────────────────────────
     lines.append("## Methodology and Sources")
     lines.append("")
@@ -5436,6 +5447,8 @@ def generate_markdown_report(data: dict) -> str:
         lines.append("| Deep comparative analysis | Alpha Vantage, Financial Modeling Prep, SEC EDGAR XBRL |")
     if data.get("family_network"):
         lines.append("| Family network | Form 990 (ProPublica), Section 16 filings, LinkedIn via Apify |")
+    if data.get("business_intelligence"):
+        lines.append("| Business model & industry | SEC 10-K Item 1, SIC classification, segment disclosures |")
     price = data.get("price_history") or {}
     price_bars = price.get("bars") or []
     if price_bars or price.get("source") or price.get("provider"):

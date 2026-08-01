@@ -27,17 +27,76 @@ SAM_OPPORTUNITIES_URL = "https://api.sam.gov/opportunities/v2/search"
 # USASpending.gov API (free, no key required)
 USA_SPENDING_BASE = "https://api.usaspending.gov/api/v2"
 
+# Import entity naming for better name matching
+try:
+    from app.connectors.entity_naming import entity_search_term, matches_entity
+    NAMING_AVAILABLE = True
+except ImportError:
+    NAMING_AVAILABLE = False
+    def entity_search_term(name): return name
+    def matches_entity(candidate, name, aliases=None): return True
+
+# Import FPDS connector if available for better contract data
+try:
+    from app.connectors.fpds_connector import fetch_usaspending_full
+    FPDS_AVAILABLE = True
+except ImportError:
+    FPDS_AVAILABLE = False
+    def fetch_usaspending_full(*args, **kwargs): return {}
+
 
 def _fetch_usaspending_awards(
     recipient_name: str,
     fiscal_year: int = None,
-    limit: int = 100
+    limit: int = 100,
+    subsidiaries: List[str] = None,
 ) -> List[Dict[str, Any]]:
-    """Fetch contract awards from USASpending.gov."""
+    """Fetch contract awards from USASpending.gov with proper name matching."""
     if fiscal_year is None:
         fiscal_year = datetime.now().year
 
+    subsidiaries = subsidiaries or []
+
+    # Use FPDS connector if available (has better name matching)
+    if FPDS_AVAILABLE:
+        try:
+            start_date = f"{fiscal_year - 5}-10-01"
+            fpds_data = fetch_usaspending_full(
+                recipient_name,
+                max_results=limit,
+                start_date=start_date,
+                subsidiaries=subsidiaries
+            )
+            # Convert to our expected format
+            awards = []
+            for contract in fpds_data.get("contracts", []):
+                awards.append({
+                    "award_id": contract.get("award_id"),
+                    "recipient": contract.get("recipient"),
+                    "amount": contract.get("amount"),
+                    "start_date": contract.get("start_date"),
+                    "end_date": contract.get("end_date"),
+                    "agency": contract.get("agency"),
+                    "type": contract.get("award_type"),
+                    "description": contract.get("description"),
+                    "naics_code": contract.get("naics_code"),
+                    "psc_code": contract.get("psc_code"),
+                })
+            return awards
+        except Exception as e:
+            logger.warning("FPDS connector fetch failed, falling back: %s", e)
+
+    # Fallback to direct API call with name matching
     awards = []
+
+    # Build search terms using entity naming
+    search_terms = [recipient_name]
+    if NAMING_AVAILABLE:
+        short_term = entity_search_term(recipient_name)
+        if short_term and short_term != recipient_name:
+            search_terms.append(short_term)
+    search_terms.extend(subsidiaries)
+    search_terms = list(set(search_terms))
 
     try:
         # Search for recipient
@@ -45,7 +104,7 @@ def _fetch_usaspending_awards(
             f"{USA_SPENDING_BASE}/search/spending_by_award/",
             json={
                 "filters": {
-                    "recipient_search_text": [recipient_name],
+                    "recipient_search_text": search_terms,
                     "time_period": [
                         {
                             "start_date": f"{fiscal_year - 5}-10-01",
@@ -59,7 +118,7 @@ def _fetch_usaspending_awards(
                     "Start Date", "End Date", "Awarding Agency",
                     "Award Type", "Description", "Period of Performance Current End Date"
                 ],
-                "limit": limit,
+                "limit": limit * 2,  # Fetch more to filter
                 "page": 1,
                 "sort": "Award Amount",
                 "order": "desc"
@@ -70,9 +129,15 @@ def _fetch_usaspending_awards(
         if resp.ok:
             data = resp.json()
             for result in data.get("results", []):
+                # Verify name match to avoid false positives
+                recipient = result.get("Recipient Name", "")
+                if NAMING_AVAILABLE:
+                    if not matches_entity(recipient, recipient_name, subsidiaries):
+                        continue
+
                 awards.append({
                     "award_id": result.get("Award ID"),
-                    "recipient": result.get("Recipient Name"),
+                    "recipient": recipient,
                     "amount": result.get("Award Amount"),
                     "start_date": result.get("Start Date"),
                     "end_date": result.get("End Date") or result.get("Period of Performance Current End Date"),
@@ -80,6 +145,10 @@ def _fetch_usaspending_awards(
                     "type": result.get("Award Type"),
                     "description": result.get("Description"),
                 })
+
+                if len(awards) >= limit:
+                    break
+
     except Exception as e:
         logger.warning("USASpending fetch failed: %s", e)
 

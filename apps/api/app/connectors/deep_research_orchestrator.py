@@ -252,6 +252,17 @@ except ImportError:
     def research_family_network(*args, **kwargs): return {}
     def render_family_network_markdown(*args): return []
 
+try:
+    from app.services.business_intelligence_service import (
+        get_business_intelligence,
+        render_all_business_intelligence_markdown,
+    )
+    BUSINESS_INTELLIGENCE_AVAILABLE = True
+except ImportError:
+    BUSINESS_INTELLIGENCE_AVAILABLE = False
+    def get_business_intelligence(*args, **kwargs): return {}
+    def render_all_business_intelligence_markdown(*args): return []
+
 
 def _run_with_timeout(func, args=(), kwargs=None, timeout: int = 120):
     """Run a function with timeout, return None on error."""
@@ -653,6 +664,7 @@ def run_comprehensive_intelligence(
         "contract_probability": CONTRACT_PROBABILITY_AVAILABLE,
         "deep_comparative": DEEP_COMPARATIVE_AVAILABLE and bool(competitors),
         "family_network": FAMILY_NETWORK_AVAILABLE,
+        "business_intelligence": BUSINESS_INTELLIGENCE_AVAILABLE and bool(ticker),
     })
 
     # Initialize Phase 2 and Phase 3 result fields
@@ -677,6 +689,7 @@ def run_comprehensive_intelligence(
         "contract_probability": {},
         "deep_comparative": {},
         "family_network": {},
+        "business_intelligence": {},
     })
 
     futures = {}
@@ -836,6 +849,17 @@ def run_comprehensive_intelligence(
                 ticker,
             )
 
+        # 13. Business Intelligence (Business Model, Revenue Structure, Brand Portfolio, Industry Outlook)
+        if result["research_scope"].get("business_intelligence"):
+            logger.info("Starting business intelligence analysis for %s", ticker)
+            futures["business_intelligence"] = executor.submit(
+                get_business_intelligence,
+                ticker,
+                entity_name,
+                None,  # financial_data - will be fetched internally
+                None,  # segment_data - will be fetched internally
+            )
+
         # Collect Phase 2 and Phase 3 results
         for key, future in futures.items():
             try:
@@ -890,6 +914,9 @@ def run_comprehensive_intelligence(
                     elif key == "family_network":
                         result["family_network"] = data
                         result["data_quality"]["sources_successful"] += 1
+                    elif key == "business_intelligence":
+                        result["business_intelligence"] = data
+                        result["data_quality"]["sources_successful"] += 1
                 else:
                     result["data_quality"]["sources_failed"] += 1
             except Exception as e:
@@ -910,6 +937,58 @@ def run_comprehensive_intelligence(
                 result["data_quality"]["sources_successful"] += 1
             except Exception as e:
                 logger.warning("Board interlock analysis failed: %s", e)
+                result["data_quality"]["sources_failed"] += 1
+
+    # Founder Track Record fallback: if not populated during parallel phase,
+    # try to source executives from proxy or insider data.
+    if (result["research_scope"].get("founder_track_record") and
+            FOUNDER_TRACK_RECORD_AVAILABLE and
+            not result.get("founder_track_record", {}).get("executive_profiles")):
+        executives = []
+
+        # Source 1: Proxy intelligence - board directors and NEOs
+        proxy = result.get("proxy_intelligence", {})
+        for director in proxy.get("board", {}).get("directors", []):
+            if director.get("name"):
+                executives.append({
+                    "name": director["name"],
+                    "title": director.get("principal_position") or "Director",
+                })
+        for neo in proxy.get("named_executive_officers", []):
+            name = neo.get("name") or neo.get("executive")
+            if name and not any(e["name"] == name for e in executives):
+                executives.append({
+                    "name": name,
+                    "title": neo.get("title") or neo.get("position") or "Executive Officer",
+                })
+
+        # Source 2: Insider transactions (Form 4 filers)
+        if not executives:
+            insider_txns = result.get("insider_transactions", {}).get("transactions", [])
+            seen_names = set()
+            for txn in insider_txns:
+                name = txn.get("owner_name") or txn.get("reporting_owner_name")
+                if name and name not in seen_names:
+                    seen_names.add(name)
+                    executives.append({
+                        "name": name,
+                        "title": txn.get("relationship") or "Insider",
+                    })
+                if len(executives) >= 10:
+                    break
+
+        if executives:
+            logger.info("Founder track record fallback: found %d executives from proxy/insider data", len(executives))
+            try:
+                result["founder_track_record"] = get_founder_track_record(
+                    executives,
+                    entity_name,
+                    ticker,
+                    True,  # deep_search
+                )
+                result["data_quality"]["sources_successful"] += 1
+            except Exception as e:
+                logger.warning("Founder track record fallback failed: %s", e)
                 result["data_quality"]["sources_failed"] += 1
 
     # 8. Generate Risk Register (requires all other data)
@@ -1013,6 +1092,7 @@ def check_connector_availability() -> Dict[str, bool]:
         "contract_probability": CONTRACT_PROBABILITY_AVAILABLE,
         "deep_comparative": DEEP_COMPARATIVE_AVAILABLE,
         "family_network": FAMILY_NETWORK_AVAILABLE,
+        "business_intelligence": BUSINESS_INTELLIGENCE_AVAILABLE,
     }
 
 
@@ -1043,6 +1123,7 @@ def get_connector_status() -> Dict[str, Any]:
         availability["contract_probability"],
         availability["deep_comparative"],
         availability["family_network"],
+        availability["business_intelligence"],
     ])
 
     return {
