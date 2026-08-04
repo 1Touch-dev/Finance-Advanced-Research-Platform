@@ -115,6 +115,58 @@ except ImportError as e:
     logger.warning(f"PDF renderer not available: {e}")
     PDF_AVAILABLE = False
 
+# New analysis services (no external APIs required)
+try:
+    from app.services.founder_correlations_service import (
+        build_founder_correlation_graph,
+        render_founder_correlations_markdown,
+    )
+    FOUNDER_CORRELATIONS_AVAILABLE = True
+except ImportError:
+    FOUNDER_CORRELATIONS_AVAILABLE = False
+
+try:
+    from app.services.market_dynamics_service import (
+        get_market_dynamics,
+        render_market_dynamics_markdown,
+    )
+    MARKET_DYNAMICS_AVAILABLE = True
+except ImportError:
+    MARKET_DYNAMICS_AVAILABLE = False
+
+try:
+    from app.services.coinvestment_network_service import (
+        build_coinvestment_network,
+        render_coinvestment_network_markdown,
+    )
+    COINVESTMENT_AVAILABLE = True
+except ImportError:
+    COINVESTMENT_AVAILABLE = False
+
+try:
+    from app.services.industry_trends_service import (
+        get_industry_trends,
+        render_industry_trends_markdown,
+    )
+    INDUSTRY_TRENDS_AVAILABLE = True
+except ImportError:
+    INDUSTRY_TRENDS_AVAILABLE = False
+
+try:
+    from app.services.self_dealing_service import (
+        cross_reference_self_dealing,
+        render_self_dealing_markdown,
+    )
+    SELF_DEALING_AVAILABLE = True
+except ImportError:
+    SELF_DEALING_AVAILABLE = False
+
+try:
+    from app.services.sec_api_report_service import render_all_sec_api_markdown
+    SEC_API_REPORT_AVAILABLE = True
+except ImportError:
+    SEC_API_REPORT_AVAILABLE = False
+
 # Configuration
 OUTPUT_DIR = "../../reports"
 
@@ -4646,6 +4698,92 @@ def generate_markdown_report(data: dict) -> str:
     lines.extend(_figure(charts.peer_metric_bars(
         data.get("peer_comparison") or {})))
 
+    # ── Market Dynamics Analysis ──────────────────────────────────────────
+    # Analyzes demand factors, infrastructure scaling, customer churn, and
+    # competitive landscape - uses SEC filings and business intelligence.
+    if MARKET_DYNAMICS_AVAILABLE:
+        try:
+            # Get filing text from multiple sources
+            filing_text = ""
+            # Try notes dict first
+            if notes:
+                for key in ["business_description", "risk_factors", "mda", "item1", "item1a", "item7"]:
+                    if notes.get(key):
+                        filing_text += str(notes[key]) + " "
+            # Also check business_intelligence for additional context
+            bi = data.get("business_intelligence") or {}
+            bm = bi.get("business_model") or {}
+            io = bi.get("industry_outlook") or {}
+            if bm.get("business_description"):
+                filing_text += str(bm["business_description"]) + " "
+            if io.get("sector_outlook"):
+                filing_text += str(io["sector_outlook"]) + " "
+            if io.get("competitive_landscape"):
+                filing_text += str(io["competitive_landscape"]) + " "
+            if io.get("growth_drivers"):
+                for driver in io.get("growth_drivers") or []:
+                    filing_text += str(driver) + " "
+            if io.get("industry_challenges"):
+                for challenge in io.get("industry_challenges") or []:
+                    filing_text += str(challenge) + " "
+
+            # Get news articles if available
+            news_articles = (data.get("news_intelligence") or {}).get("articles") or []
+
+            # Get peers for competitive analysis
+            peers = data.get("competitors") or COMPETITORS or []
+
+            if filing_text or news_articles:
+                market_dynamics = get_market_dynamics(
+                    filing_text=filing_text,
+                    news_articles=news_articles,
+                    financial_data=financial.get("financial_statements"),
+                    segment_data=financial.get("segments"),
+                    peers=peers,
+                )
+                lines.extend(render_market_dynamics_markdown(market_dynamics))
+        except Exception as e:
+            logger.warning(f"Market dynamics analysis failed: {e}")
+
+    # ── Industry Direction & Trends ───────────────────────────────────────
+    # Analyzes industry lifecycle, technology trends, consumer preferences,
+    # and regulatory direction - uses SEC filings and business intelligence.
+    if INDUSTRY_TRENDS_AVAILABLE:
+        try:
+            # Get filing text from multiple sources
+            filing_text = ""
+            if notes:
+                for key in ["business_description", "risk_factors", "mda", "item1", "item1a", "item7"]:
+                    if notes.get(key):
+                        filing_text += str(notes[key]) + " "
+            # Also check business_intelligence for additional context
+            bi = data.get("business_intelligence") or {}
+            bm = bi.get("business_model") or {}
+            io = bi.get("industry_outlook") or {}
+            if bm.get("business_description"):
+                filing_text += str(bm["business_description"]) + " "
+            if io.get("sector_outlook"):
+                filing_text += str(io["sector_outlook"]) + " "
+            if io.get("regulatory_environment"):
+                filing_text += str(io["regulatory_environment"]) + " "
+            if io.get("growth_drivers"):
+                for driver in io.get("growth_drivers") or []:
+                    filing_text += str(driver) + " "
+
+            news_articles = (data.get("news_intelligence") or {}).get("articles") or []
+            industry = (company.get("sic_description") or "").split("-")[0].strip()
+
+            if filing_text or news_articles:
+                industry_trends = get_industry_trends(
+                    filing_text=filing_text,
+                    news_articles=news_articles,
+                    industry=industry,
+                    business_model=financial.get("segments"),
+                )
+                lines.extend(render_industry_trends_markdown(industry_trends))
+        except Exception as e:
+            logger.warning(f"Industry trends analysis failed: {e}")
+
     # ── Balance Sheet and Capital Allocation ─────────────────────────────
     if annual:
         lines.extend(_render_balance_sheet(annual, metrics, entity_name, notes))
@@ -4755,6 +4893,28 @@ def generate_markdown_report(data: dict) -> str:
             lines.append("")
 
         lines.extend(_render_related_parties(proxy, entity_name))
+
+        # ── Related-party cross-reference ────────────────────────────────
+        # Item 404 names the conflicts; Section 16, Form 3 outside seats and the
+        # federal ledger say whether anyone else names the same parties. All
+        # four were already in the report, on separate pages.
+        if SELF_DEALING_AVAILABLE:
+            try:
+                lines.extend(render_self_dealing_markdown(
+                    cross_reference_self_dealing(
+                        proxy.get("related_party_transactions") or [],
+                        insider_transactions=data.get("insider_transactions") or {},
+                        board_interlocks=data.get("board_interlocks") or {},
+                        contract_intelligence=data.get("contract_intelligence") or {},
+                        family_network=data.get("family_network") or {},
+                        institutional_holders=(
+                            (data.get("institutional_holdings") or {})
+                            .get("holders") or []),
+                        entity_name=entity_name,
+                    )))
+            except Exception as e:
+                logger.warning(f"Self-dealing cross-reference failed: {e}")
+
         lines.extend(_render_family_network(data, entity_name))
         lines.extend(_render_interlocks(data.get("board_interlocks") or {},
                                         entity_name, proxy))
@@ -4764,6 +4924,32 @@ def generate_markdown_report(data: dict) -> str:
             data.get("cooccurrence") or {})))
         lines.extend(_figure(charts.cohort_activity(
             data.get("cooccurrence") or {})))
+
+        # ── Founder & Executive Correlations ─────────────────────────────
+        # Identifies educational overlaps (PayPal Mafia style), prior company
+        # connections, and serial founders among the executive team.
+        if FOUNDER_CORRELATIONS_AVAILABLE:
+            try:
+                # Build people list from directors and dossiers
+                people_for_correlation = []
+                for d in directors:
+                    people_for_correlation.append({
+                        "name": d.get("name", ""),
+                        "title": "Director",
+                        "biography": d.get("biography") or d.get("bio") or "",
+                    })
+                for exec_d in dossiers:
+                    people_for_correlation.append({
+                        "name": exec_d.get("name", ""),
+                        "title": exec_d.get("title", ""),
+                        "biography": exec_d.get("background") or exec_d.get("biography") or "",
+                    })
+                if people_for_correlation:
+                    correlation_data = build_founder_correlation_graph(
+                        people_for_correlation, entity_name)
+                    lines.extend(render_founder_correlations_markdown(correlation_data))
+            except Exception as e:
+                logger.warning(f"Founder correlations failed: {e}")
 
         for person in dossiers[:10]:
             lines.append(f"### {person.get('name', 'Unknown')}")
@@ -4873,6 +5059,20 @@ def generate_markdown_report(data: dict) -> str:
             data.get("beneficial_ownership") or {}, entity_name))
         lines.extend(_render_overlap(
             data.get("institutional_overlap") or {}, entity_name))
+
+        # ── Co-Investment Network Analysis ────────────────────────────────
+        # Analyzes institutional investor patterns, identifies co-investments,
+        # clusters by investment style, and identifies coordinated movements.
+        if COINVESTMENT_AVAILABLE and holdings:
+            try:
+                coinvestment_data = build_coinvestment_network(
+                    primary_ticker=ticker,
+                    institutional_holders=holdings,
+                    depth=2,  # Analyze 2nd degree connections
+                )
+                lines.extend(render_coinvestment_network_markdown(coinvestment_data))
+            except Exception as e:
+                logger.warning(f"Co-investment network analysis failed: {e}")
 
     # ── Federal Contracting ──────────────────────────────────────────────
     contracts = data.get("contract_intelligence", {}) or {}
@@ -5422,6 +5622,13 @@ def generate_markdown_report(data: dict) -> str:
         except Exception as e:
             logger.warning("Business intelligence render failed: %s", e)
 
+    # ── SEC-API Structured Data ──────────────────────────────────────────
+    if SEC_API_REPORT_AVAILABLE and data.get("sec_api_data", {}).get("available"):
+        try:
+            lines.extend(render_all_sec_api_markdown(data["sec_api_data"]))
+        except Exception as e:
+            logger.warning("SEC-API report render failed: %s", e)
+
     # ── Methodology ──────────────────────────────────────────────────────
     lines.append("## Methodology and Sources")
     lines.append("")
@@ -5449,6 +5656,13 @@ def generate_markdown_report(data: dict) -> str:
         lines.append("| Family network | Form 990 (ProPublica), Section 16 filings, LinkedIn via Apify |")
     if data.get("business_intelligence"):
         lines.append("| Business model & industry | SEC 10-K Item 1, SIC classification, segment disclosures |")
+    if data.get("sec_api_data", {}).get("available"):
+        lines.append("| Private placements (Form D) | sec-api.io Form D structured extraction |")
+        lines.append("| Fund marks & implied pricing (N-PORT) | sec-api.io N-PORT fund holdings |")
+        lines.append("| Corporate subsidiaries | sec-api.io Exhibit 21 structured extraction |")
+        lines.append("| Executive compensation (structured) | sec-api.io DEF 14A extraction |")
+        lines.append("| Beneficial ownership (13D/13G) | sec-api.io Schedule 13D/13G |")
+        lines.append("| SEC enforcement actions | sec-api.io enforcement database |")
     price = data.get("price_history") or {}
     price_bars = price.get("bars") or []
     if price_bars or price.get("source") or price.get("provider"):

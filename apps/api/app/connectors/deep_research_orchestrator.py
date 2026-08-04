@@ -263,6 +263,13 @@ except ImportError:
     def get_business_intelligence(*args, **kwargs): return {}
     def render_all_business_intelligence_markdown(*args): return []
 
+try:
+    from app.connectors.sec_api_connector import fetch_all_sec_api_data
+    SEC_API_AVAILABLE = True
+except ImportError:
+    SEC_API_AVAILABLE = False
+    def fetch_all_sec_api_data(*args, **kwargs): return {}
+
 
 def _run_with_timeout(func, args=(), kwargs=None, timeout: int = 120):
     """Run a function with timeout, return None on error."""
@@ -668,6 +675,7 @@ def run_comprehensive_intelligence(
     })
 
     # Initialize Phase 2 and Phase 3 result fields
+    # Phase 3 results
     result.update({
         # Phase 2
         "financial_intelligence": {},
@@ -690,6 +698,8 @@ def run_comprehensive_intelligence(
         "deep_comparative": {},
         "family_network": {},
         "business_intelligence": {},
+        # Phase 4 - SEC-API Premium Data
+        "sec_api_data": {},
     })
 
     futures = {}
@@ -860,6 +870,15 @@ def run_comprehensive_intelligence(
                 None,  # segment_data - will be fetched internally
             )
 
+        # 14. SEC-API Premium Data (Form D, N-PORT, Directors, Exec Comp, Subsidiaries)
+        if SEC_API_AVAILABLE and ticker:
+            logger.info("Starting SEC-API premium data fetch for %s", ticker)
+            futures["sec_api_data"] = executor.submit(
+                fetch_all_sec_api_data,
+                ticker,
+                entity_name,
+            )
+
         # Collect Phase 2 and Phase 3 results
         for key, future in futures.items():
             try:
@@ -917,6 +936,9 @@ def run_comprehensive_intelligence(
                     elif key == "business_intelligence":
                         result["business_intelligence"] = data
                         result["data_quality"]["sources_successful"] += 1
+                    elif key == "sec_api_data":
+                        result["sec_api_data"] = data
+                        result["data_quality"]["sources_successful"] += 1
                 else:
                     result["data_quality"]["sources_failed"] += 1
             except Exception as e:
@@ -955,9 +977,15 @@ def run_comprehensive_intelligence(
             # Skip section headers that got parsed as names
             if name and not any(skip in name.lower() for skip in
                     ["nominee", "ratio", "shareholder", "compensation", "committee"]):
+                # Age and biography travel with the name. Both are gates in the
+                # track-record research: the biography is the authoritative
+                # source for prior employers, and the age is what rules out a
+                # book published before the person was born.
                 executives.append({
                     "name": name,
                     "title": director.get("principal_position") or director.get("title") or "Director",
+                    "age": director.get("age"),
+                    "biography": director.get("biography") or director.get("bio") or "",
                 })
         for neo in proxy.get("named_executive_officers", []):
             name = neo.get("name") or neo.get("executive")
@@ -965,6 +993,8 @@ def run_comprehensive_intelligence(
                 executives.append({
                     "name": name,
                     "title": neo.get("title") or neo.get("position") or "Executive Officer",
+                    "age": neo.get("age"),
+                    "biography": neo.get("biography") or neo.get("bio") or "",
                 })
 
         # Source 2: Insider transactions (Form 4 filers) - use actual field name "insider"

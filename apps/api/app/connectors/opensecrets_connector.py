@@ -398,29 +398,67 @@ def fetch_individual_contributions(person_name: str, employer: str = "", cycle: 
 
 # ── Lobbying Data ────────────────────────────────────────────────────────────
 
-LDA_BASE = "https://lda.senate.gov/api/v1"
+# The register moved host: lda.senate.gov now answers with a 301 to lda.gov,
+# and the redirect drops the path and query rather than preserving them. A
+# client that follows redirects therefore issues its filings query, lands on a
+# bare domain root, is refused, and records the refusal as "this company
+# discloses no lobbying" — which is how a company spending millions a year came
+# back as a clean zero. Candidates are tried in order and the first host that
+# answers is kept for the rest of the process.
+LDA_HOSTS = (
+    "https://lda.gov/api/v1",
+    "https://lda.senate.gov/api/v1",
+)
+LDA_BASE = os.getenv("LDA_API_BASE") or LDA_HOSTS[0]
 
 
 # Once the register refuses a caller it refuses every subsequent request from
 # the same address, so retrying each of the seven yearly queries turns a dead
 # source into seven minutes of backoff. The first exhausted retry trips this
 # and the rest of the run skips the register and reports why.
-_LDA_STATE: Dict[str, Any] = {"blocked": False, "reason": ""}
+_LDA_STATE: Dict[str, Any] = {"blocked": False, "reason": "", "base": LDA_BASE}
 
 
 def reset_lda_circuit() -> None:
     """Clear the breaker. For tests and for long-lived processes."""
-    _LDA_STATE.update(blocked=False, reason="")
+    _LDA_STATE.update(blocked=False, reason="",
+                      base=os.getenv("LDA_API_BASE") or LDA_HOSTS[0])
+
+
+def _lda_bases() -> List[str]:
+    """Candidate API bases, the one that last answered first.
+
+    An explicit ``LDA_API_BASE`` is honoured alone: an operator pointing at a
+    mirror does not want a silent fallback to the public host.
+    """
+    override = os.getenv("LDA_API_BASE")
+    if override:
+        return [override]
+    current = _LDA_STATE.get("base")
+    return [current] + [h for h in LDA_HOSTS if h != current] if current else list(LDA_HOSTS)
+
+
+def _switch_lda_base() -> bool:
+    """Move to the next candidate host. False when none is left to try."""
+    tried = _LDA_STATE.setdefault("tried", set())
+    tried.add(_LDA_STATE["base"])
+    for candidate in _lda_bases():
+        if candidate not in tried:
+            logger.warning("LDA host %s did not answer — trying %s",
+                           _LDA_STATE["base"], candidate)
+            _LDA_STATE["base"] = candidate
+            return True
+    return False
 
 
 def _lda_headers() -> Dict[str, str]:
-    """Request headers for the Senate register, with a key when one is set.
+    """Request headers for the register, with a key when one is set.
 
     Anonymous callers are throttled by IP and then refused outright with a 403
     — which is how Lockheed's $131.2M and 410 filings became a silent zero
-    between two runs fifteen minutes apart. A key is free from
-    lda.senate.gov/api and raises the ceiling by roughly two orders of
-    magnitude, so it is read from the environment when present.
+    between two runs fifteen minutes apart. A key is free from lda.gov/api and
+    raises the ceiling by roughly two orders of magnitude, so it is read from
+    the environment when present.
     """
     headers = dict(HEADERS)
     key = os.getenv("LDA_API_KEY") or os.getenv("SENATE_LDA_API_KEY")
@@ -435,46 +473,83 @@ def _fetch_lda_page(params: Dict[str, Any], attempts: int = 4) -> Dict[str, Any]
     403 is retried alongside the usual transient codes because the register
     uses it for throttling as well as for genuine refusal, and the two are
     indistinguishable from the response body.
+
+    Redirects are not followed. The register's host move answers every query
+    with a 301 to a bare domain root, so following it turns a valid request
+    into a refusal at an address that was never queried.
     """
     if _LDA_STATE["blocked"]:
         return {}
 
-    for attempt in range(attempts):
-        try:
-            resp = requests.get(f"{LDA_BASE}/filings/", params=params,
-                                headers=_lda_headers(), timeout=30)
-            if resp.ok:
-                return resp.json()
-            if resp.status_code in (403, 429, 500, 502, 503, 504):
-                # An IP throttle needs longer than a transient server fault.
-                base = 8 if resp.status_code in (403, 429) else 2
-                wait = float(resp.headers.get("Retry-After") or 0) or base * (2 ** attempt)
+    # Each candidate host gets its own retry budget: a host that has moved
+    # consumes no attempts from the host that replaced it, which is what
+    # previously let the register go unreachable without recording a reason.
+    last_status = None
+    while True:
+        for attempt in range(attempts):
+            try:
+                resp = requests.get(f"{_LDA_STATE['base']}/filings/",
+                                    params=params, headers=_lda_headers(),
+                                    timeout=30, allow_redirects=False)
+                last_status = resp.status_code
+                if resp.ok:
+                    return resp.json()
+
+                if resp.is_redirect or resp.status_code in (301, 302, 307, 308):
+                    # A redirect preserving the filings path is worth following;
+                    # one that drops it is the host move, and the answer is the
+                    # next candidate base rather than the advertised target.
+                    target = resp.headers.get("Location") or ""
+                    if "/filings" in target:
+                        resp = requests.get(target, params=params,
+                                            headers=_lda_headers(), timeout=30)
+                        if resp.ok:
+                            return resp.json()
+                    break
+
+                if resp.status_code == 404:
+                    break
+
+                if resp.status_code in (403, 429, 500, 502, 503, 504):
+                    # An IP throttle needs longer than a transient server fault.
+                    base = 8 if resp.status_code in (403, 429) else 2
+                    wait = (float(resp.headers.get("Retry-After") or 0)
+                            or base * (2 ** attempt))
+                    if attempt < attempts - 1:
+                        logger.warning("LDA HTTP %s — retrying in %.0fs (%d/%d)",
+                                       resp.status_code, wait, attempt + 1,
+                                       attempts)
+                        time.sleep(min(wait, 60))
+                        continue
+                    break
+
+                logger.warning("LDA HTTP %s: %s", resp.status_code,
+                               resp.text[:200])
+                return {}
+            except Exception as e:
+                last_status = f"a transport error ({e})"
                 if attempt < attempts - 1:
-                    logger.warning("LDA HTTP %s — retrying in %.0fs (%d/%d)",
-                                   resp.status_code, wait, attempt + 1, attempts)
-                    time.sleep(min(wait, 60))
+                    time.sleep(2 ** attempt)
                     continue
-                if resp.status_code in (403, 429):
-                    keyed = bool(os.getenv("LDA_API_KEY")
-                                 or os.getenv("SENATE_LDA_API_KEY"))
-                    _LDA_STATE.update(
-                        blocked=True,
-                        reason=(f"the Senate LDA register refused {attempts} "
-                                f"requests with HTTP {resp.status_code}"
-                                + ("" if keyed else
-                                   " and no LDA_API_KEY is set — the key is "
-                                   "free from lda.senate.gov/api and raises "
-                                   "the anonymous rate ceiling")))
-                    logger.warning("LDA circuit open: %s", _LDA_STATE["reason"])
-                    return {}
-            logger.warning("LDA HTTP %s: %s", resp.status_code, resp.text[:200])
-            return {}
-        except Exception as e:
-            if attempt < attempts - 1:
-                time.sleep(2 ** attempt)
-                continue
-            logger.warning("LDA fetch error: %s", e)
-    return {}
+                logger.warning("LDA fetch error: %s", e)
+
+        # This host is exhausted. Another candidate may still answer; if none
+        # does, the register is unreachable and must say so rather than return
+        # an empty result that reads as an issuer with nothing to disclose.
+        if _switch_lda_base():
+            continue
+
+        keyed = bool(os.getenv("LDA_API_KEY") or os.getenv("SENATE_LDA_API_KEY"))
+        hosts = ", ".join(_lda_bases())
+        _LDA_STATE.update(
+            blocked=True,
+            reason=(f"the LDA register did not answer at {hosts} — the last "
+                    f"response was {last_status}"
+                    + ("" if keyed else
+                       " and no LDA_API_KEY is set; the key is free from "
+                       "lda.gov/api and raises the anonymous rate ceiling")))
+        logger.warning("LDA circuit open: %s", _LDA_STATE["reason"])
+        return {}
 
 
 def fetch_lobbying_summary(org_name: str, years: int = 7) -> Dict[str, Any]:
@@ -500,7 +575,8 @@ def fetch_lobbying_summary(org_name: str, years: int = 7) -> Dict[str, Any]:
         "top_issues": [],
         "top_firms": [],
         "year_breakdown": {},
-        "source_url": f"{LDA_BASE}/filings/?client_name={entity_search_term(org_name)}",
+        "source_url": (f"{_LDA_STATE['base']}/filings/"
+                       f"?client_name={entity_search_term(org_name)}"),
     }
 
     issue_counts = defaultdict(int)
@@ -763,6 +839,14 @@ def get_political_intelligence(company_name: str,
 
     # Step 3: Lobbying summary
     result["lobbying_summary"] = fetch_lobbying_summary(company_name)
+
+    # A register that refused the query and a company that does no lobbying both
+    # produce an empty summary, and the health check reads this payload rather
+    # than the summary nested inside it. Without lifting the reason, an
+    # unreachable register is reported as a company with nothing to disclose.
+    lobbying_error = result["lobbying_summary"].get("error")
+    if lobbying_error:
+        result["error"] = lobbying_error
 
     # Step 4: Revolving door detection
     if executives:

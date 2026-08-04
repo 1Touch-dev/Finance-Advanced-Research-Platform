@@ -31,9 +31,14 @@ logger = logging.getLogger(__name__)
 ALPHA_VANTAGE_KEY = os.getenv("ALPHA_VANTAGE_KEY", "")
 AV_BASE = "https://www.alphavantage.co/query"
 
-# Financial Modeling Prep API (free tier)
+# Financial Modeling Prep API (free tier).
+# The v3 endpoints were retired for accounts opened after 31 August 2025 and now
+# answer every request with a "Legacy Endpoint" error, so every ratio, growth and
+# per-employee figure in this module was None for *all* tickers including the
+# target. The stable endpoints take the symbol as a query parameter rather than a
+# path segment, which is why the URL is assembled differently below.
 FMP_API_KEY = os.getenv("FMP_API_KEY", "")
-FMP_BASE = "https://financialmodelingprep.com/api/v3"
+FMP_BASE = "https://financialmodelingprep.com/stable"
 
 # SEC EDGAR (free)
 SEC_COMPANY_FACTS = "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
@@ -43,6 +48,21 @@ SEC_HEADERS = {
     "User-Agent": "Research Platform research@example.com",
     "Accept": "application/json",
 }
+
+
+# A vendor that answers 200 with a quota notice instead of data is the reason a
+# five-ticker comparison rendered the target and nothing else: the first ticker
+# consumed the daily allowance and the peers came back as prose the caller read
+# as an empty statement. The notice is recorded per run so the report can say the
+# peers are missing because of a quota rather than because they filed nothing.
+_VENDOR_NOTES: Dict[str, str] = {}
+
+
+def _note_vendor_limit(vendor: str, message: str) -> None:
+    """Record the first quota or refusal message a vendor returned."""
+    if vendor not in _VENDOR_NOTES:
+        _VENDOR_NOTES[vendor] = str(message)[:300]
+        logger.warning("%s limited this run: %s", vendor, _VENDOR_NOTES[vendor])
 
 
 def _fetch_alpha_vantage(function: str, symbol: str, **kwargs) -> Dict[str, Any]:
@@ -60,7 +80,16 @@ def _fetch_alpha_vantage(function: str, symbol: str, **kwargs) -> Dict[str, Any]
     try:
         resp = requests.get(AV_BASE, params=params, timeout=15)
         if resp.ok:
-            return resp.json()
+            payload = resp.json()
+            # Alpha Vantage reports exhaustion with HTTP 200 and one of these
+            # keys. Returning it unchecked lets a quota message be treated as a
+            # company with no reported financials.
+            if isinstance(payload, dict):
+                for key in ("Note", "Information", "Error Message"):
+                    if payload.get(key):
+                        _note_vendor_limit("alpha_vantage", payload[key])
+                        return {}
+            return payload
     except Exception as e:
         logger.warning("Alpha Vantage fetch failed: %s", e)
 
@@ -68,20 +97,24 @@ def _fetch_alpha_vantage(function: str, symbol: str, **kwargs) -> Dict[str, Any]
 
 
 def _fetch_fmp(endpoint: str, symbol: str = None, **kwargs) -> Any:
-    """Fetch data from Financial Modeling Prep API."""
+    """Fetch data from Financial Modeling Prep's stable API."""
     if not FMP_API_KEY:
         return None
 
-    url = f"{FMP_BASE}/{endpoint}"
-    if symbol:
-        url = f"{url}/{symbol}"
-
     params = {"apikey": FMP_API_KEY, **kwargs}
+    if symbol:
+        params["symbol"] = symbol
 
     try:
-        resp = requests.get(url, params=params, timeout=15)
+        resp = requests.get(f"{FMP_BASE}/{endpoint}", params=params, timeout=15)
         if resp.ok:
-            return resp.json()
+            payload = resp.json()
+            if isinstance(payload, dict) and payload.get("Error Message"):
+                _note_vendor_limit("fmp", payload["Error Message"])
+                return None
+            return payload
+        if resp.status_code in (401, 402, 403, 429):
+            _note_vendor_limit("fmp", f"HTTP {resp.status_code}: {resp.text[:160]}")
     except Exception as e:
         logger.warning("FMP fetch failed: %s", e)
 
@@ -133,6 +166,288 @@ def _lookup_cik(ticker: str) -> Optional[str]:
         logger.warning("CIK lookup failed for %s: %s", ticker, e)
 
     return None
+
+
+def _xbrl_concept_periods(facts: Dict[str, Any], concept: str,
+                          unit: str) -> Dict[str, float]:
+    """Annual 10-K values for one concept, keyed by period end."""
+    us_gaap = (facts.get("facts") or {}).get("us-gaap") or {}
+    units = (us_gaap.get(concept) or {}).get("units") or {}
+    values = units.get(unit) or units.get("USD") or units.get("USD/shares") or []
+
+    chosen: Dict[str, Dict[str, Any]] = {}
+    for value in values:
+        if value.get("form") not in ("10-K", "10-K/A"):
+            continue
+        if value.get("val") is None or value.get("fp") not in (None, "FY"):
+            continue
+        end = value.get("end")
+        if not end:
+            continue
+        # A 10-K carries quarterly comparatives alongside the annual figure;
+        # anything materially shorter than a year is not the annual number.
+        start = value.get("start")
+        if start:
+            try:
+                span = (datetime.strptime(end, "%Y-%m-%d")
+                        - datetime.strptime(start, "%Y-%m-%d")).days
+            except (ValueError, TypeError):
+                span = None
+            if span is not None and not 330 <= span <= 400:
+                continue
+        prior = chosen.get(end)
+        if not prior or (value.get("filed") or "") >= (prior.get("filed") or ""):
+            chosen[end] = value
+
+    return {end: float(v["val"]) for end, v in chosen.items()}
+
+
+def _xbrl_annual_series(facts: Dict[str, Any], concepts: List[str],
+                        unit: str = "USD") -> List[float]:
+    """Annual values for a line item, newest first.
+
+    Issuers disagree on tags and, worse, change them mid-history: NVIDIA
+    reported revenue as ``RevenueFromContractWithCustomerExcludingAssessedTax``
+    through FY2022 and as ``Revenues`` afterwards. Taking the first candidate
+    that returns anything therefore produced a series that stopped four years
+    ago and a 570% gross margin, because a current gross profit was divided by a
+    stale revenue. The concept whose history reaches furthest forward wins, and
+    older periods it does not cover are filled from the other candidates — which
+    are alternate tags for the same line item, not different measures.
+    """
+    populated = [
+        (concept, periods) for concept in concepts
+        if (periods := _xbrl_concept_periods(facts, concept, unit))
+    ]
+    if not populated:
+        return []
+
+    populated.sort(key=lambda item: (max(item[1]), len(item[1])), reverse=True)
+    merged = dict(populated[0][1])
+    for _, periods in populated[1:]:
+        for end, value in periods.items():
+            merged.setdefault(end, value)
+
+    return [merged[end] for end in sorted(merged, reverse=True)]
+
+
+def _xbrl_latest(facts: Dict[str, Any], concepts: List[str],
+                 unit: str = "USD") -> Optional[float]:
+    """Most recent annual value across a list of candidate concepts."""
+    series = _xbrl_annual_series(facts, concepts, unit)
+    return series[0] if series else None
+
+
+def _cagr(latest: Optional[float], earliest: Optional[float],
+          years: int) -> Optional[float]:
+    """Compound growth between two positive figures, else None.
+
+    A CAGR across a sign change is arithmetically defined and economically
+    meaningless, so a loss-making base year returns nothing rather than a number
+    that would be ranked against peers.
+    """
+    if not latest or not earliest or years <= 0:
+        return None
+    if latest <= 0 or earliest <= 0:
+        return None
+    return (latest / earliest) ** (1 / years) - 1
+
+
+def _ratio(numerator: Optional[float],
+           denominator: Optional[float]) -> Optional[float]:
+    """Quotient, or None when it cannot be formed."""
+    if numerator is None or not denominator:
+        return None
+    return numerator / denominator
+
+
+def _metrics_from_sec_facts(facts: Dict[str, Any]) -> Dict[str, Any]:
+    """Comparable metrics computed from XBRL company facts alone.
+
+    This is the floor under the vendor tiers. Both vendors used here fail in
+    ways that produce no data and no error — a retired endpoint answers with a
+    legacy notice, a free key exhausts its daily allowance after the first
+    ticker — and a peer table of "N/A" is indistinguishable from a peer that
+    reports nothing. Every figure below comes from the peers' own 10-K filings,
+    which are free, unmetered and always available, so a comparison no longer
+    depends on a vendor answering five times in a row.
+    """
+    if not facts.get("facts"):
+        return {}
+
+    revenue_series = _xbrl_annual_series(facts, [
+        "RevenueFromContractWithCustomerExcludingAssessedTax",
+        "RevenueFromContractWithCustomerIncludingAssessedTax",
+        "Revenues", "SalesRevenueNet", "SalesRevenueGoodsNet",
+    ])
+    net_income_series = _xbrl_annual_series(facts, [
+        "NetIncomeLoss", "ProfitLoss",
+    ])
+    eps_series = _xbrl_annual_series(facts, [
+        "EarningsPerShareDiluted", "EarningsPerShareBasicAndDiluted",
+    ], unit="USD/shares")
+
+    revenue = revenue_series[0] if revenue_series else None
+    net_income = net_income_series[0] if net_income_series else None
+
+    cost_of_revenue = _xbrl_latest(facts, [
+        "CostOfRevenue", "CostOfGoodsAndServicesSold", "CostOfSales",
+    ])
+    gross_profit = _xbrl_latest(facts, ["GrossProfit"])
+    if gross_profit is None and revenue is not None and cost_of_revenue is not None:
+        gross_profit = revenue - cost_of_revenue
+
+    operating_income = _xbrl_latest(facts, ["OperatingIncomeLoss"])
+    rd_expense = _xbrl_latest(facts, ["ResearchAndDevelopmentExpense"])
+    depreciation = _xbrl_latest(facts, [
+        "DepreciationDepletionAndAmortization",
+        "DepreciationAmortizationAndAccretionNet", "Depreciation",
+    ])
+    interest_expense = _xbrl_latest(facts, [
+        "InterestExpense", "InterestExpenseNonoperating",
+        "InterestIncomeExpenseNet",
+    ])
+
+    assets = _xbrl_latest(facts, ["Assets"])
+    equity = _xbrl_latest(facts, [
+        "StockholdersEquity",
+        "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+    ])
+    current_assets = _xbrl_latest(facts, ["AssetsCurrent"])
+    current_liabilities = _xbrl_latest(facts, ["LiabilitiesCurrent"])
+    inventory = _xbrl_latest(facts, ["InventoryNet"])
+    receivables = _xbrl_latest(facts, [
+        "AccountsReceivableNetCurrent", "ReceivablesNetCurrent",
+    ])
+    goodwill = _xbrl_latest(facts, ["Goodwill"]) or 0
+    intangibles = (_xbrl_latest(facts, [
+        "IntangibleAssetsNetExcludingGoodwill", "FiniteLivedIntangibleAssetsNet",
+    ]) or 0) + goodwill
+
+    long_term_debt = _xbrl_latest(facts, [
+        "LongTermDebtNoncurrent", "LongTermDebt",
+        "DebtLongtermAndShorttermCombinedAmount",
+    ])
+    short_term_debt = _xbrl_latest(facts, [
+        "LongTermDebtCurrent", "ShortTermBorrowings",
+        "DebtCurrent",
+    ])
+    total_debt = None
+    if long_term_debt is not None or short_term_debt is not None:
+        total_debt = (long_term_debt or 0) + (short_term_debt or 0)
+
+    operating_cf = _xbrl_latest(facts, [
+        "NetCashProvidedByUsedInOperatingActivities",
+        "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+    ])
+    capex = _xbrl_latest(facts, [
+        "PaymentsToAcquirePropertyPlantAndEquipment",
+        "PaymentsToAcquireProductiveAssets",
+    ])
+    capex = abs(capex) if capex is not None else None
+    free_cash_flow = None
+    if operating_cf is not None:
+        free_cash_flow = operating_cf - (capex or 0)
+
+    ebitda = None
+    if operating_income is not None:
+        ebitda = operating_income + (depreciation or 0)
+
+    metrics: Dict[str, Any] = {
+        "revenue": revenue,
+        "net_income": net_income,
+        "total_assets": assets,
+        "free_cash_flow": free_cash_flow,
+        "gross_margin": _ratio(gross_profit, revenue),
+        "operating_margin": _ratio(operating_income, revenue),
+        "net_margin": _ratio(net_income, revenue),
+        "ebitda_margin": _ratio(ebitda, revenue),
+        "fcf_margin": _ratio(free_cash_flow, revenue),
+        "asset_turnover": _ratio(revenue, assets),
+        "inventory_turnover": _ratio(cost_of_revenue, inventory),
+        "receivables_turnover": _ratio(revenue, receivables),
+        "roe": _ratio(net_income, equity),
+        "roa": _ratio(net_income, assets),
+        "debt_to_equity": _ratio(total_debt, equity),
+        "debt_to_ebitda": _ratio(total_debt, ebitda),
+        "current_ratio": _ratio(current_assets, current_liabilities),
+        "rd_intensity": _ratio(rd_expense, revenue),
+        "capex_intensity": _ratio(capex, revenue),
+        "intangibles_ratio": _ratio(intangibles or None, assets),
+    }
+
+    if current_assets is not None and current_liabilities:
+        metrics["quick_ratio"] = (current_assets - (inventory or 0)) / current_liabilities
+
+    if interest_expense:
+        metrics["interest_coverage"] = _ratio(operating_income, abs(interest_expense))
+
+    # Capital employed rather than invested capital: both are derivable from the
+    # same two tags and the report labels the metric accordingly.
+    if assets is not None and current_liabilities is not None:
+        capital_employed = assets - current_liabilities
+        metrics["roce"] = _ratio(operating_income, capital_employed)
+        metrics["roic"] = metrics["roce"]
+
+    if len(revenue_series) >= 2:
+        metrics["revenue_growth_yoy"] = _ratio(
+            revenue - revenue_series[1], abs(revenue_series[1]) or None)
+    if len(revenue_series) >= 4:
+        metrics["revenue_growth_3yr"] = _cagr(revenue, revenue_series[3], 3)
+    if len(eps_series) >= 4:
+        metrics["eps_growth_3yr"] = _cagr(eps_series[0], eps_series[3], 3)
+    elif len(net_income_series) >= 4:
+        metrics["eps_growth_3yr"] = _cagr(net_income, net_income_series[3], 3)
+
+    fcf_series = _xbrl_annual_series(facts, [
+        "NetCashProvidedByUsedInOperatingActivities",
+    ])
+    if len(fcf_series) >= 4:
+        metrics["fcf_growth_3yr"] = _cagr(fcf_series[0], fcf_series[3], 3)
+
+    dividends = _xbrl_latest(facts, [
+        "PaymentsOfDividendsCommonStock", "PaymentsOfDividends",
+    ])
+    if dividends and net_income:
+        metrics["dividend_payout"] = abs(dividends) / net_income
+
+    return {k: v for k, v in metrics.items() if v is not None}
+
+
+def _market_metrics(ticker: str, fundamentals: Dict[str, Any]) -> Dict[str, Any]:
+    """Multiples that need a price, derived from the shared quote connector.
+
+    XBRL supplies no market value, so the multiples are formed here from the
+    same quote source the rest of the report uses rather than from a second
+    vendor with its own quota.
+    """
+    try:
+        from app.connectors.market_data_connector import get_quote
+    except ImportError:
+        return {}
+
+    try:
+        quote = get_quote(ticker) or {}
+    except Exception as e:
+        logger.warning("Quote fetch failed for %s: %s", ticker, e)
+        return {}
+
+    market_cap = _safe_float(quote.get("market_cap"))
+    if not market_cap:
+        return {}
+
+    metrics: Dict[str, Any] = {"market_cap": market_cap}
+    revenue = fundamentals.get("revenue")
+    net_income = fundamentals.get("net_income")
+    free_cash_flow = fundamentals.get("free_cash_flow")
+
+    if net_income and net_income > 0:
+        metrics["pe_ratio"] = market_cap / net_income
+    if revenue and revenue > 0:
+        metrics["ps_ratio"] = market_cap / revenue
+    if free_cash_flow:
+        metrics["fcf_yield"] = free_cash_flow / market_cap
+    return metrics
 
 
 def _extract_xbrl_value(facts: Dict[str, Any], concept: str, unit: str = "USD") -> Optional[float]:
@@ -255,26 +570,51 @@ METRIC_CATEGORIES = {
 }
 
 
+def _resolve_cik(ticker: str) -> Optional[str]:
+    """CIK for a ticker, preferring the maintained SEC resolver."""
+    try:
+        from app.connectors.sec_edgar_connector import get_filer_cik
+        cik = get_filer_cik(ticker)
+        if cik:
+            return cik
+    except Exception as e:
+        logger.debug("Filer CIK lookup unavailable for %s: %s", ticker, e)
+    return _lookup_cik(ticker)
+
+
 def _calculate_company_metrics(ticker: str, cik: str = None) -> Dict[str, Any]:
-    """Calculate comprehensive metrics for a single company."""
+    """Calculate comprehensive metrics for a single company.
+
+    Sources are layered: the vendors first where they answer, then the issuer's
+    own XBRL filings for everything still missing. The peers were previously
+    left empty whenever a vendor quota ran out partway through the set, which
+    turned a comparison table into a column of the target and four blanks.
+    """
     metrics = {"ticker": ticker}
+    sources_used: List[str] = []
 
     # Fetch data from multiple sources
     overview = _fetch_alpha_vantage("OVERVIEW", ticker)
     income = _fetch_alpha_vantage("INCOME_STATEMENT", ticker)
     balance = _fetch_alpha_vantage("BALANCE_SHEET", ticker)
     cashflow = _fetch_alpha_vantage("CASH_FLOW", ticker)
+    if overview or income or balance or cashflow:
+        sources_used.append("alpha_vantage")
 
     # FMP data
     ratios = _fetch_fmp("ratios-ttm", ticker)
     key_metrics = _fetch_fmp("key-metrics-ttm", ticker)
     growth = _fetch_fmp("financial-growth", ticker)
+    if ratios or key_metrics or growth:
+        sources_used.append("fmp")
 
-    # SEC XBRL data
-    if cik:
-        sec_facts = _fetch_sec_company_facts(cik)
-    else:
-        sec_facts = {}
+    # SEC XBRL data. The CIK is resolved per ticker rather than supplied only
+    # for the target, because the peers need the same fallback the target has.
+    sec_facts = _fetch_sec_company_facts(cik or "") if cik else {}
+    if not sec_facts.get("facts"):
+        resolved = _resolve_cik(ticker)
+        if resolved:
+            sec_facts = _fetch_sec_company_facts(resolved)
 
     # Process Alpha Vantage overview
     if overview:
@@ -401,6 +741,22 @@ def _calculate_company_metrics(ticker: str, cik: str = None) -> Dict[str, Any]:
             "eps_growth_yoy": g.get("epsgrowth"),
         })
 
+    # Fill from the issuer's own filings. Vendor values are kept where they
+    # exist, so this only ever adds coverage; a metric already carrying a number
+    # is not overwritten by a differently-defined one.
+    filing_metrics = _metrics_from_sec_facts(sec_facts)
+    if filing_metrics:
+        sources_used.append("sec_edgar")
+        for key, value in filing_metrics.items():
+            if metrics.get(key) is None:
+                metrics[key] = value
+
+        market_metrics = _market_metrics(ticker, filing_metrics)
+        for key, value in market_metrics.items():
+            if metrics.get(key) is None:
+                metrics[key] = value
+
+    metrics["_sources"] = sources_used
     return metrics
 
 
@@ -424,10 +780,21 @@ def _safe_int(value) -> Optional[int]:
         return None
 
 
-def _calculate_percentile_rank(value: float, all_values: List[float], higher_better: bool = True) -> int:
-    """Calculate percentile rank of a value within a list."""
+# A percentile needs a distribution. Ranking a company against one or two
+# observations produced the report's least defensible line — a 65.6% operating
+# margin placed in the "0th percentile" and listed under areas for improvement,
+# because it was the only company whose value resolved and nothing scores below
+# itself. Below this count the rank is withheld.
+MIN_PERCENTILE_OBSERVATIONS = 3
+
+
+def _calculate_percentile_rank(value: float, all_values: List[float],
+                               higher_better: bool = True) -> Optional[int]:
+    """Percentile rank of a value within a peer set, or None if unrankable."""
     if not all_values or value is None:
-        return 50
+        return None
+    if len(all_values) < MIN_PERCENTILE_OBSERVATIONS:
+        return None
 
     sorted_values = sorted(all_values)
     rank = sum(1 for v in sorted_values if v < value) / len(sorted_values)
@@ -613,7 +980,7 @@ def run_deep_comparative_analysis(
         "target_analysis": {
             "composite_score": composite_scores.get(target_ticker),
             "composite_rank": _calculate_percentile_rank(
-                composite_scores.get(target_ticker) or 50,
+                composite_scores.get(target_ticker),
                 [s for s in composite_scores.values() if s is not None]
             ),
             "strengths": target_strengths[:10],
@@ -633,7 +1000,21 @@ def run_deep_comparative_analysis(
             "alpha_vantage": bool(ALPHA_VANTAGE_KEY),
             "fmp": bool(FMP_API_KEY),
             "sec_edgar": True,
-        }
+        },
+
+        # Which source actually answered per ticker, and any quota message a
+        # vendor returned. Without these a blank cell cannot be told apart from
+        # a company that reports nothing.
+        "sources_by_ticker": {
+            t: company_metrics.get(t, {}).get("_sources") or []
+            for t in all_tickers
+        },
+        "vendor_notes": dict(_VENDOR_NOTES),
+        "tickers_with_data": sorted(
+            t for t in all_tickers
+            if any(k not in ("ticker", "_sources")
+                   for k in company_metrics.get(t, {}))
+        ),
     }
 
 

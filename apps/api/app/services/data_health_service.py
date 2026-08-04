@@ -170,6 +170,30 @@ def _flag_implausible_zeros(checks: List[Dict[str, Any]],
                            + reason.format(n=f"{count:,}"))
 
 
+def _payload_error(payload: Any, depth: int = 2) -> Optional[str]:
+    """The refusal reason a connector recorded, wherever it recorded it.
+
+    Several connectors return a wrapper whose failure is set on the nested
+    section that failed rather than on the payload the check reads — the
+    lobbying summary sits inside the political-intelligence payload, and an
+    unreachable register was consequently reported as an issuer with nothing to
+    disclose. One level of nesting is inspected so that a connector cannot fail
+    silently by putting its reason one key deeper than expected.
+    """
+    if not isinstance(payload, dict):
+        return None
+    direct = payload.get("error") or payload.get("failure")
+    if direct:
+        return str(direct)
+    if depth <= 0:
+        return None
+    for value in payload.values():
+        nested = _payload_error(value, depth - 1)
+        if nested:
+            return nested
+    return None
+
+
 def run_health_checks(data: Dict[str, Any]) -> Dict[str, Any]:
     """Per-source status for one report run."""
     checks: List[Dict[str, Any]] = []
@@ -184,9 +208,7 @@ def run_health_checks(data: Dict[str, Any]) -> Dict[str, Any]:
 
         # An error field on the payload is the one unambiguous signal that the
         # source was reached and refused. Anything else is inference.
-        error_text = None
-        if isinstance(payload, dict):
-            error_text = payload.get("error") or payload.get("failure")
+        error_text = _payload_error(payload)
 
         if error_text:
             status, detail = "broken", str(error_text)[:200]
