@@ -344,8 +344,6 @@ def fetch_reddit_posts(query: str, max_posts: int = 30,
             "source": "Reddit (via Apify)",
         }
         posts.append(post)
-            "source": "Reddit (via Apify)",
-        posts.append(post)
 
     # Sort by score descending
     posts.sort(key=lambda p: p.get("score") or 0, reverse=True)
