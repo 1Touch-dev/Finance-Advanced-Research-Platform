@@ -302,38 +302,46 @@ def fetch_reddit_posts(query: str, max_posts: int = 30,
                        subreddits: List[str] = None) -> List[Dict[str, Any]]:
     """
     Scrape Reddit posts matching a query via Apify (no Reddit API key needed).
-    Actor: trudax/reddit-scraper — searches Reddit and returns posts with scores.
-
-    Falls back to apify/reddit-scraper-lite if the primary actor is unavailable.
+    Tries multiple actors in order of reliability.
     """
     target_subreddits = subreddits or [
         "wallstreetbets", "investing", "stocks", "options",
         "SecurityAnalysis", "finance", "technology",
     ]
 
-    # Build search URLs for the actor
-    search_urls = [
-        f"https://www.reddit.com/search/?q={query}&sort=relevance&t=year"
-    ]
-    # Also search specific subreddits for higher signal
-    for sub in target_subreddits[:3]:
-        search_urls.append(
-            f"https://www.reddit.com/r/{sub}/search/?q={query}&sort=top&t=year"
-        )
+    items = []
 
-    items = _run_actor("trudax/reddit-scraper", {
-        "startUrls": [{"url": u} for u in search_urls],
-        "maxItems": max_posts,
-        "proxy": {"useApifyProxy": True},
-    }, wait_secs=90)
-
-    # If primary actor fails, try alternative
+    # Actor 1: apify/reddit-scraper (official, most reliable)
     if not items:
-        items = _run_actor("apify/reddit-scraper-lite", {
-            "searches": [query],
+        items = _run_actor("apify/reddit-scraper", {
+            "startUrls": [
+                {"url": f"https://www.reddit.com/search/?q={query}&sort=relevance&t=year"}
+            ] + [
+                {"url": f"https://www.reddit.com/r/{sub}/search/?q={query}&sort=top&t=year"}
+                for sub in target_subreddits[:3]
+            ],
+            "maxPostCount": max_posts,
+            "maxComments": 0,
+            "proxy": {"useApifyProxy": True},
+        }, wait_secs=120)
+
+    # Actor 2: trudax/reddit-scraper (community)
+    if not items:
+        items = _run_actor("trudax/reddit-scraper", {
+            "startUrls": [
+                {"url": f"https://www.reddit.com/search/?q={query}&sort=relevance&t=year"}
+            ],
             "maxItems": max_posts,
-            "sort": "relevance",
-            "time": "year",
+            "proxy": {"useApifyProxy": True},
+        }, wait_secs=90)
+
+    # Actor 3: epctex/reddit-scraper
+    if not items:
+        items = _run_actor("epctex/reddit-scraper", {
+            "startUrls": [
+                {"url": f"https://www.reddit.com/search/?q={query}&sort=relevance&t=year"}
+            ],
+            "maxItems": max_posts,
         }, wait_secs=90)
 
     posts = []
