@@ -302,63 +302,50 @@ def fetch_reddit_posts(query: str, max_posts: int = 30,
                        subreddits: List[str] = None) -> List[Dict[str, Any]]:
     """
     Scrape Reddit posts matching a query via Apify (no Reddit API key needed).
-    Tries multiple actors in order of reliability.
+    Uses trudax/reddit-scraper-lite (verified working) as primary,
+    harshmaur/reddit-scraper as fallback.
     """
-    target_subreddits = subreddits or [
-        "wallstreetbets", "investing", "stocks", "options",
-        "SecurityAnalysis", "finance", "technology",
-    ]
-
     items = []
 
-    # Actor 1: apify/reddit-scraper (official, most reliable)
+    # Actor 1: trudax/reddit-scraper-lite (VERIFIED WORKING — keyword search)
     if not items:
-        items = _run_actor("apify/reddit-scraper", {
-            "startUrls": [
-                {"url": f"https://www.reddit.com/search/?q={query}&sort=relevance&t=year"}
-            ] + [
-                {"url": f"https://www.reddit.com/r/{sub}/search/?q={query}&sort=top&t=year"}
-                for sub in target_subreddits[:3]
-            ],
-            "maxPostCount": max_posts,
-            "maxComments": 0,
-            "proxy": {"useApifyProxy": True},
-        }, wait_secs=120)
-
-    # Actor 2: trudax/reddit-scraper (community)
-    if not items:
-        items = _run_actor("trudax/reddit-scraper", {
-            "startUrls": [
-                {"url": f"https://www.reddit.com/search/?q={query}&sort=relevance&t=year"}
-            ],
+        items = _run_actor("trudax/reddit-scraper-lite", {
+            "searches": [query],
             "maxItems": max_posts,
-            "proxy": {"useApifyProxy": True},
+            "sort": "relevance",
+            "time": "year",
         }, wait_secs=90)
 
-    # Actor 3: epctex/reddit-scraper
+    # Actor 2: harshmaur/reddit-scraper (broader results, slower)
     if not items:
-        items = _run_actor("epctex/reddit-scraper", {
-            "startUrls": [
-                {"url": f"https://www.reddit.com/search/?q={query}&sort=relevance&t=year"}
-            ],
-            "maxItems": max_posts,
+        items = _run_actor("harshmaur/reddit-scraper", {
+            "searches": [query],
+            "maxPostCount": max_posts,
+            "sort": "relevance",
+            "time": "year",
+            "includeComments": False,
         }, wait_secs=90)
 
     posts = []
     for item in items:
+        # Skip comment-only results (no title)
+        title = item.get("title") or item.get("postTitle") or ""
+        if not title or title.startswith("/u/"):
+            continue
         post = {
-            "title": item.get("title") or item.get("postTitle"),
-            "url": item.get("url") or item.get("postUrl"),
+            "title": title,
+            "url": item.get("url") or item.get("postUrl") or item.get("permalink", ""),
             "subreddit": item.get("subreddit") or item.get("communityName", ""),
             "score": item.get("score") or item.get("upVotes") or 0,
             "num_comments": item.get("numberOfComments") or item.get("numComments") or 0,
             "author": item.get("author") or item.get("username"),
-            "created": item.get("createdAt") or item.get("postedAt"),
-            "body": (item.get("body") or item.get("postText") or "")[:500],
+            "created": item.get("createdAt") or item.get("postedAt") or item.get("created_utc"),
+            "body": (item.get("body") or item.get("selftext") or item.get("postText") or "")[:500],
             "source": "Reddit (via Apify)",
         }
-        if post["title"]:
-            posts.append(post)
+        posts.append(post)
+            "source": "Reddit (via Apify)",
+        posts.append(post)
 
     # Sort by score descending
     posts.sort(key=lambda p: p.get("score") or 0, reverse=True)

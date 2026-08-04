@@ -171,6 +171,15 @@ try:
 except ImportError:
     SEC_API_REPORT_AVAILABLE = False
 
+try:
+    from app.services.multi_perspective_service import (
+        generate_multi_perspective_analysis,
+        render_multi_perspective_markdown,
+    )
+    MULTI_PERSPECTIVE_AVAILABLE = True
+except ImportError:
+    MULTI_PERSPECTIVE_AVAILABLE = False
+
 # Configuration
 OUTPUT_DIR = "../../reports"
 
@@ -5465,6 +5474,27 @@ def generate_markdown_report(data: dict) -> str:
                     + "."
                 )
                 lines.append("")
+
+    # ── Multi-Perspective Investment Analysis ────────────────────────────
+    # Five analytical frameworks (value, growth, risk, macro, income) applied
+    # to the same data — disagreements are more informative than agreements.
+    if MULTI_PERSPECTIVE_AVAILABLE:
+        try:
+            perspective_data = generate_multi_perspective_analysis(
+                entity_name=entity_name,
+                ticker=ticker,
+                financial_data=financial,
+                valuation=valuation,
+                insider_data=insider,
+                peer_comparison=peers_result,
+                risk_register=data.get("risk_register"),
+                news_data=data.get("news_intelligence"),
+                lobbying_data=lobbying,
+                contracts_data=contracts,
+            )
+            lines.extend(render_multi_perspective_markdown(perspective_data))
+        except Exception as e:
+            logger.warning(f"Multi-perspective analysis failed: {e}")
 
     # Risk Register — evidence-linked entries first, then the connector's
     # register with its stated basis. An entry that cannot name a filing is
