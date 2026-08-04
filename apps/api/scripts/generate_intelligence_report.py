@@ -5896,10 +5896,12 @@ def sanitize_markdown(markdown: str) -> str:
     while i < len(lines):
         line = lines[i]
 
-        # Skip table rows that are ALL dashes/empty (no real data)
+        # Skip table rows that are ALL or mostly dashes/empty (no real data)
         if line.startswith("|") and "—" in line:
             cells = [c.strip() for c in line.split("|")[1:-1]]
-            if all(c in ("—", "", "None", "nan", "$0", "$0.00", "—") for c in cells):
+            empty_cells = sum(1 for c in cells if c in ("—", "", "None", "nan", "$0", "$0.00"))
+            if empty_cells >= len(cells) - 1 and len(cells) > 2:
+                # More than half empty — skip
                 i += 1
                 continue
 
@@ -6215,6 +6217,9 @@ def main(argv=None):
     else:
         markdown_report = f"# {ENTITY_NAME} — Intelligence Report\n\nNo data available."
 
+    # Sanitize: remove broken/empty/placeholder content before quality check and PDF
+    markdown_report = sanitize_markdown(markdown_report)
+
     quality = check_report_quality(markdown_report, TICKER, ENTITY_NAME)
     print(f"      Quality gate: {'PASS' if quality['passed'] else 'FAIL'} "
           f"({quality['word_count']:,} words, {quality['section_count']} sections)")
@@ -6226,14 +6231,6 @@ def main(argv=None):
         print("      ⚠️  Install matplotlib to enable charts: pip install matplotlib")
     for issue in quality["issues"]:
         print(f"        - {issue}")
-
-    # Sanitize: remove broken/empty/placeholder content before PDF
-    markdown_report = sanitize_markdown(markdown_report)
-    # Re-check quality after sanitization
-    quality_post = check_report_quality(markdown_report, TICKER, ENTITY_NAME)
-    if quality_post["word_count"] < quality["word_count"]:
-        removed = quality["word_count"] - quality_post["word_count"]
-        print(f"      Sanitizer removed {removed} words of broken/empty content")
 
     # Step 3: Save outputs
     print("\n[3/4] Saving outputs...")
