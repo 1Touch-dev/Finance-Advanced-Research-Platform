@@ -48,6 +48,17 @@ COMPANIES_FULL = {
     "SPOT": {"name": "Spotify", "sector": "Music Streaming", "founded": 2006, "ipo": 2018},
 }
 
+# Key companies with mafia member associations
+KEY_COMPANIES = {
+    "PLTR": {"name": "Palantir Technologies", "mafia": ["Peter Thiel", "Joe Lonsdale"], "sector": "Enterprise Software / Defense"},
+    "TSLA": {"name": "Tesla Inc", "mafia": ["Elon Musk"], "sector": "Electric Vehicles / Energy"},
+    "AFRM": {"name": "Affirm Holdings", "mafia": ["Max Levchin"], "sector": "Fintech / BNPL"},
+    "YELP": {"name": "Yelp Inc", "mafia": ["Jeremy Stoppelman", "Russel Simmons", "Max Levchin"], "sector": "Local Search / Reviews"},
+    "SQ": {"name": "Block Inc (Square)", "mafia": ["Keith Rabois", "Roelof Botha"], "sector": "Fintech / Payments"},
+    "META": {"name": "Meta Platforms (Facebook)", "mafia": ["Peter Thiel"], "sector": "Social Media / VR"},
+    "HOOD": {"name": "Robinhood Markets", "mafia": ["Keith Rabois"], "sector": "Fintech / Brokerage"},
+}
+
 
 def get_company_financials(ticker: str) -> Dict:
     try:
