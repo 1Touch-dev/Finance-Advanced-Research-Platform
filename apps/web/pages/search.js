@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { getApiBaseUrl } from '../lib/api'
 
@@ -9,7 +9,37 @@ export default function SearchPage() {
   const [res, setRes] = useState(null)
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(false)
+  const [suggestions, setSuggestions] = useState([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const debounceRef = useRef(null)
+  const inputRef = useRef(null)
   const API = getApiBaseUrl()
+
+  // Autocomplete suggestions with debounce
+  useEffect(() => {
+    if (!q || q.length < 2) {
+      setSuggestions([])
+      return
+    }
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const r = await fetch(`${API}/search/?q=${encodeURIComponent(q)}&limit=5`)
+        if (r.ok) {
+          const data = await r.json()
+          const items = (data.entities || []).slice(0, 6).map(e => ({
+            id: e.id,
+            name: e.name,
+            kind: e.kind,
+            ticker: e.ticker,
+          }))
+          setSuggestions(items)
+          setShowSuggestions(items.length > 0)
+        }
+      } catch (_) {}
+    }, 300)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [q])
 
   const run = async (query) => {
     const term = query ?? q
@@ -40,16 +70,45 @@ export default function SearchPage() {
 
       {/* Search bar */}
       <div className="card" style={{ padding: '1rem 1.25rem' }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: '0.75rem' }}>
-          <input
-            className="inp"
-            value={q}
-            onChange={e => setQ(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && run()}
-            placeholder="Search entities, documents, tickers…"
-            style={{ flex: 1 }}
-          />
-          <button className="btn btn-primary" onClick={() => run()} disabled={loading}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: '0.75rem', position: 'relative' }}>
+          <div style={{ flex: 1, position: 'relative' }}>
+            <input
+              ref={inputRef}
+              className="inp"
+              value={q}
+              onChange={e => { setQ(e.target.value); setShowSuggestions(true) }}
+              onKeyDown={e => { if (e.key === 'Enter') { setShowSuggestions(false); run() } }}
+              onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+              placeholder="Search entities, documents, tickers…"
+              style={{ width: '100%' }}
+            />
+            {showSuggestions && suggestions.length > 0 && (
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                background: 'var(--bg-elev-2, #1e1e2e)', border: '1px solid var(--line)',
+                borderRadius: 8, marginTop: 4, overflow: 'hidden',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+              }}>
+                {suggestions.map((s, i) => (
+                  <div key={i}
+                    onMouseDown={() => { setQ(s.name); setShowSuggestions(false); run(s.name) }}
+                    style={{
+                      padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+                      borderBottom: i < suggestions.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(129,140,248,0.1)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <span className="badge badge-brand" style={{ fontSize: '0.6rem' }}>{s.kind}</span>
+                    <span style={{ fontWeight: 600, color: '#e2e8f0', fontSize: '0.85rem' }}>{s.name}</span>
+                    {s.ticker && <span className="badge badge-amber" style={{ fontSize: '0.6rem' }}>{s.ticker}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <button className="btn btn-primary" onClick={() => { setShowSuggestions(false); run() }} disabled={loading}>
             {loading ? '…' : 'Search'}
           </button>
         </div>

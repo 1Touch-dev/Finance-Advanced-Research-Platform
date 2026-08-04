@@ -36,6 +36,120 @@ HEADERS = {
     "Accept": "application/json, application/xml",
 }
 
+# ── UEI / DUNS Resolution Cache ─────────────────────────────────────────────
+_UEI_CACHE: Dict[str, Optional[Dict[str, Any]]] = {}
+
+
+def resolve_recipient_uei(entity_name: str) -> Optional[Dict[str, Any]]:
+    """
+    Resolve a company name to its USASpending recipient profile (UEI + DUNS).
+
+    USASpending's /api/v2/recipient/ returns registered recipients; we pick
+    the parent-level (P) entry whose name best matches our entity (using
+    entity_naming's match logic). Returns dict with keys:
+    recipient_id, uei, duns, name.
+
+    This is critical because USASpending's award search by text often misses
+    awards booked under subsidiary names or alternate legal registrations.
+    Searching by DUNS captures all awards under the parent entity tree.
+    """
+    cache_key = entity_name.upper().strip()
+    if cache_key in _UEI_CACHE:
+        return _UEI_CACHE[cache_key]
+
+    from app.connectors.entity_naming import clean_legal_name
+
+    # Try multiple search terms — USASpending's keyword matching is literal.
+    # USASpending stores names like "NVIDIA CORP" not "NVIDIA Corporation",
+    # so we include the abbreviated corporate suffix form too.
+    cleaned = clean_legal_name(entity_name)
+    search_variants = list(dict.fromkeys(filter(None, [
+        entity_name,                          # "NVIDIA Corporation"
+        cleaned,                              # "NVIDIA"
+        f"{cleaned} CORP" if cleaned else "", # "NVIDIA CORP" — common USASpending form
+        entity_search_term(entity_name),      # "NVIDIA"
+    ])))
+
+    for search_term in search_variants:
+        if not search_term or len(search_term) < 3:
+            continue
+
+        try:
+            resp = requests.post(
+                f"{USASPENDING_BASE}/recipient/",
+                json={
+                    "keyword": search_term,
+                    "award_type": "all",
+                    "order": "desc",
+                    "sort": "amount",
+                    "limit": 10,
+                    "page": 1,
+                },
+                headers=HEADERS,
+                timeout=20,
+            )
+            if not resp.ok:
+                continue
+
+            results = resp.json().get("results", [])
+            if not results:
+                continue
+
+            # Prefer parent-level (P) entries — they aggregate all subsidiary awards
+            parents = [r for r in results
+                       if r.get("recipient_level") == "P" and r.get("duns")]
+            # Also consider child-level entries that have a DUNS
+            with_duns = [r for r in results if r.get("duns")]
+            candidates = parents if parents else with_duns
+
+            # Pick best match using our entity-matching logic
+            for candidate in candidates:
+                cand_name = candidate.get("name", "")
+                if matches_entity(cand_name, entity_name):
+                    profile = {
+                        "recipient_id": candidate.get("id"),
+                        "uei": candidate.get("uei"),
+                        "duns": candidate.get("duns"),
+                        "name": cand_name,
+                        "recipient_level": candidate.get("recipient_level", "R"),
+                    }
+                    _UEI_CACHE[cache_key] = profile
+                    logger.info("Resolved '%s' → DUNS=%s, UEI=%s, recipient_id=%s",
+                                entity_name, profile["duns"], profile["uei"],
+                                profile["recipient_id"])
+                    return profile
+
+        except Exception as e:
+            logger.debug("UEI search for '%s' with term '%s' failed: %s",
+                         entity_name, search_term, e)
+            continue
+
+    logger.info("No confident UEI match for '%s' — falling back to text search",
+                entity_name)
+    _UEI_CACHE[cache_key] = None
+    return None
+
+
+def fetch_recipient_profile(recipient_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Fetch full recipient profile from USASpending, which includes total award
+    amounts, child recipients (subsidiaries), and UEI info.
+
+    The recipient_id format is: {DUNS/UEI}-{level} where level is R (recipient),
+    P (parent), or C (child).
+    """
+    if not recipient_id:
+        return None
+    try:
+        url = f"{USASPENDING_BASE}/recipient/{recipient_id}/"
+        resp = requests.get(url, headers=HEADERS, timeout=20)
+        if resp.ok:
+            return resp.json()
+        logger.debug("Recipient profile %s: HTTP %d", recipient_id, resp.status_code)
+    except Exception as e:
+        logger.debug("Recipient profile error: %s", e)
+    return None
+
 
 def _safe_float(val) -> float:
     """Safely convert value to float."""
@@ -157,7 +271,8 @@ CONTRACT_ONLY_FIELDS = [
 
 def fetch_usaspending_full(entity_name: str, max_results: int = 100,
                            start_date: str = "2007-10-01",
-                           subsidiaries: Optional[List[str]] = None) -> Dict[str, Any]:
+                           subsidiaries: Optional[List[str]] = None,
+                           recipient_uei: Optional[str] = None) -> Dict[str, Any]:
     """
     Fetch comprehensive award data from USASpending across ALL award-type groups.
 
@@ -171,6 +286,10 @@ def fetch_usaspending_full(entity_name: str, max_results: int = 100,
             as "Portland Group" used as a query matches many unrelated firms.
             Callers can source these from SEC Exhibit 21 via
             ``sec_edgar_connector.get_subsidiaries``.
+        recipient_uei: If provided, uses UEI-keyed recipient lookup instead of
+            text search. This is far more reliable — it matches on the registered
+            entity identifier rather than free-text name, catching all awards
+            including those booked under subsidiary or alternate legal names.
     """
     result = {
         "contracts": [],
@@ -192,6 +311,18 @@ def fetch_usaspending_full(entity_name: str, max_results: int = 100,
     subsidiaries = subsidiaries or []
     end_date = datetime.now().strftime("%Y-%m-%d")
 
+    # ── UEI Resolution ────────────────────────────────────────────────────────
+    # If caller didn't pass a UEI, try resolving one. A successful resolution
+    # means we can search by recipient_id which captures ALL awards under that
+    # entity tree — including those booked to subsidiary legal names.
+    resolved_profile = None
+    if not recipient_uei:
+        resolved_profile = resolve_recipient_uei(entity_name)
+        if resolved_profile and resolved_profile.get("uei"):
+            recipient_uei = resolved_profile["uei"]
+            logger.info("UEI-resolved '%s' → %s (%s)",
+                        entity_name, recipient_uei, resolved_profile.get("name"))
+
     # Search on the distinctive short form as well as the full legal name:
     # USASpending matches recipient text literally, so "NVIDIA Corporation" misses
     # awards booked to "NVIDIA PUBLIC SECTOR CORPORATION". Subsidiaries are queried
@@ -203,9 +334,20 @@ def fetch_usaspending_full(entity_name: str, max_results: int = 100,
         if group in ("contracts", "idvs"):
             fields += CONTRACT_ONLY_FIELDS
 
+        # Build recipient filter: prefer DUNS-keyed search if available.
+        # USASpending's recipient_search_text is an OR filter — including both
+        # the DUNS and text names captures awards booked to subsidiaries with
+        # different DUNS numbers (e.g., "NVIDIA PUBLIC SECTOR CORPORATION").
+        if resolved_profile and resolved_profile.get("duns"):
+            search_text = sorted({resolved_profile["duns"], *search_terms})
+        elif recipient_uei:
+            search_text = sorted({recipient_uei, *search_terms})
+        else:
+            search_text = search_terms
+
         payload = {
             "filters": {
-                "recipient_search_text": search_terms,
+                "recipient_search_text": search_text,
                 "award_type_codes": codes,
                 "time_period": [{"start_date": start_date, "end_date": end_date}],
             },
@@ -303,6 +445,15 @@ def fetch_usaspending_full(entity_name: str, max_results: int = 100,
 
     result["contracts"].sort(key=lambda c: c.get("amount") or 0, reverse=True)
     result["total_awards"] = len(result["contracts"])
+
+    # Record the resolution method for transparency in the report
+    if recipient_uei:
+        result["resolution_method"] = "UEI"
+        result["recipient_uei"] = recipient_uei
+        if resolved_profile:
+            result["recipient_registered_name"] = resolved_profile.get("name", "")
+    else:
+        result["resolution_method"] = "text_search"
 
     # Agency share, used directly by the report's federal contracting section.
     total = result["total_obligated"] or 0
@@ -448,7 +599,8 @@ def detect_self_dealing(contracts: List[Dict], subcontracts: List[Dict],
 
 def get_full_contract_portfolio(entity_name: str,
                                  executives: List[str] = None,
-                                 related_entities: List[str] = None) -> Dict[str, Any]:
+                                 related_entities: List[str] = None,
+                                 subsidiaries: Optional[List[str]] = None) -> Dict[str, Any]:
     """
     Comprehensive federal contract analysis for deep intelligence.
 
@@ -458,6 +610,9 @@ def get_full_contract_portfolio(entity_name: str,
     - Subcontract relationships
     - Self-dealing analysis
     - Risk flags
+
+    Uses UEI resolution for reliable entity matching. Falls back to text
+    search if UEI resolution fails.
     """
     result = {
         "entity_name": entity_name,
@@ -480,13 +635,17 @@ def get_full_contract_portfolio(entity_name: str,
 
     # Fetch main contracts
     logger.info("Fetching full contract data for %s", entity_name)
-    usa_data = fetch_usaspending_full(entity_name, max_results=100)
+    usa_data = fetch_usaspending_full(entity_name, max_results=100,
+                                      subsidiaries=subsidiaries)
 
     result["contracts"] = usa_data.get("contracts", [])
     result["summary"]["total_contracts"] = len(result["contracts"])
     result["summary"]["total_obligated"] = usa_data.get("total_obligated", 0)
     result["summary"]["earliest_contract"] = usa_data.get("earliest_date")
     result["summary"]["latest_contract"] = usa_data.get("latest_date")
+    result["summary"]["resolution_method"] = usa_data.get("resolution_method", "text_search")
+    result["summary"]["recipient_uei"] = usa_data.get("recipient_uei")
+    result["summary"]["excluded_false_positives"] = usa_data.get("excluded_false_positives", 0)
 
     # Format breakdowns as sorted lists
     result["agency_breakdown"] = sorted(

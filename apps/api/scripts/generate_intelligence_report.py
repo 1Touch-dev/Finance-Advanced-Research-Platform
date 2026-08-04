@@ -1511,6 +1511,15 @@ def _render_federal(contracts: dict, entity_name: str) -> list:
     awards = contracts.get("contracts") or []
     total = summary.get("total_obligated") or 0
     count = summary.get("total_contracts") or len(awards)
+
+    # Show resolution method for transparency
+    resolution_method = summary.get("resolution_method", "text_search")
+    recipient_uei = summary.get("recipient_uei")
+    if recipient_uei:
+        lines.append(f"*Entity resolved via UEI: {recipient_uei} "
+                     f"(captures all subsidiary awards under this registration)*")
+        lines.append("")
+
     if not awards:
         lines.append(
             f"No federal prime award to {entity_name} was returned by "
@@ -5640,7 +5649,7 @@ def generate_markdown_report(data: dict) -> str:
     lines.append("| Board interlocks and 5% holders | Form 3 / Schedule 13D/G (SEC EDGAR) |")
     lines.append("| Insider transactions | Form 4 filings (SEC EDGAR) |")
     lines.append("| Institutional overlap | 13F-HR from largest managers (SEC EDGAR) |")
-    lines.append("| Federal awards | USASpending.gov API v2, all award-type groups |")
+    lines.append("| Federal awards | USASpending.gov API v2, DUNS/UEI-keyed recipient resolution |")
     lines.append("| Lobbying | Senate LDA API |")
     lines.append("| Litigation | CourtListener, SEC, FTC, DOJ, ITC, PTAB |")
     # Phase 3 sources

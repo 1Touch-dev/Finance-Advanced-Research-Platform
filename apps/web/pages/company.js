@@ -223,6 +223,91 @@ function EarningsPanel({ data }) {
   )
 }
 
+function SentimentPanel({ data, loading }) {
+  if (loading) return <section className="card"><p style={{ color: 'var(--text-muted)' }}>Loading sentiment data...</p></section>
+  if (!data) return <section className="card"><p style={{ color: 'var(--text-muted)' }}>No sentiment data available. Check API connectivity.</p></section>
+
+  const articles = Array.isArray(data) ? data : (data.articles || data.results || [])
+  if (!articles.length) return <section className="card"><p style={{ color: 'var(--text-muted)' }}>No recent news articles found for sentiment analysis.</p></section>
+
+  const sentiments = { positive: 0, negative: 0, neutral: 0 }
+  articles.forEach(a => {
+    const title = (a.title || '').toLowerCase()
+    const desc = (a.description || '').toLowerCase()
+    const text = title + ' ' + desc
+    const pos = ['surge', 'soar', 'beat', 'profit', 'growth', 'upgrade', 'rally', 'bullish', 'record', 'gain', 'strong']
+    const neg = ['drop', 'fall', 'loss', 'downgrade', 'crash', 'bearish', 'decline', 'warning', 'cut', 'layoff', 'risk']
+    if (pos.some(w => text.includes(w))) sentiments.positive++
+    else if (neg.some(w => text.includes(w))) sentiments.negative++
+    else sentiments.neutral++
+  })
+  const total = articles.length
+  const sentiment = sentiments.positive > sentiments.negative ? 'BULLISH'
+    : sentiments.negative > sentiments.positive ? 'BEARISH' : 'NEUTRAL'
+  const sentColor = sentiment === 'BULLISH' ? '#4ade80' : sentiment === 'BEARISH' ? '#f87171' : '#fbbf24'
+
+  return (
+    <section className="card">
+      <h2 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>News Sentiment Analysis</h2>
+
+      <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1rem', alignItems: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '1.8rem', fontWeight: 900, color: sentColor }}>{sentiment}</div>
+          <div style={{ fontSize: '0.68rem', color: '#64748b' }}>Overall Sentiment</div>
+        </div>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          {[
+            ['Positive', sentiments.positive, '#4ade80'],
+            ['Neutral', sentiments.neutral, '#fbbf24'],
+            ['Negative', sentiments.negative, '#f87171'],
+          ].map(([label, count, color]) => (
+            <div key={label} style={{ textAlign: 'center', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--line)', borderRadius: 8, padding: '0.5rem 0.75rem', minWidth: 70 }}>
+              <div style={{ fontSize: '1.1rem', fontWeight: 700, color }}>{count}</div>
+              <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{label}</div>
+            </div>
+          ))}
+          <div style={{ textAlign: 'center', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--line)', borderRadius: 8, padding: '0.5rem 0.75rem', minWidth: 70 }}>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#818cf8' }}>{total}</div>
+            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Articles</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Sentiment bar */}
+      <div style={{ height: 10, borderRadius: 99, overflow: 'hidden', display: 'flex', marginBottom: '1rem' }}>
+        {sentiments.positive > 0 && <div style={{ width: `${(sentiments.positive / total) * 100}%`, background: '#4ade80' }} />}
+        {sentiments.neutral > 0 && <div style={{ width: `${(sentiments.neutral / total) * 100}%`, background: '#fbbf24' }} />}
+        {sentiments.negative > 0 && <div style={{ width: `${(sentiments.negative / total) * 100}%`, background: '#f87171' }} />}
+      </div>
+
+      {/* Article list */}
+      <div style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Recent Coverage</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', maxHeight: 400, overflowY: 'auto' }}>
+        {articles.slice(0, 20).map((a, i) => {
+          const title = (a.title || '').toLowerCase()
+          const desc = (a.description || '').toLowerCase()
+          const text = title + ' ' + desc
+          const pos = ['surge', 'soar', 'beat', 'profit', 'growth', 'upgrade', 'rally', 'bullish', 'record', 'gain', 'strong']
+          const neg = ['drop', 'fall', 'loss', 'downgrade', 'crash', 'bearish', 'decline', 'warning', 'cut', 'layoff', 'risk']
+          const color = pos.some(w => text.includes(w)) ? '#4ade80' : neg.some(w => text.includes(w)) ? '#f87171' : '#94a3b8'
+          return (
+            <a key={i} href={a.url || '#'} target="_blank" rel="noopener noreferrer"
+              style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: '0.8rem', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line)', textDecoration: 'none', background: 'rgba(255,255,255,0.015)' }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, marginTop: 6, flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ color: '#e2e8f0', fontWeight: 500 }}>{a.title || 'Untitled'}</div>
+                <div style={{ color: '#64748b', fontSize: '0.7rem', marginTop: 2 }}>
+                  {a.source?.name || a.source || ''} · {(a.publishedAt || a.published_at || '').slice(0, 10)}
+                </div>
+              </div>
+            </a>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
 function CapTablePanel({ data }) {
   if (!data || data.error) return null
   const inst = data.top_institutional_holders || []
@@ -444,8 +529,10 @@ export default function CompanyDeepPage() {
   const [activeTab, setActiveTab] = useState('overview')
   const [contractsData, setContractsData] = useState(null)
   const [fundingData, setFundingData] = useState(null)
+  const [sentimentData, setSentimentData] = useState(null)
   const [contractsLoading, setContractsLoading] = useState(false)
   const [fundingLoading, setFundingLoading] = useState(false)
+  const [sentimentLoading, setSentimentLoading] = useState(false)
 
   const run = async () => {
     setErr(''); setLoading(true); setData(null)
@@ -479,13 +566,21 @@ export default function CompanyDeepPage() {
           .then(setFundingData)
           .catch(() => {})
           .finally(() => setFundingLoading(false))
+
+        // Fetch sentiment from news
+        setSentimentLoading(true)
+        fetch(`${API}/market/news/newsapi?query=${encodeURIComponent(companyName)}&limit=30`)
+          .then(r => r.json())
+          .then(setSentimentData)
+          .catch(() => {})
+          .finally(() => setSentimentLoading(false))
       }
     } catch (e) { setErr(e.message) }
     finally { setLoading(false) }
   }
 
   const POPULAR = ['AAPL', 'TSLA', 'NVDA', 'MSFT', 'GOOGL', 'META', 'AMZN', 'PLTR', 'JPM', 'BAC']
-  const TABS = ['overview', 'filings', 'cap-table', 'analyst', 'earnings', 'contracts', 'funding']
+  const TABS = ['overview', 'filings', 'cap-table', 'analyst', 'earnings', 'sentiment', 'contracts', 'funding']
 
   return (
     <main className="page-wrap">
@@ -561,6 +656,7 @@ export default function CompanyDeepPage() {
           {activeTab === 'cap-table' && <CapTablePanel data={data.cap_table} />}
           {activeTab === 'analyst' && <AnalystPanel data={data.analyst_ratings} />}
           {activeTab === 'earnings' && <EarningsPanel data={data.earnings_history} />}
+          {activeTab === 'sentiment' && <SentimentPanel data={sentimentData} loading={sentimentLoading} />}
           {activeTab === 'contracts' && <ContractsPanel data={contractsData} loading={contractsLoading} />}
           {activeTab === 'funding' && <FundingPanel data={fundingData} loading={fundingLoading} />}
         </>
