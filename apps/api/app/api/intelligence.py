@@ -308,6 +308,23 @@ def list_enhanced_reports(limit: int = 20, db: Session = Depends(get_db)):
     return list_enhanced_intelligence_reports(db, limit=limit)
 
 
+@router.get("/available-networks")
+def list_available_networks():
+    """
+    List available network configurations for group reports.
+    """
+    return {
+        "networks": [
+            {
+                "id": "paypal_mafia",
+                "title": "The PayPal Mafia",
+                "description": "Founders and early employees of PayPal who went on to shape Silicon Valley",
+                "people_count": 18,
+            }
+        ]
+    }
+
+
 @router.get("/{report_id}")
 def get_report(report_id: int, db: Session = Depends(get_db)):
     report = get_intelligence_report(db, report_id)
@@ -1306,20 +1323,3 @@ def download_report_file(job_id: str, file_type: str):
         media_type=media_types.get(file_type, "application/octet-stream"),
         headers={"Content-Disposition": f'attachment; filename="{file_path.name}"'},
     )
-
-
-@router.get("/available-networks")
-def list_available_networks():
-    """
-    List available network configurations for group reports.
-    """
-    return {
-        "networks": [
-            {
-                "id": "paypal_mafia",
-                "title": "The PayPal Mafia",
-                "description": "Founders and early employees of PayPal who went on to shape Silicon Valley",
-                "people_count": 18,
-            }
-        ]
-    }

@@ -828,6 +828,51 @@ export default function IntelligencePage() {
     }
   }
 
+  // ── Deep Report Generation (Network / Full) ────────────────────────────────
+  const [deepType, setDeepType] = useState('network') // 'network' | 'full'
+  const [deepNetwork, setDeepNetwork] = useState('paypal_mafia')
+  const [deepTicker, setDeepTicker] = useState('')
+  const [deepPeers, setDeepPeers] = useState('')
+  const [deepJobId, setDeepJobId] = useState(null)
+  const [deepStatus, setDeepStatus] = useState(null)
+  const [deepLoading, setDeepLoading] = useState(false)
+  const deepPollRef = useRef(null)
+
+  const triggerDeepReport = async () => {
+    setDeepLoading(true); setDeepStatus(null)
+    try {
+      let url
+      if (deepType === 'network') {
+        url = `${API}/intelligence/generate-network-report?network=${deepNetwork}&expanded=true`
+      } else {
+        url = `${API}/intelligence/generate-full-report?ticker=${deepTicker}`
+        if (deepPeers) url += `&peers=${encodeURIComponent(deepPeers)}`
+      }
+      const r = await fetch(url, { method: 'POST' })
+      const data = await r.json()
+      setDeepJobId(data.job_id)
+      setDeepStatus({ status: 'running', message: 'Report generation started...' })
+      // Start polling
+      deepPollRef.current = setInterval(async () => {
+        try {
+          const pr = await fetch(`${API}/intelligence/report-job/${data.job_id}`)
+          const pdata = await pr.json()
+          setDeepStatus(pdata)
+          if (pdata.status === 'completed' || pdata.status === 'failed') {
+            clearInterval(deepPollRef.current)
+            deepPollRef.current = null
+            setDeepLoading(false)
+          }
+        } catch(e) { /* keep polling */ }
+      }, 5000)
+    } catch(e) {
+      setDeepStatus({ status: 'failed', error: e.message })
+      setDeepLoading(false)
+    }
+  }
+
+  useEffect(() => { return () => { if (deepPollRef.current) clearInterval(deepPollRef.current) } }, [])
+
   return (
     <main className="page-wrap">
       <section className="card">
@@ -841,6 +886,77 @@ export default function IntelligencePage() {
           CourtListener, Wikipedia, FundedAPI, Apify LinkedIn, Apify PitchBook, Google News —
           then builds a deep cited dossier + relationship graph + AI narrative.
         </p>
+      </section>
+
+      {/* ── Deep Intelligence Report Generator ─────────────────────────────── */}
+      <section className="card" style={{ marginBottom: '1rem', borderLeft: '3px solid #f59e0b' }}>
+        <h2 style={{ margin: '0 0 0.6rem', fontSize: '1rem', color: '#f59e0b' }}>
+          📋 Deep Intelligence Report (50–100+ pages)
+        </h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '0 0 0.75rem' }}>
+          Generate comprehensive PDF reports with financial profiles, lobbying, government contracts,
+          co-investment analysis, and correlation networks.
+        </p>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+            Report Type
+            <select className="inp" value={deepType} onChange={e => setDeepType(e.target.value)}>
+              <option value="network">Network / Group</option>
+              <option value="full">Company Ticker</option>
+            </select>
+          </label>
+          {deepType === 'network' && (
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+              Network
+              <select className="inp" value={deepNetwork} onChange={e => setDeepNetwork(e.target.value)}>
+                <option value="paypal_mafia">PayPal Mafia (18 people)</option>
+              </select>
+            </label>
+          )}
+          {deepType === 'full' && (
+            <>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                Ticker
+                <input className="inp" value={deepTicker} onChange={e => setDeepTicker(e.target.value.toUpperCase())} placeholder="e.g. NVDA" style={{ width: 100 }} />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                Peers (comma-separated)
+                <input className="inp" value={deepPeers} onChange={e => setDeepPeers(e.target.value)} placeholder="e.g. AMD,INTC,AVGO" style={{ width: 200 }} />
+              </label>
+            </>
+          )}
+          <button className="btn btn-primary" onClick={triggerDeepReport} disabled={deepLoading || (deepType === 'full' && !deepTicker)}>
+            {deepLoading ? '⏳ Generating...' : '🚀 Generate Deep Report'}
+          </button>
+        </div>
+        {deepStatus && (
+          <div style={{ marginTop: '0.75rem', padding: '0.6rem 1rem', borderRadius: 8, background: deepStatus.status === 'completed' ? 'rgba(74,222,128,0.08)' : deepStatus.status === 'failed' ? 'rgba(248,113,113,0.08)' : 'rgba(129,140,248,0.08)', border: `1px solid ${deepStatus.status === 'completed' ? 'rgba(74,222,128,0.3)' : deepStatus.status === 'failed' ? 'rgba(248,113,113,0.3)' : 'rgba(129,140,248,0.3)'}` }}>
+            <div style={{ fontWeight: 700, fontSize: '0.85rem', color: deepStatus.status === 'completed' ? '#4ade80' : deepStatus.status === 'failed' ? '#f87171' : '#818cf8' }}>
+              {deepStatus.status === 'completed' ? '✅ Report Ready' : deepStatus.status === 'failed' ? '❌ Failed' : '⏳ Generating...'}
+            </div>
+            {deepStatus.status === 'running' && <p style={{ margin: '0.3rem 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>This may take 5–15 minutes. Pulling SEC filings, government contracts, lobbying data, financials, and generating charts...</p>}
+            {deepStatus.status === 'failed' && <p style={{ margin: '0.3rem 0 0', fontSize: '0.78rem', color: '#f87171' }}>{deepStatus.error}</p>}
+            {deepStatus.status === 'completed' && deepStatus.output_files && (
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                {deepStatus.output_files.pdf && (
+                  <a href={`${API}/intelligence/report-job/${deepJobId}/download/pdf`} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ fontSize: '0.8rem', padding: '0.3rem 0.8rem' }}>
+                    ⬇ Download PDF
+                  </a>
+                )}
+                {deepStatus.output_files.markdown && (
+                  <a href={`${API}/intelligence/report-job/${deepJobId}/download/markdown`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.78rem', color: '#818cf8', textDecoration: 'underline' }}>
+                    Markdown
+                  </a>
+                )}
+                {deepStatus.output_files.json && (
+                  <a href={`${API}/intelligence/report-job/${deepJobId}/download/json`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.78rem', color: '#818cf8', textDecoration: 'underline' }}>
+                    Raw JSON
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       {/* Demo seeds */}
