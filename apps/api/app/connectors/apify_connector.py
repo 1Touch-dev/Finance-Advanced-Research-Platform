@@ -296,6 +296,67 @@ def fetch_news(query: str, max_articles: int = 8) -> List[Dict[str, Any]]:
     return articles
 
 
+# ── Reddit via Apify ─────────────────────────────────────────────────────────
+
+def fetch_reddit_posts(query: str, max_posts: int = 30,
+                       subreddits: List[str] = None) -> List[Dict[str, Any]]:
+    """
+    Scrape Reddit posts matching a query via Apify (no Reddit API key needed).
+    Actor: trudax/reddit-scraper — searches Reddit and returns posts with scores.
+
+    Falls back to apify/reddit-scraper-lite if the primary actor is unavailable.
+    """
+    target_subreddits = subreddits or [
+        "wallstreetbets", "investing", "stocks", "options",
+        "SecurityAnalysis", "finance", "technology",
+    ]
+
+    # Build search URLs for the actor
+    search_urls = [
+        f"https://www.reddit.com/search/?q={query}&sort=relevance&t=year"
+    ]
+    # Also search specific subreddits for higher signal
+    for sub in target_subreddits[:3]:
+        search_urls.append(
+            f"https://www.reddit.com/r/{sub}/search/?q={query}&sort=top&t=year"
+        )
+
+    items = _run_actor("trudax/reddit-scraper", {
+        "startUrls": [{"url": u} for u in search_urls],
+        "maxItems": max_posts,
+        "proxy": {"useApifyProxy": True},
+    }, wait_secs=90)
+
+    # If primary actor fails, try alternative
+    if not items:
+        items = _run_actor("apify/reddit-scraper-lite", {
+            "searches": [query],
+            "maxItems": max_posts,
+            "sort": "relevance",
+            "time": "year",
+        }, wait_secs=90)
+
+    posts = []
+    for item in items:
+        post = {
+            "title": item.get("title") or item.get("postTitle"),
+            "url": item.get("url") or item.get("postUrl"),
+            "subreddit": item.get("subreddit") or item.get("communityName", ""),
+            "score": item.get("score") or item.get("upVotes") or 0,
+            "num_comments": item.get("numberOfComments") or item.get("numComments") or 0,
+            "author": item.get("author") or item.get("username"),
+            "created": item.get("createdAt") or item.get("postedAt"),
+            "body": (item.get("body") or item.get("postText") or "")[:500],
+            "source": "Reddit (via Apify)",
+        }
+        if post["title"]:
+            posts.append(post)
+
+    # Sort by score descending
+    posts.sort(key=lambda p: p.get("score") or 0, reverse=True)
+    return posts[:max_posts]
+
+
 # ── Social Footprint (Twitter/X, Instagram, YouTube) ─────────────────────────
 
 def fetch_twitter_profile(username: str) -> Dict[str, Any]:

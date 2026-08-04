@@ -543,9 +543,35 @@ def get_news_intelligence(entity_name: str, ticker: str = "",
                 result["sources_queried"].append(
                     {"source": "Reddit", "returned": len(result["reddit"])})
         except Exception as error:
-            logger.info("Reddit unavailable: %s", error)
-            result["sources_failed"].append("Reddit")
-            result["reddit_unavailable_reason"] = str(error)
+            logger.info("Reddit OAuth unavailable (%s), trying Apify fallback", error)
+            # Fallback: use Apify Reddit scraper (no API key needed)
+            try:
+                from app.connectors.apify_connector import fetch_reddit_posts
+                query = f'"{short}" {ticker}' if ticker else short
+                apify_posts = fetch_reddit_posts(query, max_posts=25)
+                result["reddit"] = [
+                    {
+                        "title": p.get("title", ""),
+                        "summary": p.get("body", "")[:200],
+                        "score": p.get("score", 0),
+                        "url": p.get("url", ""),
+                        "outlet": f"r/{p.get('subreddit', '')}",
+                        "source": "Reddit (Apify)",
+                        "published": p.get("created"),
+                    }
+                    for p in apify_posts
+                    if resolves_to_entity(p.get("title", ""), p.get("body", ""), tokens)
+                ][:25]
+                if result["reddit"]:
+                    result["sources_queried"].append(
+                        {"source": "Reddit (Apify)", "returned": len(result["reddit"])})
+                else:
+                    result["sources_failed"].append("Reddit")
+                    result["reddit_unavailable_reason"] = "Apify returned no matching posts"
+            except Exception as apify_err:
+                logger.info("Reddit Apify fallback also failed: %s", apify_err)
+                result["sources_failed"].append("Reddit")
+                result["reddit_unavailable_reason"] = str(error)
 
     result["summary"] = _summarise(result)
     return result
