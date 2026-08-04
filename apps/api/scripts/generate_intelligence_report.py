@@ -5486,7 +5486,7 @@ def generate_markdown_report(data: dict) -> str:
                 financial_data=financial,
                 valuation=valuation,
                 insider_data=insider,
-                peer_comparison=peers_result,
+                peer_comparison=data.get("peer_comparison", {}),
                 risk_register=data.get("risk_register"),
                 news_data=data.get("news_intelligence"),
                 lobbying_data=lobbying,
