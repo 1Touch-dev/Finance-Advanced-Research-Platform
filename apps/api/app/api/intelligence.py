@@ -1,9 +1,14 @@
 """
 Layer 1 Intelligence Report API
-POST /intelligence/generate          — run connectors for an entity, build graph, generate cited dossier
-POST /intelligence/generate-enhanced — generate enhanced report with AI analysis
-GET  /intelligence/{report_id}       — retrieve a generated intelligence report
-GET  /intelligence/                  — list recent intelligence reports
+POST /intelligence/generate              — run connectors for an entity, build graph, generate cited dossier
+POST /intelligence/generate-enhanced     — generate enhanced report with AI analysis
+POST /intelligence/generate-full-report  — generate comprehensive 100+ page PDF report for a ticker
+POST /intelligence/generate-network-report — generate network/group intelligence report (PayPal Mafia, etc.)
+GET  /intelligence/report-job/{job_id}   — check status of a report generation job
+GET  /intelligence/report-job/{job_id}/download/{file_type} — download generated report file
+GET  /intelligence/available-networks    — list available network configurations
+GET  /intelligence/{report_id}           — retrieve a generated intelligence report
+GET  /intelligence/                      — list recent intelligence reports
 GET  /intelligence/{report_id}/pdf-professional — download enhanced PDF with charts
 GET  /intelligence/{report_id}/excel-detailed   — download multi-sheet Excel
 GET  /intelligence/{report_id}/powerpoint-detailed — download data-rich PowerPoint
@@ -1087,3 +1092,234 @@ def download_premium_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ============================================================================
+# FULL REPORT GENERATION ENDPOINTS (using scripts)
+# ============================================================================
+
+import subprocess
+import os
+from pathlib import Path
+import uuid
+import json
+from datetime import datetime
+
+# Track running jobs
+_REPORT_JOBS: Dict[str, Dict[str, Any]] = {}
+
+
+@router.post("/generate-full-report")
+def generate_full_report(
+    ticker: str,
+    peers: str = "",
+    background_tasks: BackgroundTasks = None,
+):
+    """
+    Generate a comprehensive intelligence report PDF for a ticker.
+
+    This runs the full generate_intelligence_report.py script which produces:
+    - 100+ page PDF report
+    - JSON data file
+    - Markdown source
+
+    Returns a job_id to poll for status.
+    """
+    job_id = str(uuid.uuid4())[:8]
+
+    _REPORT_JOBS[job_id] = {
+        "status": "running",
+        "type": "individual",
+        "ticker": ticker,
+        "started_at": datetime.now().isoformat(),
+        "output_files": {},
+    }
+
+    def run_report():
+        try:
+            script_path = Path(__file__).parent.parent.parent / "scripts" / "generate_intelligence_report.py"
+            cmd = ["python", str(script_path), "--ticker", ticker]
+            if peers:
+                cmd.extend(["--peers", peers])
+
+            result = subprocess.run(
+                cmd,
+                cwd=str(script_path.parent.parent),
+                capture_output=True,
+                text=True,
+                timeout=1800,  # 30 min timeout
+            )
+
+            # Find generated files
+            reports_dir = script_path.parent.parent.parent.parent / "reports"
+            latest_files = sorted(reports_dir.glob(f"*{ticker.upper()}*"), key=lambda x: x.stat().st_mtime, reverse=True)
+
+            output_files = {}
+            for f in latest_files[:4]:
+                if f.suffix == ".pdf":
+                    output_files["pdf"] = str(f)
+                elif f.suffix == ".md":
+                    output_files["markdown"] = str(f)
+                elif f.suffix == ".json":
+                    output_files["json"] = str(f)
+
+            _REPORT_JOBS[job_id]["status"] = "completed"
+            _REPORT_JOBS[job_id]["output_files"] = output_files
+            _REPORT_JOBS[job_id]["completed_at"] = datetime.now().isoformat()
+
+        except Exception as e:
+            _REPORT_JOBS[job_id]["status"] = "failed"
+            _REPORT_JOBS[job_id]["error"] = str(e)
+
+    if background_tasks:
+        background_tasks.add_task(run_report)
+
+    return {"job_id": job_id, "status": "started", "ticker": ticker}
+
+
+@router.post("/generate-network-report")
+def generate_network_report(
+    network: str = "paypal_mafia",
+    expanded: bool = True,
+    background_tasks: BackgroundTasks = None,
+):
+    """
+    Generate a network/group intelligence report PDF.
+
+    Available networks: paypal_mafia (more can be added)
+
+    Set expanded=True for 50-80 page deep analysis including:
+    - Full financial profiles per person
+    - All investments traced
+    - Lobbying data per company
+    - Government contracts per company
+
+    Returns a job_id to poll for status.
+    """
+    job_id = str(uuid.uuid4())[:8]
+
+    _REPORT_JOBS[job_id] = {
+        "status": "running",
+        "type": "network",
+        "network": network,
+        "expanded": expanded,
+        "started_at": datetime.now().isoformat(),
+        "output_files": {},
+    }
+
+    def run_report():
+        try:
+            if expanded:
+                script_path = Path(__file__).parent.parent.parent / "scripts" / "expand_network_report_v2.py"
+            else:
+                script_path = Path(__file__).parent.parent.parent / "scripts" / "generate_network_report.py"
+
+            cmd = ["python", str(script_path)]
+            if not expanded:
+                cmd.extend(["--network", network])
+
+            result = subprocess.run(
+                cmd,
+                cwd=str(script_path.parent.parent),
+                capture_output=True,
+                text=True,
+                timeout=3600,  # 60 min timeout for expanded
+            )
+
+            # Find generated files
+            reports_dir = script_path.parent.parent.parent.parent / "reports"
+
+            # Look for PayPal Mafia reports
+            search_pattern = "PayPal_Mafia" if network == "paypal_mafia" else network
+            if expanded:
+                search_pattern += "_EXPANDED"
+
+            latest_files = sorted(
+                [f for f in reports_dir.glob(f"*{search_pattern}*") if f.is_file()],
+                key=lambda x: x.stat().st_mtime,
+                reverse=True
+            )
+
+            output_files = {}
+            for f in latest_files[:4]:
+                if f.suffix == ".pdf":
+                    output_files["pdf"] = str(f)
+                elif f.suffix == ".md":
+                    output_files["markdown"] = str(f)
+                elif f.suffix == ".json":
+                    output_files["json"] = str(f)
+
+            _REPORT_JOBS[job_id]["status"] = "completed"
+            _REPORT_JOBS[job_id]["output_files"] = output_files
+            _REPORT_JOBS[job_id]["completed_at"] = datetime.now().isoformat()
+
+        except Exception as e:
+            _REPORT_JOBS[job_id]["status"] = "failed"
+            _REPORT_JOBS[job_id]["error"] = str(e)
+
+    if background_tasks:
+        background_tasks.add_task(run_report)
+
+    return {"job_id": job_id, "status": "started", "network": network, "expanded": expanded}
+
+
+@router.get("/report-job/{job_id}")
+def get_report_job_status(job_id: str):
+    """
+    Check status of a report generation job.
+    Returns status and output file paths when complete.
+    """
+    if job_id not in _REPORT_JOBS:
+        raise HTTPException(404, f"Job {job_id} not found")
+
+    return _REPORT_JOBS[job_id]
+
+
+@router.get("/report-job/{job_id}/download/{file_type}")
+def download_report_file(job_id: str, file_type: str):
+    """
+    Download a generated report file.
+    file_type: pdf, markdown, json
+    """
+    if job_id not in _REPORT_JOBS:
+        raise HTTPException(404, f"Job {job_id} not found")
+
+    job = _REPORT_JOBS[job_id]
+    if job["status"] != "completed":
+        raise HTTPException(400, f"Job not completed. Status: {job['status']}")
+
+    if file_type not in job["output_files"]:
+        raise HTTPException(404, f"File type {file_type} not available")
+
+    file_path = Path(job["output_files"][file_type])
+    if not file_path.exists():
+        raise HTTPException(404, "File not found on disk")
+
+    media_types = {
+        "pdf": "application/pdf",
+        "markdown": "text/markdown",
+        "json": "application/json",
+    }
+
+    return StreamingResponse(
+        open(file_path, "rb"),
+        media_type=media_types.get(file_type, "application/octet-stream"),
+        headers={"Content-Disposition": f'attachment; filename="{file_path.name}"'},
+    )
+
+
+@router.get("/available-networks")
+def list_available_networks():
+    """
+    List available network configurations for group reports.
+    """
+    return {
+        "networks": [
+            {
+                "id": "paypal_mafia",
+                "title": "The PayPal Mafia",
+                "description": "Founders and early employees of PayPal who went on to shape Silicon Valley",
+                "people_count": 18,
+            }
+        ]
+    }
