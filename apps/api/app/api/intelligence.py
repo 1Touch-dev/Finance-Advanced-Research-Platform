@@ -1155,7 +1155,7 @@ def generate_full_report(
     def run_report():
         try:
             script_path = Path(__file__).parent.parent.parent / "scripts" / "generate_intelligence_report.py"
-            cmd = ["python", str(script_path), "--ticker", ticker]
+            cmd = ["python3", str(script_path), "--ticker", ticker]
             if peers:
                 cmd.extend(["--peers", peers])
 
@@ -1231,7 +1231,7 @@ def generate_network_report(
             else:
                 script_path = Path(__file__).parent.parent.parent / "scripts" / "generate_network_report.py"
 
-            cmd = ["python", str(script_path)]
+            cmd = ["python3", str(script_path)]
             if not expanded:
                 cmd.extend(["--network", network])
 
