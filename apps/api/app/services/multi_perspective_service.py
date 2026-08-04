@@ -71,9 +71,12 @@ def generate_multi_perspective_analysis(
 
     val_data = valuation or {}
     dcf_result = val_data.get("dcf_result") or val_data.get("dcf") or {}
-    dcf_price = dcf_result.get("price_per_share")
+    dcf_price = (dcf_result.get("price_per_share") 
+                 or dcf_result.get("intrinsic_price_per_share"))
     market_data = val_data.get("market_data") or {}
-    market_price = market_data.get("price") or market_data.get("current_price")
+    market_price = (market_data.get("price") 
+                    or market_data.get("current_price")
+                    or dcf_result.get("current_market_price"))
 
     insider = insider_data or {}
     # Handle both naming conventions
