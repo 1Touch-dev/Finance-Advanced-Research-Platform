@@ -313,13 +313,27 @@ def extract_13f_filing_records(
             if not accession_number or not filing_date:
                 continue
             primary_document = primary_documents[idx] if idx < len(primary_documents) else None
+            try:
+                report_period = normalize_reporting_period(report_date)
+            except ValueError as exc:
+                logger.warning(
+                    "Skipping SEC 13F filing row for cik %s accession %s form %s filing_date %s "
+                    "because reportDate %r is invalid for automatic period discovery: %s",
+                    normalized_cik,
+                    accession_number,
+                    form,
+                    filing_date,
+                    report_date,
+                    exc,
+                )
+                continue
             records.append(
                 SEC13FFilingRecord(
                     cik=normalized_cik,
                     accession_number=accession_number,
                     form=str(form),
                     filing_date=datetime.strptime(filing_date, "%Y-%m-%d").date(),
-                    report_period=normalize_reporting_period(report_date),
+                    report_period=report_period,
                     primary_document=primary_document or None,
                 )
             )

@@ -258,6 +258,74 @@ def test_position_diff_invalid_report_period_returns_422(client_and_session):
     assert response.status_code == 422
 
 
+def test_position_diff_auto_period_selection_skips_invalid_historical_report_dates(client_and_session, monkeypatch):
+    client, _ = client_and_session
+
+    submissions_base_url = "https://data.sec.gov/submissions"
+    root_url = f"{submissions_base_url}/CIK0001364742.json"
+    historical_url = f"{submissions_base_url}/CIK0001364742-submissions-001.json"
+    responses = {
+        root_url: {
+            "cik": "1364742",
+            "filings": {
+                "recent": {
+                    "form": ["13F-HR"],
+                    "filingDate": ["2024-08-13"],
+                    "accessionNumber": ["0001086364-24-008417"],
+                    "reportDate": ["2024-06-30"],
+                    "primaryDocument": ["xslForm13F_X02/primary_doc.xml"],
+                },
+                "files": [{"name": "CIK0001364742-submissions-001.json"}],
+            },
+        },
+        historical_url: {
+            "form": ["13F-HR/A", "13F-HR"],
+            "filingDate": ["2007-12-17", "2024-05-10"],
+            "accessionNumber": ["0001086364-07-000116", "0001086364-24-007638"],
+            "reportDate": ["2007-09-28", "2024-03-31"],
+            "primaryDocument": ["blkincamend.txt", "xslForm13F_X01/primary_doc.xml"],
+        },
+    }
+
+    def mock_json_fetcher(url: str):
+        return responses[url]
+
+    def mock_snapshot(records, **kwargs):
+        period = records[0].report_period
+        positions = [
+            PositionSnapshotEntry(
+                issuer_name=f"Period {period.isoformat()}",
+                cusip=f"{period.month:02d}{period.day:02d}00000",
+                security_title="COM",
+                shares=1,
+                reported_value_usd=100,
+                accession_number=records[0].accession_number,
+                filing_date=records[0].filing_date,
+            )
+        ]
+        return _snapshot(period, records[0].accession_number, positions)
+
+    monkeypatch.setattr(sec_13f_service, "_requests_json_fetcher", mock_json_fetcher)
+    monkeypatch.setattr(sec_13f_service, "build_13f_reporting_period_snapshot", mock_snapshot)
+
+    response = client.get(
+        "/market/institutional/position-diff",
+        params={
+            "institution_cik": "1364742",
+            "status": "changed",
+            "sort_by": "reported_value_diff_usd",
+            "sort_dir": "desc",
+            "limit": 100,
+            "offset": 0,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["periods"]["current"] == "2024-06-30"
+    assert payload["periods"]["previous"] == "2024-03-31"
+
+
 def test_position_diff_missing_required_parameter_returns_422(client_and_session):
     client, _ = client_and_session
     response = client.get("/market/institutional/position-diff")

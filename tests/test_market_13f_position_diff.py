@@ -27,6 +27,7 @@ from app.services.sec_13f_service import (
     build_position_key,
     compare_position_snapshots,
     compute_share_pct_change,
+    extract_13f_filing_records,
     fetch_13f_filing_records,
     filter_filing_records_for_period,
     get_or_fetch_13f_period_snapshot,
@@ -252,6 +253,77 @@ def test_fetch_13f_filing_records_merges_recent_and_historical_submissions():
     assert records[0].accession_number == "0001067983-26-000013"
     assert records[-1].accession_number == "0001067983-26-000001"
     assert {record.report_period for record in records} == {date(2026, 3, 31), date(2025, 12, 31)}
+
+
+def test_extract_13f_filing_records_skips_invalid_recent_report_dates_and_preserves_alignment():
+    submissions_json = {
+        "cik": "1364742",
+        "filings": {
+            "recent": {
+                "form": ["13F-HR", "13F-HR/A", "13F-HR"],
+                "filingDate": ["2024-08-13", "2007-12-17", "2024-05-10"],
+                "accessionNumber": ["0001086364-24-008417", "0001086364-07-000116", "0001086364-24-007638"],
+                "reportDate": ["2024-06-30", "2007-09-28", "2024-03-31"],
+                "primaryDocument": [
+                    "xslForm13F_X02/primary_doc.xml",
+                    "blkincamend.txt",
+                    "xslForm13F_X02/primary_doc.xml",
+                ],
+            }
+        },
+    }
+
+    records = extract_13f_filing_records(submissions_json)
+
+    assert [record.accession_number for record in records] == [
+        "0001086364-24-008417",
+        "0001086364-24-007638",
+    ]
+    current_period, previous_period = select_reporting_period_pair(records)
+    assert current_period == date(2024, 6, 30)
+    assert previous_period == date(2024, 3, 31)
+
+
+def test_fetch_13f_filing_records_skips_invalid_historical_report_dates_and_keeps_valid_pairs():
+    submissions_base_url = "https://data.sec.gov/submissions"
+    root_url = f"{submissions_base_url}/CIK0001364742.json"
+    historical_url = f"{submissions_base_url}/CIK0001364742-submissions-001.json"
+    responses = {
+        root_url: {
+            "cik": "1364742",
+            "filings": {
+                "recent": {
+                    "form": ["13F-HR"],
+                    "filingDate": ["2024-08-13"],
+                    "accessionNumber": ["0001086364-24-008417"],
+                    "reportDate": ["2024-06-30"],
+                    "primaryDocument": ["xslForm13F_X02/primary_doc.xml"],
+                },
+                "files": [{"name": "CIK0001364742-submissions-001.json"}],
+            },
+        },
+        historical_url: {
+            "form": ["13F-HR/A", "13F-HR"],
+            "filingDate": ["2007-12-17", "2024-05-10"],
+            "accessionNumber": ["0001086364-07-000116", "0001086364-24-007638"],
+            "reportDate": ["2007-09-28", "2024-03-31"],
+            "primaryDocument": ["blkincamend.txt", "xslForm13F_X02/primary_doc.xml"],
+        },
+    }
+
+    records = fetch_13f_filing_records(
+        "1364742",
+        json_fetcher=_mock_json_fetcher_factory(responses),
+        submissions_base_url=submissions_base_url,
+    )
+
+    assert [record.accession_number for record in records] == [
+        "0001086364-24-008417",
+        "0001086364-24-007638",
+    ]
+    current_period, previous_period = select_reporting_period_pair(records)
+    assert current_period == date(2024, 6, 30)
+    assert previous_period == date(2024, 3, 31)
 
 
 def test_select_reporting_period_pair_uses_report_period_not_filing_date():
