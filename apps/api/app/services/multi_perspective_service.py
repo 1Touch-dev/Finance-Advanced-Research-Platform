@@ -42,22 +42,44 @@ def generate_multi_perspective_analysis(
     }
 
     financial = financial_data or {}
-    annual = financial.get("financial_statements", {}).get("annual", [])
-    latest = annual[0] if annual else {}
-
-    # Extract key metrics
-    revenue = latest.get("revenue", 0)
+    
+    # Handle multiple data structures
+    stmts = financial.get("financial_statements", {})
+    annual = stmts.get("annual", [])
+    if not annual:
+        annual = stmts.get("income_statement", [])
+    
+    latest = {}
+    if annual:
+        latest = annual[0]
+    
+    # Extract key metrics (handle both naming conventions)
+    revenue = latest.get("revenue") or latest.get("Revenues") or 0
     revenue_growth = latest.get("revenue_growth_pct")
+    if not revenue_growth and len(annual) >= 2:
+        prev_rev = annual[1].get("revenue") or annual[1].get("Revenues") or 0
+        if prev_rev > 0 and revenue > 0:
+            revenue_growth = ((revenue - prev_rev) / prev_rev) * 100
     net_margin = latest.get("net_margin_pct")
+    net_income = latest.get("net_income") or latest.get("NetIncome") or 0
+    if not net_margin and revenue > 0 and net_income:
+        net_margin = (net_income / revenue) * 100
     gross_margin = latest.get("gross_margin_pct")
+    gross_profit = latest.get("gross_profit") or latest.get("GrossProfit") or 0
+    if not gross_margin and revenue > 0 and gross_profit:
+        gross_margin = (gross_profit / revenue) * 100
 
     val_data = valuation or {}
-    dcf_price = val_data.get("dcf_result", {}).get("price_per_share")
-    market_price = val_data.get("market_data", {}).get("price")
+    dcf_result = val_data.get("dcf_result") or val_data.get("dcf") or {}
+    dcf_price = dcf_result.get("price_per_share")
+    market_data = val_data.get("market_data") or {}
+    market_price = market_data.get("price") or market_data.get("current_price")
 
     insider = insider_data or {}
-    total_sold = insider.get("total_disposed_value", 0)
-    total_bought = insider.get("total_acquired_value", 0)
+    # Handle both naming conventions
+    summary = insider.get("summary", {})
+    total_sold = insider.get("total_disposed_value") or summary.get("total_value_sold") or 0
+    total_bought = insider.get("total_acquired_value") or summary.get("total_value_bought") or 0
 
     peers = peer_comparison or {}
     risk = risk_register or {}

@@ -5480,11 +5480,19 @@ def generate_markdown_report(data: dict) -> str:
     # to the same data — disagreements are more informative than agreements.
     if MULTI_PERSPECTIVE_AVAILABLE:
         try:
+            # Pass price from price_history if valuation doesn't have it
+            val_for_perspective = valuation.copy() if valuation else {}
+            price_hist = data.get("price_history", {})
+            if price_hist and not val_for_perspective.get("market_data", {}).get("price"):
+                bars = price_hist.get("bars", [])
+                if bars:
+                    val_for_perspective.setdefault("market_data", {})["price"] = bars[-1].get("close")
+
             perspective_data = generate_multi_perspective_analysis(
                 entity_name=entity_name,
                 ticker=ticker,
                 financial_data=financial,
-                valuation=valuation,
+                valuation=val_for_perspective,
                 insider_data=insider,
                 peer_comparison=data.get("peer_comparison", {}),
                 risk_register=data.get("risk_register"),
