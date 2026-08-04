@@ -257,10 +257,14 @@ def render_beneficial_ownership_markdown(data: Dict[str, Any]) -> List[str]:
     lines.append("| Filer | Form | Filed | Activist? |")
     lines.append("|-------|------|-------|-----------|")
     for f in filings[:15]:
-        filer = (f.get("filer") or "—")[:40]
+        # The actual filer is the holder, not the subject company
+        filer = (f.get("reporting_owner") or f.get("filer") or "—")[:40]
         form = f.get("form_type") or "—"
         filed = (f.get("filed_at") or "")[:10]
         activist = "✅ Yes" if f.get("is_activist") else "No"
+        # Skip rows where filer is the company itself (not useful)
+        if filer.upper().startswith(("NVIDIA", "—")) and not f.get("reporting_owner"):
+            continue
         lines.append(f"| {filer} | {form} | {filed} | {activist} |")
     lines.append("")
 
@@ -312,6 +316,21 @@ def render_insider_structured_markdown(data: Dict[str, Any]) -> List[str]:
     if not txns and not data.get("error"):
         return []
 
+    # Filter out transactions with no meaningful data (just holdings "H" with no price/value)
+    meaningful_txns = [
+        tx for tx in txns
+        if (tx.get("price") or tx.get("value") or tx.get("shares"))
+        and tx.get("transaction_type") not in ("H", None, "")
+    ]
+
+    # If we only have holdings with no price data, skip the section entirely
+    buys = data.get("total_buys", 0)
+    sells = data.get("total_sells", 0)
+    net_val = data.get("net_value", 0)
+
+    if not meaningful_txns and buys == 0 and sells == 0 and net_val == 0:
+        return []  # Nothing useful to show
+
     lines.append("### Insider Trading Detail (Structured)")
     lines.append("")
 
@@ -320,11 +339,7 @@ def render_insider_structured_markdown(data: Dict[str, Any]) -> List[str]:
         lines.append("")
         return lines
 
-    buys = data.get("total_buys", 0)
-    sells = data.get("total_sells", 0)
-    net_val = data.get("net_value", 0)
-
-    lines.append(f"**{len(txns)} transactions** — {buys} buys, {sells} sells "
+    lines.append(f"**{len(meaningful_txns)} transactions** — {buys} buys, {sells} sells "
                  f"| Net value: ${net_val:,.0f}")
     lines.append("")
 
@@ -344,19 +359,20 @@ def render_insider_structured_markdown(data: Dict[str, Any]) -> List[str]:
             lines.append(f"- {b['name']}: ${b['net_value']:,.0f}")
         lines.append("")
 
-    # Recent transactions
-    lines.append("| Date | Insider | Title | Type | Shares | Price | Value | 10b5-1? |")
-    lines.append("|------|---------|-------|------|--------|-------|-------|---------|")
-    for tx in txns[:25]:
-        date = (tx.get("transaction_date") or "")[:10]
-        name = (tx.get("name") or "—")[:20]
-        title = (tx.get("title") or "—")[:15]
-        ttype = tx.get("transaction_type") or "—"
-        shares = f"{tx['shares']:,.0f}" if tx.get("shares") else "—"
-        price = f"${tx['price']:,.2f}" if tx.get("price") else "—"
-        value = f"${tx['value']:,.0f}" if tx.get("value") else "—"
-        plan = "✅" if tx.get("is_10b5_1") else ""
-        lines.append(f"| {date} | {name} | {title} | {ttype} | {shares} | {price} | {value} | {plan} |")
+    # Recent transactions (only show ones with actual data)
+    if meaningful_txns:
+        lines.append("| Date | Insider | Title | Type | Shares | Price | Value | 10b5-1? |")
+        lines.append("|------|---------|-------|------|--------|-------|-------|---------|")
+        for tx in meaningful_txns[:25]:
+            date = (tx.get("transaction_date") or "")[:10]
+            name = (tx.get("name") or "—")[:20]
+            title = (tx.get("title") or "—")[:15]
+            ttype = tx.get("transaction_type") or "—"
+            shares = f"{tx['shares']:,.0f}" if tx.get("shares") else "—"
+            price = f"${tx['price']:,.2f}" if tx.get("price") else "—"
+            value = f"${tx['value']:,.0f}" if tx.get("value") else "—"
+            plan = "✅" if tx.get("is_10b5_1") else ""
+            lines.append(f"| {date} | {name} | {title} | {ttype} | {shares} | {price} | {value} | {plan} |")
     lines.append("")
 
     return lines

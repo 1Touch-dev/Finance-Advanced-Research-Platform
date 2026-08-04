@@ -63,14 +63,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Charts. Absent matplotlib the report renders exactly as before, minus the
-# figures — every chart restates a table that is present either way.
+# Charts. Absent matplotlib the report WILL NOT GENERATE — charts are mandatory.
+# Every chart restates a table that is present either way, but James requires
+# visual data representation in every report.
 try:
     from app.services import chart_service as charts
     CHARTS_AVAILABLE = charts.CHARTS_AVAILABLE
-except Exception:  # pragma: no cover
+    if not CHARTS_AVAILABLE:
+        raise ImportError("matplotlib loaded but CHARTS_AVAILABLE is False")
+except Exception as e:  # pragma: no cover
     charts = None
     CHARTS_AVAILABLE = False
+    logger.error("CHARTS UNAVAILABLE: %s — install matplotlib to generate reports", e)
 
 FIGURE_COUNT = 0
 
@@ -5845,8 +5849,66 @@ def generate_markdown_report(data: dict) -> str:
 # A bare "—" is the documented convention for "not retrieved" and is allowed.
 PLACEHOLDER_PATTERNS = [
     "$0.00", "UNKNOWN", "TBD", "should be evaluated", "provides insight into",
-    "Lorem ipsum", "$nan", "None |",
+    "Lorem ipsum", "$nan", "None |", "nan%", "nan |", "$None",
+    "| — | — | — | — |",  # row of all missing values
 ]
+
+
+def sanitize_markdown(markdown: str) -> str:
+    """
+    Remove broken/empty content from the rendered markdown before PDF generation.
+    This ensures no garbage, placeholder, or missing-data rows appear in the final output.
+    """
+    lines = markdown.split("\n")
+    cleaned = []
+    i = 0
+
+    while i < len(lines):
+        line = lines[i]
+
+        # Skip table rows that are ALL dashes/empty (no real data)
+        if line.startswith("|") and "—" in line:
+            cells = [c.strip() for c in line.split("|")[1:-1]]
+            if all(c in ("—", "", "None", "nan", "$0", "$0.00", "—") for c in cells):
+                i += 1
+                continue
+
+        # Skip rows with "None" as all values
+        if line.startswith("|") and line.count("None") >= 3:
+            i += 1
+            continue
+
+        # Skip rows where all numeric cells are 0 or empty (insider trading with no data)
+        if line.startswith("|") and "| — | — | — |" in line:
+            i += 1
+            continue
+
+        # Remove "0 buys, 0 sells | Net value: $0" type headers that indicate no real data
+        if "0 buys, 0 sells" in line and "Net value: $0" in line:
+            i += 1
+            continue
+
+        # Remove empty sections: heading followed immediately by another heading
+        if line.startswith("## ") or line.startswith("### "):
+            # Look ahead for content
+            j = i + 1
+            while j < len(lines) and not lines[j].strip():
+                j += 1
+            # If next non-blank line is another heading of same or higher level, skip
+            if j < len(lines):
+                next_line = lines[j]
+                current_level = len(line) - len(line.lstrip("#"))
+                if next_line.startswith("#"):
+                    next_level = len(next_line) - len(next_line.lstrip("#"))
+                    if next_level <= current_level:
+                        # Empty section — skip the heading
+                        i += 1
+                        continue
+
+        cleaned.append(line)
+        i += 1
+
+    return "\n".join(cleaned)
 
 
 def check_report_quality(markdown: str, ticker: str = "", entity_name: str = "") -> dict:
@@ -6130,9 +6192,18 @@ def main(argv=None):
         print(f"      Charts embedded: {FIGURE_COUNT}"
               + ("" if FIGURE_COUNT else " (none — data did not support a figure)"))
     else:
-        print("      Charts embedded: unavailable (matplotlib not loaded)")
+        print("      Charts embedded: UNAVAILABLE — report will lack visual data")
+        print("      ⚠️  Install matplotlib to enable charts: pip install matplotlib")
     for issue in quality["issues"]:
         print(f"        - {issue}")
+
+    # Sanitize: remove broken/empty/placeholder content before PDF
+    markdown_report = sanitize_markdown(markdown_report)
+    # Re-check quality after sanitization
+    quality_post = check_report_quality(markdown_report, TICKER, ENTITY_NAME)
+    if quality_post["word_count"] < quality["word_count"]:
+        removed = quality["word_count"] - quality_post["word_count"]
+        print(f"      Sanitizer removed {removed} words of broken/empty content")
 
     # Step 3: Save outputs
     print("\n[3/4] Saving outputs...")
