@@ -23,6 +23,13 @@ from app.api.support import router as support_router
 from app.api.billing import router as billing_router
 from app.api.status import router as status_router
 from app.api.seo import router as seo_router
+from app.api.freshness import router as freshness_router
+from app.api.editorial import router as editorial_router
+from app.api.compliance_content import router as compliance_content_router
+from app.api.experiments import router as experiments_router
+from app.api.ai_visibility import router as ai_visibility_router
+from app.api.export import router as export_router
+from app.api.honesty import router as honesty_router
 from app.core.logging import logger
 
 try:
@@ -76,6 +83,13 @@ app.include_router(support_router)
 app.include_router(billing_router)
 app.include_router(status_router)
 app.include_router(seo_router)
+app.include_router(freshness_router)
+app.include_router(editorial_router)
+app.include_router(compliance_content_router)
+app.include_router(experiments_router)
+app.include_router(ai_visibility_router)
+app.include_router(export_router)
+app.include_router(honesty_router)
 if _CHAT_ROUTER:
     app.include_router(chat_router)
 

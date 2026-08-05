@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      width: 320px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0f1a;
+      color: #e2e8f0;
+      padding: 16px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #1e293b;
+    }
+    .logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #6366f1, #818cf8);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 12px;
+    }
+    .title {
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .subtitle {
+      font-size: 10px;
+      color: #64748b;
+    }
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 8px;
+      margin-bottom: 12px;
+      font-size: 12px;
+    }
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      background: #10b981;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .section {
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
+    .entity-card {
+      background: #111827;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+    }
+    .entity-name {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .entity-meta {
+      font-size: 10px;
+      color: #64748b;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .badge-fresh { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+    .badge-stale { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+    .actions {
+      display: flex;
+      gap: 8px;
+    }
+    .btn {
+      flex: 1;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-primary {
+      background: #6366f1;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #818cf8;
+    }
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid #1e293b;
+      color: #94a3b8;
+    }
+    .btn-secondary:hover {
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+    .toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: #111827;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+    .toggle-label {
+      font-size: 12px;
+    }
+    .toggle-switch {
+      width: 36px;
+      height: 20px;
+      background: #374151;
+      border-radius: 10px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .toggle-switch.active {
+      background: #6366f1;
+    }
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      background: white;
+      border-radius: 50%;
+      top: 2px;
+      left: 2px;
+      transition: left 0.2s;
+    }
+    .toggle-switch.active::after {
+      left: 18px;
+    }
+    .footer {
+      padding-top: 12px;
+      border-top: 1px solid #1e293b;
+      text-align: center;
+    }
+    .footer a {
+      font-size: 10px;
+      color: #6366f1;
+      text-decoration: none;
+    }
+    .footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">EI</div>
+    <div>
+      <div class="title">Enterprise Intelligence</div>
+      <div class="subtitle">Data provenance overlay</div>
+    </div>
+  </div>
+
+  <div class="status">
+    <span class="status-dot"></span>
+    <span>Connected to platform</span>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Current Page Entity</div>
+    <div class="entity-card" id="current-entity">
+      <div class="entity-name">No entity detected</div>
+      <div class="entity-meta">Navigate to a company page to see data</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Overlay Settings</div>
+    <div class="toggle">
+      <span class="toggle-label">Show data freshness badges</span>
+      <div class="toggle-switch active" id="toggle-freshness"></div>
+    </div>
+    <div class="toggle">
+      <span class="toggle-label">Highlight tracked entities</span>
+      <div class="toggle-switch active" id="toggle-highlight"></div>
+    </div>
+    <div class="toggle">
+      <span class="toggle-label">Show 13F staleness warnings</span>
+      <div class="toggle-switch active" id="toggle-13f"></div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-primary" id="open-report">Open Full Report</button>
+    <button class="btn btn-secondary" id="open-platform">Platform</button>
+  </div>
+
+  <div class="footer">
+    <a href="https://enterprise-intel.com/support" target="_blank">Need help?</a>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

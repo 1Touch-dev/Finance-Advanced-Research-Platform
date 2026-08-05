@@ -1,0 +1,56 @@
+{
+  "manifest_version": 3,
+  "name": "Enterprise Intelligence",
+  "version": "1.0.0",
+  "description": "Overlay provenance and intelligence data on SEC EDGAR, news sites, and financial pages",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.sec.gov/*",
+    "https://sec.gov/*",
+    "https://edgar.sec.gov/*",
+    "https://finance.yahoo.com/*",
+    "https://www.bloomberg.com/*",
+    "https://www.reuters.com/*",
+    "https://seekingalpha.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.sec.gov/*",
+        "https://sec.gov/*",
+        "https://edgar.sec.gov/*"
+      ],
+      "js": ["content-edgar.js"],
+      "css": ["styles.css"]
+    },
+    {
+      "matches": [
+        "https://finance.yahoo.com/*",
+        "https://www.bloomberg.com/*",
+        "https://www.reuters.com/*",
+        "https://seekingalpha.com/*"
+      ],
+      "js": ["content-news.js"],
+      "css": ["styles.css"]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
