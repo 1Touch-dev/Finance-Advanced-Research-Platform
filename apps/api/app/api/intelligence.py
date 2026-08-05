@@ -1167,9 +1167,14 @@ def generate_full_report(
                 timeout=1800,  # 30 min timeout
             )
 
-            # Find generated files
+            # Find generated files — check both possible output directories
             reports_dir = script_path.parent.parent.parent.parent / "reports"
-            latest_files = sorted(reports_dir.glob(f"*{ticker.upper()}*"), key=lambda x: x.stat().st_mtime, reverse=True)
+            alt_reports_dir = script_path.parent.parent.parent / "reports"
+            all_matches = []
+            for rdir in [reports_dir, alt_reports_dir]:
+                if rdir.exists():
+                    all_matches.extend(rdir.glob(f"*{ticker.upper()}*"))
+            latest_files = sorted(all_matches, key=lambda x: x.stat().st_mtime, reverse=True)
 
             output_files = {}
             for f in latest_files[:4]:
@@ -1243,16 +1248,20 @@ def generate_network_report(
                 timeout=3600,  # 60 min timeout for expanded
             )
 
-            # Find generated files
+            # Find generated files — check both possible output directories
             reports_dir = script_path.parent.parent.parent.parent / "reports"
+            alt_reports_dir = script_path.parent.parent.parent / "reports"
 
             # Look for PayPal Mafia reports
             search_pattern = "PayPal_Mafia" if network == "paypal_mafia" else network
-            if expanded:
-                search_pattern += "_EXPANDED"
+
+            all_matches = []
+            for rdir in [reports_dir, alt_reports_dir]:
+                if rdir.exists():
+                    all_matches.extend([f for f in rdir.glob(f"*{search_pattern}*") if f.is_file()])
 
             latest_files = sorted(
-                [f for f in reports_dir.glob(f"*{search_pattern}*") if f.is_file()],
+                all_matches,
                 key=lambda x: x.stat().st_mtime,
                 reverse=True
             )
