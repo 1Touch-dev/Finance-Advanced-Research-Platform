@@ -121,6 +121,19 @@ DIVISION_TOKENS = {
     # charter: federal awards are booked to "JPMORGAN CHASE BANK, NATIONAL
     # ASSOCIATION" rather than to the holding company.
     "bank", "na", "n.a.", "national", "association", "trust", "savings",
+    # Defense contractor and large industrial company subsidiary patterns.
+    # These words qualify a parent name into a business unit without changing
+    # identity: "GENERAL DYNAMICS LAND SYSTEMS", "LOCKHEED MARTIN SPACE",
+    # "BOEING DEFENSE", "RAYTHEON MISSILES".
+    "information", "mission", "land", "space", "defense", "defence", "air",
+    "maritime", "missiles", "aircraft", "aerospace", "aviation", "marine",
+    "naval", "ordnance", "combat", "tactical", "strategic", "cyber", "digital",
+    "electric", "power", "energy", "communications", "network", "networks",
+    "data", "analytics", "intelligence", "security", "enterprise", "commercial",
+    "consumer", "professional", "industrial", "mobility", "logistics", "supply",
+    "chain", "health", "healthcare", "medical", "life", "sciences", "pharma",
+    "bio", "financial", "insurance", "asset", "management", "capital", "credit",
+    "properties", "realty", "real", "estate",
 }
 
 

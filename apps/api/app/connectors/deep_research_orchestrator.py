@@ -161,6 +161,17 @@ except ImportError:
     def generate_legal_timeline(*args): return []
 
 try:
+    from app.connectors.government_precedent_connector import (
+        get_precedent_library,
+        format_precedent_section,
+    )
+    PRECEDENT_LIBRARY_AVAILABLE = True
+except ImportError:
+    PRECEDENT_LIBRARY_AVAILABLE = False
+    def get_precedent_library(*args, **kwargs): return {}
+    def format_precedent_section(*args): return ""
+
+try:
     from app.connectors.timeline_connector import (
         generate_entity_timeline,
         generate_timeline_markdown,
@@ -784,6 +795,20 @@ def run_comprehensive_intelligence(
                 years,
             )
 
+        # 5b. Government Action Precedent Library (industry-keyed)
+        if PRECEDENT_LIBRARY_AVAILABLE:
+            # Get SIC from company info if available
+            sic = ""
+            if "company_info" in result and result["company_info"].get("sic"):
+                sic = result["company_info"]["sic"]
+            logger.info("Starting government precedent library for %s (SIC: %s)", entity_name, sic or "lookup")
+            futures["precedent_library"] = executor.submit(
+                get_precedent_library,
+                entity_name,
+                sic,
+                ticker,
+            )
+
         # 6. Event Timeline
         if result["research_scope"]["timeline"]:
             logger.info("Starting timeline generation for %s", ticker)
@@ -901,6 +926,9 @@ def run_comprehensive_intelligence(
                         result["data_quality"]["sources_successful"] += 1
                     elif key == "litigation":
                         result["litigation_intelligence"] = data
+                        result["data_quality"]["sources_successful"] += 1
+                    elif key == "precedent_library":
+                        result["government_precedent_library"] = data
                         result["data_quality"]["sources_successful"] += 1
                     elif key == "timeline":
                         result["event_timeline"] = data

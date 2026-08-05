@@ -35,6 +35,101 @@ from app.connectors.sec_http import sec_get_json, sec_get_text
 logger = logging.getLogger(__name__)
 
 SEC_BASE = "https://data.sec.gov"
+
+# ── Foreign Private Issuer (FPI) Detection ────────────────────────────────────
+# Foreign private issuers file different forms than US domestic companies:
+#   - 20-F instead of 10-K (annual report)
+#   - 6-K instead of 8-K (current report)
+#   - No DEF 14A (proxy statement) - compensation is in 20-F
+#   - Form 4 may be sparse or absent for ADRs
+
+_FPI_CACHE: Dict[str, Optional[bool]] = {}
+
+
+def is_foreign_private_issuer(cik: str) -> bool:
+    """
+    Detect if a company is a Foreign Private Issuer (FPI) based on filings.
+
+    FPIs file 20-F (annual) and 6-K (current) instead of 10-K/8-K.
+    Examples: ASML, Toyota (TM), SAP, TSMC, etc.
+
+    Returns True if 20-F/6-K filings present and no recent 10-K.
+    """
+    cik = cik.zfill(10)
+    if cik in _FPI_CACHE:
+        return _FPI_CACHE[cik]
+
+    submissions = get_company_submissions(cik, limit=500)
+    filings = submissions.get("filings", [])
+
+    forms_found = {"10-K": 0, "20-F": 0, "8-K": 0, "6-K": 0, "DEF 14A": 0}
+    for f in filings:
+        form = f.get("form", "")
+        if form in forms_found:
+            forms_found[form] += 1
+
+    # FPI if: has 20-F filings AND no 10-K filings
+    is_fpi = forms_found["20-F"] > 0 and forms_found["10-K"] == 0
+    _FPI_CACHE[cik] = is_fpi
+
+    if is_fpi:
+        logger.info("CIK %s identified as Foreign Private Issuer (20-F: %d, 6-K: %d)",
+                    cik, forms_found["20-F"], forms_found["6-K"])
+
+    return is_fpi
+
+
+def get_fpi_status(cik: str) -> Dict[str, Any]:
+    """
+    Get detailed FPI status and available data for a company.
+
+    Returns information about what data is available for foreign issuers,
+    helping downstream code handle missing proxy/insider data gracefully.
+    """
+    cik = cik.zfill(10)
+    submissions = get_company_submissions(cik, limit=500)
+    filings = submissions.get("filings", [])
+
+    forms_count = {}
+    for f in filings:
+        form = f.get("form", "")
+        forms_count[form] = forms_count.get(form, 0) + 1
+
+    is_fpi = forms_count.get("20-F", 0) > 0 and forms_count.get("10-K", 0) == 0
+
+    return {
+        "cik": cik,
+        "is_foreign_private_issuer": is_fpi,
+        "annual_report_form": "20-F" if is_fpi else "10-K",
+        "current_report_form": "6-K" if is_fpi else "8-K",
+        "has_proxy": forms_count.get("DEF 14A", 0) > 0,
+        "has_form4": forms_count.get("4", 0) > 0,
+        "form_counts": forms_count,
+        "data_availability": {
+            "financial_statements": True,  # Available via XBRL in both 10-K and 20-F
+            "executive_compensation": not is_fpi or forms_count.get("DEF 14A", 0) > 0,
+            "board_composition": not is_fpi or forms_count.get("DEF 14A", 0) > 0,
+            "insider_transactions": forms_count.get("4", 0) > 0,
+            "related_party": True,  # Available in both 10-K Item 404 and 20-F
+        },
+        "notes": _get_fpi_notes(is_fpi, forms_count),
+    }
+
+
+def _get_fpi_notes(is_fpi: bool, forms_count: Dict[str, int]) -> List[str]:
+    """Generate explanatory notes about data availability for FPIs."""
+    notes = []
+    if is_fpi:
+        notes.append("Foreign Private Issuer - files 20-F annual report instead of 10-K")
+        if forms_count.get("DEF 14A", 0) == 0:
+            notes.append("No DEF 14A proxy statement - executive compensation from 20-F")
+        if forms_count.get("4", 0) == 0:
+            notes.append("No Form 4 insider transactions - Section 16 does not apply to FPIs")
+        if forms_count.get("6-K", 0) > 0:
+            notes.append(f"Files 6-K current reports ({forms_count.get('6-K', 0)} on file)")
+    return notes
+
+
 # The XBRL/submissions APIs live on data.sec.gov, but the ticker→CIK map is only
 # served from www.sec.gov; requesting it from data.sec.gov returns 404.
 SEC_WWW_BASE = "https://www.sec.gov"
@@ -411,6 +506,8 @@ def extract_financial_statements(facts: Dict[str, Any], years: int = 5) -> Dict[
 
     Returns structured income statement, balance sheet, and cash flow data
     for the specified number of years.
+
+    Supports both US-GAAP (domestic filers) and IFRS-FULL (foreign private issuers).
     """
     result = {
         "income_statement": [],
@@ -419,13 +516,25 @@ def extract_financial_statements(facts: Dict[str, Any], years: int = 5) -> Dict[
         "quarterly": [],
         "ttm": {},
         "metrics": {},
+        "accounting_standard": "unknown",
     }
 
+    # Check both US-GAAP and IFRS namespaces
     us_gaap = facts.get("us-gaap", {})
-    if not us_gaap:
+    ifrs_full = facts.get("ifrs-full", {})
+
+    # Determine which standard is in use
+    if us_gaap:
+        accounting_data = us_gaap
+        result["accounting_standard"] = "US-GAAP"
+    elif ifrs_full:
+        accounting_data = ifrs_full
+        result["accounting_standard"] = "IFRS"
+    else:
         return result
 
-    # Key concepts to extract
+    # Key concepts to extract - includes both US-GAAP and IFRS concept names
+    # IFRS concepts are prefixed with comment for clarity
     income_concepts = {
         # Ordered by preference. Banks and insurers report total revenue as
         # RevenuesNetOfInterestExpense and stop tagging `Revenues` entirely, so
@@ -438,12 +547,42 @@ def extract_financial_statements(facts: Dict[str, Any], years: int = 5) -> Dict[
             "RevenuesNetOfInterestExpense",
             "SalesRevenueGoodsNet",
             "SalesRevenueServicesNet",
+            # IFRS concepts for revenue
+            "Revenue",  # IFRS primary revenue concept
+            "RevenueFromContractsWithCustomers",
+            "RevenueFromSaleOfGoods",
+            "RevenueFromRenderingOfServices",
         ],
-        "GrossProfit": ["GrossProfit"],
-        "OperatingIncome": ["OperatingIncomeLoss", "OperatingIncome"],
-        "NetIncome": ["NetIncomeLoss", "NetIncome", "ProfitLoss"],
-        "EPS_Diluted": ["EarningsPerShareDiluted"],
-        "EPS_Basic": ["EarningsPerShareBasic"],
+        "GrossProfit": [
+            "GrossProfit",
+            # IFRS
+            "GrossProfit",  # Same name in IFRS
+        ],
+        "OperatingIncome": [
+            "OperatingIncomeLoss",
+            "OperatingIncome",
+            # IFRS
+            "ProfitLossFromOperatingActivities",
+            "OperatingProfitLoss",
+        ],
+        "NetIncome": [
+            "NetIncomeLoss",
+            "NetIncome",
+            "ProfitLoss",
+            # IFRS
+            "ProfitLoss",  # IFRS primary net income
+            "ProfitLossAttributableToOwnersOfParent",
+        ],
+        "EPS_Diluted": [
+            "EarningsPerShareDiluted",
+            # IFRS
+            "DilutedEarningsLossPerShare",
+        ],
+        "EPS_Basic": [
+            "EarningsPerShareBasic",
+            # IFRS
+            "BasicEarningsLossPerShare",
+        ],
         # Research intensity is the one operating-expense line that separates
         # otherwise similar issuers, and it is what a peer comparison of two
         # semiconductor companies actually turns on.
@@ -451,22 +590,69 @@ def extract_financial_statements(facts: Dict[str, Any], years: int = 5) -> Dict[
             "ResearchAndDevelopmentExpense",
             "ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost",
             "ResearchAndDevelopmentExpenseSoftwareExcludingAcquiredInProcessCost",
+            # IFRS
+            "ResearchAndDevelopmentExpense",  # Same in IFRS
         ],
         "SellingGeneralAdministrative": [
             "SellingGeneralAndAdministrativeExpense",
             "GeneralAndAdministrativeExpense",
+            # IFRS
+            "SellingExpense",
+            "AdministrativeExpense",
+            "SellingGeneralAndAdministrativeExpense",
         ],
     }
 
     balance_concepts = {
-        "TotalAssets": ["Assets"],
-        "TotalLiabilities": ["Liabilities"],
-        "StockholdersEquity": ["StockholdersEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"],
-        "Cash": ["CashAndCashEquivalentsAtCarryingValue", "CashCashEquivalentsAndShortTermInvestments"],
-        "TotalDebt": ["LongTermDebt", "DebtCurrent", "LongTermDebtAndCapitalLeaseObligations"],
-        "Inventory": ["InventoryNet", "Inventory"],
-        "AccountsReceivable": ["AccountsReceivableNetCurrent", "AccountsReceivableNet"],
-        "Goodwill": ["Goodwill"],
+        "TotalAssets": [
+            "Assets",
+            # IFRS
+            "Assets",  # Same in IFRS
+        ],
+        "TotalLiabilities": [
+            "Liabilities",
+            # IFRS
+            "Liabilities",  # Same in IFRS
+        ],
+        "StockholdersEquity": [
+            "StockholdersEquity",
+            "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+            # IFRS
+            "Equity",
+            "EquityAttributableToOwnersOfParent",
+        ],
+        "Cash": [
+            "CashAndCashEquivalentsAtCarryingValue",
+            "CashCashEquivalentsAndShortTermInvestments",
+            # IFRS
+            "CashAndCashEquivalents",
+        ],
+        "TotalDebt": [
+            "LongTermDebt",
+            "DebtCurrent",
+            "LongTermDebtAndCapitalLeaseObligations",
+            # IFRS
+            "NoncurrentBorrowings",
+            "CurrentBorrowings",
+        ],
+        "Inventory": [
+            "InventoryNet",
+            "Inventory",
+            # IFRS
+            "Inventories",
+        ],
+        "AccountsReceivable": [
+            "AccountsReceivableNetCurrent",
+            "AccountsReceivableNet",
+            # IFRS
+            "TradeAndOtherCurrentReceivables",
+            "TradeReceivables",
+        ],
+        "Goodwill": [
+            "Goodwill",
+            # IFRS
+            "Goodwill",  # Same in IFRS
+        ],
         # Liquidity, leverage and working-capital detail. These carry the
         # balance-sheet section: without current assets and liabilities there is
         # no current ratio, and without the investment tiers a company holding
@@ -568,28 +754,35 @@ def extract_financial_statements(facts: Dict[str, Any], years: int = 5) -> Dict[
 
         Candidates are merged by period end, with earlier names in the list
         winning ties, so both historical and current tags contribute.
+
+        Supports both US-GAAP (10-K/10-Q) and IFRS (20-F/6-K) filers.
         """
         by_period: Dict[str, Dict] = {}
 
+        # Annual report forms: 10-K for domestic, 20-F for FPIs
+        annual_forms = ("10-K", "20-F")
+        # Quarterly/interim forms: 10-Q for domestic, 6-K for FPIs
+        interim_forms = ("10-Q", "10-K", "6-K", "20-F")
+
         for name in reversed(concept_names):  # reversed: higher priority overwrites
-            if name not in us_gaap:
+            if name not in accounting_data:
                 continue
-            units = us_gaap[name].get("units", {})
-            for unit_type in ["USD", "USD/shares", "shares", "pure"]:
+            units = accounting_data[name].get("units", {})
+            for unit_type in ["USD", "USD/shares", "shares", "pure", "EUR", "JPY", "GBP"]:
                 if unit_type not in units:
                     continue
                 values = units[unit_type]
                 if period_type == "FY":
                     filtered = [
                         v for v in values
-                        if v.get("form") == "10-K"
+                        if v.get("form") in annual_forms
                         and v.get("fp") == "FY"
                         and _is_annual_duration(v)
                     ]
                 else:
                     filtered = [
                         v for v in values
-                        if v.get("form") in ("10-Q", "10-K")
+                        if v.get("form") in interim_forms
                         and v.get("fp") in ("Q1", "Q2", "Q3", "Q4")
                         and _is_quarterly_duration(v)
                     ]
@@ -926,6 +1119,31 @@ _NOT_A_SEGMENT_NOTE = re.compile(
     r"impair|hedg|derivativ|fair value|deposit|securitiz", re.I)
 
 
+def find_latest_annual_filing(cik: str) -> Optional[Dict[str, Any]]:
+    """
+    Find the latest annual report, trying 10-K first then 20-F for FPIs.
+
+    Foreign Private Issuers file 20-F instead of 10-K. This function
+    automatically tries both forms to handle both domestic and foreign filers.
+    """
+    # Try 10-K first (domestic filers)
+    filing = find_latest_filing(cik, "10-K")
+    if filing:
+        filing["form_type"] = "10-K"
+        filing["is_foreign_issuer"] = False
+        return filing
+
+    # Try 20-F (Foreign Private Issuers)
+    filing = find_latest_filing(cik, "20-F")
+    if filing:
+        filing["form_type"] = "20-F"
+        filing["is_foreign_issuer"] = True
+        logger.info("CIK %s: Using 20-F annual report (Foreign Private Issuer)", cik)
+        return filing
+
+    return None
+
+
 def find_latest_filing(cik: str, form: str) -> Optional[Dict[str, Any]]:
     """Locate an issuer's most recent filing of a given form type.
 
@@ -980,8 +1198,8 @@ def get_segment_data(cik: str,
                      total_revenue: Optional[float] = None) -> Dict[str, Any]:
     """Revenue by segment, region and market, and customer concentration.
 
-    Sourced from the latest 10-K's rendered statements rather than from
-    companyfacts, which carries no dimensional data.
+    Sourced from the latest 10-K (or 20-F for FPIs) rendered statements rather
+    than from companyfacts, which carries no dimensional data.
 
     Where consolidated revenue is supplied, each revenue breakdown must
     reconcile to it before being published. Report titles vary enough between
@@ -998,11 +1216,15 @@ def get_segment_data(cik: str,
         "customer_concentration": {},
         "periods": [],
         "source_url": None,
+        "is_foreign_issuer": False,
     }
 
-    filing = find_latest_filing(cik, "10-K")
+    # Use find_latest_annual_filing which tries 10-K first, then 20-F for FPIs
+    filing = find_latest_annual_filing(cik)
     if not filing:
         return result
+
+    result["is_foreign_issuer"] = filing.get("is_foreign_issuer", False)
 
     base = filing["base_url"]
     result["source_url"] = f"{base}/"
@@ -1546,6 +1768,8 @@ def get_full_financial_profile(ticker: str) -> Dict[str, Any]:
     Comprehensive financial profile for deep intelligence.
 
     Combines all SEC EDGAR data sources into a unified profile.
+    Handles both domestic filers (10-K, DEF 14A, Form 4) and Foreign Private
+    Issuers (20-F, 6-K) with graceful fallbacks for missing data.
     """
     result = {
         "ticker": ticker,
@@ -1556,8 +1780,10 @@ def get_full_financial_profile(ticker: str) -> Dict[str, Any]:
         "insider_activity": {},
         "investment_portfolio": {},
         "filings": [],
+        "fpi_status": None,  # Foreign Private Issuer status
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "errors": [],
+        "data_notes": [],  # Explanations for missing data
     }
 
     # Resolve to the CIK that actually files financial statements, which can
@@ -1568,6 +1794,11 @@ def get_full_financial_profile(ticker: str) -> Dict[str, Any]:
         return result
 
     result["cik"] = cik
+
+    # Check FPI status first to guide data collection strategy
+    fpi_status = get_fpi_status(cik)
+    result["fpi_status"] = fpi_status
+    is_fpi = fpi_status.get("is_foreign_private_issuer", False)
 
     # Get company info
     submissions = get_company_submissions(cik)
@@ -1581,6 +1812,7 @@ def get_full_financial_profile(ticker: str) -> Dict[str, Any]:
             "ein": submissions.get("ein", ""),
             "state": submissions.get("state", ""),
             "fiscal_year_end": submissions.get("fiscal_year_end", ""),
+            "is_foreign_private_issuer": is_fpi,
         }
         result["filings"] = submissions.get("filings", [])[:20]  # Recent 20
     else:
@@ -1592,25 +1824,55 @@ def get_full_financial_profile(ticker: str) -> Dict[str, Any]:
         facts = facts_data.get("facts", {})
         result["financial_statements"] = extract_financial_statements(facts)
         result["investment_portfolio"] = get_investment_portfolio(facts)
+
+        # Add accounting standard info
+        if result["financial_statements"].get("accounting_standard") == "IFRS":
+            result["data_notes"].append("Financial statements reported under IFRS (International Financial Reporting Standards)")
     else:
         result["errors"].append(f"Company facts error: {facts_data.get('error')}")
 
-    # Get insider activity
+    # Get insider activity - with graceful handling for FPIs
     insider_data = get_insider_transactions(cik)
     if not insider_data.get("error"):
+        filings_count = insider_data.get("filings_count", 0)
         result["insider_activity"] = {
-            "filings_count": insider_data.get("filings_count", 0),
+            "filings_count": filings_count,
             "summary": insider_data.get("summary", {}),
             "by_insider": insider_data.get("by_insider", {}),
             "recent_transactions": insider_data.get("transactions", [])[:20],
         }
 
+        # Add note if FPI has limited/no insider data (expected behavior)
+        if is_fpi and filings_count == 0:
+            result["data_notes"].append(
+                "No Form 4 insider transactions available. Foreign Private Issuers are "
+                "exempt from Section 16 reporting requirements under US securities law."
+            )
+    elif is_fpi:
+        # Missing insider data is expected for FPIs - don't treat as error
+        result["insider_activity"] = {
+            "filings_count": 0,
+            "summary": {},
+            "by_insider": {},
+            "recent_transactions": [],
+            "not_applicable": True,
+            "reason": "Section 16 reporting does not apply to Foreign Private Issuers",
+        }
+        result["data_notes"].append(
+            "Insider transaction data not available. As a Foreign Private Issuer, "
+            "this company is exempt from Section 16 reporting requirements."
+        )
+
     # Get segment data
     # Consolidated revenue lets the segment breakdowns be reconciled rather than
     # taken on trust from a report title.
-    annual_rows = result["financial_statements"]["income_statement"]
+    annual_rows = result["financial_statements"].get("income_statement", [])
     latest_revenue = annual_rows[0].get("Revenues") if annual_rows else None
     result["segments"] = get_segment_data(cik, total_revenue=latest_revenue)
+
+    # Add FPI-specific notes
+    if is_fpi:
+        result["data_notes"].extend(fpi_status.get("notes", []))
 
     return result
 

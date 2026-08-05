@@ -86,6 +86,21 @@ try:
 except ImportError:
     _PREMIUM_PDF_AVAILABLE = False
 
+try:
+    from app.services.xlsx_appendix_service import generate_xlsx_bytes, OPENPYXL_AVAILABLE
+    _XLSX_APPENDIX_AVAILABLE = OPENPYXL_AVAILABLE
+except ImportError:
+    _XLSX_APPENDIX_AVAILABLE = False
+    def generate_xlsx_bytes(*args): return b""
+
+try:
+    from app.services.quality_gate_service import run_quality_gates, format_quality_report
+    _QUALITY_GATES_AVAILABLE = True
+except ImportError:
+    _QUALITY_GATES_AVAILABLE = False
+    def run_quality_gates(*args): return {"passed": True, "gates_passed": 0, "gates_total": 0}
+    def format_quality_report(*args): return ""
+
 router = APIRouter(prefix="/intelligence")
 
 
@@ -499,6 +514,122 @@ def download_report_pptx(report_id: int, db: Session = Depends(get_db)):
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         headers={"Content-Disposition": f'attachment; filename="intel_{entity_slug}_{report_id}.pptx"'},
     )
+
+
+@router.get("/report-job/{job_id}/appendix")
+def download_report_appendix(job_id: str):
+    """
+    Download the 13-sheet XLSX appendix for a generated report.
+
+    The appendix workbook contains:
+    - A1. Annual Financials (5-year income statement)
+    - A2. Quarterly Financials (8 quarters)
+    - A3. Valuation Model (DCF assumptions and output)
+    - A4. Sensitivity Grid (WACC x terminal growth)
+    - A5. Peer Comparables (valuation multiples)
+    - B1. Federal Contracts (prime awards)
+    - B2. Contract Subawards
+    - C. Lobbying Activity (LDA filings)
+    - D1. Insider Transactions (Form 4)
+    - D2. Insider Summary (net positions)
+    - H1. Litigation Matters
+    - H2. Export Controls and Precedents
+
+    Requires a completed report job with a JSON data file.
+    """
+    if not _XLSX_APPENDIX_AVAILABLE:
+        raise HTTPException(503, "XLSX appendix generation unavailable — install openpyxl")
+
+    job = _REPORT_JOBS.get(job_id)
+    if not job:
+        raise HTTPException(404, "Report job not found")
+
+    if job["status"] != "completed":
+        raise HTTPException(400, f"Report job not completed (status: {job['status']})")
+
+    json_path = job.get("output_files", {}).get("json")
+    if not json_path:
+        raise HTTPException(404, "No JSON data file found for this report")
+
+    import json
+    from pathlib import Path
+
+    json_file = Path(json_path)
+    if not json_file.exists():
+        raise HTTPException(404, "JSON data file not found on disk")
+
+    try:
+        with open(json_file) as f:
+            data = json.load(f)
+    except Exception as e:
+        raise HTTPException(500, f"Failed to read JSON data: {e}")
+
+    try:
+        xlsx_bytes = generate_xlsx_bytes(data)
+    except Exception as e:
+        raise HTTPException(500, f"XLSX generation failed: {e}")
+
+    ticker = job.get("ticker", "report")
+    buf = io.BytesIO(xlsx_bytes)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{ticker}_appendix.xlsx"'},
+    )
+
+
+@router.get("/report-job/{job_id}/quality-gates")
+def check_quality_gates(job_id: str):
+    """
+    Run the 10-gate quality battery on a generated report.
+
+    Quality gates:
+    1. Citation coverage (≥95% of numeric blocks)
+    2. Arithmetic reconciliation (±0.5%)
+    3. Duplicate detection (Jaccard >0.85 fails)
+    4. News staleness (≤90 days; window ≤24 months)
+    5. Directionality lint (lower-is-better metrics)
+    6. Placeholder scan (reject TBD, N/A, $0.00, etc.)
+    7. Fiscal-basis lint (FY/Q labels)
+    8. Landing-page ban (deep URLs only)
+    9. Named-person accuracy (≥2 sources)
+    10. Sensitive-claim review (documented facts only)
+
+    Returns pass/fail status for each gate and overall report quality score.
+    """
+    if not _QUALITY_GATES_AVAILABLE:
+        raise HTTPException(503, "Quality gate service unavailable")
+
+    job = _REPORT_JOBS.get(job_id)
+    if not job:
+        raise HTTPException(404, "Report job not found")
+
+    if job["status"] != "completed":
+        raise HTTPException(400, f"Report job not completed (status: {job['status']})")
+
+    json_path = job.get("output_files", {}).get("json")
+    if not json_path:
+        raise HTTPException(404, "No JSON data file found for this report")
+
+    import json
+    from pathlib import Path
+
+    json_file = Path(json_path)
+    if not json_file.exists():
+        raise HTTPException(404, "JSON data file not found on disk")
+
+    try:
+        with open(json_file) as f:
+            data = json.load(f)
+    except Exception as e:
+        raise HTTPException(500, f"Failed to read JSON data: {e}")
+
+    results = run_quality_gates(data)
+    return {
+        "job_id": job_id,
+        "ticker": job.get("ticker"),
+        "quality_gates": results,
+    }
 
 
 # ============================================================================
