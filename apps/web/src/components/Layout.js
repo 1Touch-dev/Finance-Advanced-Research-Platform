@@ -43,6 +43,15 @@ const NAV_GROUPS = [
       { href: '/skills',          label: 'Skills',       icon: '⚙' },
     ],
   },
+  {
+    label: 'Account',
+    items: [
+      { href: '/pricing',         label: 'Pricing',      icon: '$' },
+      { href: '/billing',         label: 'Billing',      icon: '⊡' },
+      { href: '/support',         label: 'Support',      icon: '?' },
+      { href: '/status',          label: 'Status',       icon: '◉' },
+    ],
+  },
 ]
 
 export default function Layout({ children }) {

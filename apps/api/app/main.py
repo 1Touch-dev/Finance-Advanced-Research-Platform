@@ -19,6 +19,10 @@ from app.api.compliance import router as compliance_router
 from app.api.demo import router as demo_router
 from app.api.registry import router as registry_router
 from app.api.intelligence import router as intelligence_router
+from app.api.support import router as support_router
+from app.api.billing import router as billing_router
+from app.api.status import router as status_router
+from app.api.seo import router as seo_router
 from app.core.logging import logger
 
 try:
@@ -68,6 +72,10 @@ app.include_router(compliance_router)
 app.include_router(demo_router)
 app.include_router(registry_router)
 app.include_router(intelligence_router)
+app.include_router(support_router)
+app.include_router(billing_router)
+app.include_router(status_router)
+app.include_router(seo_router)
 if _CHAT_ROUTER:
     app.include_router(chat_router)
 
