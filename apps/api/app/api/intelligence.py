@@ -1231,28 +1231,40 @@ def generate_network_report(
 
     def run_report():
         try:
+            scripts_dir = Path(__file__).parent.parent.parent / "scripts"
+            cwd = str(scripts_dir.parent)
+
             if expanded:
-                script_path = Path(__file__).parent.parent.parent / "scripts" / "expand_network_report_v2.py"
+                # Run the full pipeline: expand_v2 → supplement_a → supplement_b → merge_final
+                # This produces the comprehensive styled report with charts and appendices
+                pipeline = [
+                    scripts_dir / "expand_network_report_v2.py",
+                    scripts_dir / "supplement_a.py",
+                    scripts_dir / "supplement_b.py",
+                    scripts_dir / "merge_final.py",
+                ]
+                for script in pipeline:
+                    if script.exists():
+                        result = subprocess.run(
+                            ["python3", str(script)],
+                            cwd=cwd,
+                            capture_output=True,
+                            text=True,
+                            timeout=1800,
+                        )
+                        # Log but don't fail on supplements (they enhance, not block)
+                        if result.returncode != 0 and script.name == "expand_network_report_v2.py":
+                            raise RuntimeError(f"{script.name} failed: {result.stderr[-500:]}")
             else:
-                script_path = Path(__file__).parent.parent.parent / "scripts" / "generate_network_report.py"
-
-            cmd = ["python3", str(script_path)]
-            if not expanded:
-                cmd.extend(["--network", network])
-
-            result = subprocess.run(
-                cmd,
-                cwd=str(script_path.parent.parent),
-                capture_output=True,
-                text=True,
-                timeout=3600,  # 60 min timeout for expanded
-            )
+                script_path = scripts_dir / "generate_network_report.py"
+                cmd = ["python3", str(script_path), "--network", network]
+                subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=3600)
 
             # Find generated files — check both possible output directories
-            reports_dir = script_path.parent.parent.parent.parent / "reports"
-            alt_reports_dir = script_path.parent.parent.parent / "reports"
+            reports_dir = scripts_dir.parent.parent.parent / "reports"
+            alt_reports_dir = scripts_dir.parent.parent / "reports"
 
-            # Look for PayPal Mafia reports
+            # Look for PayPal Mafia reports — prefer COMPLETE > FINAL > EXPANDED
             search_pattern = "PayPal_Mafia" if network == "paypal_mafia" else network
 
             all_matches = []
@@ -1267,12 +1279,12 @@ def generate_network_report(
             )
 
             output_files = {}
-            for f in latest_files[:4]:
-                if f.suffix == ".pdf":
+            for f in latest_files:
+                if f.suffix == ".pdf" and "pdf" not in output_files:
                     output_files["pdf"] = str(f)
-                elif f.suffix == ".md":
+                elif f.suffix == ".md" and "markdown" not in output_files:
                     output_files["markdown"] = str(f)
-                elif f.suffix == ".json":
+                elif f.suffix == ".json" and "json" not in output_files:
                     output_files["json"] = str(f)
 
             _REPORT_JOBS[job_id]["status"] = "completed"
