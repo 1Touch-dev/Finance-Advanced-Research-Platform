@@ -1125,11 +1125,11 @@ def generate_enhanced_markdown_report(report_data: dict) -> str:
             md.append("| Platform | Handle | Followers | Posts/Videos |")
             md.append("|----------|--------|----------:|-------------:|")
             if twitter:
-                md.append(f"| Twitter/X | @{twitter.get('username', 'N/A')} | {twitter.get('followers', 0):,} | {twitter.get('tweets_count', 'N/A')} |")
+                md.append(f"| Twitter/X | @{twitter.get('username', 'N/A')} | {(twitter.get('followers') or 0):,} | {twitter.get('tweets_count', 'N/A')} |")
             if instagram:
-                md.append(f"| Instagram | @{instagram.get('username', 'N/A')} | {instagram.get('followers', 0):,} | {instagram.get('posts_count', 'N/A')} |")
+                md.append(f"| Instagram | @{instagram.get('username', 'N/A')} | {(instagram.get('followers') or 0):,} | {instagram.get('posts_count', 'N/A')} |")
             if youtube:
-                md.append(f"| YouTube | {youtube.get('channel_name', 'N/A')} | {youtube.get('subscribers', 0):,} | {youtube.get('video_count', 'N/A')} |")
+                md.append(f"| YouTube | {youtube.get('channel_name', 'N/A')} | {(youtube.get('subscribers') or 0):,} | {youtube.get('video_count', 'N/A')} |")
             md.append("")
             md.append("---")
             md.append("")
