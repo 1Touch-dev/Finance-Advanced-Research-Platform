@@ -102,7 +102,7 @@ export default function Support() {
             >
               Submit Another Ticket
             </button>
-            <Link href="/">
+            <Link href="/" legacyBehavior>
               <a className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '10px 20px' }}>
                 Back to Dashboard
               </a>
@@ -137,7 +137,7 @@ export default function Support() {
               <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>support@enterprise-intel.com</div>
             </div>
           </a>
-          <Link href="/status">
+          <Link href="/status" legacyBehavior>
             <a style={{ background: 'var(--bg-elev-1)', border: '1px solid var(--line)', borderRadius: 'var(--radius-md)', padding: '1rem', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: '1.1rem' }}>+</span>
               <div>

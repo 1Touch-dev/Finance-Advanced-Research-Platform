@@ -125,7 +125,7 @@ export default function Layout({ children }) {
               {group.items.map(item => {
                 const active = isActive(item.href)
                 return (
-                  <Link href={item.href} key={item.href}>
+                  <Link href={item.href} key={item.href} legacyBehavior>
                     <a
                       title={!sidebarOpen ? item.label : undefined}
                       style={{

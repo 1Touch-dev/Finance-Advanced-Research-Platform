@@ -36,46 +36,72 @@ export default function Status() {
   const [loading, setLoading] = useState(true)
   const [overallStatus, setOverallStatus] = useState('operational')
 
+  // Fallback data for when API is unavailable
+  const getFallbackData = () => ({
+    services: SERVICES.map(s => ({ ...s, status: 'operational', uptime: 99.95 + Math.random() * 0.05 })),
+    incidents: [
+      {
+        id: 'inc-001',
+        title: 'Elevated API latency',
+        status: 'resolved',
+        severity: 'minor',
+        created_at: '2026-08-04T14:30:00Z',
+        resolved_at: '2026-08-04T15:45:00Z',
+        updates: [
+          { time: '2026-08-04T15:45:00Z', message: 'Issue resolved. All systems back to normal.' },
+          { time: '2026-08-04T15:00:00Z', message: 'Identified root cause as database connection pool saturation. Scaling up.' },
+          { time: '2026-08-04T14:30:00Z', message: 'Investigating reports of slow API responses.' },
+        ],
+      },
+      {
+        id: 'inc-002',
+        title: 'Scheduled database maintenance',
+        status: 'completed',
+        severity: 'maintenance',
+        created_at: '2026-08-01T02:00:00Z',
+        resolved_at: '2026-08-01T04:00:00Z',
+        updates: [
+          { time: '2026-08-01T04:00:00Z', message: 'Maintenance completed successfully.' },
+          { time: '2026-08-01T02:00:00Z', message: 'Beginning scheduled database maintenance. Brief service interruption expected.' },
+        ],
+      },
+    ],
+    overall_status: 'operational',
+  })
+
   useEffect(() => {
     const fetchStatus = async () => {
+      // Skip API call if no API URL configured
+      if (!API) {
+        const fallback = getFallbackData()
+        setServices(fallback.services)
+        setIncidents(fallback.incidents)
+        setOverallStatus(fallback.overall_status)
+        setLoading(false)
+        return
+      }
+
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000) // 5s timeout
+
       try {
-        const res = await fetch(`${API}/status`)
+        const res = await fetch(`${API}/status`, { signal: controller.signal })
+        clearTimeout(timeoutId)
+
+        if (!res.ok) throw new Error('API error')
+
         const data = await res.json()
         setServices(data.services || [])
         setIncidents(data.incidents || [])
         setOverallStatus(data.overall_status || 'operational')
       } catch (err) {
-        // Fallback mock data
-        setServices(SERVICES.map(s => ({ ...s, status: 'operational', uptime: 99.95 + Math.random() * 0.05 })))
-        setIncidents([
-          {
-            id: 'inc-001',
-            title: 'Elevated API latency',
-            status: 'resolved',
-            severity: 'minor',
-            created_at: '2026-08-04T14:30:00Z',
-            resolved_at: '2026-08-04T15:45:00Z',
-            updates: [
-              { time: '2026-08-04T15:45:00Z', message: 'Issue resolved. All systems back to normal.' },
-              { time: '2026-08-04T15:00:00Z', message: 'Identified root cause as database connection pool saturation. Scaling up.' },
-              { time: '2026-08-04T14:30:00Z', message: 'Investigating reports of slow API responses.' },
-            ],
-          },
-          {
-            id: 'inc-002',
-            title: 'Scheduled database maintenance',
-            status: 'completed',
-            severity: 'maintenance',
-            created_at: '2026-08-01T02:00:00Z',
-            resolved_at: '2026-08-01T04:00:00Z',
-            updates: [
-              { time: '2026-08-01T04:00:00Z', message: 'Maintenance completed successfully.' },
-              { time: '2026-08-01T02:00:00Z', message: 'Beginning scheduled database maintenance. Brief service interruption expected.' },
-            ],
-          },
-        ])
-        setOverallStatus('operational')
+        // Silently use fallback data - no error thrown
+        const fallback = getFallbackData()
+        setServices(fallback.services)
+        setIncidents(fallback.incidents)
+        setOverallStatus(fallback.overall_status)
       } finally {
+        clearTimeout(timeoutId)
         setLoading(false)
       }
     }
@@ -328,8 +354,8 @@ export default function Status() {
 
         {/* Footer Links */}
         <div style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          <Link href="/support"><a style={{ color: 'var(--brand-hover)', marginRight: 16 }}>Contact Support</a></Link>
-          <Link href="/pricing"><a style={{ color: 'var(--brand-hover)' }}>View Pricing</a></Link>
+          <Link href="/support" legacyBehavior><a style={{ color: 'var(--brand-hover)', marginRight: 16 }}>Contact Support</a></Link>
+          <Link href="/pricing" legacyBehavior><a style={{ color: 'var(--brand-hover)' }}>View Pricing</a></Link>
         </div>
       </div>
     </>

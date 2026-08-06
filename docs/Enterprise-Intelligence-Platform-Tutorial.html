@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Intelligence Platform - User Tutorial & Guide</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background: #fff;
+        }
+
+        .cover-page {
+            text-align: center;
+            padding: 100px 20px;
+            page-break-after: always;
+            min-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .cover-page h1 {
+            font-size: 2.8em;
+            color: #1a365d;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+
+        .cover-page .subtitle {
+            font-size: 1.4em;
+            color: #4a5568;
+            margin-bottom: 40px;
+        }
+
+        .cover-page .platform-url {
+            font-size: 1.1em;
+            color: #2b6cb0;
+            background: #ebf8ff;
+            padding: 15px 30px;
+            border-radius: 8px;
+            display: inline-block;
+            margin: 30px 0;
+            word-break: break-all;
+        }
+
+        .cover-page .credentials-box {
+            background: #f0fff4;
+            border: 2px solid #48bb78;
+            border-radius: 10px;
+            padding: 25px;
+            margin: 30px auto;
+            max-width: 400px;
+        }
+
+        .cover-page .credentials-box h3 {
+            color: #276749;
+            margin-bottom: 15px;
+        }
+
+        .cover-page .date {
+            color: #718096;
+            margin-top: 50px;
+        }
+
+        h1 {
+            color: #1a365d;
+            font-size: 2em;
+            margin: 40px 0 20px 0;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #3182ce;
+        }
+
+        h2 {
+            color: #2c5282;
+            font-size: 1.5em;
+            margin: 30px 0 15px 0;
+        }
+
+        h3 {
+            color: #2d3748;
+            font-size: 1.2em;
+            margin: 20px 0 10px 0;
+        }
+
+        p {
+            margin-bottom: 15px;
+        }
+
+        .section {
+            page-break-inside: avoid;
+            margin-bottom: 30px;
+        }
+
+        .feature-box {
+            background: #f7fafc;
+            border-left: 4px solid #3182ce;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .feature-box h4 {
+            color: #2b6cb0;
+            margin-bottom: 10px;
+        }
+
+        .step-box {
+            background: #fffaf0;
+            border: 1px solid #ed8936;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+
+        .step-box h4 {
+            color: #c05621;
+            margin-bottom: 10px;
+        }
+
+        .step-box ol {
+            margin-left: 20px;
+        }
+
+        .step-box li {
+            margin-bottom: 8px;
+        }
+
+        .tip-box {
+            background: #e6fffa;
+            border: 1px solid #38b2ac;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 15px 0;
+        }
+
+        .tip-box::before {
+            content: "TIP: ";
+            font-weight: bold;
+            color: #234e52;
+        }
+
+        .screenshot-container {
+            background: #f8f9fa;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .screenshot-container h4 {
+            color: #4a5568;
+            margin-bottom: 15px;
+            font-size: 1em;
+        }
+
+        .screenshot-container img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #cbd5e0;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        th, td {
+            border: 1px solid #e2e8f0;
+            padding: 12px;
+            text-align: left;
+        }
+
+        th {
+            background: #edf2f7;
+            color: #2d3748;
+            font-weight: 600;
+        }
+
+        tr:nth-child(even) {
+            background: #f7fafc;
+        }
+
+        .nav-table td:first-child {
+            font-weight: 600;
+            color: #2b6cb0;
+        }
+
+        ul {
+            margin-left: 20px;
+            margin-bottom: 15px;
+        }
+
+        li {
+            margin-bottom: 5px;
+        }
+
+        .page-break {
+            page-break-after: always;
+        }
+
+        .toc {
+            background: #f7fafc;
+            padding: 30px;
+            border-radius: 10px;
+            margin: 30px 0;
+        }
+
+        .toc h2 {
+            margin-top: 0;
+            color: #1a365d;
+        }
+
+        .toc ul {
+            list-style: none;
+            margin: 0;
+        }
+
+        .toc li {
+            padding: 8px 0;
+            border-bottom: 1px dotted #cbd5e0;
+        }
+
+        .toc a {
+            color: #2b6cb0;
+            text-decoration: none;
+        }
+
+        .quick-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .quick-link {
+            background: #ebf8ff;
+            color: #2b6cb0;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+
+        @media print {
+            body {
+                padding: 20px;
+            }
+
+            .cover-page {
+                min-height: 100vh;
+            }
+
+            .page-break {
+                page-break-after: always;
+            }
+
+            .screenshot-container img {
+                max-height: 400px;
+                width: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- COVER PAGE -->
+<div class="cover-page">
+    <h1>Enterprise Intelligence Platform</h1>
+    <p class="subtitle">Complete User Tutorial & Quick Start Guide</p>
+
+    <div class="platform-url">
+        <strong>Platform URL:</strong><br>
+        https://8th-july-sprint.d11ri08de55gmb.amplifyapp.com
+    </div>
+
+    <div class="credentials-box">
+        <h3>Access Credentials</h3>
+        <p><strong>No login required</strong></p>
+        <p>The platform is currently open access.<br>Simply visit the URL to get started.</p>
+    </div>
+
+    <p class="date">Document Version: 1.0<br>Date: August 2026</p>
+</div>
+
+<!-- TABLE OF CONTENTS -->
+<div class="toc">
+    <h2>Table of Contents</h2>
+    <ul>
+        <li>1. Platform Overview</li>
+        <li>2. Getting Started</li>
+        <li>3. Markets Section
+            <ul style="margin-top: 5px;">
+                <li>3.1 Stock Analysis</li>
+                <li>3.2 Valuation (DCF)</li>
+                <li>3.3 Expert Analysis</li>
+                <li>3.4 Company Profiles</li>
+                <li>3.5 Compare Tool</li>
+                <li>3.6 Economics Data</li>
+            </ul>
+        </li>
+        <li>4. Intelligence Section
+            <ul style="margin-top: 5px;">
+                <li>4.1 Deep Intelligence Reports</li>
+                <li>4.2 Global Search</li>
+                <li>4.3 Saved Reports</li>
+                <li>4.4 Timeline View</li>
+            </ul>
+        </li>
+        <li>5. Institutional Section
+            <ul style="margin-top: 5px;">
+                <li>5.1 Institutional Holdings (13F)</li>
+                <li>5.2 Government Trading</li>
+                <li>5.3 Crypto Intelligence</li>
+            </ul>
+        </li>
+        <li>6. Tools & Utilities
+            <ul style="margin-top: 5px;">
+                <li>6.1 Entity Registry</li>
+                <li>6.2 Relationship Graph</li>
+                <li>6.3 Tracking & Alerts</li>
+            </ul>
+        </li>
+        <li>7. Quick Reference Guide</li>
+    </ul>
+</div>
+
+<div class="page-break"></div>
+
+<!-- SECTION 1: PLATFORM OVERVIEW -->
+<h1>1. Platform Overview</h1>
+
+<p>The Enterprise Intelligence Platform is a comprehensive financial research and analytics system that combines market data, intelligence reporting, institutional tracking, and government trading monitoring into a single unified interface.</p>
+
+<div class="screenshot-container">
+    <h4>Main Dashboard Overview</h4>
+    <img src="screenshots/dashboard.png" alt="Main Dashboard">
+</div>
+
+<div class="feature-box">
+    <h4>Platform Statistics</h4>
+    <ul>
+        <li><strong>50+ Articles</strong> - Ingested from multiple sources</li>
+        <li><strong>15+ RSS Sources</strong> - Live data feeds active</li>
+        <li><strong>60+ Entities</strong> - Tracked and monitored</li>
+        <li><strong>20+ API Endpoints</strong> - For programmatic access</li>
+    </ul>
+</div>
+
+<h2>Data Sources</h2>
+<p>The platform aggregates data from multiple authoritative sources:</p>
+<ul>
+    <li><strong>SEC</strong> - Securities filings, 10-K, 10-Q, 13F</li>
+    <li><strong>FEC</strong> - Federal Election Commission data</li>
+    <li><strong>FARA</strong> - Foreign Agents Registration Act</li>
+    <li><strong>USASpending</strong> - Government contracts</li>
+    <li><strong>LDA</strong> - Lobbying Disclosure Act (both sides)</li>
+    <li><strong>OFAC</strong> - Sanctions data</li>
+    <li><strong>CourtListener</strong> - Legal cases</li>
+    <li><strong>LinkedIn & PitchBook</strong> - Via Apify integrations</li>
+    <li><strong>Google News</strong> - Current events coverage</li>
+    <li><strong>CoinGecko</strong> - Cryptocurrency data</li>
+</ul>
+
+<div class="page-break"></div>
+
+<!-- SECTION 2: GETTING STARTED -->
+<h1>2. Getting Started</h1>
+
+<div class="step-box">
+    <h4>Quick Start Steps</h4>
+    <ol>
+        <li>Open your web browser (Chrome, Firefox, Safari, or Edge recommended)</li>
+        <li>Navigate to: <strong>https://8th-july-sprint.d11ri08de55gmb.amplifyapp.com</strong></li>
+        <li>The dashboard will load automatically - no login required</li>
+        <li>Use the navigation menu on the left side to access different sections</li>
+    </ol>
+</div>
+
+<h2>Navigation Structure</h2>
+<p>The platform is organized into these main sections accessible from the left sidebar:</p>
+
+<table class="nav-table">
+    <tr>
+        <th>Section</th>
+        <th>Description</th>
+    </tr>
+    <tr>
+        <td>Dashboard</td>
+        <td>Main entry point with system status overview</td>
+    </tr>
+    <tr>
+        <td>Reports</td>
+        <td>Generate deep intelligence dossiers on entities</td>
+    </tr>
+    <tr>
+        <td>Global Search</td>
+        <td>Search across all articles and reports</td>
+    </tr>
+    <tr>
+        <td>Saved</td>
+        <td>Access your archived intelligence reports</td>
+    </tr>
+    <tr>
+        <td>Timeline</td>
+        <td>View chronological signal history</td>
+    </tr>
+    <tr>
+        <td>Markets</td>
+        <td>Stock, Valuation, Expert Analysis, Company, Compare, Economics</td>
+    </tr>
+    <tr>
+        <td>Institutional</td>
+        <td>13F holdings, Government Trading, Crypto</td>
+    </tr>
+    <tr>
+        <td>Tools</td>
+        <td>Registry, Graph, Tracking, Alerts, Skills</td>
+    </tr>
+</table>
+
+<div class="page-break"></div>
+
+<!-- SECTION 3: MARKETS -->
+<h1>3. Markets Section</h1>
+
+<p>The Markets section provides comprehensive financial analysis tools for stocks, valuations, and economic data.</p>
+
+<!-- 3.1 Stock Analysis -->
+<h2>3.1 Stock Analysis</h2>
+
+<div class="feature-box">
+    <h4>What It Does</h4>
+    <p>Analyze any publicly traded stock with fundamentals, technicals, AI consensus, and analyst ratings.</p>
+</div>
+
+<div class="screenshot-container">
+    <h4>Stock Analysis Interface</h4>
+    <img src="screenshots/stock.png" alt="Stock Analysis">
+</div>
+
+<div class="step-box">
+    <h4>How to Use Stock Analysis</h4>
+    <ol>
+        <li>Click <strong>"Stock"</strong> in the Markets section of the sidebar</li>
+        <li>Enter a ticker symbol in the search box (e.g., AAPL, MSFT, TSLA)</li>
+        <li>Or click one of the quick-access buttons: AAPL, MSFT, TSLA, NVDA, AMZN, GOOGL, META, BRK-B</li>
+        <li>View the analysis including price data, technical indicators, and AI-powered insights</li>
+    </ol>
+</div>
+
+<p><strong>Supported Exchanges:</strong> NYSE, NASDAQ, and global exchange symbols</p>
+
+<!-- 3.2 Valuation -->
+<h2>3.2 Valuation (DCF Analysis)</h2>
+
+<div class="feature-box">
+    <h4>What It Does</h4>
+    <p>Calculate intrinsic value using Discounted Cash Flow (DCF) analysis with SEC filing data. Compare fair value estimates against current market prices.</p>
+</div>
+
+<div class="screenshot-container">
+    <h4>DCF Valuation Tool</h4>
+    <img src="screenshots/valuation.png" alt="Valuation DCF">
+</div>
+
+<div class="step-box">
+    <h4>How to Use Valuation Tool</h4>
+    <ol>
+        <li>Click <strong>"Valuation"</strong> in the Markets section</li>
+        <li>Enter a stock ticker symbol</li>
+        <li>The system automatically pulls SEC EDGAR XBRL financials</li>
+        <li>View DCF intrinsic value, bull/bear scenarios, and price comparison</li>
+    </ol>
+</div>
+
+<p><strong>Data Sources:</strong> SEC 10-K/10-Q filings, XBRL financial data, management guidance</p>
+
+<div class="tip-box">
+    Use this tool to identify potentially undervalued or overvalued stocks by comparing calculated intrinsic value to market price.
+</div>
+
+<div class="page-break"></div>
+
+<!-- 3.3 Expert Analysis -->
+<h2>3.3 Expert Analysis</h2>
+
+<div class="feature-box">
+    <h4>What It Does</h4>
+    <p>View aggregated analyst ratings and sentiment trends from Wall Street experts.</p>
+</div>
+
+<div class="step-box">
+    <h4>How to Use Expert Analysis</h4>
+    <ol>
+        <li>Click <strong>"Expert Analysis"</strong> in the Markets section</li>
+        <li>Enter a ticker symbol</li>
+        <li>Review analyst recommendations (Buy/Hold/Sell)</li>
+        <li>See price targets and sentiment trends over time</li>
+    </ol>
+</div>
+
+<!-- 3.4 Company Profiles -->
+<h2>3.4 Company Profiles</h2>
+
+<div class="feature-box">
+    <h4>What It Does</h4>
+    <p>Deep dive into any public company with SEC filings, cap table data, earnings history, and insider trading activity.</p>
+</div>
+
+<div class="screenshot-container">
+    <h4>Company Profile Interface</h4>
+    <img src="screenshots/company.png" alt="Company Profiles">
+</div>
+
+<div class="step-box">
+    <h4>How to Use Company Profiles</h4>
+    <ol>
+        <li>Click <strong>"Company"</strong> in the Markets section</li>
+        <li>Enter a stock ticker symbol</li>
+        <li>Click <strong>"Deep Analyze"</strong></li>
+        <li>Browse through SEC filings, financial data, cap table, and earnings history</li>
+    </ol>
+</div>
+
+<p><strong>Available Information:</strong></p>
+<ul>
+    <li>SEC quarterly reports (10-K/10-Q)</li>
+    <li>XBRL financials</li>
+    <li>Cap table and ownership structure</li>
+    <li>Earnings history</li>
+    <li>Analyst ratings</li>
+    <li>Insider trades</li>
+</ul>
+
+<!-- 3.5 Compare Tool -->
+<h2>3.5 Compare Tool</h2>
+
+<div class="feature-box">
+    <h4>What It Does</h4>
+    <p>Side-by-side comparison of multiple entities for competitive analysis.</p>
+</div>
+
+<div class="step-box">
+    <h4>How to Use Compare</h4>
+    <ol>
+        <li>Click <strong>"Compare"</strong> in the Markets section</li>
+        <li>Enter two or more ticker symbols</li>
+        <li>View comparative metrics side by side</li>
+    </ol>
+</div>
+
+<!-- 3.6 Economics -->
+<h2>3.6 Economics Data</h2>
+
+<div class="feature-box">
+    <h4>What It Does</h4>
+    <p>Access macroeconomic data including GDP, CPI, interest rates, and FRED data.</p>
+</div>
+
+<div class="step-box">
+    <h4>How to Use Economics</h4>
+    <ol>
+        <li>Click <strong>"Economics"</strong> in the Markets section</li>
+        <li>Browse available economic indicators</li>
+        <li>View charts and historical data trends</li>
+    </ol>
+</div>
+
+<div class="page-break"></div>
+
+<!-- SECTION 4: INTELLIGENCE -->
+<h1>4. Intelligence Section</h1>
+
+<p>The Intelligence section is the core of the platform, providing deep research capabilities and comprehensive entity dossiers.</p>
+
+<!-- 4.1 Deep Intelligence Reports -->
+<h2>4.1 Deep Intelligence Reports</h2>
+
+<div class="feature-box">
+    <h4>What It Does</h4>
+    <p>Generate comprehensive 50-100+ page dossiers on any entity by aggregating data from 12+ sources including SEC, FEC, FARA, USASpending, court records, and more.</p>
+</div>
+
+<div class="screenshot-container">
+    <h4>Intelligence Reports Generator</h4>
+    <img src="screenshots/intelligence.png" alt="Intelligence Reports">
+</div>
+
+<div class="step-box">
+    <h4>How to Generate a Report</h4>
+    <ol>
+        <li>Click <strong>"Reports"</strong> in the navigation (or go to /intelligence)</li>
+        <li>Choose a search method:
+            <ul>
+                <li><strong>Pre-built Networks:</strong> PayPal Mafia, Thiel/AI/Defense networks</li>
+                <li><strong>Entity Search:</strong> Enter a person or company name</li>
+                <li><strong>With Ticker:</strong> Add optional stock ticker for enhanced data</li>
+            </ul>
+        </li>
+        <li>Select entity type: Organization, Individual, Fund, or Government Agency</li>
+        <li>Click generate and wait 30-90 seconds for processing</li>
+        <li>Review the comprehensive report with clickable entity references</li>
+    </ol>
+</div>
+
+<p><strong>Report Includes:</strong></p>
+<ul>
+    <li>Investment thesis</li>
+    <li>SWOT analysis</li>
+    <li>Risk matrices</li>
+    <li>Financial assessment</li>
+    <li>LinkedIn education profiles</li>
+    <li>Funding histories (PitchBook)</li>
+    <li>Current news coverage</li>
+    <li>Lobbying data (client and firm perspectives)</li>
+    <li>Government contracts</li>
+    <li>Court cases</li>
+</ul>
+
+<div class="tip-box">
+    Click on any entity name within a report to drill down and generate a new report on that entity.
+</div>
+
+<div class="page-break"></div>
+
+<!-- 4.2 Global Search -->
+<h2>4.2 Global Search</h2>
+
+<div class="feature-box">
+    <h4>What It Does</h4>
+    <p>Search across the entire intelligence database for entities, relationships, and evidence-linked records.</p>
+</div>
+
+<div class="screenshot-container">
+    <h4>Global Search Interface</h4>
+    <img src="screenshots/search.png" alt="Global Search">
+</div>
+
+<div class="step-box">
+    <h4>How to Use Global Search</h4>
+    <ol>
+        <li>Click <strong>"Global Search"</strong> in the navigation</li>
+        <li>Enter search terms: entity names, tickers, keywords, or document terms</li>
+        <li>Or use quick search buttons: Apple, Palantir, SpaceX, Microsoft, Defense, BlackRock, Tesla</li>
+        <li>Browse results organized by Entities, Relationships, and Evidence records</li>
+    </ol>
+</div>
+
+<!-- 4.3 Saved Reports -->
+<h2>4.3 Saved Reports</h2>
+
+<div class="feature-box">
+    <h4>What It Does</h4>
+    <p>Access your previously generated and archived intelligence reports.</p>
+</div>
+
+<div class="step-box">
+    <h4>How to Use Saved Reports</h4>
+    <ol>
+        <li>Click <strong>"Saved"</strong> in the navigation</li>
+        <li>Browse your archived reports</li>
+        <li>Click any report to view it again</li>
+    </ol>
+</div>
+
+<!-- 4.4 Timeline -->
+<h2>4.4 Timeline View</h2>
+
+<div class="feature-box">
+    <h4>What It Does</h4>
+    <p>View chronological signal history showing events and updates over time.</p>
+</div>
+
+<div class="step-box">
+    <h4>How to Use Timeline</h4>
+    <ol>
+        <li>Click <strong>"Timeline"</strong> in the navigation</li>
+        <li>Scroll through events in chronological order</li>
+        <li>Click on any event for details</li>
+    </ol>
+</div>
+
+<div class="page-break"></div>
+
+<!-- SECTION 5: INSTITUTIONAL -->
+<h1>5. Institutional Section</h1>
+
+<p>Track major institutional investors, government officials' trades, and cryptocurrency markets.</p>
+
+<!-- 5.1 Institutional Holdings -->
+<h2>5.1 Institutional Holdings (13F)</h2>
+
+<div class="feature-box">
+    <h4>What It Does</h4>
+    <p>Research major institutional investors' portfolios using SEC 13F filings. Track positions of hedge funds, mutual funds, and investment managers.</p>
+</div>
+
+<div class="screenshot-container">
+    <h4>Institutional Holdings Interface</h4>
+    <img src="screenshots/institutional.png" alt="Institutional Holdings">
+</div>
+
+<div class="step-box">
+    <h4>How to Use Institutional Holdings</h4>
+    <ol>
+        <li>Click <strong>"Institutional"</strong> in the sidebar</li>
+        <li>Enter a ticker symbol to see who holds that stock</li>
+        <li>Or select an institution from the dropdown:
+            <ul>
+                <li>Berkshire Hathaway</li>
+                <li>BlackRock</li>
+                <li>Vanguard</li>
+                <li>State Street</li>
+                <li>Fidelity</li>
+                <li>T. Rowe Price</li>
+                <li>JP Morgan</li>
+                <li>Goldman Sachs</li>
+                <li>Morgan Stanley</li>
+                <li>Cathie Wood / ARK</li>
+                <li>Pershing Square</li>
+            </ul>
+        </li>
+        <li>Browse through tabs: Institutional Holders, Mutual Funds, Mega Positions, 13F Filers, Institution Lookup</li>
+    </ol>
+</div>
+
+<div class="page-break"></div>
+
+<!-- 5.2 Government Trading -->
+<h2>5.2 Government Trading</h2>
+
+<div class="feature-box">
+    <h4>What It Does</h4>
+    <p>Monitor congressional trading activity under the STOCK Act, corporate insider trades (SEC Form 4), and track individual politicians' financial dealings.</p>
+</div>
+
+<div class="screenshot-container">
+    <h4>Government Trading Monitor</h4>
+    <img src="screenshots/gov-trading.png" alt="Government Trading">
+</div>
+
+<div class="step-box">
+    <h4>How to Use Government Trading</h4>
+    <ol>
+        <li>Click <strong>"Gov Trading"</strong> in the sidebar</li>
+        <li>Browse three main sections:
+            <ul>
+                <li><strong>Congressional Summary:</strong> STOCK Act disclosures</li>
+                <li><strong>Corporate Insider Trades:</strong> SEC Form 4 filings</li>
+                <li><strong>Politician Tracker:</strong> Individual politician monitoring</li>
+            </ul>
+        </li>
+        <li>Use time filters: Last 30/60/90 days, or Last 6 months</li>
+        <li>Click on any trade for details</li>
+    </ol>
+</div>
+
+<div class="tip-box">
+    Use this feature to spot potential market-moving trades by government officials or corporate insiders before they become widely known.
+</div>
+
+<!-- 5.3 Crypto Intelligence -->
+<h2>5.3 Crypto Intelligence</h2>
+
+<div class="feature-box">
+    <h4>What It Does</h4>
+    <p>Monitor cryptocurrency markets with live CoinGecko data, wallet tracking, and whale alerts.</p>
+</div>
+
+<div class="screenshot-container">
+    <h4>Crypto Intelligence Dashboard</h4>
+    <img src="screenshots/crypto.png" alt="Crypto Intelligence">
+</div>
+
+<div class="step-box">
+    <h4>How to Use Crypto Intelligence</h4>
+    <ol>
+        <li>Click <strong>"Crypto"</strong> in the sidebar</li>
+        <li>Browse three main tabs:
+            <ul>
+                <li><strong>Dashboard:</strong> Market overview</li>
+                <li><strong>Coin Detail:</strong> Individual cryptocurrency analysis</li>
+                <li><strong>Wallet Lookup:</strong> Track specific blockchain addresses</li>
+            </ul>
+        </li>
+        <li>Monitor whale alerts for large transactions</li>
+    </ol>
+</div>
+
+<div class="page-break"></div>
+
+<!-- SECTION 6: TOOLS & UTILITIES -->
+<h1>6. Tools & Utilities</h1>
+
+<p>Advanced tools for entity management, relationship mapping, and automated monitoring.</p>
+
+<!-- 6.1 Entity Registry -->
+<h2>6.1 Entity Registry</h2>
+
+<div class="feature-box">
+    <h4>What It Does</h4>
+    <p>OSINT enrichment and private intelligence repository for managing entity data.</p>
+</div>
+
+<div class="step-box">
+    <h4>How to Use Registry</h4>
+    <ol>
+        <li>Click <strong>"Registry"</strong> in the Tools section</li>
+        <li>Search for or add entities</li>
+        <li>View enriched data from multiple sources</li>
+    </ol>
+</div>
+
+<!-- 6.2 Relationship Graph -->
+<h2>6.2 Relationship Graph</h2>
+
+<div class="feature-box">
+    <h4>What It Does</h4>
+    <p>Interactive network visualization showing relationships between entities. Features expand-on-click, zoom/pan, and export capabilities.</p>
+</div>
+
+<div class="screenshot-container">
+    <h4>Relationship Graph Visualization</h4>
+    <img src="screenshots/graph.png" alt="Relationship Graph">
+</div>
+
+<div class="step-box">
+    <h4>How to Use the Graph</h4>
+    <ol>
+        <li>Click <strong>"Graph"</strong> in the Tools section</li>
+        <li>Enter an entity ID in the input field</li>
+        <li>Click <strong>"Expand Graph"</strong></li>
+        <li>Interact with the visualization:
+            <ul>
+                <li><strong>Click nodes:</strong> Expand to show related connections</li>
+                <li><strong>Zoom:</strong> Scroll to zoom in/out</li>
+                <li><strong>Pan:</strong> Click and drag to move around</li>
+            </ul>
+        </li>
+        <li>Monitor node and edge counts in real-time</li>
+        <li>Export as JSON or PNG when ready</li>
+    </ol>
+</div>
+
+<div class="page-break"></div>
+
+<!-- 6.3 Tracking & Alerts -->
+<h2>6.3 Tracking & Alerts</h2>
+
+<div class="feature-box">
+    <h4>What It Does</h4>
+    <p>Entity monitoring system (v2.0) that tracks changes in contracts, lobbying, court cases, and more. Supports automated daily digests with email and SMS alerts.</p>
+</div>
+
+<div class="screenshot-container">
+    <h4>Tracking & Alerts Dashboard</h4>
+    <img src="screenshots/tracking.png" alt="Tracking & Alerts">
+</div>
+
+<div class="step-box">
+    <h4>How to Set Up Tracking</h4>
+    <ol>
+        <li>Click <strong>"Tracking"</strong> in the Tools section</li>
+        <li>Add entities to your watchlist:
+            <ul>
+                <li>Enter entity name manually, or</li>
+                <li>Use quick-add suggestions: Palantir Technologies, Peter Thiel, Anduril Industries, SpaceX, Elon Musk</li>
+            </ul>
+        </li>
+        <li>Select entity type: Organization or Person</li>
+        <li>View your watchlist dashboard showing entities monitored and digest history</li>
+    </ol>
+</div>
+
+<h3>Automated Alerts</h3>
+<p>The system runs automatically at <strong>6:00 AM UTC</strong> daily, re-generating reports for all watched entities and sending notifications for any changes detected.</p>
+
+<p><strong>Alert Channels:</strong></p>
+<ul>
+    <li>Email (via SendGrid)</li>
+    <li>SMS (via Twilio)</li>
+</ul>
+
+<div class="tip-box">
+    Use the "Dry run" option to test the digest without sending actual emails or SMS messages.
+</div>
+
+<div class="page-break"></div>
+
+<!-- SECTION 7: QUICK REFERENCE -->
+<h1>7. Quick Reference Guide</h1>
+
+<h2>Navigation Shortcuts</h2>
+<table>
+    <tr>
+        <th>Feature</th>
+        <th>URL Path</th>
+        <th>Purpose</th>
+    </tr>
+    <tr>
+        <td>Dashboard</td>
+        <td>/</td>
+        <td>Main overview</td>
+    </tr>
+    <tr>
+        <td>Reports</td>
+        <td>/intelligence</td>
+        <td>Generate dossiers</td>
+    </tr>
+    <tr>
+        <td>Global Search</td>
+        <td>/search</td>
+        <td>Search everything</td>
+    </tr>
+    <tr>
+        <td>Stock Analysis</td>
+        <td>/stock</td>
+        <td>Analyze stocks</td>
+    </tr>
+    <tr>
+        <td>Valuation</td>
+        <td>/valuation</td>
+        <td>DCF analysis</td>
+    </tr>
+    <tr>
+        <td>Company</td>
+        <td>/company</td>
+        <td>Company profiles</td>
+    </tr>
+    <tr>
+        <td>Institutional</td>
+        <td>/institutional</td>
+        <td>13F holdings</td>
+    </tr>
+    <tr>
+        <td>Gov Trading</td>
+        <td>/gov-trading</td>
+        <td>Political trades</td>
+    </tr>
+    <tr>
+        <td>Crypto</td>
+        <td>/crypto</td>
+        <td>Crypto markets</td>
+    </tr>
+    <tr>
+        <td>Graph</td>
+        <td>/graph</td>
+        <td>Relationship mapping</td>
+    </tr>
+    <tr>
+        <td>Tracking</td>
+        <td>/tracking</td>
+        <td>Entity monitoring</td>
+    </tr>
+    <tr>
+        <td>Alerts</td>
+        <td>/tracking/alerts</td>
+        <td>Alert management</td>
+    </tr>
+</table>
+
+<h2>Common Quick Actions</h2>
+
+<div class="quick-links">
+    <span class="quick-link">AAPL</span>
+    <span class="quick-link">MSFT</span>
+    <span class="quick-link">TSLA</span>
+    <span class="quick-link">NVDA</span>
+    <span class="quick-link">AMZN</span>
+    <span class="quick-link">GOOGL</span>
+    <span class="quick-link">META</span>
+    <span class="quick-link">BRK-B</span>
+</div>
+
+<h2>Pre-Built Network Reports</h2>
+<ul>
+    <li>PayPal Mafia</li>
+    <li>Thiel Network</li>
+    <li>AI/Defense Networks</li>
+</ul>
+
+<h2>Major Institutions Tracked</h2>
+<ul>
+    <li>Berkshire Hathaway</li>
+    <li>BlackRock</li>
+    <li>Vanguard</li>
+    <li>State Street</li>
+    <li>Fidelity</li>
+    <li>T. Rowe Price</li>
+    <li>JP Morgan</li>
+    <li>Goldman Sachs</li>
+    <li>Morgan Stanley</li>
+    <li>Cathie Wood / ARK</li>
+    <li>Pershing Square</li>
+</ul>
+
+<div class="feature-box">
+    <h4>Need Help?</h4>
+    <p>The platform includes API documentation for programmatic access. Look for the "API Docs" link in the navigation for detailed endpoint information.</p>
+</div>
+
+<hr style="margin: 40px 0; border: none; border-top: 2px solid #e2e8f0;">
+
+<p style="text-align: center; color: #718096;">
+    <strong>Enterprise Intelligence Platform</strong><br>
+    Tutorial Document v1.0 | August 2026<br><br>
+    Platform URL: https://8th-july-sprint.d11ri08de55gmb.amplifyapp.com
+</p>
+
+</body>
+</html>

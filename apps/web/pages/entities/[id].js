@@ -788,7 +788,7 @@ export default function EntityProfile() {
             {entity.sec_cik && <a href={`https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${entity.sec_cik}`} target="_blank" rel="noopener noreferrer" style={{ fontSize:'0.78rem', color:'#818cf8', marginTop:'0.3rem', display:'inline-block' }}>SEC EDGAR ↗</a>}
             <div style={{ marginTop:'0.6rem', display:'flex', gap:'0.5rem', flexWrap:'wrap' }}>
               <button className={eStyles.investigateBtn} onClick={()=>investigate(entityName)}>🔍 Generate Report</button>
-              <Link href={`/graph?entity_id=${id}`} passHref><a className={eStyles.graphBtn}>🕸 Graph</a></Link>
+              <Link href={`/graph?entity_id=${id}`} passHref legacyBehavior><a className={eStyles.graphBtn}>🕸 Graph</a></Link>
               <AddToTrackingBtn entityName={entityName} entityType={entityKind} />
               <ApiStatusPanel ticker={ticker} />
             </div>

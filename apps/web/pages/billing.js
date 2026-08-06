@@ -120,7 +120,7 @@ export default function Billing() {
             )}
 
             <div style={{ marginTop: '1rem', display: 'flex', gap: 8 }}>
-              <Link href="/pricing">
+              <Link href="/pricing" legacyBehavior>
                 <a className="btn btn-primary" style={{ fontSize: '0.75rem', padding: '8px 14px' }}>
                   {subscription.status === 'cancelled' ? 'Resubscribe' : 'Change Plan'}
                 </a>
@@ -207,7 +207,7 @@ export default function Billing() {
 
         {/* Support Link */}
         <div style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          Questions about billing? <Link href="/support"><a style={{ color: 'var(--brand-hover)' }}>Contact Support</a></Link>
+          Questions about billing? <Link href="/support" legacyBehavior><a style={{ color: 'var(--brand-hover)' }}>Contact Support</a></Link>
         </div>
       </div>
 

@@ -177,7 +177,7 @@ export default function Home() {
             </div>
             <div style={{ display: 'grid', gap: '0.6rem', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
               {group.items.map(item => (
-                <Link href={item.href} key={item.href}>
+                <Link href={item.href} key={item.href} legacyBehavior>
                   <a className="card card-hover" style={{
                     display: 'flex',
                     alignItems: 'flex-start',

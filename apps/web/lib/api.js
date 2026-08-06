@@ -4,9 +4,9 @@ export function getApiBaseUrl() {
     return configured.replace(/\/$/, '');
   }
   if (typeof window !== 'undefined') {
-    return `${window.location.protocol}//${window.location.hostname}:3001`;
+    return `${window.location.protocol}//${window.location.hostname}:8000`;
   }
-  return 'http://localhost:3001';
+  return 'http://localhost:8000';
 }
 
 export function getAdminBaseUrl() {

@@ -232,7 +232,7 @@ export default function Pricing() {
         <meta name="description" content="Transparent pricing for Enterprise Intelligence platform. No hidden fees." />
       </Head>
 
-      <div className="page-wrap" style={{ maxWidth: 1000 }}>
+      <div className="page-wrap" style={{ maxWidth: 1000, margin: '0 auto' }}>
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
           <h1 style={{ fontSize: '1.8rem', fontWeight: 900, color: '#f1f5f9', marginBottom: 8 }}>
@@ -311,9 +311,9 @@ export default function Pricing() {
 
         {/* Links */}
         <div style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          <Link href="/billing"><a style={{ color: 'var(--brand-hover)', marginRight: 16 }}>Manage Billing</a></Link>
-          <Link href="/support"><a style={{ color: 'var(--brand-hover)', marginRight: 16 }}>Contact Support</a></Link>
-          <Link href="/status"><a style={{ color: 'var(--brand-hover)' }}>System Status</a></Link>
+          <Link href="/billing" legacyBehavior><a style={{ color: 'var(--brand-hover)', marginRight: 16 }}>Manage Billing</a></Link>
+          <Link href="/support" legacyBehavior><a style={{ color: 'var(--brand-hover)', marginRight: 16 }}>Contact Support</a></Link>
+          <Link href="/status" legacyBehavior><a style={{ color: 'var(--brand-hover)' }}>System Status</a></Link>
         </div>
       </div>
     </>
