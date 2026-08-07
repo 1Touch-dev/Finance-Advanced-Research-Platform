@@ -12,7 +12,7 @@ applications:
             - echo "NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL" >> .env.production
             - npm run build
       artifacts:
-        baseDirectory: apps/web/.next
+        baseDirectory: apps/web/out
         files:
           - '**/*'
       cache:
@@ -26,4 +26,6 @@ applications:
             value: 'SAMEORIGIN'
           - key: 'X-Content-Type-Options'
             value: 'nosniff'
+          - key: 'Access-Control-Allow-Origin'
+            value: '*'
     appRoot: .
