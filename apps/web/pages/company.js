@@ -530,14 +530,21 @@ export default function CompanyDeepPage() {
   const [contractsData, setContractsData] = useState(null)
   const [fundingData, setFundingData] = useState(null)
   const [sentimentData, setSentimentData] = useState(null)
+  const [fundamentalsData, setFundamentalsData] = useState(null)
   const [contractsLoading, setContractsLoading] = useState(false)
   const [fundingLoading, setFundingLoading] = useState(false)
   const [sentimentLoading, setSentimentLoading] = useState(false)
 
   const run = async () => {
     setErr(''); setLoading(true); setData(null)
-    setContractsData(null); setFundingData(null)
+    setContractsData(null); setFundingData(null); setFundamentalsData(null)
     try {
+      // Fetch fundamentals (price, P/E, market cap, etc.) from Yahoo Finance
+      fetch(`${API}/market/yf/fundamentals?ticker=${encodeURIComponent(query.toUpperCase())}`)
+        .then(r => r.json())
+        .then(d => setFundamentalsData(d.fundamentals || d))
+        .catch(() => {})
+
       const r = await fetch(`${API}/market/company/deep-report/${encodeURIComponent(query.toUpperCase())}`)
       const d = await r.json()
       if (d.error && !d.quarterly_financials && !d.analyst_ratings) {
@@ -647,7 +654,7 @@ export default function CompanyDeepPage() {
 
           {activeTab === 'overview' && (
             <>
-              {data.analyst_ratings && <PricePanel data={{ fundamentals: {} }} t={ticker} />}
+              <PricePanel data={{ fundamentals: fundamentalsData || {} }} t={ticker} />
               <QuarterlyPanel data={data.quarterly_financials} />
               <AnalystPanel data={data.analyst_ratings} />
             </>

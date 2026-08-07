@@ -151,6 +151,7 @@ def yf_fundamentals(ticker: str) -> dict:
             "currentRatio", "quickRatio",
             "dividendYield", "dividendRate", "payoutRatio",
             "beta", "52WeekChange", "sharesOutstanding", "floatShares",
+            "fiftyTwoWeekHigh", "fiftyTwoWeekLow",
             "shortRatio", "shortPercentOfFloat",
             "heldPercentInsiders", "heldPercentInstitutions",
             "recommendationMean", "numberOfAnalystOpinions",

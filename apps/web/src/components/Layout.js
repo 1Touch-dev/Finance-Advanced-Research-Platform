@@ -23,6 +23,7 @@ const NAV_GROUPS = [
       { href: '/company',         label: 'Company',      icon: '⬡' },
       { href: '/compare',         label: 'Compare',      icon: '⇄' },
       { href: '/economics',       label: 'Economics',    icon: '∿' },
+      { href: '/consensus',       label: 'Consensus',    icon: '◈' },
     ],
   },
   {
@@ -31,6 +32,19 @@ const NAV_GROUPS = [
       { href: '/institutional',   label: 'Institutional', icon: '⊞' },
       { href: '/gov-trading',     label: 'Gov Trading',   icon: '⚖' },
       { href: '/crypto',          label: 'Crypto',        icon: '◈' },
+    ],
+  },
+  {
+    label: 'Research',
+    items: [
+      { href: '/filing-compare',  label: 'Filing Diff',  icon: '⊟' },
+      { href: '/entity-analysis', label: 'Multi-Entity', icon: '⬡' },
+      { href: '/guidance',        label: 'Guidance',     icon: '◎' },
+      { href: '/analysts',        label: 'Analysts',     icon: '★' },
+      { href: '/volume',          label: 'Volume',       icon: '▲' },
+      { href: '/formula',         label: 'Formula',      icon: 'ƒ' },
+      { href: '/options',         label: 'Volatility',   icon: '∿' },
+      { href: '/leaderboard',     label: 'Leaderboard',  icon: '⚑' },
     ],
   },
   {

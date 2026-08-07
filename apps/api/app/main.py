@@ -105,6 +105,66 @@ try:
 except Exception:
     pass
 
+try:
+    from app.api.filings import router as filings_router
+    app.include_router(filings_router)
+except Exception:
+    pass
+
+try:
+    from app.api.documents import router as documents_router
+    app.include_router(documents_router)
+except Exception:
+    pass
+
+try:
+    from app.api.entities_multi import router as entities_multi_router
+    app.include_router(entities_multi_router)
+except Exception:
+    pass
+
+try:
+    from app.api.consensus import router as consensus_router
+    app.include_router(consensus_router)
+except Exception:
+    pass
+
+try:
+    from app.api.guidance import router as guidance_router
+    app.include_router(guidance_router)
+except Exception:
+    pass
+
+try:
+    from app.api.analysts import router as analysts_router
+    app.include_router(analysts_router)
+except Exception:
+    pass
+
+try:
+    from app.api.volume import router as volume_router
+    app.include_router(volume_router)
+except Exception:
+    pass
+
+try:
+    from app.api.formula import router as formula_router
+    app.include_router(formula_router)
+except Exception:
+    pass
+
+try:
+    from app.api.volatility import router as volatility_router
+    app.include_router(volatility_router)
+except Exception:
+    pass
+
+try:
+    from app.api.leaderboard import router as leaderboard_router
+    app.include_router(leaderboard_router)
+except Exception:
+    pass
+
 @app.on_event("startup")
 async def on_startup():
     logger.info({"event": "startup"})
