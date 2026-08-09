@@ -497,7 +497,7 @@ export default function EntityAnalysisPage() {
         <title>Multi-Entity Analysis | Finance Intelligence</title>
       </Head>
 
-      <div className="min-h-screen bg-gray-50">
+      <div className="research-dark min-h-screen bg-gray-50">
         {/* Header */}
         <header className="bg-white shadow-sm">
           <div className="max-w-7xl mx-auto px-4 py-4">

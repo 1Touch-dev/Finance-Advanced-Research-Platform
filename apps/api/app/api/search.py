@@ -52,7 +52,18 @@ def global_search(q: Optional[str] = None, type: Optional[str] = None, source: O
     results["documents"] = [{"id": d.id, "url": d.source_url, "sha256": d.sha256, "created_at": d.created_at.isoformat() if d.created_at else None} for d in docs]
     # Relationships by src/dst names
     if q:
-        rels = db.query(Relationship).limit(limit).all()
+        matching_entity_ids = db.query(Entity.id).filter(Entity.name.ilike(f"%{q}%"))
+        rels = (
+            db.query(Relationship)
+            .filter(
+                or_(
+                    Relationship.src_entity_id.in_(matching_entity_ids),
+                    Relationship.dst_entity_id.in_(matching_entity_ids),
+                )
+            )
+            .limit(limit)
+            .all()
+        )
         out = []
         for r in rels:
             out.append({"id": r.id, "kind": r.kind, "src": r.src_entity_id, "dst": r.dst_entity_id})

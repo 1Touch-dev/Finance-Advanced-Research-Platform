@@ -30,6 +30,7 @@ const NAV_GROUPS = [
     label: 'Institutional',
     items: [
       { href: '/institutional',   label: 'Institutional', icon: '⊞' },
+      { href: '/institutional/position-diff', label: '13F Diff', icon: '⇄' },
       { href: '/gov-trading',     label: 'Gov Trading',   icon: '⚖' },
       { href: '/crypto',          label: 'Crypto',        icon: '◈' },
     ],
@@ -72,6 +73,7 @@ export default function Layout({ children }) {
   const router = useRouter()
   const path = router.pathname || '/'
   const adminUrl = useMemo(() => getAdminBaseUrl(), [])
+  const apiDocsUrl = useMemo(() => `${getApiBaseUrl()}/docs`, [])
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
   const isActive = (href) =>
@@ -264,7 +266,7 @@ export default function Layout({ children }) {
               <span>Live</span>
             </div>
             <a
-              href="http://184.72.123.188:3001/docs"
+              href={apiDocsUrl}
               target="_blank"
               rel="noreferrer"
               style={{

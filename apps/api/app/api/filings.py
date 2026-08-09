@@ -146,10 +146,15 @@ def get_filing_history(
             raise HTTPException(status_code=404, detail=f"Could not resolve ticker: {ticker}")
 
         submissions = get_company_submissions(cik)
-        if not submissions:
+        if not submissions or not isinstance(submissions, dict):
             raise HTTPException(status_code=404, detail=f"No submissions found for: {ticker}")
 
-        filings_data = submissions.get("filings", {}).get("recent", {})
+        filings_section = submissions.get("filings", {})
+        if not isinstance(filings_section, dict):
+            raise HTTPException(status_code=404, detail=f"No submissions found for: {ticker}")
+        filings_data = filings_section.get("recent", {})
+        if not isinstance(filings_data, dict):
+            raise HTTPException(status_code=404, detail=f"No submissions found for: {ticker}")
         forms = filings_data.get("form", [])
         dates = filings_data.get("filingDate", [])
         accessions = filings_data.get("accessionNumber", [])

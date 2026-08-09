@@ -5,6 +5,12 @@ import { getApiBaseUrl } from '../lib/api'
 
 const API = typeof window !== 'undefined' ? getApiBaseUrl() : ''
 
+const BILLING_HISTORY = [
+  { id: 'inv_2026_07_08', date: '2026-07-08', desc: 'Professional - Monthly', amount: 49, status: 'paid' },
+  { id: 'inv_2026_06_08', date: '2026-06-08', desc: 'Professional - Monthly', amount: 49, status: 'paid' },
+  { id: 'inv_2026_05_08', date: '2026-05-08', desc: 'Professional - Monthly', amount: 49, status: 'paid' },
+]
+
 export default function Billing() {
   const [subscription, setSubscription] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -187,17 +193,19 @@ export default function Billing() {
               </tr>
             </thead>
             <tbody>
-              {[
-                { date: '2026-07-08', desc: 'Professional - Monthly', amount: 49, status: 'paid' },
-                { date: '2026-06-08', desc: 'Professional - Monthly', amount: 49, status: 'paid' },
-                { date: '2026-05-08', desc: 'Professional - Monthly', amount: 49, status: 'paid' },
-              ].map((inv, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid var(--line)' }}>
+              {BILLING_HISTORY.map((inv) => (
+                <tr key={inv.id} style={{ borderBottom: '1px solid var(--line)' }}>
                   <td style={{ padding: '10px 0', color: 'var(--text)' }}>{inv.date}</td>
                   <td style={{ padding: '10px 0', color: 'var(--text-muted)' }}>{inv.desc}</td>
                   <td style={{ padding: '10px 0', color: 'var(--text)', textAlign: 'right' }}>${inv.amount}</td>
                   <td style={{ padding: '10px 0', textAlign: 'right' }}>
-                    <a href="#" style={{ color: 'var(--brand-hover)', fontSize: '0.72rem' }}>Download</a>
+                    <a
+                      href={`${API}/billing/invoices/${inv.id}/pdf`}
+                      download={`${inv.id}.pdf`}
+                      style={{ color: 'var(--brand-hover)', fontSize: '0.72rem' }}
+                    >
+                      Download
+                    </a>
                   </td>
                 </tr>
               ))}

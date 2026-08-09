@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/router'
 import { getApiBaseUrl } from '../lib/api'
 
 const QUICK_TERMS = ['apple', 'palantir', 'spacex', 'microsoft', 'defense', 'blackrock', 'tesla']
 
 export default function SearchPage() {
+  const router = useRouter()
   const [q, setQ] = useState('')
   const [res, setRes] = useState(null)
   const [err, setErr] = useState('')
@@ -14,6 +16,14 @@ export default function SearchPage() {
   const debounceRef = useRef(null)
   const inputRef = useRef(null)
   const API = getApiBaseUrl()
+
+  useEffect(() => {
+    if (!router.isReady) return
+    const initialQuery = typeof router.query.q === 'string' ? router.query.q : ''
+    if (!initialQuery) return
+    setQ(initialQuery)
+    run(initialQuery)
+  }, [router.isReady, router.query.q])
 
   // Autocomplete suggestions with debounce
   useEffect(() => {
@@ -140,8 +150,7 @@ export default function SearchPage() {
               <div className="section-title">Entities ({entities.length})</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                 {entities.map(e => (
-                  <Link key={e.id} href={`/entities/${e.id}`} passHref>
-                    <a className="card card-hover" style={{
+                  <Link key={e.id} href={`/entities/${e.id}`} className="card card-hover" style={{
                       display: 'flex', alignItems: 'center', gap: 10,
                       padding: '8px 12px', textDecoration: 'none',
                     }}>
@@ -149,7 +158,6 @@ export default function SearchPage() {
                       <span style={{ fontWeight: 600, color: '#e2e8f0', fontSize: '0.85rem' }}>{e.name}</span>
                       {e.ticker && <span className="badge badge-amber">{e.ticker}</span>}
                       <span style={{ marginLeft: 'auto', fontSize: '0.72rem', color: 'var(--text-soft)' }}>View →</span>
-                    </a>
                   </Link>
                 ))}
               </div>

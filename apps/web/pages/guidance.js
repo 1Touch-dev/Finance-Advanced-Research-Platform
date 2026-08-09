@@ -20,83 +20,83 @@ function CredibilityCard({ data }) {
 
   const getTierColor = (tier) => {
     switch (tier) {
-      case 'excellent': return 'bg-green-500';
-      case 'good': return 'bg-blue-500';
-      case 'average': return 'bg-yellow-500';
-      case 'poor': return 'bg-orange-500';
-      case 'unreliable': return 'bg-red-500';
-      default: return 'bg-gray-500';
+      case 'excellent': return 'badge-green';
+      case 'good': return 'badge-brand';
+      case 'average': return 'badge-amber';
+      case 'poor': return 'badge-amber';
+      case 'unreliable': return 'badge-red';
+      default: return 'badge-gray';
     }
   };
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="flex justify-between items-start mb-6">
+    <div className="card" style={{ padding: '1.25rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '1.5rem' }}>
         <div>
-          <h3 className="text-lg font-semibold">{data.company_name}</h3>
-          <p className="text-sm text-gray-500">Management Credibility Score</p>
+          <h3 style={{ color: 'var(--text)', fontSize: '1.05rem', fontWeight: 800, margin: 0 }}>{data.company_name}</h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.25rem 0 0' }}>Management Credibility Score</p>
         </div>
-        <div className="text-right">
-          <div className="text-3xl font-bold text-blue-600">{data.overall_score}</div>
-          <span className={`inline-block px-3 py-1 rounded-full text-white text-sm font-medium ${getTierColor(data.tier)}`}>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ color: 'var(--brand)', fontSize: '2rem', fontWeight: 900, lineHeight: 1 }}>{data.overall_score}</div>
+          <span className={`badge ${getTierColor(data.tier)}`}>
             {data.tier?.toUpperCase()}
           </span>
         </div>
       </div>
 
       {/* Component Scores */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem', marginBottom: '1.5rem' }}>
         {Object.entries(data.component_scores || {}).map(([key, value]) => (
-          <div key={key} className="text-center p-3 bg-gray-50 rounded">
-            <div className="text-xs text-gray-500 mb-1">{key.replace(/_/g, ' ')}</div>
-            <div className="text-lg font-semibold">{value}</div>
+          <div key={key} style={{ textAlign: 'center', padding: '0.8rem', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--line)', borderRadius: 'var(--radius-sm)' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem', marginBottom: '0.25rem', textTransform: 'capitalize' }}>{key.replace(/_/g, ' ')}</div>
+            <div style={{ color: 'var(--text)', fontSize: '1rem', fontWeight: 800 }}>{value}</div>
           </div>
         ))}
       </div>
 
       {/* Historical Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="text-center p-4 bg-green-50 rounded">
-          <div className="text-2xl font-bold text-green-600">{data.historical_stats?.beats || 0}</div>
-          <div className="text-xs text-green-700">Beats</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1.5rem' }}>
+        <div style={{ textAlign: 'center', padding: '1rem', background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 'var(--radius-sm)' }}>
+          <div style={{ color: '#22c55e', fontSize: '1.5rem', fontWeight: 900 }}>{data.historical_stats?.beats || 0}</div>
+          <div style={{ color: '#86efac', fontSize: '0.75rem' }}>Beats</div>
         </div>
-        <div className="text-center p-4 bg-blue-50 rounded">
-          <div className="text-2xl font-bold text-blue-600">{data.historical_stats?.meets || 0}</div>
-          <div className="text-xs text-blue-700">Meets</div>
+        <div style={{ textAlign: 'center', padding: '1rem', background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.28)', borderRadius: 'var(--radius-sm)' }}>
+          <div style={{ color: '#818cf8', fontSize: '1.5rem', fontWeight: 900 }}>{data.historical_stats?.meets || 0}</div>
+          <div style={{ color: '#c4b5fd', fontSize: '0.75rem' }}>Meets</div>
         </div>
-        <div className="text-center p-4 bg-red-50 rounded">
-          <div className="text-2xl font-bold text-red-600">{data.historical_stats?.misses || 0}</div>
-          <div className="text-xs text-red-700">Misses</div>
+        <div style={{ textAlign: 'center', padding: '1rem', background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 'var(--radius-sm)' }}>
+          <div style={{ color: '#f87171', fontSize: '1.5rem', fontWeight: 900 }}>{data.historical_stats?.misses || 0}</div>
+          <div style={{ color: '#fca5a5', fontSize: '0.75rem' }}>Misses</div>
         </div>
       </div>
 
       {/* Rates */}
-      <div className="flex gap-8 mb-6">
+      <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
         <div>
-          <span className="text-sm text-gray-500">Beat Rate:</span>
-          <span className="ml-2 font-semibold">{data.historical_stats?.beat_rate}%</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Beat Rate:</span>
+          <span style={{ color: 'var(--text)', marginLeft: 8, fontWeight: 800 }}>{data.historical_stats?.beat_rate}%</span>
         </div>
         <div>
-          <span className="text-sm text-gray-500">Meet or Beat:</span>
-          <span className="ml-2 font-semibold text-green-600">{data.historical_stats?.meet_or_beat_rate}%</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Meet or Beat:</span>
+          <span style={{ color: '#22c55e', marginLeft: 8, fontWeight: 800 }}>{data.historical_stats?.meet_or_beat_rate}%</span>
         </div>
       </div>
 
       {/* Flags */}
-      <div className="grid grid-cols-2 gap-4">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.75rem' }}>
         {data.flags?.green?.length > 0 && (
-          <div className="p-3 bg-green-50 rounded">
-            <div className="text-sm font-medium text-green-800 mb-2">Positives</div>
+          <div style={{ padding: '0.9rem', background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 'var(--radius-sm)' }}>
+            <div style={{ color: '#86efac', fontSize: '0.85rem', fontWeight: 800, marginBottom: '0.5rem' }}>Positives</div>
             {data.flags.green.map((flag, i) => (
-              <div key={i} className="text-sm text-green-700">+ {flag}</div>
+              <div key={i} style={{ color: '#bbf7d0', fontSize: '0.8rem' }}>+ {flag}</div>
             ))}
           </div>
         )}
         {data.flags?.red?.length > 0 && (
-          <div className="p-3 bg-red-50 rounded">
-            <div className="text-sm font-medium text-red-800 mb-2">Concerns</div>
+          <div style={{ padding: '0.9rem', background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 'var(--radius-sm)' }}>
+            <div style={{ color: '#fca5a5', fontSize: '0.85rem', fontWeight: 800, marginBottom: '0.5rem' }}>Concerns</div>
             {data.flags.red.map((flag, i) => (
-              <div key={i} className="text-sm text-red-700">- {flag}</div>
+              <div key={i} style={{ color: '#fecaca', fontSize: '0.8rem' }}>- {flag}</div>
             ))}
           </div>
         )}
@@ -111,39 +111,39 @@ function HistoryTable({ data }) {
   if (!data?.history?.length) return null;
 
   const getOutcomeColor = (outcome) => {
-    if (outcome === 'beat' || outcome === 'significantly_beat') return 'bg-green-100 text-green-700';
-    if (outcome === 'missed' || outcome === 'significantly_missed') return 'bg-red-100 text-red-700';
-    return 'bg-gray-100 text-gray-700';
+    if (outcome === 'beat' || outcome === 'significantly_beat') return 'badge-green';
+    if (outcome === 'missed' || outcome === 'significantly_missed') return 'badge-red';
+    return 'badge-gray';
   };
 
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="p-4 border-b">
-        <h3 className="font-semibold">Guidance History</h3>
+    <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--line)' }}>
+        <h3 style={{ color: 'var(--text)', fontSize: '0.95rem', fontWeight: 800, margin: 0 }}>Guidance History</h3>
       </div>
-      <table className="min-w-full text-sm">
-        <thead className="bg-gray-50">
+      <table style={{ width: '100%', fontSize: '0.78rem', borderCollapse: 'collapse' }}>
+        <thead style={{ background: 'rgba(255,255,255,0.03)' }}>
           <tr>
-            <th className="px-4 py-3 text-left">Period</th>
-            <th className="px-4 py-3 text-right">Guidance Low</th>
-            <th className="px-4 py-3 text-right">Guidance High</th>
-            <th className="px-4 py-3 text-right">Actual</th>
-            <th className="px-4 py-3 text-right">vs Mid</th>
-            <th className="px-4 py-3 text-center">Outcome</th>
+            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 700 }}>Period</th>
+            <th style={{ padding: '0.75rem 1rem', textAlign: 'right', color: 'var(--text-muted)', fontWeight: 700 }}>Guidance Low</th>
+            <th style={{ padding: '0.75rem 1rem', textAlign: 'right', color: 'var(--text-muted)', fontWeight: 700 }}>Guidance High</th>
+            <th style={{ padding: '0.75rem 1rem', textAlign: 'right', color: 'var(--text-muted)', fontWeight: 700 }}>Actual</th>
+            <th style={{ padding: '0.75rem 1rem', textAlign: 'right', color: 'var(--text-muted)', fontWeight: 700 }}>vs Mid</th>
+            <th style={{ padding: '0.75rem 1rem', textAlign: 'center', color: 'var(--text-muted)', fontWeight: 700 }}>Outcome</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody>
           {data.history.map((row, i) => (
-            <tr key={i} className="hover:bg-gray-50">
-              <td className="px-4 py-3">{row.fiscal_period} {row.fiscal_year}</td>
-              <td className="px-4 py-3 text-right">${row.guidance?.low?.toFixed(2)}</td>
-              <td className="px-4 py-3 text-right">${row.guidance?.high?.toFixed(2)}</td>
-              <td className="px-4 py-3 text-right font-medium">${row.actual?.toFixed(2)}</td>
-              <td className={`px-4 py-3 text-right ${row.vs_midpoint_pct > 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <tr key={i} style={{ borderTop: '1px solid var(--line)' }}>
+              <td style={{ padding: '0.75rem 1rem', color: 'var(--text)' }}>{row.fiscal_period} {row.fiscal_year}</td>
+              <td style={{ padding: '0.75rem 1rem', color: 'var(--text-muted)', textAlign: 'right' }}>${row.guidance?.low?.toFixed(2)}</td>
+              <td style={{ padding: '0.75rem 1rem', color: 'var(--text-muted)', textAlign: 'right' }}>${row.guidance?.high?.toFixed(2)}</td>
+              <td style={{ padding: '0.75rem 1rem', color: 'var(--text)', textAlign: 'right', fontWeight: 700 }}>${row.actual?.toFixed(2)}</td>
+              <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: row.vs_midpoint_pct > 0 ? '#22c55e' : '#f87171' }}>
                 {row.vs_midpoint_pct > 0 ? '+' : ''}{row.vs_midpoint_pct}%
               </td>
-              <td className="px-4 py-3 text-center">
-                <span className={`px-2 py-1 rounded text-xs font-medium ${getOutcomeColor(row.outcome)}`}>
+              <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                <span className={`badge ${getOutcomeColor(row.outcome)}`}>
                   {row.outcome}
                 </span>
               </td>
@@ -189,50 +189,49 @@ export default function GuidancePage() {
         <title>Guidance Tracking | Finance Intelligence</title>
       </Head>
 
-      <div className="min-h-screen bg-gray-50">
-        <header className="bg-white shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 py-4">
-            <h1 className="text-2xl font-bold text-gray-900">Guidance vs Actual Tracking</h1>
-            <p className="text-sm text-gray-500">Management credibility scoring and guidance history</p>
+      <div className="page-wrap">
+        <header className="page-header">
+          <div>
+            <h1 className="page-title">Guidance vs Actual Tracking</h1>
+            <p className="page-sub">Management credibility scoring and guidance history</p>
           </div>
         </header>
 
-        <div className="bg-white border-b">
-          <div className="max-w-7xl mx-auto px-4 py-4">
-            <div className="flex gap-4 items-center">
+        <div className="card" style={{ padding: '1rem 1.25rem' }}>
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
               <input
                 type="text"
                 value={ticker}
                 onChange={(e) => setTicker(e.target.value.toUpperCase())}
-                className="px-4 py-2 border rounded-lg w-32"
+                className="inp"
                 placeholder="Ticker"
+                style={{ width: 140 }}
               />
               <button
                 onClick={fetchData}
                 disabled={loading}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className="btn btn-primary"
               >
                 {loading ? 'Loading...' : 'Analyze'}
               </button>
-              <div className="flex gap-2 ml-4">
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 {['NVDA', 'AAPL', 'MSFT', 'TSLA', 'META', 'INTC'].map(t => (
                   <button
                     key={t}
                     onClick={() => setTicker(t)}
-                    className={`px-3 py-1 text-sm rounded-full border ${ticker === t ? 'bg-blue-100 border-blue-500' : 'border-gray-300'}`}
+                    className={`btn ${ticker === t ? 'btn-primary' : 'btn-ghost'} btn-xs`}
                   >
                     {t}
                   </button>
                 ))}
               </div>
             </div>
-          </div>
         </div>
 
-        <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-          {error && <div className="p-4 bg-red-50 text-red-700 rounded-lg">{error}</div>}
+        <main style={{ display: 'grid', gap: '1rem' }}>
+          {error && <div className="badge badge-red" style={{ padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)' }}>{error}</div>}
           {loading ? (
-            <div className="text-center py-12 text-gray-500">Loading...</div>
+            <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Loading...</div>
           ) : (
             <>
               <CredibilityCard data={credibilityData} />

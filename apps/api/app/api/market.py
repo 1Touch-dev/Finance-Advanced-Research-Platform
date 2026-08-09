@@ -2,8 +2,14 @@
 API routes for financial data, news aggregation, and international registry lookups.
 All endpoints are free-tier and gracefully degrade when keys are missing.
 """
+from datetime import date
 import os
-from fastapi import APIRouter, Query
+import xml.etree.ElementTree as ET
+
+import requests
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 from typing import Optional
 from app.connectors.financial_news_connector import (
     finnhub_quote, finnhub_company_profile, finnhub_financials,
@@ -11,6 +17,19 @@ from app.connectors.financial_news_connector import (
     fmp_cash_flow, fmp_key_metrics, compute_beneish_mscore, compute_altman_zscore,
     fred_macro_data, aggregate_news, newsapi_search, guardian_search,
     nyt_search, gdelt_search, ukch_search, ukch_officers, icij_search, aleph_search,
+)
+from app.db.session import get_db
+from app.models.base import Base
+from app.models.market_13f_schemas import (
+    PositionDiffFilterStatus,
+    PositionDiffRequest,
+    PositionDiffResponse,
+    PositionDiffSortField,
+    SortDirection,
+)
+from app.services.sec_13f_service import (
+    PositionAmbiguityError,
+    get_institutional_position_diff,
 )
 
 router = APIRouter(prefix="/market")
@@ -986,6 +1005,58 @@ def company_analyst_timeline(ticker: str, months: int = 12):
 
 
 # ─── Institutional (13F) Routes ───────────────────────────────────────────────
+
+@router.get("/institutional/position-diff", response_model=PositionDiffResponse)
+def get_institutional_position_diff_api(
+    institution_cik: str = Query(..., description="10-digit SEC CIK, digits accepted with or without leading zeroes."),
+    current_period: date | None = Query(None, description="Quarter-end date, e.g. 2026-03-31."),
+    previous_period: date | None = Query(None, description="Earlier quarter-end date, e.g. 2025-12-31."),
+    status: PositionDiffFilterStatus = Query(PositionDiffFilterStatus.CHANGED),
+    ticker: str | None = Query(None),
+    cusip: str | None = Query(None),
+    sort_by: PositionDiffSortField = Query(PositionDiffSortField.REPORTED_VALUE_DIFF_USD),
+    sort_dir: SortDirection = Query(SortDirection.DESC),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    Base.metadata.create_all(bind=db.get_bind())
+    try:
+        request = PositionDiffRequest(
+            institution_cik=institution_cik,
+            current_period=current_period,
+            previous_period=previous_period,
+            status=status,
+            ticker=ticker,
+            cusip=cusip,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
+            limit=limit,
+            offset=offset,
+        )
+        return get_institutional_position_diff(db, request)
+    except requests.RequestException:
+        raise HTTPException(status_code=503, detail="SEC unavailable and no usable cache.")
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Database error.")
+    except ET.ParseError:
+        raise HTTPException(status_code=502, detail="Malformed SEC filing.")
+    except PositionAmbiguityError:
+        raise HTTPException(status_code=409, detail="Unsupported comparison or ambiguous filing data.")
+    except ValueError as exc:
+        message = str(exc)
+        if "No 13F" in message or "not available in SEC submissions" in message:
+            raise HTTPException(status_code=404, detail=message)
+        if "XML" in message or "filing archive" in message or "amendmentType" in message:
+            raise HTTPException(status_code=502, detail=message)
+        raise HTTPException(status_code=422, detail=message)
+    except HTTPException:
+        raise
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error.")
+
 
 @router.get("/company/institutional-changes/{ticker}")
 def company_institutional_changes(ticker: str):

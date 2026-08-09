@@ -1,6 +1,6 @@
 import Head from 'next/head'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { getApiBaseUrl } from '../lib/api'
 
 const API = typeof window !== 'undefined' ? getApiBaseUrl() : ''
@@ -21,6 +21,7 @@ const PRIORITY_LEVELS = [
 ]
 
 export default function Support() {
+  const apiDocsUrl = useMemo(() => `${getApiBaseUrl()}/docs`, [])
   const [category, setCategory] = useState('')
   const [priority, setPriority] = useState('normal')
   const [subject, setSubject] = useState('')
@@ -146,7 +147,7 @@ export default function Support() {
               </div>
             </a>
           </Link>
-          <a href="http://184.72.123.188:3001/docs" target="_blank" rel="noreferrer" style={{ background: 'var(--bg-elev-1)', border: '1px solid var(--line)', borderRadius: 'var(--radius-md)', padding: '1rem', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <a href={apiDocsUrl} target="_blank" rel="noreferrer" style={{ background: 'var(--bg-elev-1)', border: '1px solid var(--line)', borderRadius: 'var(--radius-md)', padding: '1rem', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: '1.1rem' }}>?</span>
             <div>
               <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text)' }}>API Documentation</div>
