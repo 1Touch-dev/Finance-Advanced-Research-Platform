@@ -1,0 +1,12 @@
+<informationTable>
+  <infoTable>
+    <nameOfIssuer>Legacy Holding</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>999999999</cusip>
+    <value>95</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>10</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+  </infoTable>
+</informationTable>

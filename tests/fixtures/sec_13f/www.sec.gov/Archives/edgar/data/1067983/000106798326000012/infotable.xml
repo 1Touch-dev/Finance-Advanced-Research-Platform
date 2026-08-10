@@ -1,0 +1,12 @@
+<informationTable>
+  <infoTable>
+    <nameOfIssuer>Delta Corp</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>444444444</cusip>
+    <value>50</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>5</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+  </infoTable>
+</informationTable>
