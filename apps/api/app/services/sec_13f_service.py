@@ -3,6 +3,7 @@
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime
+import logging
 import os
 import re
 from typing import Any, Callable, Iterable, Sequence
@@ -21,6 +22,7 @@ from app.models.market_13f_schemas import (
     PositionDiffFilterStatus,
     PositionDiffFilingRef,
     PositionDiffFilings,
+    PositionDiffFreshness,
     PositionDiffHighlights,
     PositionDiffInstitution,
     PositionDiffPagination,
@@ -43,10 +45,14 @@ FORM_13F_VALUE_NEAREST_DOLLAR_DATE = date(2023, 1, 3)
 _SPACE_RE = re.compile(r"\s+")
 _NON_ALNUM_RE = re.compile(r"[^A-Z0-9]")
 _NAME_PUNCT_RE = re.compile(r"[^A-Z0-9 ]")
-_INFO_TABLE_NAME_RE = re.compile(r"(information[-_ ]?table|infotable)", re.IGNORECASE)
+_INFO_TABLE_NAME_RE = re.compile(r"(information[-_ ]?table|infotable|info[-_ ]?table)", re.IGNORECASE)
 _PRIMARY_XML_NAME_RE = re.compile(r"(primary|13fhr|form13f)", re.IGNORECASE)
+_INFO_TABLE_METADATA_RE = re.compile(r"(information\s*table|info\s*table)", re.IGNORECASE)
+_IGNORED_ARCHIVE_XML_RE = re.compile(r"(schema|xsd|xsl|filingsummary|filing[-_ ]?summary)", re.IGNORECASE)
 _AMENDMENT_RESTATEMENT = "RESTATEMENT"
 _AMENDMENT_NEW_HOLDINGS = "NEW HOLDINGS"
+_DEFAULT_13F_FRESHNESS_DAYS = 45
+logger = logging.getLogger(__name__)
 
 
 class PositionAmbiguityError(ValueError):
@@ -82,6 +88,13 @@ class SEC13FFilingRecord:
 class SEC13FXmlDocuments:
     primary_xml_name: str
     information_table_xml_name: str
+
+
+@dataclass(frozen=True)
+class SECArchiveXmlDocument:
+    name: str
+    document_type: str | None = None
+    description: str | None = None
 
 
 @dataclass(frozen=True)
@@ -292,13 +305,24 @@ def extract_13f_filing_records(
             if not accession_number or not filing_date:
                 continue
             primary_document = primary_documents[idx] if idx < len(primary_documents) else None
+            try:
+                parsed_filing_date = datetime.strptime(filing_date, "%Y-%m-%d").date()
+                parsed_report_period = normalize_reporting_period(report_date)
+            except ValueError as exc:
+                logger.warning(
+                    "Skipping malformed SEC 13F submission row for CIK %s accession %s: %s",
+                    normalized_cik,
+                    accession_number,
+                    exc,
+                )
+                continue
             records.append(
                 SEC13FFilingRecord(
                     cik=normalized_cik,
                     accession_number=accession_number,
                     form=str(form),
-                    filing_date=datetime.strptime(filing_date, "%Y-%m-%d").date(),
-                    report_period=normalize_reporting_period(report_date),
+                    filing_date=parsed_filing_date,
+                    report_period=parsed_report_period,
                     primary_document=primary_document or None,
                 )
             )
@@ -432,28 +456,79 @@ def _build_filing_archive_file_url(
     )
 
 
-def identify_13f_xml_documents(
-    index_json: dict[str, Any], *, primary_document: str | None = None
-) -> SEC13FXmlDocuments:
+def _archive_xml_documents(index_json: dict[str, Any]) -> list[SECArchiveXmlDocument]:
     items = index_json.get("directory", {}).get("item", [])
-    xml_names = [item.get("name") for item in items if str(item.get("name", "")).lower().endswith(".xml")]
-    xml_names = [name for name in xml_names if name]
-    if not xml_names:
-        raise ValueError("SEC filing archive did not contain any XML documents")
+    documents: list[SECArchiveXmlDocument] = []
+    for item in items:
+        name = str(item.get("name") or "").strip()
+        if not name.lower().endswith(".xml"):
+            continue
+        if _IGNORED_ARCHIVE_XML_RE.search(name):
+            continue
+        documents.append(
+            SECArchiveXmlDocument(
+                name=name,
+                document_type=str(item.get("type") or item.get("documentType") or "").strip() or None,
+                description=str(item.get("description") or "").strip() or None,
+            )
+        )
+    return documents
 
-    info_candidates = [name for name in xml_names if _INFO_TABLE_NAME_RE.search(name)]
-    if not info_candidates:
-        raise ValueError("SEC filing archive did not contain an information-table XML document")
-    information_table_xml_name = sorted(info_candidates)[0]
 
-    primary_candidates = [name for name in xml_names if name != information_table_xml_name]
+def _archive_document_metadata_text(document: SECArchiveXmlDocument) -> str:
+    return " ".join(
+        part
+        for part in (document.name, document.document_type or "", document.description or "")
+        if part
+    )
+
+
+def _rank_information_table_candidate(document: SECArchiveXmlDocument) -> tuple[int, str]:
+    metadata_text = _archive_document_metadata_text(document)
+    document_type = document.document_type or ""
+    description = document.description or ""
+    if _INFO_TABLE_METADATA_RE.search(f"{document_type} {description}"):
+        return (0, document.name.lower())
+    if _INFO_TABLE_NAME_RE.search(document.name):
+        return (1, document.name.lower())
+    if _INFO_TABLE_METADATA_RE.search(metadata_text):
+        return (2, document.name.lower())
+    return (3, document.name.lower())
+
+
+def _is_13f_information_table_xml(xml_text: str) -> bool:
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError:
+        return False
+
+    rows = _xml_findall_by_local_name(root, "infoTable")
+    if not rows:
+        return False
+
+    for row in rows[:3]:
+        has_issuer = _xml_find_first_text(row, ("nameOfIssuer",)) is not None
+        has_cusip = _xml_find_first_text(row, ("cusip",)) is not None
+        has_title = _xml_find_first_text(row, ("titleOfClass",)) is not None
+        has_value = _xml_find_first_text(row, ("value",)) is not None
+        has_shares = _xml_find_first_text(row, ("shrsOrPrnAmt", "sshPrnamt")) is not None
+        if has_issuer and has_cusip and has_title and has_value and has_shares:
+            return True
+    return False
+
+
+def _select_primary_xml_name(
+    documents: Sequence[SECArchiveXmlDocument],
+    *,
+    information_table_xml_name: str,
+    primary_document: str | None = None,
+) -> str:
+    primary_candidates = [document.name for document in documents if document.name != information_table_xml_name]
     if primary_document and primary_document.lower().endswith(".xml"):
         for candidate in primary_candidates:
             if candidate.lower() == primary_document.lower():
-                return SEC13FXmlDocuments(
-                    primary_xml_name=candidate,
-                    information_table_xml_name=information_table_xml_name,
-                )
+                return candidate
+
     ranked_primary = sorted(
         primary_candidates,
         key=lambda name: (
@@ -463,9 +538,77 @@ def identify_13f_xml_documents(
     )
     if not ranked_primary:
         raise ValueError("SEC filing archive did not contain a primary 13F XML document")
+    return ranked_primary[0]
+
+
+def identify_13f_xml_documents(
+    index_json: dict[str, Any], *, primary_document: str | None = None
+) -> SEC13FXmlDocuments:
+    documents = _archive_xml_documents(index_json)
+    if not documents:
+        raise ValueError("SEC filing archive did not contain any XML documents")
+
+    info_candidates = [
+        document.name
+        for document in documents
+        if _rank_information_table_candidate(document)[0] <= 2
+    ]
+    if not info_candidates:
+        raise ValueError("SEC filing archive did not contain an information-table XML document")
+    information_table_xml_name = sorted(info_candidates, key=str.lower)[0]
     return SEC13FXmlDocuments(
-        primary_xml_name=ranked_primary[0],
+        primary_xml_name=_select_primary_xml_name(
+            documents,
+            information_table_xml_name=information_table_xml_name,
+            primary_document=primary_document,
+        ),
         information_table_xml_name=information_table_xml_name,
+    )
+
+
+def select_13f_xml_documents_with_content_validation(
+    index_json: dict[str, Any],
+    *,
+    filing_record: SEC13FFilingRecord,
+    fetch_text: TextFetcher,
+    archives_base_url: str = "https://www.sec.gov/Archives/edgar/data",
+) -> SEC13FXmlDocuments:
+    documents = _archive_xml_documents(index_json)
+    if not documents:
+        raise ValueError("SEC filing archive did not contain any XML documents")
+
+    ranked_candidates = sorted(documents, key=_rank_information_table_candidate)
+    rejected: list[str] = []
+    for document in ranked_candidates:
+        try:
+            xml_text = fetch_text(
+                _build_filing_archive_file_url(
+                    filing_record,
+                    document.name,
+                    archives_base_url=archives_base_url,
+                )
+            )
+        except Exception as exc:
+            rejected.append(f"{document.name}: fetch failed ({type(exc).__name__})")
+            continue
+
+        if not _is_13f_information_table_xml(xml_text):
+            rejected.append(f"{document.name}: not a valid 13F information table")
+            continue
+
+        return SEC13FXmlDocuments(
+            primary_xml_name=_select_primary_xml_name(
+                documents,
+                information_table_xml_name=document.name,
+                primary_document=filing_record.primary_document,
+            ),
+            information_table_xml_name=document.name,
+        )
+
+    reason = "; ".join(rejected) if rejected else "no candidate XML documents were readable"
+    raise ValueError(
+        "SEC filing archive did not contain a valid information-table XML document"
+        f" ({reason})"
     )
 
 
@@ -555,7 +698,12 @@ def load_13f_filing(
     fetch_json = json_fetcher or _requests_json_fetcher
     fetch_text = text_fetcher or _requests_text_fetcher
     index_json = fetch_json(build_filing_archive_index_url(filing_record, archives_base_url=archives_base_url))
-    xml_documents = identify_13f_xml_documents(index_json, primary_document=filing_record.primary_document)
+    xml_documents = select_13f_xml_documents_with_content_validation(
+        index_json,
+        filing_record=filing_record,
+        fetch_text=fetch_text,
+        archives_base_url=archives_base_url,
+    )
 
     primary_xml = fetch_text(
         _build_filing_archive_file_url(
@@ -743,6 +891,46 @@ def _build_filings_metadata(
         previous=_ref(previous_snapshot.primary_filing),
         current_supplemental_amendments=[_ref(item) for item in current_snapshot.supplemental_amendments],
         previous_supplemental_amendments=[_ref(item) for item in previous_snapshot.supplemental_amendments],
+    )
+
+
+def _freshness_threshold_days() -> int:
+    raw_value = os.getenv("SOURCE_MAX_AGE_DAYS")
+    if raw_value is None:
+        return _DEFAULT_13F_FRESHNESS_DAYS
+    try:
+        parsed = int(raw_value)
+    except ValueError:
+        return _DEFAULT_13F_FRESHNESS_DAYS
+    return parsed if parsed > 0 else _DEFAULT_13F_FRESHNESS_DAYS
+
+
+def _build_13f_freshness(snapshot: SEC13FPeriodSnapshot) -> PositionDiffFreshness:
+    threshold_days = _freshness_threshold_days()
+    filing_date = snapshot.primary_filing.metadata.filing_date
+    reference_date = filing_date or snapshot.report_period
+    age_days = (date.today() - reference_date).days if reference_date else None
+
+    if age_days is None:
+        status = "unknown"
+        message = "13F freshness could not be determined because no filing date was available."
+    elif age_days < 0:
+        status = "unknown"
+        message = "13F freshness could not be determined because the filing date is in the future."
+    elif age_days <= threshold_days:
+        status = "fresh"
+        message = f"Latest 13F filing is {age_days} days old, within the {threshold_days}-day freshness threshold."
+    else:
+        status = "stale"
+        message = f"Latest 13F filing is {age_days} days old, beyond the {threshold_days}-day freshness threshold."
+
+    return PositionDiffFreshness(
+        status=status,
+        threshold_days=threshold_days,
+        as_of_date=snapshot.report_period,
+        filing_date=filing_date,
+        age_days=age_days,
+        message=message,
     )
 
 
@@ -1054,6 +1242,7 @@ def get_institutional_position_diff(
         cusip=request.cusip,
     )
     response.filings = _build_filings_metadata(current_snapshot, previous_snapshot)
+    response.freshness = _build_13f_freshness(current_snapshot)
     return response
 
 

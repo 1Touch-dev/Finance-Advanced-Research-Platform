@@ -64,3 +64,24 @@ export const POSITION_DIFF_STATUS_LABELS = POSITION_DIFF_STATUS_OPTIONS.reduce(
   },
   {}
 )
+
+export const POSITION_DIFF_FRESHNESS_LABELS = {
+  fresh: 'Fresh',
+  stale: 'Stale',
+  unknown: 'Unknown',
+}
+
+export const EXPOSURE_DEFAULTS = {
+  limit: 100,
+  offset: 0,
+}
+
+export const EXPOSURE_FILTER_LABELS = {
+  institution_cik: 'Institution CIK',
+  q: 'Issuer / Security Query',
+  ticker: 'Ticker',
+  cusip: 'CUSIP',
+  report_period: 'Reporting Period',
+  limit: 'Limit',
+  offset: 'Offset',
+}

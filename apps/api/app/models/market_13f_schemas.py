@@ -71,6 +71,15 @@ class PositionDiffDataQuality(BaseModel):
     confidential_omissions_possible: bool = False
 
 
+class PositionDiffFreshness(BaseModel):
+    status: str
+    threshold_days: int
+    as_of_date: date
+    filing_date: Optional[date] = None
+    age_days: Optional[int] = None
+    message: str
+
+
 class PositionSnapshotEntry(BaseModel):
     issuer_name: str
     ticker: Optional[str] = None
@@ -166,6 +175,7 @@ class PositionDiffResponse(BaseModel):
     institution: PositionDiffInstitution
     periods: PositionDiffPeriods
     filings: PositionDiffFilings = Field(default_factory=PositionDiffFilings)
+    freshness: Optional[PositionDiffFreshness] = None
     summary: PositionDiffSummary
     highlights: PositionDiffHighlights
     positions: list[PositionDiffPosition]

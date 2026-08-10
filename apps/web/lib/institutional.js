@@ -107,3 +107,61 @@ export async function fetchInstitutionalPositionDiff(query = {}) {
 
   return raw
 }
+
+export async function fetchInstitutionalExposure(query = {}) {
+  const baseUrl = getApiBaseUrl()
+  const params = new URLSearchParams()
+
+  appendQueryParam(params, 'institution_cik', query.institution_cik)
+  appendQueryParam(params, 'q', query.q)
+  appendQueryParam(params, 'ticker', query.ticker)
+  appendQueryParam(params, 'cusip', query.cusip)
+  appendQueryParam(params, 'report_period', query.report_period)
+  appendQueryParam(params, 'limit', query.limit)
+  appendQueryParam(params, 'offset', query.offset)
+
+  const requestUrl = `${baseUrl}/market/institutional/exposure?${params.toString()}`
+  let response
+
+  try {
+    response = await fetch(requestUrl)
+  } catch (networkError) {
+    const message = networkError?.message || 'Network request failed.'
+    throw buildInstitutionalError({
+      status: 0,
+      detail: message,
+      message,
+      raw: null,
+    })
+  }
+
+  let rawText = ''
+  try {
+    rawText = await response.text()
+  } catch (readError) {
+    rawText = ''
+  }
+
+  let raw = null
+  try {
+    raw = rawText ? JSON.parse(rawText) : null
+  } catch (parseError) {
+    raw = rawText || null
+  }
+
+  if (!response.ok) {
+    const detail = raw && Object.prototype.hasOwnProperty.call(raw, 'detail')
+      ? raw.detail
+      : rawText || response.statusText
+    const message = normalizeErrorDetail(detail) || `Request failed with status ${response.status}`
+
+    throw buildInstitutionalError({
+      status: response.status,
+      detail,
+      message,
+      raw,
+    })
+  }
+
+  return raw
+}

@@ -4,6 +4,7 @@ import { fetchInstitutionalPositionDiff } from '../../lib/institutional'
 import {
   POSITION_DIFF_DATA_QUALITY_LABELS,
   POSITION_DIFF_DEFAULTS,
+  POSITION_DIFF_FRESHNESS_LABELS,
   POSITION_DIFF_HIGHLIGHT_LABELS,
   POSITION_DIFF_SECTION_LABELS,
   POSITION_DIFF_SORT_DIRECTION_OPTIONS,
@@ -294,6 +295,50 @@ function FilingInfo({ filings }) {
           amendments={filings?.previous_supplemental_amendments}
         />
       </div>
+    </div>
+  )
+}
+
+function FreshnessBanner({ freshness }) {
+  if (!freshness) {
+    return (
+      <div className={`${sectionStyles.freshnessBanner} ${sectionStyles.freshnessUnknown}`}>
+        <div>
+          <span className={sectionStyles.freshnessEyebrow}>13F Freshness</span>
+          <h3>Freshness not returned</h3>
+        </div>
+        <p>
+          This response does not include backend freshness metadata. Position data can still be reviewed,
+          but the API did not provide an age disclosure for this result.
+        </p>
+      </div>
+    )
+  }
+
+  const status = freshness.status || 'unknown'
+  const statusClass = status === 'fresh'
+    ? sectionStyles.freshnessFresh
+    : status === 'stale'
+      ? sectionStyles.freshnessStale
+      : sectionStyles.freshnessUnknown
+
+  return (
+    <div className={`${sectionStyles.freshnessBanner} ${statusClass}`}>
+      <div className={sectionStyles.freshnessHeader}>
+        <div>
+          <span className={sectionStyles.freshnessEyebrow}>13F Freshness</span>
+          <h3>{POSITION_DIFF_FRESHNESS_LABELS[status] || status}</h3>
+        </div>
+        <span className={sectionStyles.freshnessPill}>
+          Threshold: {formatNumber(freshness.threshold_days)} days
+        </span>
+      </div>
+      <div className={sectionStyles.freshnessMeta}>
+        <span>Report period: {formatDate(freshness.as_of_date)}</span>
+        <span>Filing date: {formatDate(freshness.filing_date)}</span>
+        <span>Age: {freshness.age_days === null || freshness.age_days === undefined ? EMPTY : `${formatNumber(freshness.age_days)} days`}</span>
+      </div>
+      {freshness.message ? <p>{freshness.message}</p> : null}
     </div>
   )
 }
@@ -590,6 +635,8 @@ export default function InstitutionalPositionDiffPage() {
 
         {response ? (
           <div className={sectionStyles.sectionStack}>
+            <FreshnessBanner freshness={response.freshness} />
+
             <section className={styles.panel}>
               <h2>{POSITION_DIFF_SECTION_LABELS.institution}</h2>
               <DetailList

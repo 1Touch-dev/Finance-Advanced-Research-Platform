@@ -1,23 +1,29 @@
 """
-13F Honesty Layer API
-Band A Priority #14: Flag that 13F data is 45-day stale
+13F Honesty Layer API.
+
+This module reports freshness based on caller-supplied dates or persisted
+source metadata. It does not fabricate entity-level data when no metadata is
+available.
 """
+from datetime import datetime
+from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Optional, List, Dict
-from datetime import datetime, timedelta
+from sqlalchemy.orm import Session
+
+from app.db.session import get_db
+from app.models.sources import Source, SourceRecordMeta
 
 router = APIRouter(prefix="/honesty", tags=["honesty"])
 
-
-# ─── Models ─────────────────────────────────────────────────────────────────
 
 class DataFreshnessInfo(BaseModel):
     data_type: str
     as_of_date: str
     filing_date: Optional[str]
     staleness_days: int
-    staleness_level: str  # fresh, stale, very_stale
+    staleness_level: str
     warning_message: str
     detailed_explanation: str
 
@@ -30,12 +36,10 @@ class HonestyDisclosure(BaseModel):
     last_updated: str
 
 
-# ─── Staleness Rules ────────────────────────────────────────────────────────
-
 STALENESS_RULES = {
     "13f": {
         "name": "13F Holdings",
-        "inherent_delay_days": 45,  # SEC requirement
+        "inherent_delay_days": 45,
         "fresh_threshold_days": 60,
         "stale_threshold_days": 90,
         "explanation": "13F filings are required within 45 days of quarter end. Holdings shown may have changed significantly since the filing date.",
@@ -49,7 +53,7 @@ STALENESS_RULES = {
     },
     "10k": {
         "name": "Annual Report (10-K)",
-        "inherent_delay_days": 60,  # For large accelerated filers
+        "inherent_delay_days": 60,
         "fresh_threshold_days": 90,
         "stale_threshold_days": 365,
         "explanation": "10-K filings are required 60 days after fiscal year end for large accelerated filers.",
@@ -71,30 +75,21 @@ STALENESS_RULES = {
     "market_data": {
         "name": "Market Data",
         "inherent_delay_days": 0,
-        "fresh_threshold_days": 0,  # Real-time
+        "fresh_threshold_days": 0,
         "stale_threshold_days": 1,
         "explanation": "Market data should be real-time or near real-time during market hours.",
     },
 }
 
 
-# ─── Helper Functions ───────────────────────────────────────────────────────
-
 def _calculate_staleness(data_type: str, as_of_date: datetime, filing_date: Optional[datetime] = None) -> dict:
-    """Calculate staleness information for a data type."""
     rule = STALENESS_RULES.get(data_type, STALENESS_RULES["market_data"])
-    now = datetime.utcnow()
-
-    # Calculate days since the data was current
     reference_date = filing_date or as_of_date
-    days_old = (now - reference_date).days
+    days_old = (datetime.utcnow() - reference_date).days
 
-    # For 13F, add inherent delay to the as_of_date for more accurate staleness
     if data_type == "13f" and not filing_date:
-        # If we only have as_of_date (quarter end), add typical filing delay
         days_old += rule["inherent_delay_days"]
 
-    # Determine staleness level
     if days_old <= rule["fresh_threshold_days"]:
         level = "fresh"
         warning = ""
@@ -119,24 +114,17 @@ def _calculate_staleness(data_type: str, as_of_date: datetime, filing_date: Opti
 
 
 def _generate_13f_disclaimer(as_of_date: datetime, filing_date: Optional[datetime] = None) -> str:
-    """Generate specific 13F disclaimer."""
     now = datetime.utcnow()
-
-    if filing_date:
-        days_since_filing = (now - filing_date).days
-        days_since_quarter = (now - as_of_date).days
-    else:
-        days_since_quarter = (now - as_of_date).days
-        days_since_filing = days_since_quarter - 45  # Estimate
+    days_since_quarter = (now - as_of_date).days
 
     return f"""
 **13F Data Disclaimer**
 
 The institutional holdings data shown is based on 13F filings with the SEC.
 
-• **Quarter End Date:** {as_of_date.strftime('%B %d, %Y')}
-• **Data Age:** {days_since_quarter} days since quarter end
-• **SEC Filing Deadline:** 45 days after quarter end
+- **Quarter End Date:** {as_of_date.strftime('%B %d, %Y')}
+- **Data Age:** {days_since_quarter} days since quarter end
+- **SEC Filing Deadline:** 45 days after quarter end
 
 **Important Limitations:**
 1. Holdings reflect positions as of {as_of_date.strftime('%B %d, %Y')}, not current positions
@@ -149,7 +137,15 @@ This data should not be used as the sole basis for investment decisions.
 """.strip()
 
 
-# ─── Routes ─────────────────────────────────────────────────────────────────
+def _parse_optional_datetime(value: object) -> Optional[datetime]:
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        return datetime.fromisoformat(value)
+    return None
+
 
 @router.get("/check/{data_type}")
 def check_data_freshness(
@@ -157,19 +153,16 @@ def check_data_freshness(
     as_of_date: str,
     filing_date: Optional[str] = None,
 ):
-    """Check freshness of a specific data type."""
     if data_type not in STALENESS_RULES:
         raise HTTPException(400, f"Unknown data type: {data_type}. Valid types: {list(STALENESS_RULES.keys())}")
 
     try:
         as_of = datetime.fromisoformat(as_of_date)
         filing = datetime.fromisoformat(filing_date) if filing_date else None
-    except ValueError as e:
-        raise HTTPException(400, f"Invalid date format: {e}")
+    except ValueError as exc:
+        raise HTTPException(400, f"Invalid date format: {exc}")
 
-    result = _calculate_staleness(data_type, as_of, filing)
-
-    return DataFreshnessInfo(**result)
+    return DataFreshnessInfo(**_calculate_staleness(data_type, as_of, filing))
 
 
 @router.get("/13f/disclaimer")
@@ -177,12 +170,11 @@ def get_13f_disclaimer(
     quarter_end: str,
     filing_date: Optional[str] = None,
 ):
-    """Get 13F-specific disclaimer text."""
     try:
         as_of = datetime.fromisoformat(quarter_end)
         filing = datetime.fromisoformat(filing_date) if filing_date else None
-    except ValueError as e:
-        raise HTTPException(400, f"Invalid date format: {e}")
+    except ValueError as exc:
+        raise HTTPException(400, f"Invalid date format: {exc}")
 
     staleness = _calculate_staleness("13f", as_of, filing)
     disclaimer = _generate_13f_disclaimer(as_of, filing)
@@ -195,59 +187,47 @@ def get_13f_disclaimer(
 
 
 @router.get("/entity/{entity_id}")
-def get_entity_disclosure(entity_id: str):
-    """Get honesty disclosure for all data about an entity."""
-    # In production, this would fetch actual data timestamps from the database
+def get_entity_disclosure(entity_id: str, db: Session = Depends(get_db)):
     now = datetime.utcnow()
+    rows = (
+        db.query(SourceRecordMeta, Source)
+        .join(Source, SourceRecordMeta.source_id == Source.id)
+        .filter(SourceRecordMeta.external_id == entity_id)
+        .limit(50)
+        .all()
+    )
 
-    # Mock data sources with varying freshness
-    data_sources = [
-        {
-            "type": "13f",
-            "source": "SEC EDGAR",
-            "as_of_date": (now - timedelta(days=60)).isoformat(),
-            "filing_date": (now - timedelta(days=20)).isoformat(),
-        },
-        {
-            "type": "insider_trading",
-            "source": "SEC EDGAR Form 4",
-            "as_of_date": (now - timedelta(days=3)).isoformat(),
-        },
-        {
-            "type": "10q",
-            "source": "SEC EDGAR",
-            "as_of_date": (now - timedelta(days=45)).isoformat(),
-            "filing_date": (now - timedelta(days=35)).isoformat(),
-        },
-        {
-            "type": "market_data",
-            "source": "Market Feed",
-            "as_of_date": now.isoformat(),
-        },
-    ]
-
-    # Calculate staleness for each
     staleness_results = []
     disclaimers = []
 
-    for ds in data_sources:
-        as_of = datetime.fromisoformat(ds["as_of_date"])
-        filing = datetime.fromisoformat(ds["filing_date"]) if ds.get("filing_date") else None
+    for record, source in rows:
+        normalized = record.normalized or {}
+        data_type = normalized.get("data_type") or source.kind or "market_data"
+        if data_type not in STALENESS_RULES:
+            data_type = "market_data"
 
-        result = _calculate_staleness(ds["type"], as_of, filing)
-        result["source"] = ds["source"]
+        as_of = (
+            _parse_optional_datetime(normalized.get("as_of_date"))
+            or _parse_optional_datetime(normalized.get("report_period"))
+            or record.last_ingested_at
+        )
+        filing = _parse_optional_datetime(normalized.get("filing_date"))
+
+        result = _calculate_staleness(data_type, as_of, filing)
+        result["source"] = source.name
+        result["external_id"] = record.external_id
         staleness_results.append(result)
 
         if result["warning_message"]:
             disclaimers.append(result["warning_message"])
-
-        # Add specific disclaimers for very stale data
         if result["staleness_level"] == "very_stale":
-            disclaimers.append(f"⚠️ {result['data_type_name']} data is significantly outdated ({result['staleness_days']} days old)")
+            disclaimers.append(f"{result['data_type_name']} data is significantly outdated ({result['staleness_days']} days old)")
 
-    # Determine overall staleness
-    levels = [r["staleness_level"] for r in staleness_results]
-    if "very_stale" in levels:
+    levels = [item["staleness_level"] for item in staleness_results]
+    if not levels:
+        overall = "unknown"
+        disclaimers.append("No verified source freshness metadata is available for this entity.")
+    elif "very_stale" in levels:
         overall = "very_stale"
     elif "stale" in levels:
         overall = "stale"
@@ -265,7 +245,6 @@ def get_entity_disclosure(entity_id: str):
 
 @router.get("/rules")
 def get_staleness_rules():
-    """Get all staleness rules."""
     return {"rules": STALENESS_RULES}
 
 
@@ -274,24 +253,20 @@ def get_freshness_badge(
     data_type: str,
     as_of_date: str,
 ):
-    """Get a freshness badge (for UI display)."""
     if data_type not in STALENESS_RULES:
         raise HTTPException(400, f"Unknown data type: {data_type}")
 
     try:
         as_of = datetime.fromisoformat(as_of_date)
-    except ValueError as e:
-        raise HTTPException(400, f"Invalid date format: {e}")
+    except ValueError as exc:
+        raise HTTPException(400, f"Invalid date format: {exc}")
 
     result = _calculate_staleness(data_type, as_of, None)
-
-    # Generate badge info
     badges = {
-        "fresh": {"color": "#10b981", "label": "Fresh", "icon": "✓"},
-        "stale": {"color": "#f59e0b", "label": "Stale", "icon": "⚠"},
-        "very_stale": {"color": "#dc2626", "label": "Outdated", "icon": "⚠"},
+        "fresh": {"color": "#10b981", "label": "Fresh", "icon": "ok"},
+        "stale": {"color": "#f59e0b", "label": "Stale", "icon": "warning"},
+        "very_stale": {"color": "#dc2626", "label": "Outdated", "icon": "warning"},
     }
-
     badge = badges[result["staleness_level"]]
 
     return {

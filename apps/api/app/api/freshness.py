@@ -48,7 +48,7 @@ FRESHNESS_RULES: Dict[str, dict] = {
     "stock": {"max_age_hours": 1, "priority": 10},  # Market data - very fresh
     "company": {"max_age_hours": 24, "priority": 7},  # Company info - daily
     "intelligence": {"max_age_hours": 6, "priority": 8},  # Reports - 6 hours
-    "institutional": {"max_age_hours": 168, "priority": 4},  # 13F - weekly (45-day lag anyway)
+    "institutional": {"max_age_hours": 1080, "priority": 4},  # 13F - SEC filings can lag up to 45 days
     "gov-trading": {"max_age_hours": 24, "priority": 6},  # Gov trading - daily
     "crypto": {"max_age_hours": 1, "priority": 9},  # Crypto - very fresh
     "economics": {"max_age_hours": 24, "priority": 5},  # Economic data - daily
@@ -80,13 +80,11 @@ def _calculate_staleness(last_generated: datetime, page_type: str) -> tuple:
 def _regenerate_page(url: str, page_type: str) -> bool:
     """
     Trigger page regeneration.
-    In production, this would call the report generation pipeline.
+
+    No regeneration pipeline is wired here yet. Return false rather than
+    reporting fake success.
     """
-    # TODO: Actually regenerate the page
-    # - For intelligence reports: call intelligence API
-    # - For stock pages: refresh market data
-    # - For company pages: pull latest filings
-    return True
+    return False
 
 
 # ─── Routes ─────────────────────────────────────────────────────────────────
@@ -265,7 +263,7 @@ def _process_refresh_job(job_id: str):
                 _page_freshness[job["url"]]["last_generated"] = datetime.utcnow().isoformat()
         else:
             job["status"] = "failed"
-            job["error"] = "Regeneration returned false"
+            job["error"] = "No regeneration pipeline is configured for this page type"
 
     except Exception as e:
         job["status"] = "failed"

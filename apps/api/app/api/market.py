@@ -20,6 +20,7 @@ from app.connectors.financial_news_connector import (
 )
 from app.db.session import get_db
 from app.models.base import Base
+from app.models.market_13f_cache import Institutional13FPeriodCache, Institutional13FPositionCache
 from app.models.market_13f_schemas import (
     PositionDiffFilterStatus,
     PositionDiffRequest,
@@ -30,7 +31,10 @@ from app.models.market_13f_schemas import (
 from app.services.sec_13f_service import (
     PositionAmbiguityError,
     get_institutional_position_diff,
+    normalize_cik,
+    normalize_cusip,
 )
+from sqlalchemy import func, or_
 
 router = APIRouter(prefix="/market")
 
@@ -1056,6 +1060,99 @@ def get_institutional_position_diff_api(
     except Exception:
         db.rollback()
         raise HTTPException(status_code=500, detail="Internal server error.")
+
+
+@router.get("/institutional/exposure")
+def institutional_exposure_search(
+    q: str | None = Query(None, description="Issuer-name search term."),
+    ticker: str | None = Query(None, description="Exact ticker filter."),
+    cusip: str | None = Query(None, description="Exact CUSIP filter."),
+    institution_cik: str | None = Query(None, description="Optional manager CIK filter."),
+    report_period: date | None = Query(None, description="Optional quarter-end report period filter."),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    """
+    Search cached 13F position exposure.
+
+    This endpoint is intentionally cache-backed only: it does not fabricate
+    institutional holdings or infer person-level exposure.
+    """
+    Base.metadata.create_all(bind=db.get_bind())
+    query = (
+        db.query(Institutional13FPositionCache, Institutional13FPeriodCache)
+        .join(
+            Institutional13FPeriodCache,
+            Institutional13FPositionCache.period_cache_id == Institutional13FPeriodCache.id,
+        )
+    )
+
+    if institution_cik:
+        try:
+            query = query.filter(Institutional13FPeriodCache.institution_cik == normalize_cik(institution_cik))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+    if report_period:
+        query = query.filter(Institutional13FPeriodCache.report_period == report_period)
+    if ticker:
+        query = query.filter(func.upper(Institutional13FPositionCache.ticker) == ticker.upper())
+    if cusip:
+        query = query.filter(Institutional13FPositionCache.cusip == normalize_cusip(cusip))
+    if q:
+        like_term = f"%{q.strip()}%"
+        query = query.filter(
+            or_(
+                Institutional13FPositionCache.issuer_name.ilike(like_term),
+                Institutional13FPositionCache.security_title.ilike(like_term),
+            )
+        )
+
+    total = query.count()
+    rows = (
+        query.order_by(
+            Institutional13FPeriodCache.report_period.desc(),
+            Institutional13FPositionCache.reported_value_usd.desc(),
+            Institutional13FPositionCache.issuer_name.asc(),
+        )
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    return {
+        "query": {
+            "q": q,
+            "ticker": ticker.upper() if ticker else None,
+            "cusip": normalize_cusip(cusip) if cusip else None,
+            "institution_cik": normalize_cik(institution_cik) if institution_cik else None,
+            "report_period": report_period.isoformat() if report_period else None,
+        },
+        "results": [
+            {
+                "institution_name": period.institution_name,
+                "institution_cik": period.institution_cik,
+                "report_period": period.report_period,
+                "issuer_name": position.issuer_name,
+                "ticker": position.ticker,
+                "cusip": position.cusip,
+                "security_title": position.security_title,
+                "put_call": position.put_call,
+                "shares": position.shares,
+                "reported_value_usd": position.reported_value_usd,
+                "accession_number": position.accession_number,
+                "filing_date": position.filing_date,
+            }
+            for position, period in rows
+        ],
+        "pagination": {
+            "limit": limit,
+            "offset": offset,
+            "returned": len(rows),
+            "total_matching": total,
+        },
+        "data_source": "institutional_13f_cache",
+    }
 
 
 @router.get("/company/institutional-changes/{ticker}")

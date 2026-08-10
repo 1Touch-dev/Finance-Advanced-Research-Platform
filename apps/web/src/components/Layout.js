@@ -31,6 +31,7 @@ const NAV_GROUPS = [
     items: [
       { href: '/institutional',   label: 'Institutional', icon: '⊞' },
       { href: '/institutional/position-diff', label: '13F Diff', icon: '⇄' },
+      { href: '/institutional/exposure', label: 'Exposure', icon: 'EX' },
       { href: '/gov-trading',     label: 'Gov Trading',   icon: '⚖' },
       { href: '/crypto',          label: 'Crypto',        icon: '◈' },
     ],
