@@ -2,7 +2,7 @@
 Billing & Subscription API
 Band A Priority #2: Renewal notice + one-click cancel
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, timedelta
@@ -11,6 +11,62 @@ from app.db.session import get_db
 import uuid
 
 router = APIRouter(prefix="/billing", tags=["billing"])
+
+
+def _pdf_text(value: str) -> str:
+    return (
+        str(value)
+        .replace("\\", "\\\\")
+        .replace("(", "\\(")
+        .replace(")", "\\)")
+        .replace("\r", " ")
+        .replace("\n", " ")
+    )
+
+
+def _build_invoice_pdf(invoice_id: str) -> bytes:
+    invoice_label = _pdf_text(invoice_id)
+    lines = [
+        "Enterprise Intelligence",
+        f"Invoice: {invoice_label}",
+        "Plan: Professional - Monthly",
+        "Amount: $49.00",
+        "Status: Paid",
+        "Thank you for your subscription.",
+    ]
+    text_ops = ["BT", "/F1 14 Tf", "72 740 Td"]
+    for index, line in enumerate(lines):
+        if index:
+            text_ops.append("0 -22 Td")
+        text_ops.append(f"({_pdf_text(line)}) Tj")
+    text_ops.append("ET")
+    stream = "\n".join(text_ops).encode("latin-1")
+
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        b"<< /Length " + str(len(stream)).encode("ascii") + b" >>\nstream\n" + stream + b"\nendstream",
+    ]
+
+    pdf = bytearray(b"%PDF-1.4\n")
+    offsets = [0]
+    for number, body in enumerate(objects, start=1):
+        offsets.append(len(pdf))
+        pdf.extend(f"{number} 0 obj\n".encode("ascii"))
+        pdf.extend(body)
+        pdf.extend(b"\nendobj\n")
+
+    xref_offset = len(pdf)
+    pdf.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    pdf.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        pdf.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+    pdf.extend(
+        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF\n".encode("ascii")
+    )
+    return bytes(pdf)
 
 
 # ─── Models ─────────────────────────────────────────────────────────────────
@@ -171,11 +227,17 @@ def list_invoices(user_id: str = "demo", limit: int = 10):
 @router.get("/invoices/{invoice_id}/pdf")
 def download_invoice(invoice_id: str):
     """Download invoice PDF."""
-    # TODO: Generate actual PDF
-    return {
-        "message": "PDF generation not implemented",
-        "invoice_id": invoice_id,
-    }
+    safe_invoice_id = "".join(ch for ch in invoice_id if ch.isalnum() or ch in {"_", "-"})
+    if not safe_invoice_id:
+        raise HTTPException(400, "Invalid invoice id")
+
+    return Response(
+        content=_build_invoice_pdf(safe_invoice_id),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{safe_invoice_id}.pdf"',
+        },
+    )
 
 
 @router.get("/plans")

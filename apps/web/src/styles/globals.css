@@ -372,3 +372,130 @@ a { color: inherit; text-decoration: none; }
   z-index: 100;
 }
 [data-tooltip]:hover::after { opacity: 1; }
+
+/* Research pages imported from older light/Tailwind layouts.
+   Scope these overrides so the rest of the app keeps its established theme. */
+.research-dark.bg-gray-50,
+.research-dark .bg-gray-50 {
+  background: transparent !important;
+}
+
+.research-dark .bg-white {
+  background: var(--bg-card) !important;
+  border-color: var(--line-md) !important;
+}
+
+.research-dark .bg-gray-100,
+.research-dark .bg-gray-200,
+.research-dark .bg-gray-300 {
+  background: rgba(148,163,184,0.10) !important;
+}
+
+.research-dark .bg-blue-50,
+.research-dark .bg-purple-50 {
+  background: rgba(99,102,241,0.12) !important;
+}
+
+.research-dark .bg-green-50 {
+  background: rgba(16,185,129,0.12) !important;
+}
+
+.research-dark .bg-red-50 {
+  background: rgba(239,68,68,0.12) !important;
+}
+
+.research-dark .bg-yellow-50,
+.research-dark .bg-orange-50 {
+  background: rgba(245,158,11,0.12) !important;
+}
+
+.research-dark .text-gray-900,
+.research-dark .text-gray-800,
+.research-dark .text-gray-700,
+.research-dark .text-gray-600 {
+  color: var(--text) !important;
+}
+
+.research-dark .text-gray-500,
+.research-dark .text-gray-400 {
+  color: var(--text-muted) !important;
+}
+
+.research-dark .text-blue-600,
+.research-dark .text-blue-700 {
+  color: var(--brand-hover) !important;
+}
+
+.research-dark .text-green-600,
+.research-dark .text-green-700,
+.research-dark .text-green-800 {
+  color: var(--green) !important;
+}
+
+.research-dark .text-red-600,
+.research-dark .text-red-700,
+.research-dark .text-red-800 {
+  color: var(--red) !important;
+}
+
+.research-dark .text-yellow-600,
+.research-dark .text-yellow-700,
+.research-dark .text-yellow-900,
+.research-dark .text-orange-600 {
+  color: var(--amber) !important;
+}
+
+.research-dark .text-purple-600,
+.research-dark .text-purple-700 {
+  color: var(--purple) !important;
+}
+
+.research-dark .border,
+.research-dark .border-b,
+.research-dark .border-t,
+.research-dark .border-gray-100,
+.research-dark .border-gray-200,
+.research-dark .border-gray-300 {
+  border-color: var(--line-md) !important;
+}
+
+.research-dark .shadow,
+.research-dark .shadow-sm,
+.research-dark .shadow-md,
+.research-dark .shadow-lg,
+.research-dark .shadow-xl {
+  box-shadow: var(--shadow-sm) !important;
+}
+
+.research-dark input,
+.research-dark select,
+.research-dark textarea {
+  background: var(--bg-elev-2) !important;
+  border-color: var(--line-md) !important;
+  color: var(--text) !important;
+}
+
+.research-dark input::placeholder,
+.research-dark textarea::placeholder {
+  color: var(--text-soft) !important;
+}
+
+.research-dark table {
+  color: var(--text);
+}
+
+.research-dark thead {
+  background: rgba(255,255,255,0.03) !important;
+}
+
+.research-dark tbody tr:hover {
+  background: rgba(255,255,255,0.04) !important;
+}
+
+.research-dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--line) !important;
+}
+
+.research-dark .hover\:bg-gray-50:hover {
+  background: rgba(255,255,255,0.04) !important;
+}

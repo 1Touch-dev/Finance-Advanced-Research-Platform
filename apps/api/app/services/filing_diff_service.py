@@ -159,7 +159,7 @@ def get_filing_diff(
 
     # Get company submissions
     submissions = get_company_submissions(cik)
-    if not submissions:
+    if not submissions or not isinstance(submissions, dict):
         raise ValueError(f"Could not fetch submissions for CIK: {cik}")
 
     company_name = submissions.get("name", ticker)
@@ -231,7 +231,12 @@ def _find_comparison_filings(
     compare_period: Optional[str],
 ) -> List[Dict[str, Any]]:
     """Find the two filings to compare based on form type and periods."""
-    filings_list = submissions.get("filings", {}).get("recent", {})
+    filings_section = submissions.get("filings", {})
+    if not isinstance(filings_section, dict):
+        return []
+    filings_list = filings_section.get("recent", {})
+    if not isinstance(filings_list, dict):
+        return []
 
     forms = filings_list.get("form", [])
     dates = filings_list.get("filingDate", [])

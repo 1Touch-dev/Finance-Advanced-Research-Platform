@@ -34,25 +34,34 @@ try:
     from openpyxl.utils import get_column_letter
     OPENPYXL_AVAILABLE = True
 except ImportError:
+    Workbook = Any  # type: ignore[assignment]
     OPENPYXL_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
 # ── Styling Constants ─────────────────────────────────────────────────────────
 
-HEADER_FONT = Font(bold=True, color="FFFFFF")
-HEADER_FILL = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
-HEADER_ALIGN = Alignment(horizontal="center", vertical="center", wrap_text=True)
+if OPENPYXL_AVAILABLE:
+    HEADER_FONT = Font(bold=True, color="FFFFFF")
+    HEADER_FILL = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    HEADER_ALIGN = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
-NUMBER_FONT = Font(name="Calibri", size=10)
-NUMBER_ALIGN = Alignment(horizontal="right")
+    NUMBER_FONT = Font(name="Calibri", size=10)
+    NUMBER_ALIGN = Alignment(horizontal="right")
 
-THIN_BORDER = Border(
-    left=Side(style="thin"),
-    right=Side(style="thin"),
-    top=Side(style="thin"),
-    bottom=Side(style="thin"),
-)
+    THIN_BORDER = Border(
+        left=Side(style="thin"),
+        right=Side(style="thin"),
+        top=Side(style="thin"),
+        bottom=Side(style="thin"),
+    )
+else:
+    HEADER_FONT = None
+    HEADER_FILL = None
+    HEADER_ALIGN = None
+    NUMBER_FONT = None
+    NUMBER_ALIGN = None
+    THIN_BORDER = None
 
 CURRENCY_FORMAT = '#,##0.00'
 PERCENT_FORMAT = '0.00%'
