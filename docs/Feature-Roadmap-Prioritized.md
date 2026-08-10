@@ -28,7 +28,7 @@
 
 ---
 
-## Band A — Conversion & Retention Blockers (14)
+## A — Conversion & Retention Blockers (14)
 
 > **Priority: HIGHEST. Do all of these first.**
 > Mostly cheap. Addresses documented churn drivers.
