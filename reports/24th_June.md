@@ -2,7 +2,7 @@
 
 **Purpose:** Daily handoff and status document for 24 Jun 2026.  
 **Staging:** Web `http://184.72.123.188:3003` · API `http://184.72.123.188:3001` · Docs `http://184.72.123.188:3001/docs`  
-**Prior docs:** [23rd_June.md](./23rd_June.md) · [README.md](./README.md)
+**Prior docs:** [23rd_June.md](./23rd_June.md) · [README.md](../../README.md)
 
 ---
 
@@ -19,7 +19,7 @@
 | 19/19 API endpoint tests passing | ✅ Verified |
 | `api_credentials_audit.csv` updated | ✅ Complete |
 | `.env.example` updated with all API key sections | ✅ Complete |
-| `README.md` workstream status updated | ✅ Complete |
+| `../../README.md` workstream status updated | ✅ Complete |
 | Full E2E browser test of staging | ✅ Complete |
 | Committed and pushed to GitHub main | ✅ Complete |
 
@@ -117,7 +117,7 @@
 | `.env` | Added NEWSAPI_KEY, GUARDIAN_API_KEY, NYT_API_KEY, UK_COMPANIES_HOUSE_KEY; previously added FRED_API_KEY, FMP_API_KEY |
 | `.env.example` | Added Financial/News/OSINT API key section |
 | `.gitignore` | `api_credentials_audit.csv` excluded |
-| `README.md` | Workstream status updated — 8/9 keys obtained |
+| `../../README.md` | Workstream status updated — 8/9 keys obtained |
 | `api_credentials_audit.csv` | Full credentials audit (gitignored) |
 | `apps/api/app/connectors/financial_news_connector.py` | FMP `/stable/` migration, GDELT guard, ICIJ graceful stub |
 | `apps/web/pages/entities/[id].js` | ApiStatusPanel expanded to 11 sources |

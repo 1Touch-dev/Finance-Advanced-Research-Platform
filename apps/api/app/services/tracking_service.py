@@ -36,33 +36,33 @@ _DIGEST_PHONE   = os.getenv("DIGEST_RECIPIENT_PHONE", "")
 def _ensure_tables(db: Session):
     db.execute(text("""
         CREATE TABLE IF NOT EXISTS tracked_entities (
-            id          SERIAL PRIMARY KEY,
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
             entity_name VARCHAR(500) NOT NULL,
             entity_type VARCHAR(50)  NOT NULL DEFAULT 'org',
             added_by    VARCHAR(200),
-            created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-            last_checked TIMESTAMPTZ,
-            last_digest TIMESTAMPTZ,
+            created_at  DATETIME NOT NULL DEFAULT (datetime('now')),
+            last_checked DATETIME,
+            last_digest DATETIME,
             notes       TEXT,
             UNIQUE(entity_name)
         )
     """))
     db.execute(text("""
         CREATE TABLE IF NOT EXISTS entity_snapshots (
-            id           SERIAL PRIMARY KEY,
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
             entity_name  VARCHAR(500) NOT NULL,
-            snapshot_json JSONB,
-            created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            snapshot_json TEXT,
+            created_at   DATETIME NOT NULL DEFAULT (datetime('now'))
         )
     """))
     db.execute(text("""
         CREATE TABLE IF NOT EXISTS digest_logs (
-            id           SERIAL PRIMARY KEY,
-            sent_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            sent_at      DATETIME NOT NULL DEFAULT (datetime('now')),
             recipient    VARCHAR(500),
             channel      VARCHAR(50),
             status       VARCHAR(50),
-            entity_count INT DEFAULT 0,
+            entity_count INTEGER DEFAULT 0,
             detail       TEXT
         )
     """))
@@ -75,10 +75,13 @@ def add_to_watchlist(db: Session, entity_name: str, entity_type: str = 'org', ad
     _ensure_tables(db)
     try:
         db.execute(text("""
-            INSERT INTO tracked_entities (entity_name, entity_type, added_by, notes)
+            INSERT OR IGNORE INTO tracked_entities (entity_name, entity_type, added_by, notes)
             VALUES (:name, :type, :by, :notes)
-            ON CONFLICT (entity_name) DO UPDATE SET notes = EXCLUDED.notes
         """), {"name": entity_name, "type": entity_type, "by": added_by, "notes": notes})
+        # Update notes if already exists
+        db.execute(text("""
+            UPDATE tracked_entities SET notes = :notes WHERE entity_name = :name
+        """), {"name": entity_name, "notes": notes})
         db.commit()
         return {"ok": True, "entity_name": entity_name, "action": "added"}
     except Exception as e:
@@ -233,7 +236,7 @@ def _build_digest_html(entity_changes: Dict[str, List[str]]) -> str:
 <html><body style="font-family:sans-serif;background:#0f172a;color:#e2e8f0;padding:20px">
 <div style="max-width:600px;margin:0 auto">
   <h2 style="color:#818cf8;margin-bottom:4px">Intelligence Daily Digest</h2>
-  <p style="color:#64748b;font-size:13px;margin-top:0">{datetime.utcnow().strftime('%A, %B %d, %Y')} — 6:00 AM UTC</p>
+  <p style="color:#64748b;font-size:13px;margin-top:0">{datetime.utcdatetime('now').strftime('%A, %B %d, %Y')} — 6:00 AM UTC</p>
   <table style="width:100%;border-collapse:collapse;background:#1e293b;border-radius:8px;overflow:hidden">
     <thead>
       <tr style="background:#0f172a">
@@ -280,7 +283,7 @@ def run_daily_digest(db: Session, dry_run: bool = False) -> dict:
             total_changes += len([c for c in changes if "No significant" not in c])
 
             # Update last_checked
-            db.execute(text("UPDATE tracked_entities SET last_checked = NOW() WHERE entity_name = :n"), {"n": name})
+            db.execute(text("UPDATE tracked_entities SET last_checked = datetime('now') WHERE entity_name = :n"), {"n": name})
             db.commit()
         except Exception as exc:
             logger.warning("Digest failed for %s: %s", name, exc)
@@ -310,7 +313,7 @@ def run_daily_digest(db: Session, dry_run: bool = False) -> dict:
         "d":  json.dumps({"email": email_ok, "sms": sms_ok, "changes": total_changes}),
     })
     # Update last_digest for all entities
-    db.execute(text("UPDATE tracked_entities SET last_digest = NOW()"))
+    db.execute(text("UPDATE tracked_entities SET last_digest = datetime('now')"))
     db.commit()
 
     return {
@@ -321,3 +324,4 @@ def run_daily_digest(db: Session, dry_run: bool = False) -> dict:
         "sms_sent":         sms_ok,
         "changes":          entity_changes,
     }
+

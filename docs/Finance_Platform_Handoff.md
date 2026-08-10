@@ -177,7 +177,7 @@ Finance-Advanced-Research-Platform/
 - **House PTR disclosures** — Parses annual House Clerk FD.ZIP for STOCK Act filings
 - **Corporate insider trades** — SEC Form 4 via EDGAR EFTS
 - **Politician tracker** — Named politicians (Pelosi, McConnell, MTG, etc.) with their PTR filings + sponsored legislation
-- **Congress.gov integration** — Legislation data (limited by DEMO_KEY)
+- **Congress.gov integration** — Legislation data (now live on registered free key, F-05)
 
 **Key files:**
 - `apps/api/app/connectors/gov_trading_connector.py`
@@ -278,7 +278,7 @@ All keys are stored in `/home/ubuntu/Finance-Advanced-Research-Platform/.env`
 | `UK_COMPANIES_HOUSE_KEY` | UK Companies House | ✅ Live | UK company search |
 | `FEC_API_KEY` | FEC OpenData | ✅ Live | Political contributions |
 | `COURTLISTENER_API_TOKEN` | CourtListener | ✅ Live | Litigation data |
-| `CONGRESS_API_KEY` | Congress.gov | ✅ DEMO | Limited — needs paid key for full data |
+| `CONGRESS_API_KEY` | Congress.gov | ✅ Live | 1,000 req/hr — **completely free API, no paid tier exists** (fixed F-05, was incorrectly hardcoded to DEMO_KEY) |
 | `SENDGRID_API_KEY` | SendGrid | ✅ Configured | Email alerts |
 | `TWILIO_*` | Twilio | ✅ Configured | SMS alerts |
 | `GITHUB_TOKEN` | GitHub | ✅ Live | Code push/pull |
@@ -521,7 +521,7 @@ git push origin 8th-july-sprint
 | 1 | **LLM-powered 10-K/10-Q MD&A synthesis** | Phase 3 — needs OpenAI/Claude to summarize filings into investment thesis |
 | 2 | **13F quarter-over-quarter position diff** | Compare two consecutive 13F filings → new/added/reduced/exited |
 | 3 | **Big Trade detection + alerts** | Form 4 trades > $X threshold → email/SMS alert |
-| 4 | **Congress.gov full legislation** | Needs paid API key (DEMO_KEY is limited) |
+| 4 | **Congress.gov full legislation** | ✅ Done (F-05) — real key wired in, 8 new endpoints (search, bill detail/text/cosponsors, laws, committee, CRS reports, member votes) |
 | 5 | **Deeper RSS Phase 2** | Event clustering, fact extraction, contradiction detection, perspective labeling (James's 500-source vision) |
 | 6 | **Crawl4AI integration** | Replace Apify for long-term scraping (James preference) |
 
@@ -583,10 +583,10 @@ API registration for new keys: use `abhishekk@kyma.world` / `Kulkarni@2002`
 | File | Content |
 |------|---------|
 | `5th_July.md` | Latest sprint: RSS, yfinance, multi-agent, crypto, gov trading, valuation, institutional |
-| `25th_June.md` | RSS Phase 1 planning |
-| `24th_June.md` | API keys integration |
-| `23rd_June.md` | P1+P2+P3 entity tabs, exports |
-| `22nd_June.md` | v2.0 features (Apollo, Apify, tracking, compare) |
+| `Task/June task/25th_June.md` | RSS Phase 1 planning |
+| `Task/June task/24th_June.md` | API keys integration |
+| `Task/June task/23rd_June.md` | P1+P2+P3 entity tabs, exports |
+| `Task/June task/22nd_June.md` | v2.0 features (Apollo, Apify, tracking, compare) |
 | `james_requirements.md` | Full James requirements backlog |
 | `docs/REQUIREMENT_GAP_ANALYSIS.md` | Spec vs implementation gaps |
 | `SETUP.md` | Local + Docker setup |

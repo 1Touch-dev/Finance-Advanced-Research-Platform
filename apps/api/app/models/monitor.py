@@ -16,6 +16,25 @@ class WatchlistItem(Base):
     entity_id = Column(Integer, nullable=True)
     ticker = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
+    # F-04: per-item investment threshold alert settings
+    investment_threshold = Column(Float, nullable=True)
+    notify_email = Column(String, nullable=True)
+    notify_phone = Column(String, nullable=True)
+    alert_on_buy = Column(Boolean, default=True, nullable=False, server_default='1')
+    alert_on_sell = Column(Boolean, default=False, nullable=False, server_default='0')
+
+
+class InvestmentAlertSeen(Base):
+    """Deduplication log — prevents re-alerting the same investment to the same user."""
+    __tablename__ = 'investment_alert_seen'
+    id = Column(Integer, primary_key=True)
+    watchlist_item_id = Column(Integer, ForeignKey('watchlist_items.id'), nullable=False)
+    investor_name = Column(String, nullable=False)
+    ticker = Column(String, nullable=False)
+    txn_type = Column(String, nullable=False)
+    value_usd = Column(Float, nullable=True)
+    trade_date = Column(String, nullable=False)
+    alerted_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class Portfolio(Base):
     __tablename__ = 'portfolios'

@@ -244,6 +244,69 @@ def get_institutional_13f_changes(ticker: str) -> dict:
         return {"ticker": ticker, "error": str(e)}
 
 
+def get_new_institutional_positions(ticker: str, threshold: float = 0) -> list:
+    """
+    F-04: Return institutional holders that have a BUY/new position for `ticker`
+    above `threshold` USD, using yfinance institutional_holders data.
+    Each entry represents a known institutional holder with their current position.
+    Since yfinance doesn't track quarter-over-quarter changes directly, we return
+    all current institutional holders above the threshold as candidate BUY signals.
+    """
+    try:
+        import yfinance as yf
+        import math
+        import pandas as pd
+
+        def _sf(v):
+            try:
+                if v is None:
+                    return 0.0
+                if isinstance(v, (pd.Timestamp, str)):
+                    return 0.0
+                if pd.isna(v):
+                    return 0.0
+                f = float(v)
+                return 0.0 if math.isnan(f) or math.isinf(f) else f
+            except Exception:
+                return 0.0
+
+        def _get_val(row, *keys):
+            for k in keys:
+                if k in row.index:
+                    return row[k]
+            return None
+
+        stock = yf.Ticker(ticker)
+        inst_df = stock.institutional_holders
+        results = []
+        if inst_df is None or inst_df.empty:
+            return []
+
+        for _, row in inst_df.head(30).iterrows():
+            name = str(_get_val(row, "Holder", "Name") or "Unknown")
+            value = float(_sf(_get_val(row, "Value", "value")))
+            shares = int(_sf(_get_val(row, "Shares", "shares")))
+            date_rep = _get_val(row, "Date Reported", "dateReported", "Date")
+            date_str = str(date_rep)[:10] if date_rep else ""
+            if value < threshold:
+                continue
+            results.append({
+                "ticker": ticker,
+                "investor_name": name,
+                "investor_type": "institutional",
+                "transaction": "Buy",
+                "shares": shares,
+                "value_usd": value,
+                "date": date_str,
+                "source": "SEC 13F / yfinance",
+            })
+
+        return results
+    except Exception as e:
+        log.error("get_new_institutional_positions error for %s: %s", ticker, e)
+        return []
+
+
 def get_top_institution_holdings(institution_name: str = "Berkshire Hathaway") -> dict:
     """
     Get top holdings for a named institution using SEC EDGAR.

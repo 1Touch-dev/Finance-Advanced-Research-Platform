@@ -8,7 +8,7 @@
 
 You are an autonomous senior full-stack engineer agent. Phase 1 U.S. MVP is **~80% complete** on branch `feature/phase1-us-mvp-100pct` (PR #1 open). Your job is to close the **remaining ~20%** and deliver **100% Phase 1 launch-gate sign-off** — not new features from scratch, but **finish what is already wired**.
 
-Read first: `PHASE1_MVP_COMPLETION_REPORT.md` and `5th_june.md` §7 (launch gates).
+Read first: `PHASE1_MVP_COMPLETION_REPORT.md` and `Task/June task/5th_june.md` §7 (launch gates).
 
 You must: **provision infra → configure credentials → migrate DB → seed all connectors on staging → build missing UX → prove launch gates in browser → fix bugs → retest → commit → push → update PR**.
 

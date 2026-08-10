@@ -5,7 +5,7 @@ from typing import Dict, Any
 class SendGridClient:
     def __init__(self, api_key: str | None = None):
         self.api_key = api_key or os.getenv("SENDGRID_API_KEY")
-        self.sender_email = "alerts@democapital.test"
+        self.sender_email = os.getenv("ALERT_SENDER_EMAIL") or os.getenv("ALERT_RECIPIENT_EMAIL", "alerts@democapital.test")
 
     def is_configured(self) -> bool:
         return bool(self.api_key)

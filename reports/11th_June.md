@@ -326,7 +326,7 @@ Every state gets **at least S (scrape) or C (Cobalt)** so James’s “all state
 | Date | Author | Change |
 |------|--------|--------|
 | 11 Jun 2026 | Dev team | Initial research doc: all-50 mandate, BEA, tier matrix, timeline, tech stack |
-| 11 Jun 2026 | E2E agent | **Phase 2 complete** — PR #2; 51/51 registry, BEA live (429 records), `/economics` page; [E2E_LIVE_VERIFICATION_REPORT.md](./E2E_LIVE_VERIFICATION_REPORT.md) |
+| 11 Jun 2026 | E2E agent | **Phase 2 complete** — PR #2; 51/51 registry, BEA live (429 records), `/economics` page; [E2E_LIVE_VERIFICATION_REPORT.md](../../E2E_LIVE_VERIFICATION_REPORT.md) |
 
 ### Phase 2 status (E2E verified 2026-06-11)
 

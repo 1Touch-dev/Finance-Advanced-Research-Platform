@@ -5,7 +5,7 @@
 
 **Staging:** http://184.72.123.188:3003 · API :3001 · Admin :3002  
 **Repo:** https://github.com/1Touch-dev/Finance-Advanced-Research-Platform  
-**Latest handoff:** [22nd_June.md](./22nd_June.md)
+**Latest handoff:** [22nd_June.md](./Task/June task/22nd_June.md)
 
 ---
 

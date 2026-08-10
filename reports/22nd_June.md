@@ -4,7 +4,7 @@
 
 > **23 Jun update:** A full cross-verification against the v2.0 Requirements.docx revealed additional pending work. See [23rd_June.md](./23rd_June.md) for the complete honest status, partial gaps, and full roadmap.
 
-**Prior docs:** [18th_June.md](./18th_June.md) · [README.md](./README.md) · [james_requirements.md](./james_requirements.md)  
+**Prior docs:** [18th_June.md](./18th_June.md) · [README.md](../../README.md) · [james_requirements.md](../../james_requirements.md)  
 **Staging:** Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002`  
 **Branch:** `feature/layer2-kpi-filters-clickable-browser` (active) · base: `feature/us-50-state-registry-api` · **PR #2**  
 **Last updated:** 22 Jun 2:46 PM IST — post E2E test sweep
@@ -97,7 +97,7 @@
 | T8 | PitchBook realtime-scraper (no permissions) | ✅ | `apify_connector.py` |
 | T9 | Apify poll loop fix | ✅ | `apify_connector.py` |
 | T10 | `james_requirements.md` created | ✅ | docs |
-| T11 | `22nd_June.md` + `README.md` updated | ✅ | docs |
+| T11 | `22nd_June.md` + `../../README.md` updated | ✅ | docs |
 | T12 | KPI Dashboard view mode (📄/📊 toggle) | ✅ | `intelligence.js` |
 | T13 | Apollo pipeline: org enrichment + org chart routes | ✅ | `GET /intelligence/apollo/org` etc. |
 | T14 | Apify social footprint (Twitter, Instagram, YouTube) | ✅ | `apify_connector.py` |
@@ -206,7 +206,7 @@
 | AI Agent Team (B2B/B2C outreach, GTM, founder mode) | Concept discussed, not started |
 | Centralised Management Suite | Concept discussed, not started |
 
-See [james_requirements.md](./james_requirements.md) for full detail on all 3 products.
+See [james_requirements.md](../../james_requirements.md) for full detail on all 3 products.
 
 ---
 

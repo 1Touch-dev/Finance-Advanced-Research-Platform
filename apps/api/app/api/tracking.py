@@ -8,7 +8,21 @@ GET    /tracking/snapshots/{name}    — last snapshot for entity
 POST   /tracking/digest/run          — trigger digest manually (dry_run optional)
 GET    /tracking/digest/logs         — past digest logs
 GET    /tracking/changes/{name}      — detect changes for entity
+
+── F-03 Big Trade Alerts ──────────────────────────────────────────
+GET    /tracking/alert-rules                   — list insider_trade rules
+POST   /tracking/alert-rules                   — create alert rule
+GET    /tracking/alert-rules/{rule_id}         — get single rule
+PATCH  /tracking/alert-rules/{rule_id}         — update threshold/scope/name
+DELETE /tracking/alert-rules/{rule_id}         — delete rule
+POST   /tracking/scan/insider-trades           — trigger F-03 scan manually
+
+── F-04 Investment Threshold Alerts ───────────────────────────────
+GET    /tracking/watchlist/{ticker}/threshold  — get user threshold settings
+PATCH  /tracking/watchlist/{ticker}/threshold  — save user threshold settings
+POST   /tracking/scan/investments              — trigger F-04 scan manually
 """
+import re
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import Optional
@@ -27,6 +41,10 @@ except ImportError:
 
 router = APIRouter(prefix="/tracking", tags=["Tracking"])
 
+_E164_RE = re.compile(r"^\+[1-9]\d{7,14}$")
+
+
+# ── Pydantic schemas ──────────────────────────────────────────────────────────
 
 class WatchRequest(BaseModel):
     entity_name:  str
@@ -34,6 +52,30 @@ class WatchRequest(BaseModel):
     added_by:     Optional[str] = ""
     notes:        Optional[str] = ""
 
+
+class AlertRuleCreate(BaseModel):
+    name:         str
+    threshold:    float
+    watchlist_id: Optional[int] = None
+    enabled:      Optional[bool] = True
+
+
+class AlertRulePatch(BaseModel):
+    name:         Optional[str] = None
+    threshold:    Optional[float] = None
+    watchlist_id: Optional[int] = None
+    enabled:      Optional[bool] = None
+
+
+class ThresholdSettings(BaseModel):
+    threshold:    float
+    notify_email: Optional[str] = None
+    notify_phone: Optional[str] = None
+    alert_on_buy: Optional[bool] = True
+    alert_on_sell: Optional[bool] = False
+
+
+# ── Existing watchlist / digest endpoints ─────────────────────────────────────
 
 @router.get("/watchlist")
 def get_watchlist(db: Session = Depends(get_db)):
@@ -58,10 +100,6 @@ def remove_watch(entity_name: str, db: Session = Depends(get_db)):
 
 @router.post("/digest/run")
 def trigger_digest(dry_run: bool = False, background_tasks: BackgroundTasks = None, db: Session = Depends(get_db)):
-    """
-    Manually trigger the daily digest.
-    dry_run=true returns the changes without sending notifications.
-    """
     if not _TRACKING_OK:
         raise HTTPException(503, "Tracking service not available")
     return run_daily_digest(db, dry_run=dry_run)
@@ -83,32 +121,22 @@ def digest_logs(limit: int = 20, db: Session = Depends(get_db)):
 
 @router.get("/changes/{entity_name:path}")
 def entity_changes(entity_name: str, report_id: Optional[int] = None, db: Session = Depends(get_db)):
-    """
-    Detect recent changes for an entity vs its last snapshot.
-    Optionally provide a report_id to compare against.
-    """
     if not _TRACKING_OK:
         raise HTTPException(503, "Tracking service not available")
-
     if report_id:
         from app.services.intelligence_service import get_intelligence_report
         report = get_intelligence_report(db, report_id)
         if not report:
             raise HTTPException(404, "Report not found")
         return {"entity_name": entity_name, "changes": detect_changes(db, entity_name, report)}
-
     return {"entity_name": entity_name, "message": "Provide report_id to compare against snapshot"}
 
 
-# ── Alerts ────────────────────────────────────────────────────────────────────
+# ── Alerts inbox ──────────────────────────────────────────────────────────────
 
 @router.get("/alerts")
 def get_alerts(status: Optional[str] = None, severity: Optional[str] = None,
                limit: int = 50, db: Session = Depends(get_db)):
-    """
-    Alert inbox: all triggered alerts from entity monitoring.
-    Filter by status (new|acknowledged|snoozed|resolved) and severity (info|warn|critical).
-    """
     try:
         where_clauses = []
         params: dict = {"lim": limit}
@@ -119,7 +147,6 @@ def get_alerts(status: Optional[str] = None, severity: Optional[str] = None,
             where_clauses.append("severity = :severity")
             params["severity"] = severity
         where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
-        # Try dedicated alerts table first, fall back to digest_logs
         try:
             rows = db.execute(text(f"""
                 SELECT id, entity_name, alert_type, severity, message,
@@ -130,7 +157,6 @@ def get_alerts(status: Optional[str] = None, severity: Optional[str] = None,
             """), params).fetchall()
             return {"alerts": [dict(r._mapping) for r in rows], "total": len(rows)}
         except Exception:
-            # Fallback: surface digest log entries as alerts
             rows = db.execute(text("""
                 SELECT id, sent_at as created_at, recipient, channel,
                        status, entity_count, detail
@@ -178,3 +204,236 @@ def snooze_alert(alert_id: int, hours: int = 24, db: Session = Depends(get_db)):
         return {"status": "snoozed", "id": alert_id, "hours": hours}
     except Exception:
         return {"status": "ok", "id": alert_id, "note": "alerts table not available"}
+
+
+# ── F-03: AlertRule CRUD ──────────────────────────────────────────────────────
+
+def _rule_to_dict(rule) -> dict:
+    threshold = 500_000.0
+    if rule.params and isinstance(rule.params, dict):
+        try:
+            threshold = float(rule.params.get("threshold", threshold))
+        except (TypeError, ValueError):
+            pass
+    return {
+        "id": rule.id,
+        "name": rule.name,
+        "kind": rule.kind,
+        "threshold": threshold,
+        "watchlist_id": rule.watchlist_id,
+        "ticker_scope": f"watchlist:{rule.watchlist_id}" if rule.watchlist_id else "global (all watchlisted tickers)",
+        "enabled": rule.enabled,
+    }
+
+
+@router.get("/alert-rules")
+def list_alert_rules(db: Session = Depends(get_db)):
+    """List all insider_trade alert rules (F-03)."""
+    from app.models.monitor import AlertRule
+    rules = db.query(AlertRule).filter(AlertRule.kind == "insider_trade").all()
+    return [_rule_to_dict(r) for r in rules]
+
+
+@router.post("/alert-rules", status_code=201)
+def create_alert_rule(payload: AlertRuleCreate, db: Session = Depends(get_db)):
+    """Create a new insider_trade alert rule with custom threshold + optional watchlist scope (F-03)."""
+    from app.models.monitor import AlertRule, Watchlist
+    if not payload.name or len(payload.name.strip()) == 0:
+        raise HTTPException(400, "name must be a non-empty string")
+    if payload.threshold <= 0:
+        raise HTTPException(400, "threshold must be > 0")
+    if payload.watchlist_id:
+        wl = db.query(Watchlist).filter(Watchlist.id == payload.watchlist_id).first()
+        if not wl:
+            raise HTTPException(404, f"Watchlist {payload.watchlist_id} not found")
+    rule = AlertRule(
+        name=payload.name.strip()[:255],
+        kind="insider_trade",
+        params={"threshold": payload.threshold},
+        watchlist_id=payload.watchlist_id,
+        enabled=payload.enabled if payload.enabled is not None else True,
+    )
+    db.add(rule)
+    db.commit()
+    db.refresh(rule)
+    return _rule_to_dict(rule)
+
+
+@router.get("/alert-rules/{rule_id}")
+def get_alert_rule(rule_id: int, db: Session = Depends(get_db)):
+    """Get a single alert rule by ID (F-03)."""
+    from app.models.monitor import AlertRule
+    rule = db.query(AlertRule).filter(
+        AlertRule.id == rule_id, AlertRule.kind == "insider_trade"
+    ).first()
+    if not rule:
+        raise HTTPException(404, f"AlertRule {rule_id} not found")
+    return _rule_to_dict(rule)
+
+
+@router.patch("/alert-rules/{rule_id}")
+def update_alert_rule(rule_id: int, payload: AlertRulePatch, db: Session = Depends(get_db)):
+    """Partial update: threshold, name, watchlist_id, enabled (F-03)."""
+    from app.models.monitor import AlertRule, Watchlist
+    rule = db.query(AlertRule).filter(
+        AlertRule.id == rule_id, AlertRule.kind == "insider_trade"
+    ).first()
+    if not rule:
+        raise HTTPException(404, f"AlertRule {rule_id} not found")
+    if payload.name is not None:
+        if len(payload.name.strip()) == 0:
+            raise HTTPException(400, "name must be non-empty")
+        rule.name = payload.name.strip()[:255]
+    if payload.threshold is not None:
+        if payload.threshold <= 0:
+            raise HTTPException(400, "threshold must be > 0")
+        rule.params = {**(rule.params or {}), "threshold": payload.threshold}
+    if "watchlist_id" in payload.model_fields_set:
+        if payload.watchlist_id is not None:
+            wl = db.query(Watchlist).filter(Watchlist.id == payload.watchlist_id).first()
+            if not wl:
+                raise HTTPException(404, f"Watchlist {payload.watchlist_id} not found")
+        rule.watchlist_id = payload.watchlist_id
+    if payload.enabled is not None:
+        rule.enabled = payload.enabled
+    db.commit()
+    db.refresh(rule)
+    return _rule_to_dict(rule)
+
+
+@router.delete("/alert-rules/{rule_id}", status_code=204)
+def delete_alert_rule(rule_id: int, db: Session = Depends(get_db)):
+    """Permanently delete an alert rule. Historical alert_events are kept (F-03)."""
+    from app.models.monitor import AlertRule
+    rule = db.query(AlertRule).filter(
+        AlertRule.id == rule_id, AlertRule.kind == "insider_trade"
+    ).first()
+    if not rule:
+        raise HTTPException(404, f"AlertRule {rule_id} not found")
+    db.delete(rule)
+    db.commit()
+    return None
+
+
+# ── F-03: Manual scan trigger ─────────────────────────────────────────────────
+
+@router.post("/scan/insider-trades")
+def scan_insider_trades(
+    rule_id: Optional[int] = None,
+    threshold: float = 500_000,
+    dry_run: bool = False,
+    db: Session = Depends(get_db),
+):
+    """
+    Manually trigger the F-03 big-trade scan.
+    - rule_id: run only that rule; omit to run ALL enabled insider_trade rules.
+    - dry_run=true: scan and return results without writing to DB or sending notifications.
+    """
+    from app.models.base import Base
+    from app.db.session import engine
+    Base.metadata.create_all(bind=engine)
+
+    from app.services.big_trade_scanner import run_scan_for_rule, run_scan_all_rules, _ensure_default_rule
+    from app.models.monitor import AlertRule
+
+    if rule_id is not None:
+        rule = db.query(AlertRule).filter(
+            AlertRule.id == rule_id, AlertRule.kind == "insider_trade"
+        ).first()
+        if not rule:
+            raise HTTPException(404, f"AlertRule {rule_id} not found")
+        result = run_scan_for_rule(db, rule, dry_run=dry_run)
+        return {"rules_run": 1, "results": [result], "dry_run": dry_run}
+
+    _ensure_default_rule(db)
+    return run_scan_all_rules(db, dry_run=dry_run)
+
+
+# ── F-04: Watchlist item threshold settings ───────────────────────────────────
+
+def _get_watchlist_item_by_ticker(db: Session, ticker: str):
+    from app.models.monitor import WatchlistItem
+    item = db.query(WatchlistItem).filter(
+        WatchlistItem.ticker == ticker.upper()
+    ).first()
+    return item
+
+
+@router.get("/watchlist/{ticker}/threshold")
+def get_threshold(ticker: str, db: Session = Depends(get_db)):
+    """Get investment threshold settings for a watchlisted ticker (F-04)."""
+    item = _get_watchlist_item_by_ticker(db, ticker)
+    if not item or item.investment_threshold is None:
+        raise HTTPException(404, f"{ticker.upper()} not in watchlist or no threshold set")
+    return {
+        "ok": True,
+        "ticker": item.ticker.upper(),
+        "watchlist_item_id": item.id,
+        "threshold": item.investment_threshold,
+        "notify_email": item.notify_email,
+        "notify_phone": item.notify_phone,
+        "alert_on_buy": item.alert_on_buy,
+        "alert_on_sell": item.alert_on_sell,
+    }
+
+
+@router.patch("/watchlist/{ticker}/threshold")
+def set_threshold(ticker: str, payload: ThresholdSettings, db: Session = Depends(get_db)):
+    """
+    Save or update investment alert threshold + contact info for a watchlisted ticker (F-04).
+    At least one of notify_email or notify_phone must be provided.
+    Minimum threshold: 1000.
+    """
+    if payload.threshold < 1000:
+        raise HTTPException(400, "threshold must be ≥ 1000 to avoid alert spam")
+
+    if not payload.notify_email and not payload.notify_phone:
+        raise HTTPException(400, "At least one of notify_email or notify_phone is required")
+
+    if payload.notify_phone:
+        if not _E164_RE.match(payload.notify_phone):
+            raise HTTPException(400, "notify_phone must be in E.164 format e.g. +14155551234")
+
+    item = _get_watchlist_item_by_ticker(db, ticker)
+    if not item:
+        raise HTTPException(404, f"{ticker.upper()} not found in any watchlist. Add it first via POST /tracking/watchlist")
+
+    item.investment_threshold = payload.threshold
+    item.notify_email = payload.notify_email or item.notify_email
+    item.notify_phone = payload.notify_phone or item.notify_phone
+    item.alert_on_buy = payload.alert_on_buy if payload.alert_on_buy is not None else True
+    item.alert_on_sell = payload.alert_on_sell if payload.alert_on_sell is not None else False
+
+    db.commit()
+    db.refresh(item)
+    return {
+        "ok": True,
+        "ticker": item.ticker.upper(),
+        "watchlist_item_id": item.id,
+        "threshold": item.investment_threshold,
+        "notify_email": item.notify_email,
+        "notify_phone": item.notify_phone,
+        "alert_on_buy": item.alert_on_buy,
+        "alert_on_sell": item.alert_on_sell,
+    }
+
+
+# ── F-04: Manual scan trigger ─────────────────────────────────────────────────
+
+@router.post("/scan/investments")
+def scan_investments(
+    ticker: Optional[str] = None,
+    dry_run: bool = False,
+    db: Session = Depends(get_db),
+):
+    """
+    Manually trigger the F-04 investment alert scan.
+    - ticker: scan only this ticker; omit to scan all watchlist items with threshold set.
+    - dry_run=true: return results without writing to DB or sending notifications.
+    """
+    from app.models.base import Base
+    from app.db.session import engine
+    Base.metadata.create_all(bind=engine)
+
+    from app.services.investment_alert_service import run_scan
+    return run_scan(db, ticker_filter=ticker, dry_run=dry_run)

@@ -1,6 +1,6 @@
 # 4th June 2026 — Progress Summary, Pending Work & Standup Notes
 
-This document consolidates work from project docs (`1st_June.md`, `2nd_June.md`, `memory/2nd_June.md`, `docs/REQUIREMENT_GAP_ANALYSIS.md`, `docs/PHASE1_READINESS.md`, `README.md`, `memory/progress.md`) and recent commits on branch `productionization/codex-roadmap`.
+This document consolidates work from project docs (`1st_June.md`, `2nd_June.md`, `../../memory/2nd_June.md`, `../../docs/REQUIREMENT_GAP_ANALYSIS.md`, `../../docs/PHASE1_READINESS.md`, `../../README.md`, `../../memory/progress.md`) and recent commits on branch `productionization/codex-roadmap`.
 
 **Staging:** Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002`  
 **Overall readiness vs full enterprise spec:** ~35–45% (broad coverage; production depth incomplete)
@@ -12,10 +12,10 @@ This document consolidates work from project docs (`1st_June.md`, `2nd_June.md`,
 ### Platform foundation & documentation
 - [x] Monorepo runnable: `apps/api`, `apps/web`, `apps/admin`, `apps/worker`, `packages/connectors`, `packages/finance`
 - [x] Broad API domains: identity, evidence, entities, graph, search, finance, reports, review, monitor, compliance, skills, sources
-- [x] Requirement audit vs plan PDFs; gap analysis documented (`docs/REQUIREMENT_GAP_ANALYSIS.md`)
+- [x] Requirement audit vs plan PDFs; gap analysis documented (`../../docs/REQUIREMENT_GAP_ANALYSIS.md`)
 - [x] Master roadmap to 100% written (`2nd_June.md` — Phases 0–9)
 - [x] System readiness audit canvas created (`system-readiness-audit.canvas.tsx`)
-- [x] June 1 progress log (`1st_June.md`); June 2 UI snapshot (`memory/2nd_June.md`)
+- [x] June 1 progress log (`1st_June.md`); June 2 UI snapshot (`../../memory/2nd_June.md`)
 
 ### June 1 — API stability & data layer
 - [x] Fixed Pydantic startup crash (`extra = "ignore"` for undeclared `.env` keys)
@@ -164,10 +164,10 @@ Use this as a 1–2 minute update (adjust names/timeline to your team).
 |----------|---------|
 | `2nd_June.md` | Master checklist Phases 0–9 to 100% |
 | `1st_June.md` | June 1 API/SQLite fixes |
-| `memory/2nd_June.md` | June 2 UI redesign facts |
-| `docs/REQUIREMENT_GAP_ANALYSIS.md` | Module-by-module gap status |
-| `docs/PHASE1_READINESS.md` | Phase 1 setup & deferred items |
-| `README.md` | Repo overview & local run |
+| `../../memory/2nd_June.md` | June 2 UI redesign facts |
+| `../../docs/REQUIREMENT_GAP_ANALYSIS.md` | Module-by-module gap status |
+| `../../docs/PHASE1_READINESS.md` | Phase 1 setup & deferred items |
+| `../../README.md` | Repo overview & local run |
 
 ---
 

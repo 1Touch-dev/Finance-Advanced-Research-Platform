@@ -12,7 +12,7 @@
 
 Still partial: PDF export, ownership trees, officer cross-entity, multi-node network report, PitchBook, LinkedIn/PDL.
 
-See [17th_June.md](../17th_June.md) and [README.md](../README.md) for current status.
+See [17th_June.md](../Task/June task/17th_June.md) and [README.md](../README.md) for current status.
 
 ## Update — 16 June 2026 (Phase 3 Layer 1)
 
@@ -22,7 +22,7 @@ See [17th_June.md](../17th_June.md) and [README.md](../README.md) for current st
 - First demo: Palantir (PLTR) — $1.72B contracts, 11 graph edges
 - Still partial: PDF export, ownership trees, officer cross-entity, multi-node network reports
 
-See [16th_June.md](../16th_June.md) and [README.md](../README.md) for current status.
+See [16th_June.md](../Task/June task/16th_June.md) and [README.md](../README.md) for current status.
 
 ---
 

@@ -559,17 +559,50 @@ def gov_trading_recent(days: int = 30, limit: int = 50):
 @router.get("/gov-trading/ticker/{ticker}")
 def gov_trading_by_ticker(ticker: str, days: int = 365):
     """All congressional trades for a specific stock."""
+    import math
     from app.connectors.gov_trading_connector import get_trades_by_ticker
-    trades = get_trades_by_ticker(ticker, days=days)
+
+    def _clean_nan(obj):
+        if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+            return None
+        if isinstance(obj, dict):
+            return {k: _clean_nan(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [_clean_nan(v) for v in obj]
+        return obj
+
+    trades = _clean_nan(get_trades_by_ticker(ticker, days=days))
     return {"ticker": ticker.upper(), "trades": trades, "count": len(trades)}
 
 
 @router.get("/gov-trading/member")
-def gov_trading_by_member(name: str):
-    """All trades by a specific congressional member."""
-    from app.connectors.gov_trading_connector import get_trades_by_member
-    trades = get_trades_by_member(name)
-    return {"name": name, "trades": trades, "count": len(trades)}
+def gov_trading_by_member(name: str, chamber: str = "auto"):
+    """
+    All trades by a congressional member.
+    chamber: 'house' | 'senate' | 'auto' (default — checks both, returns whichever has data)
+    """
+    from app.connectors.gov_trading_connector import (
+        get_trades_by_member, get_senate_trades_by_member
+    )
+    ch = chamber.lower()
+    if ch == "senate":
+        trades = get_senate_trades_by_member(name)
+    elif ch == "house":
+        trades = get_trades_by_member(name)
+    else:  # auto
+        house_trades = get_trades_by_member(name)
+        senate_trades = get_senate_trades_by_member(name)
+        trades = senate_trades if senate_trades else house_trades
+        ch = "senate" if senate_trades else "house"
+    return {"name": name, "chamber": ch, "trades": trades, "count": len(trades)}
+
+
+@router.get("/gov-trading/senate/member")
+def gov_trading_senate_member(name: str):
+    """All Senate eFD PTR trades for a named senator (via senate-stock-watcher)."""
+    from app.connectors.gov_trading_connector import get_senate_trades_by_member
+    trades = get_senate_trades_by_member(name)
+    return {"name": name, "chamber": "senate", "trades": trades, "count": len(trades)}
 
 
 @router.get("/gov-trading/top-tickers")
@@ -1110,3 +1143,96 @@ def get_institutional_position_diff_api(
     except Exception:
         db.rollback()
         raise HTTPException(status_code=500, detail="Internal server error.")
+
+
+# ─── F-05: Congress.gov Full Legislation Routes ───────────────────────────────
+# See docs/api/CONGRESS_GOV_LEGISLATION_UPGRADE.md and
+# docs/api/CONGRESS_GOV_IMPLEMENTATION_PLAN_WITH_GAP_FIXES.md for the full proposal.
+
+@router.get("/gov-trading/legislation/search")
+def gov_legislation_search(
+    query: str,
+    from_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    to_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    limit: int = 20,
+):
+    """Free-text bill search — e.g. 'AI regulation', 'banking', 'crypto'. 20-min cached."""
+    from app.connectors.gov_trading_connector import search_bills
+    return {"query": query, "bills": search_bills(query, from_date=from_date, to_date=to_date, limit=limit)}
+
+
+@router.get("/gov-trading/legislation/bill/{congress}/{bill_type}/{bill_number}")
+def gov_legislation_bill_detail(congress: int, bill_type: str, bill_number: int):
+    """Full bill detail — sponsors, latest action, cosponsor/summary counts, text link."""
+    from fastapi import HTTPException
+    from app.connectors.gov_trading_connector import get_bill_details
+    bill = get_bill_details(congress, bill_type, bill_number)
+    if not bill:
+        raise HTTPException(status_code=404, detail=f"Bill {bill_type.upper()} {bill_number} not found in congress {congress}")
+    return bill
+
+
+@router.get("/gov-trading/legislation/bill/{congress}/{bill_type}/{bill_number}/text")
+def gov_legislation_bill_text(congress: int, bill_type: str, bill_number: int):
+    """Bill text version links (XML/PDF/HTML) — full text is external, not inline."""
+    from app.connectors.gov_trading_connector import get_bill_text
+    return {"versions": get_bill_text(congress, bill_type, bill_number)}
+
+
+@router.get("/gov-trading/legislation/bill/{congress}/{bill_type}/{bill_number}/cosponsors")
+def gov_legislation_bill_cosponsors(congress: int, bill_type: str, bill_number: int, limit: int = 20):
+    """Members who co-signed a bill."""
+    from app.connectors.gov_trading_connector import get_bill_cosponsors
+    return {"cosponsors": get_bill_cosponsors(congress, bill_type, bill_number, limit=limit)}
+
+
+@router.get("/gov-trading/legislation/laws/{congress}")
+def gov_legislation_recent_laws(congress: int, limit: int = 20):
+    """Bills that became actual laws in a given congress (e.g. 118)."""
+    from app.connectors.gov_trading_connector import get_recent_laws
+    return {"congress": congress, "laws": get_recent_laws(congress, limit=limit)}
+
+
+@router.get("/gov-trading/legislation/committee/{chamber}/{committee_code}")
+def gov_legislation_committee_bills(chamber: str, committee_code: str, limit: int = 20):
+    """All bills assigned to a committee (e.g. chamber='senate', code='ssba' = Banking)."""
+    from app.connectors.gov_trading_connector import get_committee_bills
+    return {"chamber": chamber, "committee": committee_code, "bills": get_committee_bills(chamber, committee_code, limit=limit)}
+
+
+@router.get("/gov-trading/legislation/crs-reports")
+def gov_legislation_crs_reports(limit: int = 20):
+    """Congressional Research Service non-partisan policy analysis reports."""
+    from app.connectors.gov_trading_connector import get_crs_reports
+    return {"reports": get_crs_reports(limit=limit)}
+
+
+@router.get("/gov-trading/legislation/committee-codes")
+def gov_legislation_committee_codes():
+    """Return the known-good committee system codes to use with the committee bills endpoint."""
+    from app.connectors.gov_trading_connector import COMMITTEE_CODES
+    return {"committee_codes": COMMITTEE_CODES, "note": "Pass the value (e.g. 'ssbk00') as committee_code to /committee/{chamber}/{committee_code}"}
+
+
+@router.get("/gov-trading/politician/{politician_id}/votes")
+def gov_politician_votes(politician_id: str, limit: int = 20):
+    """
+    Sponsored + cosponsored legislation for a tracked politician, tagged by role.
+    (Congress.gov v3 does not expose per-member roll-call vote positions directly —
+    see 'What Congress.gov API Can NOT Do' in the feature proposal.)
+    """
+    from app.connectors.gov_trading_connector import TRACKED_POLITICIANS, get_bioguide_id, get_member_votes
+    info = TRACKED_POLITICIANS.get(politician_id.lower().replace(" ", "_"))
+    if not info:
+        for pid, pinfo in TRACKED_POLITICIANS.items():
+            if politician_id.lower() in pinfo["name"].lower():
+                info = pinfo
+                break
+    if not info:
+        return {"error": f"Politician '{politician_id}' not found", "available": list(TRACKED_POLITICIANS.keys())}
+
+    bioguide_id = get_bioguide_id(info["name"])
+    if not bioguide_id:
+        return {"politician": info["name"], "votes": [], "note": "Could not resolve bioguideId for this member"}
+
+    return {"politician": info["name"], "bioguide_id": bioguide_id, "votes": get_member_votes(bioguide_id, limit=limit)}
