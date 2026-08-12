@@ -30,7 +30,8 @@ dependencies = [
   "openpyxl>=3.1",
   "python-pptx>=0.6",
   "weasyprint>=60",
-  "markdown>=3.5"
+  "markdown>=3.5",
+  "beautifulsoup4>=4.12"
 ]
 [build-system]
 requires = ["setuptools", "wheel"]

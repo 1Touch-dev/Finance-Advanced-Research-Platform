@@ -288,8 +288,9 @@ def get_filer_cik(ticker: str) -> Optional[str]:
     when the ticker resolves to a non-reporting holding company.
     """
     key = ticker.upper().strip()
-    if key in _FILER_CIK_CACHE:
-        return _FILER_CIK_CACHE[key]
+    cached = _FILER_CIK_CACHE.get(key)
+    if cached:
+        return cached
 
     cik = get_cik_from_ticker(key)
     if cik and not _cik_has_financials(cik):
@@ -297,7 +298,10 @@ def get_filer_cik(ticker: str) -> Optional[str]:
                     cik, key)
         cik = _find_filer_cik_via_fulltext(key) or cik
 
-    _FILER_CIK_CACHE[key] = cik
+    if cik:
+        _FILER_CIK_CACHE[key] = cik
+    else:
+        _FILER_CIK_CACHE.pop(key, None)
     return cik
 
 
@@ -399,7 +403,8 @@ def get_company_facts(cik: str) -> Dict[str, Any]:
 
 
 def get_company_submissions(cik: str, forms: Optional[List[str]] = None,
-                            limit: int = 100) -> Dict[str, Any]:
+                            limit: int = 100,
+                            request_timeout: float = 30) -> Dict[str, Any]:
     """
     Company submission history from SEC EDGAR.
 
@@ -428,7 +433,7 @@ def get_company_submissions(cik: str, forms: Optional[List[str]] = None,
 
     try:
         url = f"{SEC_BASE}/submissions/CIK{cik}.json"
-        resp = requests.get(url, headers=SEC_HEADERS, timeout=30)
+        resp = requests.get(url, headers=SEC_HEADERS, timeout=request_timeout)
 
         if resp.ok:
             data = resp.json()
@@ -1599,7 +1604,9 @@ def _parse_form4_document(xml_text: str, filing_date: str, source_url: str) -> L
 
 
 def get_insider_transactions(cik: str, start_date: str = None,
-                             max_filings: int = 250) -> Dict[str, Any]:
+                             max_filings: int = 250,
+                             request_timeout: float = 15,
+                             max_elapsed_seconds: Optional[float] = None) -> Dict[str, Any]:
     """
     Form 4 insider transactions with share counts, prices and 10b5-1 status.
 
@@ -1611,6 +1618,23 @@ def get_insider_transactions(cik: str, start_date: str = None,
     a lower cap silently truncates the sample and understates disposals, since
     filings are processed newest first.
     """
+    started = time.monotonic()
+    deadline = started + max_elapsed_seconds if max_elapsed_seconds else None
+
+    def remaining_budget() -> Optional[float]:
+        if deadline is None:
+            return None
+        return max(0.0, deadline - time.monotonic())
+
+    def mark_budget_exhausted(stage: str) -> None:
+        result["partial"] = True
+        result["timeout"] = True
+        result["warnings"].append({
+            "code": "insider_budget_exhausted",
+            "stage": stage,
+            "detail": "Insider transaction retrieval exceeded the interactive time budget.",
+        })
+
     if not start_date:
         start_date = (datetime.now() - timedelta(days=365 * 2)).strftime("%Y-%m-%d")
 
@@ -1632,26 +1656,64 @@ def get_insider_transactions(cik: str, start_date: str = None,
         "by_insider": {},
         "by_code": {},
         "error": None,
+        "partial": False,
+        "timeout": False,
+        "warnings": [],
     }
 
-    submissions = get_company_submissions(cik, forms=["4", "4/A"], limit=400)
+    submissions_timeout = request_timeout
+    budget_remaining = remaining_budget()
+    if budget_remaining is not None:
+        if budget_remaining <= 0.05:
+            mark_budget_exhausted("submissions")
+            return result
+        submissions_timeout = min(request_timeout, max(0.05, budget_remaining))
+
+    submissions = get_company_submissions(
+        cik,
+        forms=["4", "4/A"],
+        limit=400,
+        request_timeout=submissions_timeout,
+    )
+    if submissions.get("error"):
+        result["error"] = submissions.get("error")
+        return result
+
     form4 = [f for f in submissions.get("filings", [])
              if f.get("filing_date", "") >= start_date]
     result["filings_count"] = len(form4)
 
     for filing in form4[:max_filings]:
+        budget_remaining = remaining_budget()
+        if budget_remaining is not None and budget_remaining <= 0.05:
+            mark_budget_exhausted("filings")
+            break
+
         accession = (filing.get("accession") or "").replace("-", "")
         document = filing.get("document") or ""
         if not accession or not document:
             continue
 
         url = _form4_raw_xml_url(cik, accession, document)
+        filing_timeout = request_timeout
+        if budget_remaining is not None:
+            filing_timeout = min(request_timeout, max(0.05, budget_remaining))
         try:
             _rate_limit()
-            resp = requests.get(url, headers=SEC_HEADERS, timeout=15)
+            resp = requests.get(url, headers=SEC_HEADERS, timeout=filing_timeout)
             if not resp.ok:
                 continue
             rows = _parse_form4_document(resp.text, filing.get("filing_date", ""), url)
+        except requests.Timeout:
+            result["partial"] = True
+            result["timeout"] = True
+            result["warnings"].append({
+                "code": "insider_request_timeout",
+                "stage": "filing",
+                "detail": "A Form 4 filing request exceeded the insider transaction request timeout.",
+            })
+            logger.debug("Form 4 request timed out for %s", url)
+            continue
         except Exception as e:
             logger.debug("Form 4 parse failed for %s: %s", url, e)
             continue

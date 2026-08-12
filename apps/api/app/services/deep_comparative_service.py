@@ -22,7 +22,7 @@ import requests
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timedelta
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, wait
 import statistics
 
 logger = logging.getLogger(__name__)
@@ -831,6 +831,7 @@ def run_deep_comparative_analysis(
     target_ticker: str,
     peer_tickers: List[str],
     target_cik: str = None,
+    overall_timeout: float = 18.0,
 ) -> Dict[str, Any]:
     """
     Run comprehensive comparative analysis between target and peers.
@@ -847,22 +848,31 @@ def run_deep_comparative_analysis(
 
     all_tickers = [target_ticker] + peer_tickers
 
-    # Fetch metrics for all companies in parallel
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        futures = {
-            executor.submit(_calculate_company_metrics, ticker): ticker
-            for ticker in all_tickers
-        }
+    # Fetch metrics for all companies in parallel, but do not let one slow peer
+    # block the whole comparative section.
+    executor = ThreadPoolExecutor(max_workers=5)
+    futures = {
+        executor.submit(_calculate_company_metrics, ticker): ticker
+        for ticker in all_tickers
+    }
 
-        company_metrics = {}
-        for future in as_completed(futures):
-            ticker = futures[future]
-            try:
-                metrics = future.result(timeout=60)
-                company_metrics[ticker] = metrics
-            except Exception as e:
-                logger.warning("Metrics fetch failed for %s: %s", ticker, e)
-                company_metrics[ticker] = {"ticker": ticker}
+    company_metrics = {}
+    done, not_done = wait(list(futures.keys()), timeout=overall_timeout)
+    for future in done:
+        ticker = futures[future]
+        try:
+            company_metrics[ticker] = future.result()
+        except Exception as e:
+            logger.warning("Metrics fetch failed for %s: %s", ticker, e)
+            company_metrics[ticker] = {"ticker": ticker}
+
+    for future in not_done:
+        ticker = futures[future]
+        logger.warning("Metrics fetch timed out for %s after %.1fs", ticker, overall_timeout)
+        company_metrics[ticker] = {"ticker": ticker, "_timed_out": True}
+        future.cancel()
+
+    executor.shutdown(wait=False, cancel_futures=True)
 
     # Build comparison tables by category
     category_comparisons = {}
