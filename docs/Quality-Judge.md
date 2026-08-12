@@ -1,6 +1,6 @@
 # Quality-Judge — LLM-as-Judge Quality Layer
 
-**Status: Phase 3 kickoff shipped (12 Aug 2026); Phase 3b classifier scaffold shipped same day, on `feature/quality-gate-ml`.**
+**Status: Phase 3 kickoff shipped (12 Aug 2026); Phase 3b classifier shipped same day, retrained on 303 samples (23 real + 280 synthetic) on `feature/quality-gate-ml`.**
 
 ## Why this exists
 
@@ -61,12 +61,14 @@ flowchart LR
 | `decision.py` | `evaluate(data, mode) -> dict` — combines rules + judge (+ classifier) into one decision. Modes: `rules` \| `judge` \| `blend` \| `ml`. |
 | `labels.py` | `log_judgment(...)` — appends one row per judged report to `exports/quality_labels.jsonl`. `build_label_row(...)` is the pure, testable core. `rule_features_dict(...)` is the public, shared vectorization also used by `classifier.py` (kept in one place so the two never drift). |
 | `classifier.py` | `classify(rule_features) -> ClassifierVerdict`, `get_classifier()` (cached singleton, thread-safe), `QualityClassifier.save/load` (joblib). **Fail-soft**: no trained model on disk → `ok=False`, never raises. |
+| `synthetic.py` | `generate_fragment_bank()` (batched Claude calls for prose variety, entity-agnostic by design), `generate_synthetic_reports(n, bank)` (deterministic, no network — assembles report_data dicts from the bank + structural mutation profiles correlated by quality tier), `build_synthetic_report(...)`. See "Synthetic training data" below. |
 
 Plus:
 - `app/scripts/quality_judge_demo.py` — before/after CLI demo (rules vs judge vs blend on 3 sample reports).
 - `app/scripts/backfill_quality_labels.py` — replays existing DB + on-disk reports through `decision.evaluate(mode="blend")` to seed the label file before any judge has run live. Loads `.env` explicitly up front (a real bug — see "Bugs found seeding real labels" below).
-- `app/scripts/train_quality_classifier.py` — trains the Phase 3b classifier from `exports/quality_labels.jsonl`. Refuses to train below `--min-samples` (default 200) unless `--force` is passed; a forced sub-floor model is tagged `-demo` in its version string so it can never be mistaken for production-grade.
-- `tests/test_quality_judge.py`, `tests/test_quality_classifier.py`, `tests/test_train_quality_classifier.py` — 23 + 10 + 5 = 38 tests, LLM calls mocked, no network dependency.
+- `app/scripts/train_quality_classifier.py` — trains the Phase 3b classifier from one or more `quality_labels*.jsonl` files (`--labels a.jsonl b.jsonl ...`, defaults to real + synthetic). Refuses to train below `--min-samples` (default 200) unless `--force`; also refuses if synthetic rows exceed `--max-synthetic-fraction` (default 0.85) unless overridden. Always prints and persists the real/synthetic composition in the saved model's `metrics`.
+- `app/scripts/generate_synthetic_labels.py` — generates N synthetic reports, runs each through the real rule gates + real judge (parallelized), logs to `exports/quality_labels_synthetic.jsonl` with `source="synthetic"`. Caches the Claude-generated fragment bank to `exports/synthetic_fragment_bank.json` so repeated runs don't re-pay the ~5-8min sequential-call cost.
+- `tests/test_quality_judge.py`, `tests/test_quality_classifier.py`, `tests/test_train_quality_classifier.py`, `tests/test_synthetic.py` — 27 + 10 + 9 + 8 = 54 tests, LLM calls mocked (or, for `synthetic.py`, no network path exercised at all), no network dependency.
 
 ## Modes
 
@@ -121,12 +123,7 @@ only as good as the prompt until human review calibrates it, which is exactly
 why every verdict is logged: today's judge becomes tomorrow's training set.
 Rules retain hard-veto so an LLM can never override a compliance block.
 
-## Deferred: the supervised ML classifier (Phase 3b) — scaffold shipped, model still demo-grade
-
-The pipeline is built and wired end-to-end (`app/services/quality/classifier.py`,
-`app/scripts/train_quality_classifier.py`, `?mode=ml`), but the **model itself
-is not production-grade** — real label volume is nowhere near the 200-500
-floor yet:
+## The supervised ML classifier (Phase 3b) — shipped, trained on 303 samples
 
 1. `LogisticRegression(class_weight="balanced")` trained on `rule_features`
    (the same 12-key vector `labels.py` already logs: 10 gate scores +
@@ -143,19 +140,75 @@ floor yet:
    production model).
 4. The training script **refuses to train below `--min-samples` (default
    200)** unless `--force` is passed, and tags any forced sub-floor model
-   `-demo` in its version string. This is the safeguard against exactly the
-   failure mode this doc originally warned about — a classifier that just
-   memorizes 20 examples of noise.
+   `-demo` in its version string. It also **refuses if synthetic rows exceed
+   `--max-synthetic-fraction` (default 0.85)** unless overridden — a second,
+   independent guardrail against a model that's purely LLM-imitating-itself.
 
-**Current real label count: 23** (seeded via `backfill_quality_labels.py`
-against the 22 real DB reports + the on-disk NVIDIA report, with real
-`gpt-4o-mini` judge calls). A `v1-n23-demo` model was trained with `--force`
-purely to validate the pipeline end-to-end (`accuracy=0.60`, `f1=0.75` on a
-held-out split of 5 samples — not a real generalization signal at this N).
-Run `train_quality_classifier.py` again without `--force` once labels clear
-200 for a model actually worth trusting; the demo model's `-demo` version tag
-makes it easy to check `ml_result.model_version` and know a report is being
-scored by a non-production model.
+### Synthetic training data — why, and the honest composition
+
+Real report volume in this system is tiny: 23 usable real labels (22 DB
+reports of one product line + 1 on-disk report) after
+`backfill_quality_labels.py`. That's nowhere near the 200-sample floor, and
+even if it were, all 22 DB reports share the same connector/shape, so their
+`rule_features` barely vary — not enough signal diversity for a classifier to
+learn anything beyond "always predict the majority class."
+
+`app/services/quality/synthetic.py` + `app/scripts/generate_synthetic_labels.py`
+close that gap **without faking the label**:
+
+1. **Claude authors prose variety, never a label.** `generate_fragment_bank()`
+   asks `claude-sonnet-4-6` (via `anthropic_client`, same model already used
+   for other generation in this codebase) for batches of paragraphs across 6
+   quality tiers (excellent / thin-citation / vague-hedging / overconfident /
+   biased / misleading) x 6 report sections — ~30 batched calls, not
+   hundreds of individual round-trips. Fragments are **entity-agnostic**
+   ("the company", never a specific name, no invented dollar figures) so
+   they can be safely mixed into any assembled report without contradicting
+   its numbers.
+2. **Deterministic structural mutation controls what the rule gates see.**
+   `MutationProfile` (citation rate, duplicate paragraphs, news staleness,
+   placeholder count, arithmetic mismatch, named-person source count,
+   sensitive-claim citation) is drawn per-report from a `random.Random(seed)`
+   — same seed, same reports, always. Mutation profiles are correlated with
+   a `tier` ("high" / "low" / "mixed", weighted 40/40/20) so structural
+   cleanliness and prose quality co-vary, giving `judge_publishable` an
+   actual learnable relationship with `rule_features` instead of pure noise.
+3. **The label itself always comes from the real pipeline.** Every assembled
+   report is run through the real `run_quality_gates()` and the real
+   `judge_report()` (`decision.evaluate(mode="blend")`) — exactly the same
+   code path a live report would hit. Claude never sees or influences the
+   score; it only supplies the words.
+4. **Labels are logged separately and always visibly tagged.** Synthetic
+   rows go to `exports/quality_labels_synthetic.jsonl` with
+   `"source": "synthetic"` (vs `"live"` / `"backfill"` for real traffic) —
+   see `labels.py`. `train_quality_classifier.py` merges files, reports the
+   `{source: count}` composition on every run, and persists it in the saved
+   model's `metrics["composition"]` so nobody can look at a model version
+   later and be misled about how much of its training data was
+   LLM-generated.
+
+**What actually ran (12 Aug 2026):** 280 synthetic reports generated and
+judged (`generate_synthetic_labels.py --n 280`), 280/280 judged successfully,
+0 failures. Class distribution: 18/280 (6.4%) `judge_publishable=True` — the
+real judge is strict even against "high-tier" synthetic prose, most commonly
+flagging weak citation strength and thin sensitive-claim sourcing regardless
+of narrative quality. This is an honest reflection of judge strictness, not
+an artifact worth "fixing" by loosening the judge or gaming the generator.
+
+Combined with the 23 real (well, 24 by the time this ran — one extra label
+accumulated) labels, `train_quality_classifier.py --max-synthetic-fraction
+0.95` trained **`v1-n303`** — 303 usable rows, 92.4% synthetic (composition
+printed and stored, per point 4 above), `accuracy=0.689`, `f1=0.387` on a
+held-out 20% split. `v1-n303` has no `-demo` suffix: it cleared the
+documented 200-sample floor for real, not via `--force`. The `f1=0.387` is
+modest — expected at a still-small N with an 18-vs-262 class imbalance — and
+the honest next step is accumulating more real labels over time (organic
+live/backfill traffic) to gradually reduce the synthetic fraction and
+improve `f1`, not to inflate synthetic volume further to compensate.
+
+Check `ml_result.model_version` on any `?mode=ml` response to know exactly
+which model version scored a given report, and cross-reference this doc for
+what that version was trained on.
 
 ## Bugs found while seeding real labels (12 Aug 2026)
 

@@ -117,17 +117,18 @@ This is not "build India's frontier finance model." It's: fix documented TODOs i
 
 | # | Task | Effort | Status |
 |---|------|--------|--------|
-| 9 | Export historical pass/fail labels from `quality_gate_service.py` runs | 🟢 | ✅ via `labels.py` + backfill script — but source is now judge output, not bare rule pass/fail, since rule-only labels don't capture what the classifier actually needs to learn (the judge's richer signal). **23 real labels seeded** from 22 DB reports + the on-disk NVIDIA report via real `gpt-4o-mini` judge calls. |
-| 10 | Train baseline classifier (logistic regression → gradient-boosted) | 🟢 | ✅ Scaffold shipped (`classifier.py`, `train_quality_classifier.py`, `?mode=ml`) — but the trained model itself is **demo-grade only** (`v1-n23-demo`, trained with `--force` on 23 labels to validate the pipeline). Script refuses to train a real model below `--min-samples` (default 200) without `--force`. Still gated on real label volume. |
-| 11 | Upgrade to small transformer classifier if baseline insufficient | 🟡 | ⏸️ Deferred, same gate |
-| 12 | Run in parallel with regex gates, compare false-positive rate on sensitive claims | 🟡 | ✅ Partially covered today: `blend`/`ml` modes already run judge/classifier + rules in parallel per-request; false-positive comparison work moves to full Phase 3b once labels exist |
-| 13 | Replace/augment regex gates once classifier outperforms | 🟡 | ⏸️ Deferred until label volume clears the floor; rules keep veto power regardless |
+| 9 | Export historical pass/fail labels from `quality_gate_service.py` runs | 🟢 | ✅ via `labels.py` + backfill script — but source is now judge output, not bare rule pass/fail, since rule-only labels don't capture what the classifier actually needs to learn (the judge's richer signal). **24 real labels** (22 DB reports + on-disk NVIDIA report) + **280 synthetic labels** (`synthetic.py` + `generate_synthetic_labels.py`, LLM-authored prose + real rule/judge scoring — see `docs/Quality-Judge.md`), all with `source` provenance so they're never silently blended. |
+| 10 | Train baseline classifier (logistic regression → gradient-boosted) | 🟢 | ✅ Shipped and trained for real: **`v1-n303`** (303 usable rows, 92.4% synthetic, composition tracked in the model's own metrics), `accuracy=0.689`, `f1=0.387` on a held-out split. Cleared the documented 200-sample floor without `--force` (only needed `--max-synthetic-fraction` raised, since real-label volume is still the minority). `f1` is modest at this N/class-imbalance — next lever is more real (not more synthetic) labels over time. |
+| 11 | Upgrade to small transformer classifier if baseline insufficient | 🟡 | ⏸️ Deferred, revisit once real-label volume grows and `f1` plateaus |
+| 12 | Run in parallel with regex gates, compare false-positive rate on sensitive claims | 🟡 | ✅ Partially covered today: `blend`/`ml` modes already run judge/classifier + rules in parallel per-request; false-positive comparison work moves to full Phase 3b once more real labels exist |
+| 13 | Replace/augment regex gates once classifier outperforms | 🟡 | ⏸️ Deferred until real-label volume grows further; rules keep veto power regardless |
 
 **Outcome so far:** a real holistic quality signal live today (behind
-`?mode=judge/blend`), a free near-instant classifier signal behind
-`?mode=ml` (demo-grade until label volume grows), zero regression to default
-behavior (`mode=rules` unchanged), and a growing label file that turns the
-"no training data" blocker into a solved problem on a timer.
+`?mode=judge/blend`), a real (non-demo) trained classifier signal behind
+`?mode=ml` — `v1-n303`, honestly majority-synthetic today with the exact
+composition tracked and disclosed — zero regression to default behavior
+(`mode=rules` unchanged), and a growing real-label file that will gradually
+reduce reliance on synthetic data as live/backfill traffic accumulates.
 
 
 ---

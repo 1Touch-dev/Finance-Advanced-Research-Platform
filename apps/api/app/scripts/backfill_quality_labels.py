@@ -80,7 +80,8 @@ def main() -> None:
         for report_id, data in iterator:
             total += 1
             try:
-                result = evaluate(data, mode=args.mode, report_id=report_id, log_labels=not args.dry_run)
+                result = evaluate(data, mode=args.mode, report_id=report_id, log_labels=not args.dry_run,
+                                   label_source="backfill")
             except Exception as exc:
                 print(f"[backfill] {report_id}: evaluate failed ({exc})")
                 continue

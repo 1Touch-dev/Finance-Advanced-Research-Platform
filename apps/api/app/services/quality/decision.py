@@ -20,6 +20,7 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from app.services.quality_gate_service import run_quality_gates
@@ -57,10 +58,20 @@ def _decision_from_score(score: Optional[float], hard_blocked: bool) -> str:
 
 
 def evaluate(data: Dict[str, Any], mode: str = "rules", *, report_id: Optional[str] = None,
-             log_labels: bool = True) -> Dict[str, Any]:
+             log_labels: bool = True, label_source: str = "live",
+             label_path: Optional[Path] = None) -> Dict[str, Any]:
     """
     Evaluate a report's `data` dict and return a normalized decision:
     {mode, decision, rule_result, judge_result, combined_score, checked_at}
+
+    `label_source` is provenance passed through to labels.log_judgment (see
+    labels.py) - "live" for real request traffic (default), "backfill" for
+    replayed historical reports, "synthetic" for generated reports.
+
+    `label_path` overrides the default exports/quality_labels.jsonl target -
+    used by generate_synthetic_labels.py to keep synthetic labels physically
+    separate from real ones (exports/quality_labels_synthetic.jsonl), so
+    train_quality_classifier.py has to explicitly opt in to blending them.
     """
     if mode not in VALID_MODES:
         logger.warning("unknown quality mode %r; defaulting to 'rules'", mode)
@@ -143,7 +154,8 @@ def evaluate(data: Dict[str, Any], mode: str = "rules", *, report_id: Optional[s
     if log_labels and judge_result is not None and os.getenv("QUALITY_LABEL_LOG", "on") != "off":
         try:
             from .labels import log_judgment
-            log_judgment(data, rule_result, judge_result, report_id=report_id)
+            log_judgment(data, rule_result, judge_result, report_id=report_id, source=label_source,
+                         path=label_path)
         except Exception as exc:  # label logging must never break a request
             logger.debug("label logging skipped: %s", exc)
 

@@ -71,6 +71,14 @@ def _financial_summary(data: Dict[str, Any], max_items: int = 8) -> List[str]:
             value = seg.get("current")
         if isinstance(value, (int, float)):
             lines.append(f"Segment {name}: {_fmt_num(value)}")
+
+    # Free-text narrative, when present, is what actually lets the judge
+    # assess clarity/accuracy/neutrality (the pure numeric lines above can't).
+    # No production connector populates this key today, so this is additive
+    # and never changes existing digests - but see synthetic.py, which does.
+    summary = fin.get("summary")
+    if isinstance(summary, str) and summary.strip():
+        lines.append(f"Analysis: {summary.strip()[:800]}")
     return lines[:max_items]
 
 
@@ -85,7 +93,11 @@ def _insider_summary(data: Dict[str, Any], max_items: int = 5) -> List[str]:
         owner = t.get("owner_name", "unknown")
         code = t.get("transaction_code", "?")
         shares = t.get("shares", 0)
-        lines.append(f"Insider {owner}: code={code} shares={_fmt_num(shares)}")
+        line = f"Insider {owner}: code={code} shares={_fmt_num(shares)}"
+        context = t.get("context")
+        if isinstance(context, str) and context.strip():
+            line += f" — {context.strip()[:300]}"
+        lines.append(line)
     return lines
 
 
@@ -100,7 +112,11 @@ def _news_summary(data: Dict[str, Any], max_items: int = 5) -> List[str]:
         title = (a.get("title") or a.get("headline") or "").strip()
         date = a.get("date") or a.get("published") or ""
         if title:
-            lines.append(f"News ({date}): {title[:140]}")
+            line = f"News ({date}): {title[:140]}"
+            desc = a.get("summary") or a.get("description")
+            if isinstance(desc, str) and desc.strip():
+                line += f" — {desc.strip()[:300]}"
+            lines.append(line)
     return lines
 
 

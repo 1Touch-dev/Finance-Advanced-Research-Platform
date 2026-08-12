@@ -281,6 +281,22 @@ def test_decision_unknown_mode_defaults_to_rules(monkeypatch):
     assert result["mode"] == "rules"
 
 
+def test_decision_evaluate_writes_to_custom_label_path(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-fake")
+    fake_response = {
+        "quality_score": 3, "publishable": True, "dimensions": {}, "issues": [], "reasoning": "ok",
+    }
+    monkeypatch.setattr(judge_mod, "_call_llm_once", lambda digest, model: fake_response)
+    custom_path = tmp_path / "quality_labels_synthetic.jsonl"
+    decision.evaluate(DEEP_RESEARCH_REPORT, mode="blend", report_id="synth-1",
+                       label_source="synthetic", label_path=custom_path)
+
+    rows = [json.loads(line) for line in custom_path.read_text().strip().splitlines()]
+    assert len(rows) == 1
+    assert rows[0]["source"] == "synthetic"
+    assert rows[0]["report_id"] == "synth-1"
+
+
 # ── label logging ─────────────────────────────────────────────────────────────
 def test_log_judgment_writes_valid_jsonl_line(tmp_path, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-fake")
@@ -304,6 +320,20 @@ def test_log_judgment_writes_valid_jsonl_line(tmp_path, monkeypatch):
     assert row["judge_publishable"] is True
     assert "overall_score" in row["rule_features"]
     assert row["rule_pass"] is True
+    assert row["source"] == "live"  # default when caller doesn't specify
+
+
+def test_log_judgment_records_explicit_source_provenance(tmp_path):
+    from app.services.quality_gate_service import run_quality_gates
+    rule_result = run_quality_gates(DEEP_RESEARCH_REPORT)
+    label_path = tmp_path / "quality_labels.jsonl"
+
+    for source in ("live", "backfill", "synthetic"):
+        labels.log_judgment(DEEP_RESEARCH_REPORT, rule_result, None, report_id=source,
+                             path=label_path, source=source)
+
+    rows = [json.loads(line) for line in label_path.read_text().strip().splitlines()]
+    assert [r["source"] for r in rows] == ["live", "backfill", "synthetic"]
 
 
 def test_log_judgment_never_raises_on_bad_path(monkeypatch):

@@ -14,6 +14,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 API_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -93,3 +95,63 @@ def test_refuses_when_only_one_class_present(tmp_path):
                          "--out", str(tmp_path / "model.joblib"))
     assert result.returncode == 1
     assert "both classes present" in result.stdout
+
+
+def test_merges_multiple_label_files(tmp_path):
+    real_path = tmp_path / "real.jsonl"
+    synth_path = tmp_path / "synth.jsonl"
+    real_rows = [{**r, "source": "live"} for r in _labeled_rows(3, 3)]
+    synth_rows = [{**r, "source": "synthetic"} for r in _labeled_rows(3, 3)]
+    _write_labels(real_path, real_rows)
+    _write_labels(synth_path, synth_rows)
+
+    result = _run_train("--labels", str(real_path), str(synth_path), "--force", "--min-samples", "1",
+                         "--out", str(tmp_path / "model.joblib"))
+    assert result.returncode == 0
+    assert "12 usable labeled rows across 2 file(s)" in result.stdout
+
+
+def test_reports_source_composition_and_saves_it_in_metrics(tmp_path):
+    real_path = tmp_path / "real.jsonl"
+    synth_path = tmp_path / "synth.jsonl"
+    _write_labels(real_path, [{**r, "source": "live"} for r in _labeled_rows(2, 2)])
+    _write_labels(synth_path, [{**r, "source": "synthetic"} for r in _labeled_rows(4, 4)])
+
+    out_path = tmp_path / "model.joblib"
+    result = _run_train("--labels", str(real_path), str(synth_path), "--force", "--min-samples", "1",
+                         "--out", str(out_path))
+    assert result.returncode == 0
+    assert "'live': 4" in result.stdout
+    assert "'synthetic': 8" in result.stdout
+
+    from app.services.quality.classifier import QualityClassifier
+    model = QualityClassifier.load(out_path)
+    assert model.metrics["composition"] == {"live": 4, "synthetic": 8}
+    assert model.metrics["synthetic_fraction"] == pytest.approx(8 / 12, abs=1e-3)
+
+
+def test_refuses_when_synthetic_fraction_exceeds_max_without_force(tmp_path):
+    real_path = tmp_path / "real.jsonl"
+    synth_path = tmp_path / "synth.jsonl"
+    _write_labels(real_path, [{**r, "source": "live"} for r in _labeled_rows(1, 1)])
+    _write_labels(synth_path, [{**r, "source": "synthetic"} for r in _labeled_rows(20, 20)])
+
+    result = _run_train("--labels", str(real_path), str(synth_path), "--min-samples", "1",
+                         "--out", str(tmp_path / "model.joblib"))
+    assert result.returncode == 1
+    assert "REFUSING to train" in result.stdout
+    assert "synthetic" in result.stdout
+    assert not (tmp_path / "model.joblib").exists()
+
+
+def test_force_overrides_synthetic_fraction_refusal(tmp_path):
+    real_path = tmp_path / "real.jsonl"
+    synth_path = tmp_path / "synth.jsonl"
+    _write_labels(real_path, [{**r, "source": "live"} for r in _labeled_rows(1, 1)])
+    _write_labels(synth_path, [{**r, "source": "synthetic"} for r in _labeled_rows(20, 20)])
+
+    result = _run_train("--labels", str(real_path), str(synth_path), "--force", "--min-samples", "1",
+                         "--out", str(tmp_path / "model.joblib"))
+    assert result.returncode == 0
+    assert (tmp_path / "model.joblib").exists()
+

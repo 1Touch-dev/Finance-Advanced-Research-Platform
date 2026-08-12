@@ -56,11 +56,20 @@ def build_label_row(
     judge_verdict: Optional[JudgeVerdict],
     *,
     report_id: Optional[str] = None,
+    source: str = "live",
 ) -> Dict[str, Any]:
-    """Pure function: assemble the JSONL row without writing it (testable)."""
+    """Pure function: assemble the JSONL row without writing it (testable).
+
+    `source` is provenance, not a training signal: "live" (real request
+    through decision.evaluate), "backfill" (replayed real historical report),
+    or "synthetic" (LLM-generated report, see synthetic.py). Every consumer
+    of quality_labels*.jsonl (train_quality_classifier.py, any future
+    analysis) can filter/report on this - the honest-composition requirement
+    is that synthetic volume is always visible, never silently blended away."""
     return {
         "ts": datetime.now(timezone.utc).isoformat(),
         "report_id": report_id or data.get("ticker") or data.get("entity_name"),
+        "source": source,
         "rule_features": _rule_features(rule_result),
         "rule_pass": bool(rule_result.get("passed")) if rule_result else None,
         "judge_score": judge_verdict.score if judge_verdict and judge_verdict.ok else None,
@@ -78,12 +87,13 @@ def log_judgment(
     *,
     report_id: Optional[str] = None,
     path: Optional[Path] = None,
+    source: str = "live",
 ) -> None:
     """Append one label row to exports/quality_labels.jsonl. Never raises."""
     if os.getenv("QUALITY_LABEL_LOG", "on") == "off":
         return
     try:
-        row = build_label_row(data, rule_result, judge_verdict, report_id=report_id)
+        row = build_label_row(data, rule_result, judge_verdict, report_id=report_id, source=source)
         target = path or _LABELS_PATH
         target.parent.mkdir(parents=True, exist_ok=True)
         with open(target, "a") as f:
