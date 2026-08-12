@@ -29,8 +29,11 @@ _EXPORT_DIR = Path(os.getenv("EXPORT_DIR", "exports"))
 _LABELS_PATH = _EXPORT_DIR / "quality_labels.jsonl"
 
 
-def _rule_features(rule_result: Optional[Dict[str, Any]]) -> Dict[str, float]:
-    """Flatten the 10 gate scores into a {gate_name: score} feature dict."""
+def rule_features_dict(rule_result: Optional[Dict[str, Any]]) -> Dict[str, float]:
+    """Flatten the 10 gate scores into a {gate_name: score} feature dict.
+    Public because decision.py's mode="ml" reuses this exact vectorization
+    (must match app.services.quality.classifier.FEATURE_KEYS) - keeping it in
+    one place avoids the two ever drifting apart."""
     if not rule_result:
         return {}
     features: Dict[str, float] = {}
@@ -41,6 +44,10 @@ def _rule_features(rule_result: Optional[Dict[str, Any]]) -> Dict[str, float]:
     features["overall_score"] = round(float(rule_result.get("overall_score", 0.0)), 4)
     features["hard_failure_count"] = len(rule_result.get("hard_failures", []) or [])
     return features
+
+
+# Backward-compatible alias (module-private name used before mode="ml" existed).
+_rule_features = rule_features_dict
 
 
 def build_label_row(

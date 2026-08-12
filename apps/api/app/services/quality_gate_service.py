@@ -63,6 +63,25 @@ SENSITIVE_PATTERNS = [
 ]
 
 
+def _as_list(value: Any) -> List[Any]:
+    """Best-effort normalization to a list. Production report shapes vary by
+    connector: some fields are a flat list, others are a dict wrapping the
+    real rows under one or more nested keys (e.g. financial_intelligence.segments
+    is `{"segments": [...], "geographic": [...]}`, not a flat list). Iterating
+    a dict with `for x in value` yields its string keys, not rows - that's
+    the 'str' object has no attribute 'get' crash this guards against. Never
+    raises; unknown shapes just yield []."""
+    if isinstance(value, list):
+        return value
+    if isinstance(value, dict):
+        flattened: List[Any] = []
+        for v in value.values():
+            if isinstance(v, list):
+                flattened.extend(v)
+        return flattened
+    return []
+
+
 class QualityGate:
     """Base class for quality gates."""
 
@@ -136,11 +155,16 @@ class ArithmeticReconciliationGate(QualityGate):
     def check(self, data: Dict[str, Any]) -> Dict[str, Any]:
         errors = []
 
-        # Check financial segment sums
+        # Check financial segment sums. `segments` is sometimes a flat list,
+        # sometimes a dict of {category: [rows]} (e.g. {"segments": [...],
+        # "geographic": [...]}) — normalize before iterating. Row value key
+        # also varies by connector ("revenue" vs "current").
         fin_data = data.get("financial_intelligence", {})
-        segments = fin_data.get("segments", [])
+        segments = _as_list(fin_data.get("segments", []))
         if segments:
-            segment_total = sum(s.get("revenue", 0) or 0 for s in segments)
+            segment_total = sum((s.get("revenue") if isinstance(s, dict) and s.get("revenue") is not None
+                                  else (s.get("current") if isinstance(s, dict) else 0)) or 0
+                                 for s in segments)
             reported_total = fin_data.get("total_revenue", 0) or 0
             if reported_total > 0:
                 diff = abs(segment_total - reported_total) / reported_total
@@ -149,11 +173,11 @@ class ArithmeticReconciliationGate(QualityGate):
 
         # Check insider transaction totals
         insider_data = data.get("insider_transactions", {})
-        transactions = insider_data.get("transactions", [])
+        transactions = _as_list(insider_data.get("transactions", []))
         if transactions:
-            computed_acquired = sum(t.get("shares", 0) or 0 for t in transactions if t.get("transaction_code") in ("P", "A"))
-            computed_disposed = sum(t.get("shares", 0) or 0 for t in transactions if t.get("transaction_code") in ("S", "D"))
-            summary = insider_data.get("summary", {})
+            computed_acquired = sum(t.get("shares", 0) or 0 for t in transactions if isinstance(t, dict) and t.get("transaction_code") in ("P", "A"))
+            computed_disposed = sum(t.get("shares", 0) or 0 for t in transactions if isinstance(t, dict) and t.get("transaction_code") in ("S", "D"))
+            summary = insider_data.get("summary", {}) if isinstance(insider_data, dict) else {}
             reported_acquired = summary.get("total_acquired", 0) or 0
             reported_disposed = summary.get("total_disposed", 0) or 0
 
@@ -164,10 +188,10 @@ class ArithmeticReconciliationGate(QualityGate):
 
         # Check contract totals
         contract_data = data.get("contract_intelligence", {})
-        contracts = contract_data.get("contracts", [])
+        contracts = _as_list(contract_data.get("contracts", []))
         if contracts:
-            computed_total = sum(c.get("obligated_amount", 0) or 0 for c in contracts)
-            reported_total = contract_data.get("total_obligated", 0) or 0
+            computed_total = sum(c.get("obligated_amount", 0) or 0 for c in contracts if isinstance(c, dict))
+            reported_total = contract_data.get("total_obligated", 0) or 0 if isinstance(contract_data, dict) else 0
             if reported_total > 0:
                 diff = abs(computed_total - reported_total) / reported_total
                 if diff > 0.005:

@@ -58,6 +58,12 @@ npm-debug.log*
 exports/
 artifacts/
 
+# Trained quality-classifier model (Phase 3b) — regenerated locally via
+# train_quality_classifier.py from exports/quality_labels.jsonl; not
+# reproducible in CI/review and is a dev/demo artifact until label volume
+# clears the documented floor (see docs/Quality-Judge.md).
+apps/api/app/models/*.joblib
+
 # Coverage
 htmlcov/
 .coverage

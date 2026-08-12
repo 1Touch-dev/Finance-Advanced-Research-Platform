@@ -590,7 +590,7 @@ def download_report_appendix(job_id: str):
 @router.get("/report-job/{job_id}/quality-gates")
 def check_quality_gates(
     job_id: str,
-    mode: str = Query("rules", description="rules | judge | blend — see docs/Quality-Judge.md"),
+    mode: str = Query("rules", description="rules | judge | blend | ml — see docs/Quality-Judge.md"),
 ):
     """
     Run the quality battery on a generated report.
@@ -612,6 +612,10 @@ def check_quality_gates(
         neutrality) — catches subtly-bad reports that pass every rule.
     mode=blend: rules veto hard failures first (non-negotiable); otherwise
         combines the rule score with the judge score into one decision.
+    mode=ml: rules veto first; otherwise the supervised classifier (trained on
+        rule_features -> judge_publishable, see train_quality_classifier.py)
+        substitutes for the judge — no LLM call, near-instant. Degrades to
+        pure rules if no model has been trained yet.
     """
     if not _QUALITY_GATES_AVAILABLE:
         raise HTTPException(503, "Quality gate service unavailable")
@@ -658,6 +662,7 @@ def check_quality_gates(
         "combined_score": evaluation["combined_score"],
         "quality_gates": evaluation["rule_result"],
         "judge": evaluation["judge_result"],
+        "ml": evaluation.get("ml_result"),
     }
 
 

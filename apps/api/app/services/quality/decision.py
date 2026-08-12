@@ -10,6 +10,10 @@ Modes:
   judge  - LLM-as-judge only (0..1 score + issues + reasoning).
   blend  - rules veto first; otherwise weighted combination of rule score and
            judge score. Degrades to pure rules if the judge is unavailable.
+  ml     - rules veto first; otherwise the supervised classifier (Phase 3b,
+           trained on rule_features -> judge_publishable) substitutes for the
+           judge - no LLM call, near-zero latency/cost. Degrades to pure rules
+           if no model has been trained yet (see train_quality_classifier.py).
 """
 from __future__ import annotations
 
@@ -20,11 +24,13 @@ from typing import Any, Dict, Optional
 
 from app.services.quality_gate_service import run_quality_gates
 
+from .classifier import ClassifierVerdict, classify
 from .judge import JudgeVerdict, judge_report
+from .labels import rule_features_dict
 
 logger = logging.getLogger(__name__)
 
-VALID_MODES = ("rules", "judge", "blend")
+VALID_MODES = ("rules", "judge", "blend", "ml")
 
 # blend weighting: judge gets more weight because it catches what rules can't,
 # but rules still gate hard failures unconditionally before this ever applies.
@@ -62,12 +68,16 @@ def evaluate(data: Dict[str, Any], mode: str = "rules", *, report_id: Optional[s
 
     rule_result: Optional[Dict[str, Any]] = None
     judge_result: Optional[JudgeVerdict] = None
+    ml_result: Optional[ClassifierVerdict] = None
 
-    if mode in ("rules", "blend"):
+    if mode in ("rules", "blend", "ml"):
         rule_result = run_quality_gates(data)
 
     if mode in ("judge", "blend"):
         judge_result = judge_report(data)
+
+    if mode == "ml":
+        ml_result = classify(rule_features_dict(rule_result))
 
     hard_blocked = bool(rule_result and rule_result.get("hard_failures"))
 
@@ -85,6 +95,19 @@ def evaluate(data: Dict[str, Any], mode: str = "rules", *, report_id: Optional[s
         else:
             decision = "needs_review"  # judge unavailable; no rules ran, can't block
         combined_score = judge_result.score if judge_result.ok else None
+
+    elif mode == "ml":
+        if hard_blocked:
+            decision = "blocked"
+            combined_score = rule_result["overall_score"]
+        elif ml_result and ml_result.ok:
+            combined_score = ml_result.score
+            decision = _decision_from_score(combined_score, hard_blocked=False)
+        else:
+            # No trained model yet -> degrade to pure rules (fail-soft, same
+            # pattern as blend's judge-unavailable branch).
+            combined_score = rule_result["overall_score"]
+            decision = "publication_ready" if rule_result["passed"] else "needs_review"
 
     else:  # blend
         if hard_blocked:
@@ -114,6 +137,8 @@ def evaluate(data: Dict[str, Any], mode: str = "rules", *, report_id: Optional[s
         "judge_result": judge_result.to_dict() if judge_result is not None else None,
         "checked_at": _now(),
     }
+    if mode == "ml":
+        result["ml_result"] = ml_result.to_dict() if ml_result is not None else None
 
     if log_labels and judge_result is not None and os.getenv("QUALITY_LABEL_LOG", "on") != "off":
         try:

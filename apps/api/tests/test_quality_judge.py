@@ -18,6 +18,7 @@ import pytest
 from app.services.quality import decision, judge as judge_mod, labels
 from app.services.quality.judge import JudgeVerdict, judge_report
 from app.services.quality.report_text import flatten_report
+from app.services.quality_gate_service import run_quality_gates
 
 DEEP_RESEARCH_REPORT = {
     "entity_name": "Acme Corp",
@@ -133,6 +134,32 @@ def test_flatten_report_handles_dict_shaped_segments_and_litigation():
     assert "Segment Compute" in digest
     assert "80,000" in digest
     assert "Doe v. Real Shape Corp" in digest
+
+
+# ── rule gates: real report shape regression ─────────────────────────────────
+def test_arithmetic_reconciliation_handles_dict_shaped_segments_and_contracts():
+    """Same real-world shape bug as the flattener, but in
+    quality_gate_service.ArithmeticReconciliationGate: `segments` as a dict of
+    {category: [rows]} used to crash with 'unhashable type: slice' (iterating
+    a dict yields its string keys, and `key.get(...)` then blows up). Also
+    covers the `current` vs `revenue` row-value key naming difference."""
+    data = {
+        "financial_intelligence": {
+            "total_revenue": 130000,
+            "segments": {
+                "segments": [{"name": "Compute", "current": 80000, "prior": 60000}],
+                "geographic": [{"name": "United States", "current": 50000, "prior": 40000}],
+            },
+        },
+        "contract_intelligence": {
+            "total_obligated": 5000,
+            "contracts": {"top_contracts": [{"obligated_amount": 5000}]},
+        },
+    }
+    result = run_quality_gates(data)  # must not raise / must not error-out the gate
+    arith = next(r for r in result["results"] if r["gate"] == "Arithmetic Reconciliation")
+    assert "Gate check error" not in arith["detail"]
+    assert arith["passed"] is True
 
 
 # ── judge: fail-soft ─────────────────────────────────────────────────────────

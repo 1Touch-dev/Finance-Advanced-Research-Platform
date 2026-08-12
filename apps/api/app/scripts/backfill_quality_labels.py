@@ -24,6 +24,15 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Iterator, Tuple
 
+from dotenv import find_dotenv, load_dotenv
+
+# Load .env explicitly and up front. Without this, disk-sourced reports (which
+# are processed before the DB generator's lazy `intelligence_service` import
+# has a chance to trigger dotenv loading as a side effect) silently see no
+# OPENAI_API_KEY and every judge call fails - a real bug found by running this
+# against the actual on-disk NVIDIA report.
+load_dotenv(find_dotenv(), override=False)
+
 
 def _iter_db_reports(limit: int) -> Iterator[Tuple[str, Dict[str, Any]]]:
     try:
