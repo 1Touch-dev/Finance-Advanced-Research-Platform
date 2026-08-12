@@ -26,6 +26,16 @@ import uuid
 
 logger = logging.getLogger(__name__)
 
+# Unified retrieval engine (vector/keyword/hybrid + rerank + guardrails + trace).
+try:
+    from app.services.rag import retriever as _rag_retriever
+    from app.services.rag.trace import Trace as _RagTrace
+    from app.services.rag.types import Document as _RagDoc, RetrievalMode as _RagMode
+    _RAG_ENGINE_OK = True
+except Exception as _exc:  # pragma: no cover
+    logger.warning("rag engine import failed in ingestion, using keyword search: %s", _exc)
+    _RAG_ENGINE_OK = False
+
 # Configuration
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "/tmp/document_uploads")
 MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE_MB", "50")) * 1024 * 1024  # 50MB default
@@ -217,8 +227,17 @@ class DocumentIngestionService:
             # Create chunks
             chunks = self._create_chunks(document_id, text, pages)
 
+            # Embed chunks (vector RAG). Best-effort: if embeddings are
+            # unavailable, chunks keep embedding=None and search falls back to
+            # BM25/keyword automatically.
+            self._embed_chunks(chunks)
+
             # Store chunks
             self.chunks[document_id] = chunks
+
+            # Persist to durable vector store (pgvector) if active, so queries do
+            # in-DB ANN instead of rebuilding an index per request. No-op on SQLite.
+            self._persist_chunks(document_id, chunks, metadata)
 
             # Update metadata
             metadata.processing_status = ProcessingStatus.COMPLETED
@@ -404,7 +423,23 @@ class DocumentIngestionService:
         return chunks
 
     def _chunk_text(self, text: str) -> List[str]:
-        """Split text into overlapping chunks."""
+        """Split text into overlapping chunks.
+
+        Prefers the RAG package's recursive/semantic chunker (RAG_CHUNK_STRATEGY);
+        falls back to the legacy paragraph packer if that import is unavailable.
+        """
+        if _RAG_ENGINE_OK:
+            try:
+                from app.services.rag import chunking as _chunking
+                chunks = _chunking.chunk_text(text, CHUNK_SIZE, CHUNK_OVERLAP)
+                if chunks:
+                    return chunks
+            except Exception as exc:
+                logger.debug("rag chunker unavailable (%s); legacy split", exc)
+        return self._chunk_text_legacy(text)
+
+    def _chunk_text_legacy(self, text: str) -> List[str]:
+        """Legacy paragraph-packing splitter (fallback)."""
         chunks = []
 
         # Clean text
@@ -490,48 +525,158 @@ class DocumentIngestionService:
         """Get all chunks for a document."""
         return self.chunks.get(document_id, [])
 
+    def _persist_chunks(self, document_id: str, chunks: List[DocumentChunk], metadata) -> None:
+        """
+        Upsert chunks into the durable pgvector store (prod). Collection is scoped
+        by tenant so search stays isolated. No-op when pgvector isn't active
+        (SQLite/dev), where the cached in-memory index handles reuse instead.
+        """
+        if not _RAG_ENGINE_OK or not chunks:
+            return
+        try:
+            from app.services.rag import index as _index
+            mgr = _index.get_manager()
+            if not mgr.pg_available():
+                return
+            scope = getattr(metadata, "user_id", None) or "public"
+            # Upsert to the per-tenant "all" collection plus a per-document one, so
+            # both filtered and unfiltered searches hit persisted vectors.
+            docs = [
+                _RagDoc(
+                    id=c.id, text=c.text, source=metadata.filename,
+                    metadata={"document_id": document_id, "page_number": c.page_number},
+                )
+                for c in chunks
+            ]
+            mgr.get_pg_store(f"docs:{scope}:all").upsert(docs)
+            mgr.get_pg_store(f"docs:{scope}:{document_id}").upsert(docs)
+        except Exception as exc:
+            logger.info("pgvector persist skipped (%s); memory index will be used", exc)
+
+    def _embed_chunks(self, chunks: List[DocumentChunk]) -> None:
+        """
+        Populate chunk.embedding in batch via the RAG embedding provider.
+        Best-effort: any failure leaves embeddings as None (keyword fallback).
+        """
+        if not _RAG_ENGINE_OK or not chunks:
+            return
+        try:
+            from app.services.rag import embeddings as _emb
+            texts = [c.text for c in chunks]
+            matrix = _emb.embed_texts(texts)  # (n, dim) normalized
+            for c, vec in zip(chunks, matrix):
+                c.embedding = vec.tolist()
+        except Exception as exc:
+            logger.info("chunk embedding skipped (%s); keyword search will be used", exc)
+
     def search_chunks(
         self,
         query: str,
         document_ids: Optional[List[str]] = None,
         ticker: Optional[str] = None,
         limit: int = 10,
+        mode: str = "hybrid",
+        debug: bool = False,
+        user_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Search for relevant chunks (basic keyword search).
-        For production, this should use vector similarity search.
-        """
-        results = []
-        query_lower = query.lower()
-        query_terms = query_lower.split()
+        Search for relevant chunks across ingested documents.
 
-        # Filter documents
-        search_docs = []
+        Uses the unified RAG engine (vector / keyword / hybrid + rerank). If
+        embeddings are unavailable it degrades to BM25/keyword automatically, so
+        this never hard-fails. Pass mode="keyword" to force the legacy path,
+        debug=True to attach a per-stage retrieval trace (returned as the last
+        element's "_trace" — see api/documents.py wiring).
+
+        Tenant isolation: when user_id is provided, only that user's documents are
+        searched (enforced here, not left to the caller).
+        """
+        # Collect candidate chunks honoring the tenant + document/ticker filters.
+        candidate_chunks: List[DocumentChunk] = []
+        chunk_owner: Dict[str, str] = {}
         for doc_id, metadata in self.documents.items():
+            if user_id and metadata.user_id != user_id:
+                continue  # tenant isolation — never leak another user's chunks
             if document_ids and doc_id not in document_ids:
                 continue
             if ticker and metadata.ticker != ticker.upper():
                 continue
-            search_docs.append(doc_id)
+            for chunk in self.chunks.get(doc_id, []):
+                candidate_chunks.append(chunk)
+                chunk_owner[chunk.id] = doc_id
 
-        # Search chunks
-        for doc_id in search_docs:
-            chunks = self.chunks.get(doc_id, [])
-            for chunk in chunks:
-                chunk_lower = chunk.text.lower()
-                # Simple scoring: count term matches
-                score = sum(1 for term in query_terms if term in chunk_lower)
-                if score > 0:
-                    results.append({
-                        "document_id": doc_id,
-                        "chunk_id": chunk.id,
-                        "text": chunk.text[:500],
-                        "page_number": chunk.page_number,
-                        "score": score,
-                        "document_filename": self.documents[doc_id].filename,
-                    })
+        if not candidate_chunks:
+            return []
 
-        # Sort by score and limit
+        # Engine path.
+        if _RAG_ENGINE_OK and mode != "keyword":
+            try:
+                docs = [
+                    _RagDoc(
+                        id=c.id,
+                        text=c.text,
+                        source=self.documents[chunk_owner[c.id]].filename,
+                        metadata={"document_id": chunk_owner[c.id], "page_number": c.page_number},
+                    )
+                    for c in candidate_chunks
+                ]
+                try:
+                    rmode = _RagMode(mode)
+                except ValueError:
+                    rmode = _RagMode.HYBRID
+                trace = _RagTrace(enabled=debug)
+                # Collection key = tenant + filter scope. Scopes the cached index
+                # per tenant (isolation) and per filter set (cache correctness).
+                _scope = user_id or "public"
+                _filt = ",".join(sorted(document_ids)) if document_ids else (ticker or "all")
+                collection = f"docs:{_scope}:{_filt}"
+                scored = _rag_retriever.retrieve(
+                    query, docs, mode=rmode, top_k=limit, trace=trace, collection=collection,
+                )
+                results = [
+                    {
+                        "document_id": sd.doc.metadata.get("document_id"),
+                        "chunk_id": sd.doc.id,
+                        "text": sd.doc.text[:500],
+                        "page_number": sd.doc.metadata.get("page_number"),
+                        "score": round(sd.score, 4),
+                        "components": sd.components,
+                        "document_filename": sd.doc.source,
+                    }
+                    for sd in scored
+                ]
+                if debug and results:
+                    results[-1]["_trace"] = trace.as_dict()
+                return results
+            except Exception as exc:
+                logger.warning("engine chunk search failed (%s); keyword fallback", exc)
+
+        # Legacy keyword fallback (also the mode="keyword" path).
+        return self._keyword_search_chunks(query, candidate_chunks, chunk_owner, limit)
+
+    def _keyword_search_chunks(
+        self,
+        query: str,
+        candidate_chunks: List[DocumentChunk],
+        chunk_owner: Dict[str, str],
+        limit: int,
+    ) -> List[Dict[str, Any]]:
+        """Simple term-count keyword search (legacy / fallback)."""
+        query_terms = query.lower().split()
+        results = []
+        for chunk in candidate_chunks:
+            chunk_lower = chunk.text.lower()
+            score = sum(1 for term in query_terms if term in chunk_lower)
+            if score > 0:
+                doc_id = chunk_owner[chunk.id]
+                results.append({
+                    "document_id": doc_id,
+                    "chunk_id": chunk.id,
+                    "text": chunk.text[:500],
+                    "page_number": chunk.page_number,
+                    "score": score,
+                    "document_filename": self.documents[doc_id].filename,
+                })
         results.sort(key=lambda x: x["score"], reverse=True)
         return results[:limit]
 

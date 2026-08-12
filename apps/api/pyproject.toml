@@ -30,7 +30,14 @@ dependencies = [
   "openpyxl>=3.1",
   "python-pptx>=0.6",
   "weasyprint>=60",
-  "markdown>=3.5"
+  "markdown>=3.5",
+  "openai>=1.40",
+  "numpy>=1.26",
+  "rank-bm25>=0.2.2",
+  "tenacity>=8.2",
+  "sentence-transformers>=3.0",
+  "pgvector>=0.3",
+  "prometheus-client>=0.20"
 ]
 [build-system]
 requires = ["setuptools", "wheel"]

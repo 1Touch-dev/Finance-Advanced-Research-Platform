@@ -1,6 +1,7 @@
 from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv(), override=True)
 
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router as core_router
@@ -165,6 +166,27 @@ try:
 except Exception:
     pass
 
+try:
+    from app.api.health_rag import router as health_rag_router
+    app.include_router(health_rag_router)
+except Exception:
+    pass
+
 @app.on_event("startup")
 async def on_startup():
     logger.info({"event": "startup"})
+    # Preload RAG models in a background thread so first-request latency (cold
+    # HF download / model init) doesn't hit a user, and so the model is a warmed
+    # thread-safe singleton before any concurrent request constructs it.
+    if os.getenv("RAG_PRELOAD", "on") != "off":
+        import threading
+
+        def _warm():
+            try:
+                from app.services.rag import rerank
+                active = rerank.preload()
+                logger.info({"event": "rag_preload", "reranker_active": active})
+            except Exception as exc:
+                logger.info({"event": "rag_preload_skipped", "error": str(exc)})
+
+        threading.Thread(target=_warm, name="rag-preload", daemon=True).start()

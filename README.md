@@ -1,378 +1,706 @@
-# Enterprise Intelligence & Investment Research Platform
+# Finance Advanced Research Platform
+
+**Enterprise-grade financial intelligence & investment research platform**
+
+[![Status](https://img.shields.io/badge/Status-In_Progress-yellow)]()
+[![Branch](https://img.shields.io/badge/Branch-8th--july--sprint-blue)]()
+[![Python](https://img.shields.io/badge/Python-3.11+-green)]()
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green)]()
+[![Next.js](https://img.shields.io/badge/Next.js-12-green)]()
 
 A multi-service monorepo for **evidence-first** public-record intelligence, investment research, relationship graphs, report generation with review workflows, and portfolio monitoring.
 
-This is **not** a stock screener or a generic LLM report tool alone. It combines market/financial analysis with U.S. public records (SEC, lobbying, procurement, litigation, sanctions, and more), entity resolution, graph intelligence, and enterprise-style collaboration.
+**Live Staging:** http://184.72.123.188:3003 (Web) | http://184.72.123.188:3001 (API) | http://184.72.123.188:3001/docs (API Docs)
 
 ---
 
-## Current status
+## Table of Contents
+
+- [Project Overview](#project-overview)
+- [Current Status Summary](#current-status-summary)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Features Status](#features-status)
+  - [Completed Features](#-completed-features-35-items)
+  - [In Progress Features](#-in-progress-features-7-items)
+  - [Remaining Features](#-remaining-features-72-items-prioritized)
+- [API Endpoints](#api-endpoints)
+- [External API Integrations](#external-api-integrations)
+- [Database Models](#database-models)
+- [Frontend Pages](#frontend-pages)
+- [Setup & Installation](#setup--installation)
+- [Deployment](#deployment)
+- [Documentation](#documentation)
+- [AI Model Training Roadmap](#ai-model-training-roadmap)
+- [Roadmap & Sprint Sequence](#roadmap--sprint-sequence)
+
+---
+
+## Project Overview
+
+This is **not** a stock screener or a generic LLM report tool. It combines market/financial analysis with U.S. public records (SEC, lobbying, procurement, litigation, sanctions, and more), entity resolution, graph intelligence, and enterprise-style collaboration.
+
+### Core Capabilities
+
+| Capability | Description |
+|------------|-------------|
+| **9-Section Intelligence Dossiers** | Comprehensive entity reports covering profiles, investors, government contracts, lobbying, political exposure, sanctions, litigation, AI narratives, and data sources |
+| **Market Analysis** | Stock analysis with 35+ ratios, 15 technical indicators, and 4-agent AI consensus (BUY/HOLD/SELL) |
+| **Institutional Tracking** | 13F filings, position-diff analysis (1,805-line service, 45 tests pass), mega-positions tracking |
+| **Government Trading Intelligence** | House PTR (STOCK Act), Form 4 insider trades, Congress.gov legislation, politician tracker |
+| **Trade Alerts (F-03/F-04)** | Automated Form 4 + watchlist threshold scanning with email/SMS notifications |
+| **RAG-Powered Chat** | Vector + keyword + hybrid search over ingested documents (Phase 1 complete) |
+| **50-State Registry** | Company entity search across all US jurisdictions |
+| **OSINT Enrichment** | Apollo.io, OpenCorporates, GLEIF, FinCEN integrations |
+
+---
+
+## Current Status Summary
+
+| Metric | Count |
+|--------|-------|
+| **API Endpoints** | 447 routes |
+| **Frontend Pages** | 42 pages |
+| **Database Models** | 70 models |
+| **Service Files** | 70 services |
+| **Connector Files** | 43 connectors |
+| **External APIs** | 20+ integrations |
+| **Test Coverage** | 45/45 13F, 40/41 Congress, 10/10 RAG |
+| **Commits Ahead** | 90+ (8th-july-sprint vs main) |
 
 | Area | Status |
 |------|--------|
-| **Overall** | **29 Jul 2026 — Trade alerts live (F-03/F-04) · Full platform · 60+ endpoints** |
-| **Active branch** | `feature/trade-alerts` |
-| **Repository structure** | **Reorganized to 2026 monorepo best practices** ← See [RESTRUCTURE_PLAN.md](./RESTRUCTURE_PLAN.md) |
-| **Full handoff** | **[docs/handoff/Finance_Platform_Handoff.md](./docs/handoff/Finance_Platform_Handoff.md)** ← **START HERE for new teammates** |
-| **API integrations** | **[docs/api/API_INTEGRATIONS_GUIDE.md](./docs/api/API_INTEGRATIONS_GUIDE.md)** — all external APIs (why / how they help) |
-| **Sprint log** | [docs/archive/sprints/5th_July.md](./docs/archive/sprints/5th_July.md) |
-| **Big Trade Alerts (F-03)** | ✅ SEC Form 4 scan · threshold · email/SMS · PM2 every 4h · UI at `/tracking` |
-| **Investment Alerts (F-04)** | ✅ Per-watchlist threshold · Form 4 + 13F · personal email/SMS · PM2 every 4h |
-| **RSS Worker** | ✅ 50 feeds · PM2 rss-poller · 2000+ articles · 15-min cycle |
-| **Crypto Intelligence** | ✅ CoinGecko · ETH/BTC wallets · Whale alerts · TTL cache |
-| **Gov Trading** | ✅ House PTR · SEC Form 4 · Politician tracker |
-| **Deep Company** | ✅ SEC XBRL · Cap table · Analyst · Earnings |
-| **Valuation** | ✅ DCF model · 10-K/10-Q filing analysis · Bear/Base/Bull scenarios |
-| **Expert Analysis** | ✅ News sentiment · Themes · Analyst upgrade timeline |
-| **Institutional (13F)** | ✅ Holders · Mutual funds · 13F filers · Institution lookup |
-| **Multi-Agent AI** | ✅ Fundamentals · Technical · Sentiment · Risk → BUY/HOLD/SELL |
-| **UI/UX** | ✅ Dark sidebar · Tailwind design system · All pages redesigned (8 Jul) |
-| **Apollo.io** | ✅ Paid plan live · Org enrichment · People · Org chart |
-| **Staging** | Web `http://184.72.123.188:3003` · API `:3001` · Admin `:3002` · Docs `:3001/docs` |
-| **Local web** | `http://localhost:3003` (API `:3001`) |
-| **Nav pages** | 22+ pages: Dashboard, Intelligence, Saved, Stock, Valuation, Company, Expert, Institutional, Crypto, Gov Trading, Economics, Search, Graph, Registry, Timeline, Compare, Tracking, Alerts, Skills |
-
-### ✅ v2.0 Features Shipped + Verified (22 Jun)
-
-| # | Feature | Details |
-|---|---------|---------|
-| 1 | KPI Dashboard View | Toggle between Full Report and KPI Dashboard on intelligence reports |
-| 2 | Apollo org enrichment | `GET /intelligence/apollo/org`, `POST /apollo/enrich`; name-based search, credit-exhaustion fallback |
-| 3 | Apify social footprint | Twitter/X, Instagram, YouTube scrapers + social section in every report |
-| 4 | Private company intel | OpenCorporates (global registry) + GLEIF (LEI) + FinCEN + FDIC |
-| 5 | Per-entity RAG chat | Floating chat panel on reports — cited Q&A via `POST /chat/ask`; works without report too |
-| 6 | Tracking dashboard | Watchlist + daily digest worker + SendGrid/Twilio alerts at `/tracking` (+ F-03/F-04 big-trade & investment alerts) |
-| 7 | Polished `/entities/[id]` | Tabs: Overview, Relationships, Evidence, Timeline, Related. Aliases/identifiers as chips |
-| 8 | Person timeline | `/timeline` page — vertical + card view, 3 demo entities, filter by category |
-| 9 | FEC/FARA two-sided | FEC as registrant + as contributor; FARA as registrant + as foreign principal |
-| 10 | Comparison page | `/compare` — up to 5 entities, radar chart, KPI table, shared-entity overlap |
-| 11 | Apify key people | Company employee scraper → Key People section + auto graph edges |
-| 12 | PDF export | `GET /intelligence/{id}/pdf` — polished multi-page ReportLab PDF + ⬇ PDF button |
-| 13 | Graph export | PNG (Cytoscape) + JSON export buttons on embedded graph |
-| 14 | Report reconstruction | `get_intelligence_report` rebuilds nested claims-per-section from DB storage |
-
-### ✅ 23 Jun — P1 + P2 + P3 Shipped
-
-| # | Feature | Details |
-|---|---------|---------|
-| 15 | Entity profile 9-tab layout | Financial (revenue charts, Beneish M-Score, Altman Z-Score, insider transactions), People & Contacts (Apollo), Social & News footprint, RAG Chat — added to existing 5 tabs |
-| 16 | API Status Panel | Per-source live/down indicator on entity profile header |
-| 17 | Add to Tracking button | On every entity profile and intelligence report |
-| 18 | Intelligence: 4 view modes | Report + KPI Dashboard + Timeline View (all claims chronologically) + Graph View (embedded Cytoscape) |
-| 19 | Date-range filter | All time / Last 1yr / Last 30d chips on report view |
-| 20 | Search highlight | Matching claims highlighted yellow when using search filter |
-| 21 | Word export | `GET /intelligence/{id}/word` → .docx download (python-docx) |
-| 22 | Excel export | `GET /intelligence/{id}/excel` → .xlsx download (openpyxl) |
-| 23 | PowerPoint export | `GET /intelligence/{id}/powerpoint` → .pptx download (python-pptx) |
-| 24 | `/intelligence/{id}` page | Dedicated report page per saved report with all export buttons |
-| 25 | `/tracking/alerts` page | Alert inbox — severity filter, acknowledge, snooze 24h |
-| 26 | `/saved` page | Saved reports library with search + direct PDF/Word/Excel export |
-| 27 | Navigation updated | Saved + Tracking/Alerts in main nav |
-| 28 | PM2 cron | `daily-digest` scheduled at 6AM UTC |
-| 29 | Financial data connectors | FINNHUB, FMP, Alpha Vantage, FRED — ✅ keys live, Financial tab verified (24 Jun) |
-| 30 | News connectors | NewsAPI, Guardian, NYT, GDELT — ✅ keys live, aggregate news working (24 Jun) |
-| 31 | Beneish M-Score + Altman Z-Score | Computed from FMP financial data; shown on entity Financial tab |
-| 32 | UK Companies House | Officers + company search — ✅ key live (24 Jun) |
-| 33 | ICIJ Offshore Leaks | Panama/Paradise/Pandora Papers search — no key needed, live |
-| 34 | ALEPH/OCCRP | Leaked document search — route live, key pending |
-| 35 | RSS global news intelligence | 500-source plan scoped — feed worker + event clustering not started (25 Jun) |
-
-### Bug fixes applied (22 Jun E2E test session)
-
-| Bug | Fix |
-|-----|-----|
-| `/chat/ask` rejected `null` report_id | `report_id` now Optional; GPT general-knowledge fallback when no report |
-| Apollo matched wrong company via domain-guess | Name-based search first; no domain re-enrichment loop |
-| Apollo credits exhausted silently | Detects "insufficient credits" error; falls back to domain enrichment |
-| `/entities/[id]` crash on `timeline.slice` | Fixed destructuring for all API shapes (`items`, `timeline`, plain array) |
-| Entity profile "No entity ID" on load | Added `router.isReady` guard (Next.js hydration fix) |
-| Aliases/identifiers shown as raw JSON | Rendered as inline badge chips |
-| YouTube/Instagram/Twitter `None` count crash | Cast all social counts to `int(x or 0)` before `:,` formatting |
-| Fetched reports had empty `claims` arrays | `get_intelligence_report` now parses content lines back into claim objects |
-| `/intelligence?entity=` didn't pre-fill form | Added `useEffect` watching `router.query` to pre-fill name/type/ticker |
-
-### New pages
-
-| URL | Description |
-|-----|-------------|
-| `/intelligence` | Full report + KPI dashboard toggle + floating RAG chat + PDF |
-| `/timeline` | Person/entity event timeline |
-| `/compare` | Entity comparison (radar + table + overlap) |
-| `/tracking` | Watchlist + digest + **F-03/F-04 trade alerts** |
-| `/entities/[id]` | Polished entity profile |
-
-### New API endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/intelligence/apollo/enrich` | Full Apollo org + key people |
-| GET | `/intelligence/apollo/org` | Apollo org enrichment |
-| GET | `/intelligence/apollo/people` | Apollo people search |
-| GET | `/intelligence/apollo/orgchart` | C-suite + VP org chart |
-| GET | `/intelligence/{id}/pdf` | Download report as PDF |
-| GET | `/intelligence/private-co/search` | OpenCorporates + GLEIF + FinCEN |
-| GET | `/intelligence/private-co/gleif` | GLEIF LEI search |
-| GET | `/intelligence/private-co/opencorporates` | Global company registry |
-| GET | `/intelligence/private-co/fincen` | FinCEN entity search |
-| POST | `/chat/ask` | RAG chat Q&A |
-| POST | `/chat/summary/{id}` | 3-sentence executive summary |
-| GET | `/tracking/watchlist` | List watched entities |
-| POST | `/tracking/watchlist` | Add to watchlist |
-| DELETE | `/tracking/watchlist/{name}` | Remove from watchlist |
-| POST | `/tracking/digest/run` | Trigger daily digest |
-| GET | `/tracking/digest/logs` | Digest history |
-| POST | `/tracking/scan/insider-trades` | **F-03** — Big trade Form 4 scan (email/SMS) |
-| POST | `/tracking/scan/investments` | **F-04** — Watchlist investment threshold scan |
-| GET/POST/PATCH/DELETE | `/tracking/alert-rules` | **F-03** alert rule CRUD |
-| GET/PATCH | `/tracking/watchlist/{ticker}/threshold` | **F-04** per-ticker threshold + notify settings |
-
-
-For a detailed requirement-vs-implementation breakdown, see **[docs/REQUIREMENT_GAP_ANALYSIS.md](./docs/REQUIREMENT_GAP_ANALYSIS.md)**.  
-For all James's requirements (v2.0 features, Jarvis Nexus, agent team), see **[james_requirements.md](./james_requirements.md)**.
+| **Overall** | **10 Aug 2026 — RAG Phase 1 shipped, 13F position-diff merged, 7 orphan services pending activation** |
+| **Active branch** | `8th-july-sprint` (90 commits ahead of `main`) |
+| **Trade Alerts (F-03/F-04)** | Completed — PM2 every 4h, SendGrid/Twilio configured |
+| **Congress.gov (F-05)** | Completed — 1,000 req/hr free API, live bills + Senate PTR |
+| **RAG Chat** | Completed (Phase 1) — Vector + keyword + hybrid modes |
+| **13F Position-Diff** | Completed — 45 tests pass, live Berkshire Hathaway diff verified |
+| **7 Orphan Services** | In Progress — 4,794 lines of logic, needs router endpoints |
 
 ---
 
-## Layer 1 v1.2 — What's live (22 Jun 2026)
+## Tech Stack
 
-| # | Feature | Status |
-|---|---------|--------|
-| 1 | 12-section intelligence dossier (SEC, FEC, FARA, USASpending, LDA, OFAC, Courts, Wikipedia, investors, LinkedIn, PitchBook, News) | ✅ Live |
-| 2 | Two-sided lobbying disclosure — `[CLIENT SIDE]` + `[REGISTRANT SIDE]` | ✅ Live |
-| 3 | Two-sided contracts — `[RECIPIENT SIDE]` + `[AGENCY SIDE]` | ✅ Live (22 Jun) |
-| 4 | Embedded Cytoscape relationship graph | ✅ Live |
-| 5 | KPI strip — Gov Contracts, Lobbying Spend, Court Risk, Sanctions, News, Data Confidence | ✅ Live (22 Jun) |
-| 6 | Filter bar — by category, source, confidence, free text | ✅ Live (22 Jun) |
-| 7 | Section category labels (Financial / Government / Legal / Intelligence / Social) | ✅ Live (22 Jun) |
-| 8 | Sortable tables + CSV export per section, pagination (10/page) | ✅ Live (22 Jun) |
-| 9 | Click-to-investigate — any capitalized entity name in report text is clickable + auto-generates new report | ✅ Live (22 Jun) |
-| 10 | Apify Google News enrichment — 47–81 articles per query | ✅ Live |
-| 11 | Apify LinkedIn profile enrichment | ✅ Live |
-| 12 | Apify PitchBook (realtime-scraper, no permission needed) | ✅ Live (22 Jun) |
-| 13 | Browser Research Agent — `POST /intelligence/browser-research` | ✅ Live (22 Jun) |
-| 14 | Argentina spike — Mercado Libre / Argentina: 4 sources, MEDIUM confidence | ✅ Tested (22 Jun) |
-| 15 | GPT-4o deep narrative (5-section) | ✅ Live |
-| 16 | PayPal Mafia demo seeds | ✅ Live |
-| 17 | US State Registry — 51 jurisdictions | ✅ Live |
-
-**Active branch:** `feature/layer2-kpi-filters-clickable-browser` · 4 commits today
-
-### ✅ Trade Alerts — F-03 + F-04 (Jul 2026)
-
-Architecture: **[docs/features/FEATURE_BIG_TRADE_ALERTS_ARCHITECTURE.md](./docs/features/FEATURE_BIG_TRADE_ALERTS_ARCHITECTURE.md)**
-
-| Feature | What it does | Data source | Delivery |
-|---------|--------------|-------------|----------|
-| **F-03 Big Trade Detection** | Scans configured tickers for large insider buys/sells above a USD threshold | SEC Form 4 via **yfinance** | Email (**SendGrid**) + SMS (**Twilio**) + in-app `alert_events` |
-| **F-04 Watchlist Investment Alerts** | Per-watchlist-item threshold; alerts when insider/institutional activity crosses it | Form 4 + institutional holders (13F-style) via **yfinance** | Per-user `notify_email` / `notify_phone` |
-
-**UI:** `/tracking` — set ticker on watchlist items, open **Set Alert** for F-04 thresholds, run **▶ Run Big-Trade Scan** for F-03 (uncheck Dry run for live email/SMS).
-
-**API (local `http://localhost:3001`):**
-
-```
-POST /tracking/scan/insider-trades?dry_run=false   # F-03 manual scan
-POST /tracking/scan/investments?dry_run=false      # F-04 manual scan
-GET|POST|PATCH|DELETE /tracking/alert-rules        # F-03 rule CRUD
-GET|PATCH /tracking/watchlist/{ticker}/threshold   # F-04 threshold settings
-```
-
-**PM2 cron** (see `ecosystem.config.js`):
-- `big-trade-scanner` — every 4 hours at `:00`
-- `investment-alert-scanner` — every 4 hours at `:30`
-
-**Env (see `.env.example`):** `BIG_TRADE_THRESHOLD`, `ALERT_SENDER_EMAIL`, `ALERT_RECIPIENT_EMAIL`, `ALERT_RECIPIENT_PHONE`, plus `SENDGRID_*` / `TWILIO_*`.
-
-> Production note: Twilio **Trial** only SMS’s verified numbers; use SendGrid **domain auth** before multi-user production From addresses.
-
-## What's next (priority backlog)
-
-See **[docs/handoff/Finance_Platform_Handoff.md §10](./docs/handoff/Finance_Platform_Handoff.md)** for the full backlog. Top items:
-
-1. LLM-powered 10-K/10-Q MD&A synthesis (Phase 3)
-2. 13F quarter-over-quarter position diff (true new buys vs current holders for F-04)
-3. Twilio upgrade + SendGrid domain authentication (production alerts)
-4. RSS Phase 2 — event clustering, facts, contradictions, perspectives
-5. Crawl4AI (replace Apify long-term)
-6. Congress.gov paid key · ALEPH/OCCRP · CA SOS · Google SSO credentials
-
-Active branch: **`feature/trade-alerts`**
-
-For all James's requirements, see **[docs/requirements/james_requirements.md](./docs/requirements/james_requirements.md)**.
-
-### Try it on staging
-
-| Resource | URL |
-|----------|-----|
-| **Intelligence UI** | http://184.72.123.188:3003/intelligence |
-| **Home** | http://184.72.123.188:3003 |
-| **API docs** | http://184.72.123.188:3001/docs |
-
-Click any **PayPal Mafia** or **Thiel / AI / Defense** seed → **Generate Intelligence Report** (~20–45 seconds).
-
-### Intelligence API (`/intelligence/*`)
-
-```
-POST /intelligence/generate?entity_name=&entity_type=org&ticker=   # generate cited dossier
-GET  /intelligence/                                               # list recent reports
-GET  /intelligence/{report_id}                                    # retrieve saved report
-```
-
-**Pipeline (v1.1):** entity name/ticker → live connectors (Wikipedia, SEC, USASpending, FEC, FARA, LDA, OFAC, CourtListener, FundedAPI, SEC 13G) → relationship graph edges → **9-section** report JSON → GPT-4o deep narrative (5-section format, 2000 tokens) → persist to DB.
-
-### Report sections (v1.1 — 9 sections)
-
-| # | Section | Sources |
-|---|---------|---------|
-| 1 | Entity Profile | Wikipedia REST + SEC EDGAR (CIK, SIC, exchange) |
-| 2 | Investors & Capital Structure | SEC SC 13G/13D, Form D, FundedAPI (rounds) |
-| 3 | Government Contracts & Procurement | USASpending.gov |
-| 4 | Lobbying Activity **(fixed)** | LDA (client_name, lda.gov) — issues + firms |
-| 5 | Political & Foreign Exposure | FEC, FARA |
-| 6 | Sanctions & Compliance Check | OFAC / OpenSanctions |
-| 7 | Litigation & Legal Exposure | CourtListener |
-| 8 | Data Sources & Enrichment Notes | API alternatives reference |
-| 9 | Deep Intelligence Narrative (AI-Generated) | GPT-4o — 5-section deep format |
-
-Every claim tagged **DOCUMENTED** / **REPORTED** / **ANALYTICAL**.
-
-### Live demo results — Palantir Technologies (PLTR) — v1.1
-
-| Metric | v1 | v1.1 |
-|--------|----|------|
-| SEC CIK | `0001321655` | `0001321655` |
-| Federal contracts | $1.72B / 10 awards | $1.72B / 10 awards |
-| Lobbying filings | 10 ❌ (registrant_name bug) | **504** ✅ (client_name fixed) |
-| Lobbying issue areas | — | Defense · Homeland Security · Intelligence · Financial |
-| FEC | 1 PAC | 1 PAC |
-| Investor filings (13G) | — | 34 institutional filings (BlackRock, etc.) |
-| Peter Thiel (person demo) | — | ✅ Wikipedia bio, Founders Fund Form D, Palantir 13G links |
-| Wikipedia background | — | ✅ |
-| Narrative sections | 3-4 paragraphs | **5 deep sections** (Company, People, Investors, Gov, Risks) |
-| Graph edges | 11 | 13 |
-
-### Demo seeds (v1.1 — two groups)
-
-**PayPal Mafia:** Peter Thiel · Elon Musk · Reid Hoffman · Max Levchin · David Sacks  
-**Thiel / AI / Defense:** Palantir Technologies · Anduril Industries · Founders Fund · HawkEye 360 · Redwire Corporation
-
-### Free enrichment APIs integrated (no extra keys)
-
-| API | What it adds | Cost |
-|-----|-------------|------|
-| **Wikipedia REST** | Company background, founders, products | Free, no key |
-| **FundedAPI** | Startup funding rounds, investors | Free — 60 req/hr / 100/day |
-| **SEC EDGAR (SC 13G/13D, Form D)** | Institutional ownership + private placements | Free with User-Agent |
-| **LDA.gov** | Lobbying by client_name; replaces lda.senate.gov Jun 30 | Free |
-
-### Layer 1 code (v1.1)
-
-| File | Role |
-|------|------|
-| `apps/api/app/api/intelligence.py` | REST router — generate, list, retrieve |
-| `apps/api/app/services/intelligence_service.py` | Orchestrator + 10 connectors (SEC, FEC, FARA, USASpending, LDA, OFAC, courts, Wikipedia, FundedAPI, SEC investors) |
-| `apps/web/pages/intelligence.js` | Report generator UI — PayPal Mafia + Thiel/Defense seeds, 9-section viewer |
-| `apps/web/src/styles/Intelligence.module.css` | Intelligence page styles |
-
-### E2E verified (17 Jun 2026)
-
-| Flow | Result |
-|------|--------|
-| `/intelligence` page load + nav | ✅ |
-| PayPal Mafia seeds → Peter Thiel report | ✅ 9 sections, ~45 sec |
-| Thiel/Defense seeds → Palantir report | ✅ 504 lobbying filings, $1.72B contracts |
-| Home → Intelligence navigation | ✅ |
-| `GET /intelligence/` | ✅ 10+ reports persisted |
-
-### Still pending (Layer 1 v2)
-
-- PDF export matching James doc style
-- Multi-entity PayPal Mafia network graph report (cross-entity linking)
-- PitchBook connector (requires James API key)
-- LinkedIn / people enrichment (PDL free tier or NinjaPear — needs James approval)
-- Ownership tree crawler (OpenOwnership / FinCEN BOI)
-- Officer cross-entity matching
-
-Full handoffs: **[17th_June.md](./Task/June task/17th_June.md)** · **[16th_June.md](./Task/June task/16th_June.md)**
+| Layer | Technology | Version |
+|-------|------------|---------|
+| **Backend API** | FastAPI | 0.115+ |
+| **ORM** | SQLAlchemy | 2.0+ |
+| **Database (prod)** | PostgreSQL | 13+ |
+| **Database (local)** | SQLite | Default fallback |
+| **Python** | — | 3.11+ required |
+| **Frontend** | Next.js | 12 |
+| **UI Framework** | React | 17 |
+| **Styling** | Tailwind CSS | v3 |
+| **Charts** | Recharts | — |
+| **Graph Visualization** | Cytoscape | — |
+| **Job Queue** | Bull + Redis | — |
+| **Process Manager** | PM2 | — |
+| **Auth** | JWT + bcrypt | 24h tokens |
+| **Export (PDF)** | ReportLab | 4.0+ |
+| **Export (Word)** | python-docx | 1.1+ |
+| **Export (Excel)** | openpyxl | 3.1+ |
+| **Export (PPT)** | python-pptx | 0.6+ |
+| **Embeddings** | text-embedding-3-small | OpenAI |
+| **Vector Store** | Numpy cosine + HNSW | Fallback to TF-IDF |
+| **Keyword Search** | rank-bm25 + TF-IDF | BM25 primary |
+| **Package Manager** | pnpm + Turborepo | Monorepo |
 
 ---
 
-## Phase 2 — U.S. 50-State Registry + BEA (11 June 2026)
-
-James Thunder Marketing's all-50-states registry program is now implemented.
-
-### Registry API (`/registry/*`)
+## Project Structure
 
 ```
-GET  /registry/health               # 51/51 live count + tier distribution
-GET  /registry/jurisdictions        # all 51 with tier, SOS URL, record count
-GET  /registry/search?q=&state=     # search normalized records
-GET  /registry/entity/{jur}/{eid}   # single entity detail
-POST /registry/keys                 # admin: create API key
+Finance-Advanced-Research-Platform/
+├── apps/
+│   ├── api/                 # FastAPI backend (Python 3.11), 40+ route files
+│   │   ├── app/
+│   │   │   ├── api/         # Route handlers (market, intelligence, tracking, etc.)
+│   │   │   ├── connectors/  # External API connectors (43 files)
+│   │   │   ├── models/      # SQLAlchemy ORM models (70 models)
+│   │   │   ├── services/    # Business logic services (70 files)
+│   │   │   │   └── rag/     # RAG system (embeddings, vector, hybrid, rerank)
+│   │   │   └── scripts/     # CLI scripts (scanners, migrations)
+│   │   └── tests/           # Backend tests
+│   ├── web/                 # Next.js 12 frontend (42 pages)
+│   │   ├── src/
+│   │   │   ├── components/  # React components
+│   │   │   ├── pages/       # Next.js pages
+│   │   │   └── styles/      # Tailwind CSS
+│   ├── admin/               # React admin dashboard
+│   ├── worker/              # Node.js Bull/Redis background jobs
+│   └── extension/           # Browser extension (6 files)
+├── packages/
+│   ├── finance/             # DCF, comps, technicals, market helpers
+│   ├── connectors/          # US public-data connectors (17 federal + 51 state)
+│   ├── shared-types/        # TypeScript interfaces
+│   ├── config-typescript/   # Shared TS config
+│   └── config-eslint/       # Shared ESLint config
+├── docs/                    # Architecture, features, setup, handoff docs
+├── tests/                   # Integration test suites
+└── tooling/                 # Scripts & generators
 ```
 
-Auth: `X-Registry-Api-Key` header or `?api_key=` query param. Rate limit: 100 req/min per key.
+---
 
-### Ingestion tiers
+## Features Status
 
-| Tier | States | Method | Status |
-|------|--------|--------|--------|
-| **A — Bulk** | NY, CO, FL, OR | data.ny.gov, data.colorado.gov, Sunbiz HTTP, data.oregon.gov | ✅ Live |
-| **B — API** | WA, TX, CA | WA SOS API, TX Comptroller, CA SOS CBC API | ⏸️ CA key pending |
-| **B2 — BizFile scrape** | CA (interim) | Playwright scrape of official BizFile Online | ✅ Live (~150/run) |
-| **D — Scrape** | 44 remaining states + DC | GenericScrapedStateConnector + Playwright | ✅ Live |
-| **E — Cobalt** | Scrape states + CA interim | `COBALT_API_KEY` | ⏸️ Deferred (trial 429) |
+### Completed Features (35+ items)
 
-### BEA connector (#18)
+#### Core Intelligence Module
+
+| Feature | Description | Evidence |
+|---------|-------------|----------|
+| **9-Section Intelligence Dossiers** | Entity Profile, Investors, Gov Contracts, Lobbying, Political Exposure, Sanctions, Litigation, AI Narrative, Data Sources | 10+ reports persisted |
+| **Entity Claim Tagging** | Every claim tagged DOCUMENTED / REPORTED / ANALYTICAL | Live in all reports |
+| **PDF/Word/Excel/PPT Export** | All formats downloadable via `/intelligence/{id}/pdf\|word\|excel\|powerpoint` | Verified |
+| **PayPal Mafia Demo Seeds** | Peter Thiel, Elon Musk, Reid Hoffman + Thiel/Defense network | Live |
+| **Click-to-Investigate** | Capitalized entity names in reports are clickable → new report | Live |
+
+#### Market & Finance Analysis
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Stock Analysis** | Price, 35+ ratios, 15 technicals, 4-agent AI consensus (BUY/HOLD/SELL) | Completed |
+| **DCF Valuation** | Intrinsic value, Bear/Base/Bull scenarios, 10-K/10-Q MD&A parsing | Completed |
+| **Deep Company Analysis** | SEC EDGAR, XBRL, cap table, insider trades, analyst ratings, earnings | Completed |
+| **Expert Analysis** | News sentiment trends, themes, analyst upgrade timeline | Completed |
+| **Crypto Dashboard** | CoinGecko market data, whale alerts, wallet lookup (ETH/BTC), TTL cache | Completed |
+| **Economics Module** | FRED + BEA macroeconomic data (GDP, CPI, regional income) | Completed |
+
+#### Institutional Holdings (13F)
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **13F Institutional Holdings** | Top holders, mutual funds, filer lookup | Completed |
+| **13F Position-Diff** | Quarter-over-quarter position comparison | Completed (45/45 tests pass) |
+| **Live SEC Query** | Real Berkshire Hathaway 2026-03-31 vs 2025-12-31 diff | Verified in ~8s |
+
+#### Trade Alerts & Monitoring
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **F-03: Big Trade Scanner** | Form 4 insider trades above USD threshold → Email/SMS alerts | Completed |
+| **F-04: Investment Threshold Alerts** | Per-watchlist thresholds → Form 4 + 13F triggers | Completed |
+| **F-05: Congress.gov Integration** | Bills, legislation, sponsor tracking (1,000 req/hr free) | Completed |
+| **Senate PTR** | Live Senate trading disclosures (1,301 lines gov connector) | Completed |
+| **House PTR** | House Clerk annual FD.ZIP parsing | Completed |
+| **Politician Tracker** | Pelosi, McConnell, etc. PTR + legislation tracking | Completed |
+| **PM2 Cron Scheduling** | big-trade every 4h, investment +30min offset | Configured |
+| **SendGrid + Twilio** | Email + SMS delivery wired | Configured |
+
+#### RAG Chat System (Phase 1)
+
+| Component | Description | Status |
+|-----------|-------------|--------|
+| **Vector Search** | OpenAI `text-embedding-3-small`, batched, disk-cached | Completed |
+| **Keyword Search** | BM25 (`rank_bm25`) with TF-IDF fallback | Completed |
+| **Hybrid Search** | BM25 + dense fused via Reciprocal Rank Fusion | Completed |
+| **Reranking** | Optional cross-encoder rerank (fallback-safe) | Completed |
+| **Chunking** | Recursive + semantic chunking (`RAG_CHUNK_STRATEGY`) | Completed |
+| **Guardrails** | Input (prompt-injection), retrieval floor, output (no advice) | Completed |
+| **Debug Trace** | Per-stage debug trace (`?debug=true`) | Completed |
+| **Eval CLI** | hit@k / MRR / nDCG + before/after comparison | Completed |
+| **Tests** | 10 passing tests (mocked embeddings → offline) | Verified |
+
+#### News & Intelligence
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **50+ RSS Feeds** | Bloomberg, Reuters, FT, WSJ, CNBC, CoinDesk, Politico, etc. | Completed |
+| **Entity Auto-tagging** | 15 entities tracked (Apple, Tesla, Bitcoin, Fed, etc.) | Completed |
+| **15-min Polling** | PM2 rss-poller cycle | Running |
+| **2,000+ Articles** | Indexed and searchable | Live |
+
+#### OSINT & Entity Enrichment
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Apollo.io** | Org enrichment, people search, org chart | Completed (Paid plan live) |
+| **OpenCorporates** | Global company registry search | Completed |
+| **GLEIF** | Legal Entity Identifier (LEI) lookup | Completed |
+| **FinCEN** | Beneficial ownership data | Completed |
+| **ICIJ Offshore Leaks** | Panama/Paradise/Pandora Papers search | Completed |
+| **Username Enumeration** | 40+ platform checks (Sherlock-style) | Completed |
+| **Domain Intelligence** | WHOIS, DNS, subdomains, tech stack | Completed |
+| **UK Companies House** | Officers + company search | Completed |
+
+#### Registry & Graph
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **50-State Registry** | All 51 jurisdictions searchable (~202 normalized records) | Completed |
+| **Relationship Graph** | Cytoscape network visualization, expand/pathfind | Completed |
+| **Entity Timeline** | Chronological event view per entity | Completed |
+| **Multi-Entity Comparison** | Up to 5 entities, radar chart, KPI table, overlap | Completed |
+| **Global Search** | Entities, documents, relationships | Completed |
+| **Entity Profile (9 tabs)** | Financial, People, Social, RAG Chat, etc. | Completed |
+
+#### Tracking & Alerts
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Watchlist Management** | Add/remove entities, per-ticker configuration | Completed |
+| **Alert Inbox** | Severity filter, acknowledge, snooze 24h | Completed |
+| **Daily Digest** | 6AM UTC worker sends curated report | Completed |
+| **Portfolio Import** | CSV-based portfolio tracking | Completed |
+
+#### UI/UX
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Dark UI Redesign** | 8 Jul sprint complete | Completed |
+| **Tailwind Design System** | Dark sidebar, indigo brand (#6366f1) | Completed |
+| **All Pages Redesigned** | 42 pages live | Completed |
+
+---
+
+### In Progress Features (7+ items)
+
+| Feature | Description | Status | Next Steps |
+|---------|-------------|--------|------------|
+| **7 Orphan Services** | Self-dealing, co-investment, founder-correlation, deep-comparative, correlation, contract-probability, interactive-report | Logic complete (4,794 lines) | Need router endpoints + orchestrators |
+| **AI Model Training Phase 2** | Fine-tune embeddings on domain data | Phase 1 done | Collect claim pairs, train on RunPod |
+| **Quality Gates ML Classifier** | Replace regex gates with trained classifier | Regex exists | Export pass/fail labels, train classifier |
+| **Page Regeneration System** | Scheduled freshness regeneration | Endpoint exists | Implement actual regeneration |
+| **Interactive Report HTML** | Searchable HTML reports | Service written (598 lines) | Wire to router |
+| **Subscription Notifications** | Status page subscriber alerts | Stub in `/status` | Wire persistence + delivery |
+| **DB Migration for F-04** | Alembic migration for new columns | Columns added | Add migration for existing DBs |
+
+#### Orphan Services Detail
+
+| Service | Lines | Purpose | Entry Point |
+|---------|-------|---------|-------------|
+| `self_dealing_service.py` | 436 | NVIDIA self-dealing detection | `cross_reference_self_dealing(...)` |
+| `coinvestment_network_service.py` | 400 | Find investors of same companies | `build_coinvestment_network(...)` |
+| `founder_correlations_service.py` | 623 | PayPal-mafia / who-studied-together | `find_educational_overlaps(...)` |
+| `deep_comparative_service.py` | 1,134 | Deep multi-company comparison | Has own SEC/FMP fetchers |
+| `correlation_service.py` | 528 | Pattern / correlation finding | 17 functions |
+| `contract_probability_service.py` | 675 | Probability of delivery on contracts | Consumes USASpending data |
+| `interactive_report_service.py` | 598 | Interactive searchable reports | Renders HTML |
+
+---
+
+### Remaining Features (72 items prioritized)
+
+#### Band A — Conversion & Retention Blockers (14 items) — DO FIRST
+
+**Backend (8):**
+
+| # | Feature | Effort | Notes |
+|---|---------|--------|-------|
+| 3 | Reachable human support + escalation path | Low | Policy + ticketing |
+| 5 | Internal linking across generated pages | Low | SEO optimization |
+| 6 | Sitemaps and crawl management | Low | XML sitemap generation |
+| 7 | Freshness engine | Medium | Scheduled re-generation |
+| 9 | Compliance guardrails on generated content | Low | No projections, disclaimers |
+| 11 | AI-answer visibility tracking | Low | Track Google AI Overview citations |
+| 13 | Portable corpora — export, API, MCP | Low | User data export |
+| 14 | 13F honesty layer | Low | Flag 45-day stale data |
+
+**Frontend (3):**
+
+| # | Feature | Effort | Notes |
+|---|---------|--------|-------|
+| 1 | Published pricing page | Low | Static pricing |
+| 2 | Renewal notice + one-click cancel | Low | No dark patterns |
+| 12 | Browser extension overlay | Low | Provenance on EDGAR/news |
+
+**Full-stack (3):**
+
+| # | Feature | Effort | Notes |
+|---|---------|--------|-------|
+| 4 | Honest status page with incident history | Low | BE: logging / FE: public UI |
+| 8 | Editorial workflow for AI content | Low | BE: approval queue / FE: review |
+| 10 | Experiment framework for templates | Medium | A/B assignment + rendering |
+
+#### Band B — Differentiation Multipliers (17 items)
+
+| # | Feature | Effort | Notes |
+|---|---------|--------|-------|
+| 15 | Filing redline + table-to-Excel + search | Medium | Diff engine + viewer |
+| 16 | Company-specific ontology + KPI schema | High | Per-company RAG |
+| 17 | Private document ingestion | Medium | Upload pipeline |
+| 18 | Multi-entity and thematic corpora | Medium | Sector queries |
+| 19 | Point-in-time rolling consensus | High | Consensus as-it-was |
+| 31 | Docket-to-disclosure reconciliation | Medium | **KEY L-SERIES FEATURE** |
+
+#### Band C — Table Stakes (25 items)
+
+- Global equity coverage
+- Forward multiples on consensus
+- Cost basis and tax lots
+- Brokerage sync
+- Risk metrics (VaR, beta, drawdown)
+- Team permission roles
+- Litigation tracking and extraction
+- Mobile PWA with push notifications
+- Chart drawing tools with persistence
+
+#### Not Done (Known Gaps — Waiting on Approvals)
+
+| Feature | Gap | Reason |
+|---------|-----|--------|
+| Ownership tree crawler | Not implemented | FinCEN BOI / OpenOwnership pending |
+| Officer cross-entity matching | Not implemented | Needs fuzzy name matching |
+| Multi-entity network graph | Single-entity only | Full network deduplication not wired |
+| PitchBook enrichment | Pending approval | Requires API key |
+| LinkedIn people enrichment | Pending approval | Requires credential decision |
+| CA SOS API | Pending approval | Interim Playwright scrape live |
+| ALEPH/OCCRP leaked docs | Pending approval | Account approval required |
+| Google OIDC/SSO | Pending credentials | Routes exist |
+
+---
+
+## API Endpoints
+
+### Summary: 447 Routes
+
+#### Market Routes (`/market/*` — 100+ endpoints)
+
+```
+GET  /market/yf/snapshot?ticker=          — Price + fundamentals
+GET  /market/yf/history?ticker=           — OHLCV history
+GET  /market/technicals?ticker=           — 15 technical indicators
+GET  /market/intelligence/report?ticker=  — 4-agent AI consensus
+GET  /market/crypto/*                     — CoinGecko + wallet data
+GET  /market/gov/*                        — House PTR, Form 4, politician tracker
+GET  /market/company/*                    — SEC EDGAR, cap table, earnings
+GET  /market/valuation/*                  — DCF + filing analysis
+GET  /market/expert/*                     — Sentiment + analyst timeline
+GET  /market/institutional/*              — 13F positions + position-diff
+GET  /market/rss/*                        — RSS feeds + articles
+POST /market/rss/poll                     — Manual poll trigger
+```
+
+#### Intelligence Routes (`/intelligence/*` — 20+ endpoints)
+
+```
+POST /intelligence/generate               — Generate 9-section report
+GET  /intelligence/                       — List saved reports
+GET  /intelligence/{id}                   — Retrieve report
+GET  /intelligence/{id}/pdf|word|excel    — Export formats
+POST /intelligence/apollo/enrich          — Apollo enrichment
+GET  /intelligence/private-co/search      — OpenCorporates/GLEIF/FinCEN
+POST /intelligence/browser-research       — Browser research agent
+```
+
+#### Tracking & Monitoring (`/tracking/*`)
+
+```
+POST /tracking/watchlist                  — Add entity
+GET  /tracking/watchlist                  — List
+DELETE /tracking/watchlist/{name}         — Remove
+POST /tracking/scan/insider-trades        — F-03 scan
+POST /tracking/scan/investments           — F-04 scan
+GET|POST|PATCH|DELETE /tracking/alert-rules  — F-03 rules CRUD
+GET|PATCH /tracking/watchlist/{ticker}/threshold  — F-04 settings
+```
+
+#### RAG & Chat (`/chat/*`)
+
+```
+POST /chat/ask                            — Q&A (with ?mode=vector|keyword|hybrid)
+POST /chat/summary/{id}                   — Executive summary
+```
+
+#### Registry (`/registry/*`)
+
+```
+GET  /registry/health                     — Source status
+GET  /registry/jurisdictions              — All 51 with tier
+GET  /registry/search?q=&state=           — Entity search
+GET  /registry/entity/{jur}/{eid}         — Detail
+POST /registry/keys                       — Admin API key creation
+```
+
+---
+
+## External API Integrations
+
+### Active Integrations (20+ services)
+
+| API | Purpose | Status |
+|-----|---------|--------|
+| **OpenAI** | GPT-4o mini for intelligence narratives | Active |
+| **Anthropic Claude** | Skills gateway, LLM fallback | Active |
+| **Apollo.io** | Org enrichment + people search (Paid plan) | Active |
+| **Apify** | Social scraping (Twitter/Instagram/YouTube) | Active |
+| **yfinance** | Market data (free) | Active |
+| **Finnhub** | Financial snapshots | Active |
+| **FMP** | Financial Modeling Prep | Active |
+| **Alpha Vantage** | Technical indicators | Active |
+| **FRED** | St. Louis Fed macroeconomic data | Active |
+| **BEA** | Bureau of Economic Analysis | Active |
+| **NewsAPI** | News aggregation | Active |
+| **Guardian / NYT / GDELT** | News sources | Active |
+| **CoinGecko** | Crypto market data (free) | Active |
+| **Etherscan** | ETH wallet data | Active |
+| **Blockchain.info** | BTC wallet data | Active |
+| **SEC EDGAR** | Company filings (User-Agent required) | Active |
+| **FEC OpenData** | Political contributions | Active |
+| **Congress.gov** | Legislation (1,000 req/hr free) | Active |
+| **CourtListener** | Litigation data | Active |
+| **OFAC** | Sanctions check (no key needed) | Active |
+| **UK Companies House** | UK company registry | Active |
+| **LDA.gov** | Lobbying disclosure | Active |
+| **SendGrid** | Email delivery for alerts | Configured |
+| **Twilio** | SMS delivery for alerts | Configured |
+
+---
+
+## Database Models
+
+**70 SQLAlchemy ORM model classes** across 13 model files:
+
+| Model File | Key Tables | Count |
+|----------|-----------|-------|
+| `models.py` | Organization, Workspace, User, Role, Permission, Membership, Project, Case | 8 |
+| `entities.py` | Entity, EntityAlias, EntityIdentifier, Relationship, MergeCandidate | 6 |
+| `evidence.py` | RawDocument, EvidenceRef | 2 |
+| `market_13f_cache.py` | Institutional13FPeriodCache, PositionCache | 3 |
+| `market_13f_schemas.py` | PositionDiff schemas | 12+ |
+| `monitor.py` | Watchlist, WatchlistItem, PortfolioImport, AlertEvent, AlertRule | 5 |
+| `registry.py` | RegistrySource, RegistryRecord, RegistrySchema | 3 |
+| `reports.py` | Report, Claim, ClaimBundle, ClaimVerification | 4 |
+| `review.py` | Comment, Suggestion | 2 |
+| `skills.py` | SkillRun, SkillExecutionLog | 2 |
+| `sources.py` | Source, SourceRun, SourceContract | 3 |
+| `compliance.py` | Policy, ExportApproval | 2 |
+
+**Authentication & RBAC:**
+- JWT tokens (24h expiry)
+- bcrypt password hashing
+- Role-based access control per workspace
+
+---
+
+## Frontend Pages
+
+**42 pages** across the web application:
+
+| Route | Page | Status |
+|-------|------|--------|
+| `/` | Dashboard — stats, quick search | Live |
+| `/intelligence` | Report generator + PayPal Mafia seeds | Live |
+| `/intelligence/[id]` | Saved report + exports | Live |
+| `/saved` | Reports library | Live |
+| `/stock` | Stock terminal | Live |
+| `/valuation` | DCF + filing analysis | Live |
+| `/company` | Deep company (5+ tabs) | Live |
+| `/expert-analysis` | Sentiment + analyst timeline | Live |
+| `/institutional` | 13F + position-diff | Live |
+| `/gov-trading` | House PTR + politician tracker | Live |
+| `/crypto` | Market dashboard + wallet | Live |
+| `/economics` | FRED + BEA | Live |
+| `/search` | Global entity search | Live |
+| `/graph` | Cytoscape network viz | Live |
+| `/registry` | 50-state registry + OSINT | Live |
+| `/timeline` | Entity event timeline | Live |
+| `/compare` | Multi-entity comparison | Live |
+| `/tracking` | Watchlist + digest + F-03/F-04 alerts | Live |
+| `/tracking/alerts` | Alert inbox | Live |
+| `/entities/[id]` | 9-tab entity profile | Live |
+| `/skills` | Skills runner | Live |
+| +20 more | Options, analysts, billing, consensus, guidance, filing-compare, etc. | Live |
+
+---
+
+## Setup & Installation
+
+### Prerequisites
+
+- **Python 3.11+**
+- **Node.js 18+**
+- **pnpm** (for monorepo)
+- **Redis** (for Bull job queue)
+
+### Backend Setup
 
 ```bash
-# Signup: https://apps.bea.gov/API/signup/
-BEA_API_USER_ID=your-uuid-here  # in .env
+# From repo root
+cd apps/api
+
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # or .venv\Scripts\activate on Windows
+
+# Install dependencies
+pip install -e .
+
+# Set environment variables
+export DATABASE_URL="sqlite:///./local.db"
+
+# Run the server
+python -m uvicorn app.main:app --host 127.0.0.1 --port 3001
+
+# Bootstrap database
+curl -X POST http://127.0.0.1:3001/bootstrap
 ```
 
-Fetches NIPA GDP, Regional personal income, industry data. Enriches `analyze_stock`.
-
-### New env vars
+### Frontend Setup
 
 ```bash
-BEA_API_USER_ID=          # free BEA API key (live on staging)
-CA_SOS_API_KEY=           # CA SOS Primary key from calicodev.sos.ca.gov/profile (pending approval)
-COBALT_API_KEY=           # Cobalt SOS API — trial at app.cobaltintelligence.com
-COBALT_LIVE_DATA=false    # use cached SOS data (saves trial/paid credits)
-REGISTRY_API_ADMIN_TOKEN= # optional bootstrap admin key for /registry/keys
-REGISTRY_REQUIRE_AUTH=    # set to "true" to enforce API key auth
+cd apps/web
+pnpm install
+pnpm dev  # Runs on :3000 or :3003
 ```
 
-**CA SOS signup:** [calicodev.sos.ca.gov](https://calicodev.sos.ca.gov/) → Products → **CBC API Production** → Subscribe → Primary key when **Active**.
-
-### Seeding
+### Running Tests
 
 ```bash
-bash scripts/seed-state-registry.sh          # all 51 jurisdictions
-bash scripts/seed-state-registry.sh us_ny us_co  # specific states
+# 13F tests (45 pass)
+python -m pytest ../../tests/test_market_13f_api.py ../../tests/test_market_13f_position_diff.py -q
+
+# Congress tests (40/41 pass)
+python -m pytest ../../tests/connectors/test_congress_gov.py ../../tests/test_legislation_endpoints.py -q
+
+# RAG tests (10 pass)
+python -m pytest ../../tests/test_rag_vector.py -q
+
+# Trade alert scanners (dry-run)
+python -m app.scripts.run_big_trade_scan --dry-run
+python -m app.scripts.run_investment_alert_scan --dry-run
+```
+
+### Environment Variables
+
+Copy `.env.example` to `.env`. Key variables:
+
+```bash
+# Database
+DATABASE_URL=postgresql://user:pass@localhost/finance_db
+
+# OpenAI
+OPENAI_API_KEY=sk-...
+
+# Apollo.io
+APOLLO_API_KEY=...
+
+# Notifications
+SENDGRID_API_KEY=...
+TWILIO_ACCOUNT_SID=...
+TWILIO_AUTH_TOKEN=...
+ALERT_SENDER_EMAIL=...
+ALERT_RECIPIENT_EMAIL=...
+ALERT_RECIPIENT_PHONE=...
+BIG_TRADE_THRESHOLD=100000
+
+# SEC (required for EDGAR)
+SEC_USER_AGENT=YourCompany contact@email.com
+
+# Congress.gov
+CONGRESS_API_KEY=...
+
+# BEA Economics
+BEA_API_USER_ID=...
 ```
 
 ---
 
-## What it does today
+## Deployment
 
-- **Generate Layer 1 intelligence reports** — enter entity/person → live Wikipedia, SEC, USASpending, FEC, FARA, LDA (client), OFAC, CourtListener, FundedAPI → **9-section** cited dossier + deep GPT narrative (`/intelligence`)
-- **Resolve & search** entities (companies, people, agencies) with aliases and identifiers
-- **Store evidence** — raw documents, hashes, and `EvidenceRef` citations
-- **Build relationship graphs** — expand, pathfind, related-party scoring; intelligence reports write edges per run
-- **U.S. 50-state registry** — search 51 jurisdictions, 202 normalized records (`/registry`)
-- **Run finance workflows** — stock analysis, DCF, comps, fundamentals (via `packages/finance`)
-- **Draft & review reports** — sections, claims, claim verification, comments, exports (Markdown/HTML/JSON)
-- **Monitor** — watchlists, portfolios (CSV import), alert rules, scan/deliver (webhook + email/SMS)
-- **Ingest (production ETL)** — 17 U.S. connectors with live APIs; sample data only in `ENV=test`
-- **Skills gateway** — Anthropic adapter (Claude) with OpenAI fallback; artifact persistence + cost logging
-- **BEA economics** — GDP, regional income data on `/economics`
-- **Exports** — PDF, Word, Markdown, HTML, JSON + evidence CSV appendix (legacy reports)
-- **SSO** — Google OIDC routes wired (credentials pending from client)
-- **Admin** — source health dashboard with per-source status and run history
+### Staging (EC2: 184.72.123.188)
+
+| Service | Port | Status |
+|---------|------|--------|
+| Web | 3003 | Online |
+| API | 3001 | Online |
+| Admin | 3002 | Online |
+| API Docs | 3001/docs | Online |
+
+### PM2 Process Manager
+
+```
+PM2 Name                  Status
+finance-api               Online (FastAPI)
+finance-web               Online (Next.js)
+finance-admin             Online (React)
+finance-worker            Online (Bull/Redis jobs)
+rss-poller                Online (15-min cycle)
+big-trade-scanner         Online (every 4h UTC)
+investment-alert-scanner  Online (every 4h UTC + 30min)
+daily-digest              Online (6AM UTC)
+```
 
 ---
 
-## Architecture (high level)
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| **`docs/Finance_Platform_Handoff.md`** | Full handoff for new teammates — START HERE |
+| `docs/AI-Model-Training-Roadmap.md` | Phase 1-4 AI roadmap (Phase 1 shipped 10 Aug) |
+| `docs/RAG-Upgrade-Plan.md` | Vector RAG design & operations |
+| `docs/Task-Assignment-Detailed.md` | Post-merge task breakdown + 7 orphan services |
+| `docs/Feature-Roadmap-Prioritized.md` | Prioritized feature backlog (72 items) |
+| `docs/CONTRIBUTING.md` | Contribution guidelines |
+| `docs/api/` | API integration guides |
+| `docs/architecture/` | System architecture decisions |
+
+---
+
+## AI Model Training Roadmap
+
+### Phase Status
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| **Phase 1** | Vector search swap-in (no training) | **Completed** (10 Aug 2026) |
+| **Phase 2** | Fine-tune embeddings on domain data | Pending |
+| **Phase 3** | Quality-gate ML classifier | Pending |
+| **Phase 4** | Distill narrative generator | Pending (gated on data volume) |
+
+### Phase 1 Shipped Components
+
+- `services/rag/embeddings.py` — Provider-agnostic, batched, disk-cached
+- `services/rag/vector_store.py` — Numpy cosine + transparent HNSW
+- `services/rag/keyword.py` — BM25 with TF-IDF fallback
+- `services/rag/hybrid.py` — BM25 + dense via RRF
+- `services/rag/rerank.py` — Optional cross-encoder
+- `services/rag/chunking.py` — Recursive + semantic
+- `services/rag/guardrails.py` — Input/retrieval/output guards
+- `services/rag/trace.py` — Debug trace
+- `services/rag/eval.py` — hit@k / MRR / nDCG CLI
+
+### Sequencing
+
+```
+Phase 1 (days)   → vector search, no training          ✅ DONE
+Phase 2 (weeks)  → fine-tuned embeddings, first model  → NEXT
+Phase 3 (weeks)  → quality classifier, second model    → Parallel to Phase 2
+Phase 4 (months) → narrative distillation              → Gated on volume
+```
+
+---
+
+## Roadmap & Sprint Sequence
+
+### Recommended Sprint Sequence
+
+1. **Sprint 1-2:** Band A Backend (8 items) — Stop the bleeding
+2. **Sprint 2-3:** Band A Frontend + Full-stack (6 items) — Complete churn-stopper set
+3. **Sprint 4-6:** Band B Backend (12 items) — Start with #31 (docket-disclosure)
+4. **Sprint 7-8:** Band B Full-stack (4 items) — Filing redline (#15)
+5. **Sprint 9+:** Band C as needed based on user feedback
+
+### Immediate Next Steps
+
+1. **Activate 7 orphan services** — Wire self-dealing, co-investment, founder-correlation endpoints
+2. **13F honesty layer** — Add "45-day stale" flag to position-diff + UI banner
+3. **AI Model Training Phase 2** — Fine-tune embeddings
+4. **Twilio upgrade + SendGrid domain auth** — Production-ready multi-user alerts
+5. **DB migration** — Add Alembic migration for F-04 columns on existing databases
+
+### Known Post-Merge Follow-ups
+
+1. `package-lock.json` — Run `npm install` at repo root (new monorepo tooling)
+2. SQLite migration gap — F-04 columns need `ALTER TABLE` for existing DBs
+3. Test bug — `test_bill_detail_not_found_returns_error_payload` expects 200, gets 404
+
+---
+
+## Architecture
 
 ```mermaid
 flowchart LR
@@ -393,8 +721,6 @@ flowchart LR
     Finance[finance]
     Connectors[connectors]
     Types[shared-types]
-    ConfigTS[config-typescript]
-    ConfigESLint[config-eslint]
   end
   Web --> API
   Admin --> API
@@ -403,350 +729,35 @@ flowchart LR
   API --> Vault
   API --> Finance
   Connectors --> API
-  Web -.-> Types
-  Admin -.-> Types
-  API -.-> Finance
 ```
 
-| Layer | Technology |
-|-------|------------|
-| API | FastAPI, SQLAlchemy, JWT auth, RBAC |
-| Web | Next.js 12, React 17 |
-| Admin | Create React App, React 17 |
-| Worker | Node, Bull, Redis |
-| DB (local default) | SQLite (`apps/api/local.db`) |
-| DB (Docker) | PostgreSQL 13 |
-| Queue | Redis 6 |
-| Monorepo | pnpm workspaces, Turborepo (optional) |
+---
+
+## Product Principles
+
+1. **Evidence first** — Conclusions trace to sources
+2. **Official APIs first** — Scraping only when necessary
+3. **Human review** for sensitive outputs
+4. **Multi-tenant governance** — Permissions, audit, versioning
+5. **Cost-aware architecture** — Right storage for the job
 
 ---
 
-## Repository structure (Updated: 2026 Best Practices)
-
-```
-Finance-Advanced-Research-Platform/
-├── apps/                           # Deployable applications
-│   ├── api/                       # FastAPI backend (Python 3.11)
-│   │   └── app/
-│   │       ├── api/               # Route handlers
-│   │       ├── connectors/        # External data connectors
-│   │       ├── services/          # Business logic
-│   │       └── models.py          # Database models
-│   ├── web/                       # Next.js 12 frontend (React 17)
-│   ├── admin/                     # React admin dashboard
-│   └── worker/                    # Node.js background jobs
-│
-├── packages/                      # Shared libraries
-│   ├── finance/                   # DCF, comps, technicals, market helpers
-│   ├── connectors/                # U.S. public-data connectors (17 federal + 51 state)
-│   ├── config-typescript/         # Shared TypeScript configurations
-│   ├── config-eslint/             # Shared ESLint configurations
-│   └── shared-types/              # Common TypeScript types/interfaces
-│
-├── tooling/                       # Development tools
-│   ├── scripts/                   # Build/deployment scripts
-│   └── generators/                # Code generators (future)
-│
-├── docs/                          # Documentation (organized by purpose)
-│   ├── setup/                     # Setup & installation guides
-│   ├── architecture/              # Architecture decisions & diagrams
-│   ├── features/                  # Feature documentation
-│   ├── api/                       # API integration guides
-│   ├── deployment/                # Deployment documentation
-│   ├── handoff/                   # Team handoff documents
-│   ├── requirements/              # Requirements & specifications
-│   └── archive/                   # Historical logs & reports
-│       ├── sprints/               # Daily sprint logs
-│       ├── verification/          # Verification reports
-│       └── prompts/               # Agent prompts
-│
-├── tests/                         # Test suites
-├── .github/workflows/             # CI/CD pipelines
-│
-├── README.md                      # This file
-├── CONTRIBUTING.md                # Contribution guidelines
-├── CHANGELOG.md                   # Version history
-├── RESTRUCTURE_PLAN.md            # Restructure documentation
-├── package.json                   # Root workspace config
-├── pnpm-workspace.yaml            # pnpm workspaces
-├── turbo.json                     # Turborepo configuration
-├── tsconfig.json                  # Root TypeScript config
-├── docker-compose.yml             # Docker orchestration
-├── ecosystem.config.js            # PM2 process definitions
-└── .env.example                   # Environment template
-```
-
-### Key Principles
-
-- **`apps/`** = Deployable units (frontend, backend, worker)
-- **`packages/`** = Shared libraries consumed by apps
-- **`tooling/`** = Development tools and scripts
-- **`docs/`** = All documentation, organized by purpose
-- **One-way dependencies**: apps → packages (never reverse)
-
----
-
-## Implemented modules (API)
-
-| Module | Prefix | Notes |
-|--------|--------|--------|
-| **Intelligence (Layer 1)** | `/intelligence` | 9-section entity network dossiers — generate, list, retrieve; PayPal Mafia seeds |
-| Identity & workspace | `/`, `/auth`, `/orgs`, `/workspaces` | Orgs, roles, projects, cases, audit |
-| **Registry** | `/registry` | 51 jurisdictions, search, entity detail, API keys |
-| Evidence vault | `/evidence` | Raw upload, refs, file storage |
-| Entities & resolution | `/entities` | CRUD, resolve, merge queue |
-| Search | `/search` | Global search, entity profile, timeline |
-| OpenSearch (stub) | `/searchos` | Index stub + hybrid fallback |
-| Graph | `/graph` | Expand, path, related, edge evidence |
-| Finance | `/finance` | Analyze stock, DCF, comps, fundamentals |
-| Sources | `/sources` | Registry, runs, contracts |
-| Reports | `/reports` | Reports, claims, bundles, verify (legacy CRUD) |
-| Review | `/review` | Comments, suggestions, exports |
-| Skills | `/skills` | Skill registry + runs (Anthropic/OpenAI) |
-| Monitor | `/monitor` | Watchlists, portfolios, alerts |
-| Compliance | `/compliance` | Policies, export approvals |
-| Demo | `/demo` | `POST /demo/seed` — sample data for UI |
-
-Interactive API docs (when API is running): **http://localhost:3001/docs**
-
----
-
-## U.S. connectors (`packages/connectors`)
-
-**17 federal connectors** — live on staging with real API ingestion:
-
-SEC EDGAR, FEC, LDA, FARA, Congress.gov, GovInfo, Federal Register, Regulations.gov, eCFR, RegInfo/OIRA, USAspending, SAM.gov, IRS 990, CourtListener, OFAC, OpenCorporates, GLEIF.
-
-**Layer 1 intelligence service** runs entity-specific queries against Wikipedia, SEC (incl. 13G/13D/Form D), FEC, FARA, USASpending, LDA (`client_name` via lda.gov), OFAC, CourtListener, and FundedAPI per report generation (see `apps/api/app/services/intelligence_service.py`).
-
-**51 state registry connectors** + **BEA** — bulk/API/scrape tiers; CA BizFile Playwright scrape as interim free official source.
-
-Source contracts (YAML) are under `packages/connectors/us/*/source_contract.yml` where defined.
-
----
-
-## Web UI routes
-
-| Route | Purpose |
-|-------|---------|
-| `/` | Dashboard — feature cards, live stats, quick search |
-| `/intelligence` | Layer 1 Entity Network Report generator |
-| `/intelligence/[id]` | Saved report viewer + PDF/Word/Excel/PPT export |
-| `/saved` | Saved reports library |
-| `/stock` | Stock analysis — price, technicals, 4-agent AI, analysts |
-| `/valuation` | DCF valuation + 10-K/10-Q filing analysis |
-| `/company` | Deep company — SEC filings, XBRL, cap table, earnings |
-| `/expert-analysis` | Expert sentiment + analyst upgrade timeline |
-| `/institutional` | 13F institutional holders + filer lookup |
-| `/gov-trading` | House PTR + Form 4 insider + Politician tracker |
-| `/crypto` | Crypto market dashboard, coin detail, wallet lookup |
-| `/economics` | FRED + BEA macro data |
-| `/search` | Global search |
-| `/graph` | Graph visualization |
-| `/registry` | U.S. 50-state registry + OSINT |
-| `/timeline` | Person/entity event timeline |
-| `/compare` | Multi-entity comparison |
-| `/tracking` | Watchlist + digest + **F-03/F-04 trade alerts** |
-| `/tracking/alerts` | Alert inbox |
-| `/skills` | Skills runner |
-| `/entities/[id]` | Entity profile (9 tabs) |
-| `/alerts` | Alert events |
-
----
-
-## Quick start
-
-### Prerequisites
-
-- **Python 3.11+**
-- **Node.js 18+**
-- **Redis** (optional — only for `apps/worker`)
-
-### Option A — Local without Docker (recommended on Windows)
-
-From this directory:
-
-```powershell
-.\scripts\local-start.ps1
-```
-
-Stop:
-
-```powershell
-.\scripts\local-stop.ps1
-```
-
-Uses **SQLite** by default (see `.env`). No PostgreSQL install required.
-
-### Option B — Docker
-
-Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/).
-
-```powershell
-.\scripts\docker-up.ps1
-```
-
-Or manually:
-
-```powershell
-docker compose up --build -d
-curl.exe -X POST http://localhost:3001/bootstrap
-```
-
-### Service URLs
-
-| Service | Local | Staging (EC2) |
-|---------|-------|----------------|
-| Web | http://localhost:3003 | http://184.72.123.188:3003 |
-| **Intelligence UI** | http://localhost:3003/intelligence | http://184.72.123.188:3003/intelligence |
-| API | http://localhost:3001 | http://184.72.123.188:3001 |
-| API health | http://localhost:3001/health | http://184.72.123.188:3001/health |
-| Admin | http://localhost:3002 | http://184.72.123.188:3002 |
-
----
-
-## Demo data
-
-Populate sample entities, graph links, a report, watchlist, and portfolio:
-
-```powershell
-curl.exe -X POST http://127.0.0.1:3001/demo/seed
-```
-
-Then try:
-
-- http://localhost:3003/intelligence → click **Palantir Technologies** or **Peter Thiel** → **Generate Intelligence Report**
-- http://localhost:3003/tracking → F-03 Big Trade Scan + F-04 Set Alert thresholds
-- http://localhost:3003/search → query `apple`
-- http://localhost:3003/entities/1
-- http://localhost:3003/graph → entity ID `1`
-- http://localhost:3003/registry → search state registry records
-- http://localhost:3003/portfolio/1
-- http://localhost:3003/review/1
-
-Details: **[docs/setup/DEMO_DATA.md](./docs/setup/DEMO_DATA.md)**
-
----
-
-## Manual setup (API only)
-
-```powershell
-cd apps\api
-pip install -e .
-pip install -e "..\..\packages\finance"
-$env:DATABASE_URL = "sqlite:///./local.db"
-python -m uvicorn app.main:app --host 127.0.0.1 --port 3001
-```
-
-Bootstrap DB tables:
-
-```powershell
-curl.exe -X POST http://127.0.0.1:3001/bootstrap
-```
-
-Install web/admin per app (`npm install` inside `apps/web` and `apps/admin`). Root `npm install` can fail on some Windows setups — install per app instead.
-
-Full instructions: **[docs/setup/SETUP.md](./docs/setup/SETUP.md)**
-
----
-
-## Environment variables
-
-Copy `.env.example` to `.env` at the repo root.
-
-| Variable | Purpose |
-|----------|---------|
-| `DATABASE_URL` | `sqlite:///./local.db` (local) or Postgres URL (Docker) |
-| `NEXT_PUBLIC_API_URL` | Web → API base (default `http://localhost:3001`) |
-| `REACT_APP_API_URL` | Admin → API base |
-| `REDIS_URL` | Worker queue |
-| `JWT_SECRET` | API token signing |
-| `OPENAI_API_KEY` | Layer 1 GPT-4o narrative generation |
-| `FEC_API_KEY` | FEC OpenData (Layer 1 + connector) |
-| `COURTLISTENER_API_TOKEN` | CourtListener litigation search |
-| `SEC_USER_AGENT` | SEC EDGAR User-Agent header (required by SEC) |
-| `BEA_API_USER_ID` | BEA economic data |
-| `CA_SOS_API_KEY` | CA SOS CBC API (pending approval) |
-| `COBALT_API_KEY` | Cobalt SOS API (deferred — trial capped) |
-| `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | Google Workspace SSO (pending from client) |
-
-See `.env.example` for the full list of 17+ connector keys.
-
----
-
-## Testing
-
-```powershell
-# From repo root (with API deps installed)
-pytest tests/
-```
-
-Coverage is **minimal** today (health stubs + connector sample runs). See gap analysis for testing roadmap.
-
----
-
-## Documentation
-
-| Document | Description |
-|----------|-------------|
-| **[docs/handoff/Finance_Platform_Handoff.md](./docs/handoff/Finance_Platform_Handoff.md)** | **⭐ Full handoff for new teammates — architecture, features, APIs, backlog, credentials** |
-| [docs/archive/sprints/5th_July.md](./docs/archive/sprints/5th_July.md) | Latest sprint log — RSS, yfinance, multi-agent, crypto, gov, valuation, institutional |
-| [docs/requirements/james_requirements.md](./docs/requirements/james_requirements.md) | Full James requirements backlog |
-| [docs/setup/SETUP.md](./docs/setup/SETUP.md) | Local + Docker setup, troubleshooting |
-| [docs/requirements/REQUIREMENT_GAP_ANALYSIS.md](./docs/requirements/REQUIREMENT_GAP_ANALYSIS.md) | Spec vs repo, priorities |
-| [docs/features/FEATURE_BIG_TRADE_ALERTS_ARCHITECTURE.md](./docs/features/FEATURE_BIG_TRADE_ALERTS_ARCHITECTURE.md) | **F-03 / F-04** big trade + investment alert architecture |
-| [docs/api/API_INTEGRATIONS_GUIDE.md](./docs/api/API_INTEGRATIONS_GUIDE.md) | All external APIs — name, why, how they help |
-| [docs/setup/DEMO_DATA.md](./docs/setup/DEMO_DATA.md) | Demo seed and UI tour |
-| [CONTRIBUTING.md](./CONTRIBUTING.md) | Contribution guidelines |
-| [CHANGELOG.md](./CHANGELOG.md) | Version history |
-| [RESTRUCTURE_PLAN.md](./RESTRUCTURE_PLAN.md) | Repository restructure documentation |
-
-### Archived Documentation
-- [docs/archive/sprints/](./docs/archive/sprints/) - Daily sprint logs
-- [docs/archive/verification/](./docs/archive/verification/) - Verification reports
-- [docs/archive/prompts/](./docs/archive/prompts/) - Agent prompts
-
----
-
-## Known limitations
-
-**Layer 1 (v1.1 — current)**
-- No PDF export for intelligence dossiers yet (UI + JSON only)
-- Single-entity reports only — full multi-node PayPal Mafia graph not wired
-- PitchBook + LinkedIn/people enrichment pending James approval (PDL evaluated)
-- No ownership tree crawler (OpenOwnership / FinCEN BOI)
-- Officer cross-entity matching not implemented
-- Registry not yet used as intelligence report entry point
-- OFAC name matching can produce false positives (needs tuning)
-- SEC 13G search returns related filings in EDGAR full-text (not always direct holders of subject entity)
-
-**Platform (general)**
-- Claim verification and legacy review flows are basic, not full enterprise governance
-- OIDC/Google SSO wired but credentials pending from client
-- OpenSearch integration is largely a stub
-- Admin UI is an operations shell, not full tenant administration
-- Cobalt and CA SOS API deferred per client direction
-
----
-
-## Product principles (from spec)
-
-1. **Evidence first** — conclusions should trace to sources  
-2. **Official APIs first** — scraping only when necessary  
-3. **Human review** for sensitive outputs  
-4. **Multi-tenant governance** — permissions, audit, versioning  
-5. **Cost-aware architecture** — right storage for the job  
-
----
-
-## Contributing
-
-1. Read [docs/REQUIREMENT_GAP_ANALYSIS.md](./docs/REQUIREMENT_GAP_ANALYSIS.md) for current gaps  
-2. Follow existing patterns in `apps/api/app/api/` and `packages/`  
-3. Prefer focused PRs per module (connectors, evidence, review, etc.)  
+## Quick Links
+
+- **Live Demo:** http://184.72.123.188:3003
+- **API Docs:** http://184.72.123.188:3001/docs
+- **Start Here:** `docs/Finance_Platform_Handoff.md`
+- **Task Assignment:** `docs/Task-Assignment-Detailed.md`
 
 ---
 
 ## License
 
-See repository license file if present; otherwise treat as private/internal until specified.
+Proprietary. All rights reserved.
+
+---
+
+**Last Updated:** 11 August 2026
+**Branch:** `8th-july-sprint`
+**Project Status:** In Progress (90+ commits ahead of main)

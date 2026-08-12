@@ -9,7 +9,7 @@ Provides endpoints for:
 """
 
 import os
-from fastapi import APIRouter, Query, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Query, HTTPException, UploadFile, File, Form, Depends
 from fastapi.responses import JSONResponse
 from typing import Optional, List
 
@@ -19,8 +19,11 @@ from app.services.document_ingestion_service import (
     ingestion_result_to_dict,
     ProcessingStatus,
 )
+from app.core.rate_limit import rate_limiter
 
 router = APIRouter(prefix="/documents")
+
+_SEARCH_LIMIT = int(os.getenv("RAG_SEARCH_RATE_LIMIT", "30"))
 
 
 @router.post("/upload")
@@ -158,15 +161,20 @@ async def get_document_chunks(
     }
 
 
-@router.get("/search")
+@router.get("/search", dependencies=[Depends(rate_limiter("docs_search", limit=_SEARCH_LIMIT, window=60))])
 async def search_documents(
-    query: str = Query(..., description="Search query"),
+    query: str = Query(..., description="Search query", max_length=2000),
     ticker: Optional[str] = Query(None, description="Filter by ticker"),
     document_ids: Optional[str] = Query(None, description="Comma-separated document IDs"),
-    limit: int = Query(10, description="Maximum results"),
+    limit: int = Query(10, ge=1, le=100, description="Maximum results (1-100)"),
+    mode: str = Query("hybrid", description="Retrieval mode: vector | keyword | hybrid"),
+    debug: bool = Query(False, description="Attach per-stage RAG retrieval trace"),
+    user_id: Optional[str] = Query(None, description="Tenant scope — only this user's docs"),
 ):
     """
-    Search across document chunks.
+    Search across document chunks (vector / keyword / hybrid + rerank).
+    Falls back to keyword automatically when embeddings are unavailable.
+    Rate-limited and tenant-scoped (user_id) to prevent abuse / cross-tenant leakage.
     """
     service = get_ingestion_service()
 
@@ -179,16 +187,27 @@ async def search_documents(
         document_ids=doc_id_list,
         ticker=ticker.upper() if ticker else None,
         limit=limit,
+        mode=mode,
+        debug=debug,
+        user_id=user_id,
     )
+
+    # Pull the trace off the last result (set by the service when debug=True).
+    trace = None
+    if debug and results and "_trace" in results[-1]:
+        trace = results[-1].pop("_trace")
 
     return {
         "query": query,
+        "mode": mode,
         "filters": {
             "ticker": ticker,
             "document_ids": doc_id_list,
+            "user_id": user_id,
         },
         "results": results,
         "count": len(results),
+        **({"trace": trace} if trace else {}),
     }
 
 

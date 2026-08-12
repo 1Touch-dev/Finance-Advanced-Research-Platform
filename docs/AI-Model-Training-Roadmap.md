@@ -31,6 +31,32 @@ This is not "build India's frontier finance model." It's: fix documented TODOs i
 ## Phase 1 — Vector search swap-in (no training required)
 
 > **Priority: HIGHEST. Ships in days. Immediate quality + cost win.**
+> **STATUS: ✅ DONE (10 Aug 2026).** Shipped as the `app.services.rag` package — a
+> full retrieval engine, not just a cosine swap. See `docs/RAG-Upgrade-Plan.md`.
+
+**What shipped (beyond the original scope):**
+- `services/rag/embeddings.py` — provider-agnostic (OpenAI `text-embedding-3-small`
+  default), batched, disk-cached, fails soft.
+- `services/rag/vector_store.py` — numpy cosine (SQLite-ok) + transparent HNSW
+  once a collection passes `RAG_HNSW_MIN`. pgvector-on-Postgres is the documented
+  follow-up behind the same interface.
+- `services/rag/keyword.py` — BM25 (`rank_bm25`) with pure-Python TF-IDF fallback.
+- `services/rag/hybrid.py` — BM25 + dense fused via Reciprocal Rank Fusion.
+- `services/rag/rerank.py` — optional cross-encoder rerank (fallback-safe).
+- `services/rag/chunking.py` — recursive + semantic chunking (`RAG_CHUNK_STRATEGY`).
+- `services/rag/guardrails.py` — input (prompt-injection), retrieval floor, and
+  output (no investment advice / grounding) guardrails.
+- `services/rag/trace.py` — per-stage debug trace (`?debug=true`).
+- `services/rag/retriever.py` — one interface over report-claims AND doc-chunks.
+- `services/rag/eval.py` + `app/scripts/rag_eval.py` — hit@k / MRR / nDCG +
+  before/after (keyword vs vector vs hybrid) CLI.
+- Wired into `rag_chat_service.py`, `document_ingestion_service.py`, `api/chat.py`
+  (`POST /chat/ask` `mode` + `debug`), `api/documents.py` (`GET /documents/search`
+  `?mode=&debug=`). TF-IDF/keyword remain the guaranteed fallback so nothing
+  hard-fails when embeddings are unavailable.
+- Tests: `tests/test_rag_vector.py` (10 passing, embeddings mocked → offline).
+
+**Original checklist (all covered):**
 
 | # | Task | Effort | Notes |
 |---|------|--------|-------|
