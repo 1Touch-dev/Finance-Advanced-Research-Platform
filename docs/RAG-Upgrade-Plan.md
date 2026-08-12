@@ -183,14 +183,22 @@ has been cleared. What changed:
    `≈sqrt(rows)` with `ANALYZE` once a collection grows past 1k rows; embedding-dim
    changes are detected and, with `RAG_PG_ALLOW_REEMBED=1`, the column is
    re-typed + truncated for a clean re-ingest (else a loud warning, data intact).
+9. **Larger eval set + CI gate.** `tests/data/rag_eval_set.jsonl` — 20 docs / 19
+   queries spanning 13F, insider trades, contracts, litigation, proxy, news, and
+   financials (the topic mix a real report spans). `tests/test_rag_eval_gate.py`
+   fails the build if `hit@5`/`MRR` drops below a floor, for both keyword (no
+   embeddings needed) and hybrid (deterministic mocked embedder) — fully offline,
+   no network/API-key dependency in CI. Measured baseline: keyword `hit@5=1.0,
+   mrr=1.0`; hybrid `hit@5=1.0, mrr=0.97`; floors set at `0.60`/`0.55` so the gate
+   only trips on a real regression.
+10. **Async embedding calls.** `embeddings.embed_texts_async` added alongside the
+   sync path (unchanged) via `asyncio.to_thread`, so callers on the FastAPI event
+   loop can await embedding without blocking the worker.
 
 ### Still open (non-blocking)
-- **Larger eval set + CI gate** — mine historical report Q&A into a real labeled set
-  (N≫5) and fail the build on hit@k regression.
-- **Async embedding calls** — embeddings are currently sync `requests`.
 - **Distributed rate limiting** — current limiter is per-process; move to Redis when
   running multiple API replicas.
-- **Phase 2** — fine-tune the embedding model on our claim pairs.
+- **Phase 2** — fine-tune the embedding model on our claim pairs (needs GPU).
 
 ### Table/financial-statement-aware chunking — ✅ DONE
 `chunking.table_aware_chunk` (on by default, `RAG_TABLE_AWARE=true`) detects

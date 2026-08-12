@@ -241,6 +241,34 @@ def test_embed_raises_when_all_tiers_down(monkeypatch):
         embeddings.embed_texts(["hello"], use_cache=False)
 
 
+def test_embed_texts_async_matches_sync(mock_embeddings):
+    """Async wrapper must return the same vectors as the sync path (it just
+    offloads the same call to a thread), so callers can await it safely."""
+    import asyncio
+    texts = ["apple stake raised", "bank of america sold"]
+    sync_out = embeddings.embed_texts(texts, use_cache=False)
+    async_out = asyncio.run(embeddings.embed_texts_async(texts, use_cache=False))
+    assert async_out.shape == sync_out.shape
+    assert np.allclose(async_out, sync_out)
+
+
+def test_embed_query_async_matches_sync(mock_embeddings):
+    import asyncio
+    sync_out = embeddings.embed_query("apple stake raised")
+    async_out = asyncio.run(embeddings.embed_query_async("apple stake raised"))
+    assert np.allclose(async_out, sync_out)
+
+
+def test_embed_texts_async_propagates_unavailable(monkeypatch):
+    def openai_boom(batch):
+        raise RuntimeError("outage")
+    monkeypatch.setattr(embeddings, "_embed_openai_batch", openai_boom)
+    monkeypatch.setattr(embeddings, "_embed_local", lambda texts: None)
+    import asyncio
+    with pytest.raises(embeddings.EmbeddingUnavailable):
+        asyncio.run(embeddings.embed_texts_async(["hello"], use_cache=False))
+
+
 # ── new: production hardening (persistence, thread-safety, bounds, scoping) ─────
 def test_index_manager_reuses_cached_index(mock_embeddings, monkeypatch):
     """Same collection + unchanged docs must NOT rebuild the store (kills the

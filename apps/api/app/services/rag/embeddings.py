@@ -198,3 +198,21 @@ def embed_texts(texts: List[str], *, use_cache: bool = True) -> np.ndarray:
 def embed_query(text: str) -> np.ndarray:
     """Embed a single query → (dim,) normalized vector."""
     return embed_texts([text])[0]
+
+
+async def embed_texts_async(texts: List[str], *, use_cache: bool = True) -> np.ndarray:
+    """
+    Async wrapper around embed_texts(). The embedding call itself is sync
+    (OpenAI SDK + tenacity retry are sync), so this offloads to a thread via
+    asyncio.to_thread — lets FastAPI request handlers `await` embedding without
+    blocking the event loop for other requests. Same fail-soft contract as the
+    sync path (raises EmbeddingUnavailable on total failure).
+    """
+    import asyncio
+    return await asyncio.to_thread(embed_texts, texts, use_cache=use_cache)
+
+
+async def embed_query_async(text: str) -> np.ndarray:
+    """Async single-query embed — see embed_texts_async."""
+    result = await embed_texts_async([text])
+    return result[0]

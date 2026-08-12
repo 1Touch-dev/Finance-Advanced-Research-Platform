@@ -1,0 +1,39 @@
+{"kind": "doc", "id": "d1", "text": "Berkshire Hathaway increased its Apple stake by twelve percent in Q2, adding roughly 15 million shares according to the 13F filing."}
+{"kind": "doc", "id": "d2", "text": "The mutual fund sold its entire Bank of America position, citing concerns over regional banking exposure and rising deposit costs."}
+{"kind": "doc", "id": "d3", "text": "Nvidia's CEO Jensen Huang sits on the board of a supplier that recently won a government contract, raising a potential conflict-of-interest flag."}
+{"kind": "doc", "id": "d4", "text": "Lobbying spend on artificial intelligence regulation rose sharply in the last fiscal quarter as tech firms pushed back on proposed export controls."}
+{"kind": "doc", "id": "d5", "text": "The company's total revenue for fiscal year 2025 was 60.9 billion dollars, an increase of 114 percent year over year, driven by data center demand."}
+{"kind": "doc", "id": "d6", "text": "Segment revenue reconciliation shows the data center segment contributed 47.5 billion while gaming contributed 10.4 billion, summing to the reported total."}
+{"kind": "doc", "id": "d7", "text": "Insider Form 4 filings show the CFO sold 50,000 shares on the open market as part of a pre-arranged 10b5-1 trading plan."}
+{"kind": "doc", "id": "d8", "text": "A board member disclosed acquiring 10,000 shares directly, increasing beneficial ownership disclosed under Section 16."}
+{"kind": "doc", "id": "d9", "text": "The Department of Defense awarded a 200 million dollar contract for advanced chip supply to support next-generation radar systems."}
+{"kind": "doc", "id": "d10", "text": "A federal procurement contract obligated 85 million dollars for cloud infrastructure modernization across three agencies."}
+{"kind": "doc", "id": "d11", "text": "Litigation intelligence shows a shareholder derivative lawsuit alleging the board breached fiduciary duty during the acquisition process."}
+{"kind": "doc", "id": "d12", "text": "A patent infringement suit was filed by a competitor alleging unauthorized use of parallel processing architecture patents."}
+{"kind": "doc", "id": "d13", "text": "News coverage this week highlighted a partnership announcement with a major cloud provider to expand GPU capacity in new data centers."}
+{"kind": "doc", "id": "d14", "text": "An unrelated news article discussed regional weather patterns affecting agricultural commodity futures markets."}
+{"kind": "doc", "id": "d15", "text": "Proxy statement disclosures list five independent directors and detail related-party transactions with a supplier controlled by a director's family."}
+{"kind": "doc", "id": "d16", "text": "Board interlock analysis found two directors who also serve together on the board of a separate publicly traded semiconductor firm."}
+{"kind": "doc", "id": "d17", "text": "Institutional holdings data shows Vanguard and BlackRock together hold over eighteen percent of outstanding shares as of the latest 13F cycle."}
+{"kind": "doc", "id": "d18", "text": "A congressional lawmaker's periodic transaction report disclosed a purchase of technology sector call options shortly before an earnings announcement."}
+{"kind": "doc", "id": "d19", "text": "Analyst consensus estimates for next quarter's earnings per share were revised upward following stronger-than-expected guidance commentary."}
+{"kind": "doc", "id": "d20", "text": "Debt-to-equity ratio improved to 0.35 from 0.52 a year earlier, reflecting reduced leverage and stronger free cash flow generation."}
+{"kind": "query", "query": "did berkshire hathaway change its apple position", "relevant_ids": ["d1"]}
+{"kind": "query", "query": "fund selling bank of america shares", "relevant_ids": ["d2"]}
+{"kind": "query", "query": "ceo board seat conflict of interest with supplier", "relevant_ids": ["d3"]}
+{"kind": "query", "query": "lobbying spend on ai regulation", "relevant_ids": ["d4"]}
+{"kind": "query", "query": "annual revenue growth fiscal year 2025", "relevant_ids": ["d5"]}
+{"kind": "query", "query": "segment revenue sums reconcile with reported total", "relevant_ids": ["d6"]}
+{"kind": "query", "query": "cfo insider stock sale 10b5-1 plan", "relevant_ids": ["d7"]}
+{"kind": "query", "query": "director purchased shares beneficial ownership", "relevant_ids": ["d8"]}
+{"kind": "query", "query": "department of defense chip supply contract award", "relevant_ids": ["d9"]}
+{"kind": "query", "query": "federal cloud infrastructure procurement contract", "relevant_ids": ["d10"]}
+{"kind": "query", "query": "shareholder lawsuit board fiduciary duty breach", "relevant_ids": ["d11"]}
+{"kind": "query", "query": "patent infringement lawsuit parallel processing", "relevant_ids": ["d12"]}
+{"kind": "query", "query": "partnership announcement cloud provider gpu capacity", "relevant_ids": ["d13"]}
+{"kind": "query", "query": "proxy statement related party transactions directors", "relevant_ids": ["d15"]}
+{"kind": "query", "query": "board interlock shared directors semiconductor firm", "relevant_ids": ["d16"]}
+{"kind": "query", "query": "institutional ownership vanguard blackrock stake", "relevant_ids": ["d17"]}
+{"kind": "query", "query": "congress member stock options trade before earnings", "relevant_ids": ["d18"]}
+{"kind": "query", "query": "analyst eps estimate revision after guidance", "relevant_ids": ["d19"]}
+{"kind": "query", "query": "leverage debt to equity ratio improvement", "relevant_ids": ["d20"]}
