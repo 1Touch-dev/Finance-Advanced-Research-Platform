@@ -84,19 +84,50 @@ This is not "build India's frontier finance model." It's: fix documented TODOs i
 
 ---
 
-## Phase 3 — Quality-gate classifier
+## Phase 3 — Quality layer: LLM-as-judge now, classifier later
 
-> **Priority: HIGH. Best "real ML" ROI — supervised learning on data we already own.**
+> **Priority: HIGH.**
+> **STATUS: 🟢 Judge kickoff DONE (12 Aug 2026).** Reframed on discovery: ~0 real
+> quality labels existed anywhere in this system (39 DB reports, one on-disk
+> JSON, no labeled pass/fail set). Training a classifier on nothing would only
+> distill the existing regex rules. Shipped **LLM-as-judge** instead — it gives
+> the holistic "taste" the 10 regex gates structurally can't have, AND its
+> logged judgments are what makes the classifier trainable next. See
+> `docs/Quality-Judge.md` for the full writeup.
 
-| # | Task | Effort | Notes |
-|---|------|--------|-------|
-| 9 | Export historical pass/fail labels from `quality_gate_service.py` runs | 🟢 | Every report run already generates this label |
-| 10 | Train baseline classifier (logistic regression → gradient-boosted) | 🟢 | CPU only, no GPU needed |
-| 11 | Upgrade to small transformer classifier if baseline insufficient | 🟡 | Only if simple models plateau |
-| 12 | Run in parallel with regex gates, compare false-positive rate on sensitive claims | 🟡 | Especially `SENSITIVE_PATTERNS` (fraud, insider trading, etc.) |
-| 13 | Replace/augment regex gates once classifier outperforms | 🟡 | Keep regex as a hard-fail safety net |
+**What shipped (`feature/quality-gate-ml` branch, `apps/api/app/services/quality/`):**
+- `report_text.py` — pure `flatten_report()` digest (handles both the
+  deep-research and DB report shapes).
+- `judge.py` — LLM-as-judge core: 5-dimension holistic score (accuracy,
+  citations, clarity, relevance, neutrality), guardrail pre-screen, fail-soft
+  (no key/error → `ok=False`, never raises), optional self-consistency.
+- `decision.py` — `rules` \| `judge` \| `blend` modes; rules retain
+  **unconditional hard-veto** over the judge (compliance floor, non-negotiable).
+  Wired into `GET /report-job/{job_id}/quality-gates?mode=`.
+- `labels.py` + `app/scripts/backfill_quality_labels.py` — every judgment
+  logged to `exports/quality_labels.jsonl`; backfill replays existing reports
+  to seed the file before any judge has run live. **This is the classifier
+  bootstrap** — the training data problem this phase solves.
+- `app/scripts/quality_judge_demo.py` — before/after CLI (rules vs judge vs
+  blend on 3 sample reports, including one that sails through every rule gate
+  while reading vague/misleading — the exact gap being closed).
+- Tests: `tests/test_quality_judge.py` (21 passing, LLM mocked → offline).
 
-**Outcome:** fewer false positives/negatives on report quality, second owned model, clear metric story for stakeholders.
+**Original checklist (reframed, not abandoned):**
+
+| # | Task | Effort | Status |
+|---|------|--------|--------|
+| 9 | Export historical pass/fail labels from `quality_gate_service.py` runs | 🟢 | ✅ via `labels.py` + backfill script — but source is now judge output, not bare rule pass/fail, since rule-only labels don't capture what the classifier actually needs to learn (the judge's richer signal) |
+| 10 | Train baseline classifier (logistic regression → gradient-boosted) | 🟢 | ⏸️ Deferred to **Phase 3b** — gated on label volume (~200-500 judged reports, standard binary-classifier floor) |
+| 11 | Upgrade to small transformer classifier if baseline insufficient | 🟡 | ⏸️ Deferred, same gate |
+| 12 | Run in parallel with regex gates, compare false-positive rate on sensitive claims | 🟡 | ✅ Partially covered today: `blend` mode already runs judge + rules in parallel per-request; false-positive comparison work moves to Phase 3b once labels exist |
+| 13 | Replace/augment regex gates once classifier outperforms | 🟡 | ⏸️ Deferred to Phase 3b; rules keep veto power regardless |
+
+**Outcome so far:** a real holistic quality signal live today (behind
+`?mode=judge/blend`), zero regression to default behavior (`mode=rules`
+unchanged), and a growing label file that turns the "no training data" blocker
+into a solved problem on a timer.
+
 
 ---
 
