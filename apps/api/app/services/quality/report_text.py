@@ -32,24 +32,54 @@ def _fmt_num(v: Any) -> str:
     return str(v)
 
 
+def _as_list(value: Any) -> List[Any]:
+    """Best-effort normalization to a list. Production report shapes vary by
+    connector: some fields are plain lists, others are a dict wrapping the
+    real list under a nested key (e.g. litigation sub-sections wrap `cases`/
+    `enforcement_actions`). Never raises; unknown shapes just yield []."""
+    if isinstance(value, list):
+        return value
+    if isinstance(value, dict):
+        flattened: List[Any] = []
+        for v in value.values():
+            if isinstance(v, list):
+                flattened.extend(v)
+        return flattened
+    return []
+
+
 def _financial_summary(data: Dict[str, Any], max_items: int = 8) -> List[str]:
     fin = data.get("financial_intelligence") or {}
+    if not isinstance(fin, dict):
+        return []
     lines = []
     total_rev = fin.get("total_revenue")
-    if total_rev:
+    if isinstance(total_rev, (int, float)):
         lines.append(f"Total revenue: {_fmt_num(total_rev)}")
-    segments = fin.get("segments") or []
-    for seg in segments[:max_items]:
-        if isinstance(seg, dict) and seg.get("name"):
-            lines.append(f"Segment {seg['name']}: revenue {_fmt_num(seg.get('revenue', 0))}")
+
+    # `segments` is a plain list in the simple/test shape, but in real
+    # generated reports it's a dict of {category: [row, ...]} (e.g.
+    # "segments"/"geographic"), and rows use current/prior, not "revenue".
+    for seg in _as_list(fin.get("segments"))[:max_items]:
+        if not isinstance(seg, dict):
+            continue
+        name = seg.get("name")
+        if not name:
+            continue
+        value = seg.get("revenue")
+        if not isinstance(value, (int, float)):
+            value = seg.get("current")
+        if isinstance(value, (int, float)):
+            lines.append(f"Segment {name}: {_fmt_num(value)}")
     return lines[:max_items]
 
 
 def _insider_summary(data: Dict[str, Any], max_items: int = 5) -> List[str]:
     ins = data.get("insider_transactions") or {}
-    txns = ins.get("transactions") or []
+    if not isinstance(ins, dict):
+        return []
     lines = []
-    for t in txns[:max_items]:
+    for t in _as_list(ins.get("transactions"))[:max_items]:
         if not isinstance(t, dict):
             continue
         owner = t.get("owner_name", "unknown")
@@ -61,9 +91,10 @@ def _insider_summary(data: Dict[str, Any], max_items: int = 5) -> List[str]:
 
 def _news_summary(data: Dict[str, Any], max_items: int = 5) -> List[str]:
     news = data.get("news_intelligence") or {}
-    articles = news.get("articles") or []
+    if not isinstance(news, dict):
+        return []
     lines = []
-    for a in articles[:max_items]:
+    for a in _as_list(news.get("articles"))[:max_items]:
         if not isinstance(a, dict):
             continue
         title = (a.get("title") or a.get("headline") or "").strip()
@@ -75,9 +106,10 @@ def _news_summary(data: Dict[str, Any], max_items: int = 5) -> List[str]:
 
 def _contract_summary(data: Dict[str, Any], max_items: int = 5) -> List[str]:
     c = data.get("contract_intelligence") or {}
-    contracts = c.get("contracts") or []
+    if not isinstance(c, dict):
+        return []
     lines = []
-    for con in contracts[:max_items]:
+    for con in _as_list(c.get("contracts"))[:max_items]:
         if not isinstance(con, dict):
             continue
         agency = con.get("agency", "unknown agency")
@@ -87,15 +119,31 @@ def _contract_summary(data: Dict[str, Any], max_items: int = 5) -> List[str]:
 
 
 def _litigation_summary(data: Dict[str, Any], max_items: int = 5) -> List[str]:
+    """
+    Real reports spread litigation across several typed sub-sections
+    (federal_cases, sec_enforcement, ftc_proceedings, ...), each of which may
+    itself be a dict wrapping the actual case list (e.g.
+    federal_cases -> {"cases": [...]}, sec_enforcement -> {"enforcement_actions": [...]}).
+    Gathers across all of them defensively.
+    """
     lit = data.get("litigation_intelligence") or {}
-    cases = lit.get("cases") or lit.get("filings") or []
+    if not isinstance(lit, dict):
+        return []
+    cases: List[Any] = []
+    for key in ("federal_cases", "sec_enforcement", "ftc_proceedings", "doj_antitrust",
+                "itc_investigations", "ptab_proceedings", "cases", "filings"):
+        val = lit.get(key)
+        cases.extend(_as_list(val))
+
     lines = []
     for case in cases[:max_items]:
-        if isinstance(case, dict):
-            desc = (case.get("summary") or case.get("description") or case.get("title") or "")
-            if desc:
-                lines.append(f"Litigation: {str(desc)[:140]}")
-    return lines
+        if not isinstance(case, dict):
+            continue
+        desc = case.get("case_name") or case.get("summary") or case.get("description") or case.get("title") or ""
+        if desc:
+            court = f" ({case['court']})" if case.get("court") else ""
+            lines.append(f"Litigation: {str(desc)[:140]}{court}")
+    return lines[:max_items]
 
 
 def _named_people_summary(data: Dict[str, Any], max_items: int = 10) -> List[str]:
@@ -104,24 +152,28 @@ def _named_people_summary(data: Dict[str, Any], max_items: int = 10) -> List[str
     person_sources: Dict[str, set] = {}
 
     proxy = data.get("proxy_intelligence") or {}
-    for p in (proxy.get("executives") or []) + (proxy.get("directors") or []):
-        if isinstance(p, dict) and p.get("name"):
-            person_sources.setdefault(p["name"], set()).add("proxy")
+    if isinstance(proxy, dict):
+        for p in _as_list(proxy.get("executives")) + _as_list(proxy.get("directors")):
+            if isinstance(p, dict) and p.get("name"):
+                person_sources.setdefault(p["name"], set()).add("proxy")
 
     ins = data.get("insider_transactions") or {}
-    for t in ins.get("transactions") or []:
-        if isinstance(t, dict) and t.get("owner_name"):
-            person_sources.setdefault(t["owner_name"], set()).add("form4")
+    if isinstance(ins, dict):
+        for t in _as_list(ins.get("transactions")):
+            if isinstance(t, dict) and t.get("owner_name"):
+                person_sources.setdefault(t["owner_name"], set()).add("form4")
 
     interlocks = data.get("board_interlocks") or {}
-    for p in interlocks.get("people") or []:
-        if isinstance(p, dict) and p.get("name"):
-            person_sources.setdefault(p["name"], set()).add("interlocks")
+    if isinstance(interlocks, dict):
+        for p in _as_list(interlocks.get("people")):
+            if isinstance(p, dict) and p.get("name"):
+                person_sources.setdefault(p["name"], set()).add("interlocks")
 
     news = data.get("news_intelligence") or {}
-    for m in news.get("people_mentions") or []:
-        if isinstance(m, dict) and m.get("name"):
-            person_sources.setdefault(m["name"], set()).add("news")
+    if isinstance(news, dict):
+        for m in _as_list(news.get("people_mentions")):
+            if isinstance(m, dict) and m.get("name"):
+                person_sources.setdefault(m["name"], set()).add("news")
 
     lines = []
     for name, sources in list(person_sources.items())[:max_items]:

@@ -107,6 +107,34 @@ def test_flatten_report_detects_sensitive_claims():
     assert "SENSITIVE CLAIMS" in digest
 
 
+def test_flatten_report_handles_dict_shaped_segments_and_litigation():
+    """Real generated reports (see reports/*.json) use segments as a dict of
+    {category: [rows]} (rows keyed by current/prior, not revenue), and spread
+    litigation across typed dict-wrapped sub-sections (federal_cases ->
+    {"cases": [...]}, sec_enforcement -> {"enforcement_actions": [...]}) rather
+    than a flat list. This shape previously crashed flatten_report with
+    'unhashable type: slice' when the judge/blend modes ran against them."""
+    data = {
+        "entity_name": "Real Shape Corp",
+        "ticker": "RSC",
+        "financial_intelligence": {
+            "total_revenue": 100000,
+            "segments": {
+                "segments": [{"name": "Compute", "current": 80000, "prior": 60000}],
+                "geographic": [{"name": "United States", "current": 50000, "prior": 40000}],
+            },
+        },
+        "litigation_intelligence": {
+            "federal_cases": {"cases": [{"case_name": "Doe v. Real Shape Corp", "court": "D. Del."}]},
+            "sec_enforcement": {"enforcement_actions": [], "litigation_releases": []},
+        },
+    }
+    digest = flatten_report(data)  # must not raise
+    assert "Segment Compute" in digest
+    assert "80,000" in digest
+    assert "Doe v. Real Shape Corp" in digest
+
+
 # ── judge: fail-soft ─────────────────────────────────────────────────────────
 def test_judge_fail_soft_without_api_key(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
