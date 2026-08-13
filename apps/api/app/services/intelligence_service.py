@@ -1797,6 +1797,8 @@ def generate_enhanced_intelligence_report(
     entity_name: str,
     entity_type: str = "org",
     ticker: Optional[str] = None,
+    competitors: Optional[List[str]] = None,
+    network_depth: int = 1,
     include_investment_thesis: bool = True,
     include_swot: bool = True,
     include_risk_matrix: bool = True,
@@ -1819,12 +1821,15 @@ def generate_enhanced_intelligence_report(
         entity_name: Name of the entity to research
         entity_type: "org" or "person"
         ticker: Stock ticker symbol (enables financial analysis)
+        competitors: Optional peer tickers for comparative analysis
+        network_depth: Requested network depth (grounded output remains first-degree only)
         include_*: Flags to enable/disable specific enhanced sections
 
     Returns:
         Enhanced report dict with standard + enhanced sections
     """
     started = _now()
+    competitors = competitors or []
 
     # 1. Generate base intelligence report
     base_report = generate_intelligence_report(db, entity_name, entity_type, ticker)
@@ -1924,14 +1929,42 @@ def generate_enhanced_intelligence_report(
         except Exception as e:
             enhanced_sections = [{"error": str(e)}]
 
+    # 3b. Add grounded intelligence activation sections without duplicating fetch logic.
+    report_intelligence = {}
+    if entity_type == "org":
+        try:
+            from app.services.intelligence_activation_service import (
+                build_report_intelligence_additions,
+            )
+
+            report_intelligence = build_report_intelligence_additions(
+                entity_name=entity_name,
+                ticker=ticker or "",
+                competitors=competitors,
+                network_depth=network_depth,
+                family_network=(deep_intel or {}).get("family_network") or {},
+            )
+        except Exception as e:
+            logger.warning(f"Report intelligence integration error: {e}")
+            report_intelligence = {}
+
     # 4. Convert enhanced sections to standard report format
     starting_order = max((s.get("order", 0) for s in base_report.get("sections", [])), default=100) + 10
     enhanced_report_sections = convert_enhanced_to_report_sections(
         enhanced_sections, starting_order=starting_order
     )
 
+    activation_sections = []
+    for index, section in enumerate(report_intelligence.get("sections") or []):
+        activation_sections.append(
+            {
+                **section,
+                "order": starting_order + len(enhanced_report_sections) * 10 + index * 10,
+            }
+        )
+
     # 5. Combine all sections
-    all_sections = base_report.get("sections", []) + enhanced_report_sections
+    all_sections = base_report.get("sections", []) + enhanced_report_sections + activation_sections
 
     # 6. Extract structured data from enhanced sections
     investment_thesis = None
@@ -2034,6 +2067,9 @@ def generate_enhanced_intelligence_report(
         # Deep Intelligence (Phase 1: LinkedIn, FPDS, Political, 13F Overlap)
         "deep_intel": deep_intel if deep_intel else None,
         "deep_intel_summary": deep_intel_summary if deep_intel_summary else None,
+        "network_analysis": report_intelligence.get("network_analysis") or None,
+        "correlation_analysis": report_intelligence.get("correlation_analysis") or None,
+        "interactive_report": report_intelligence.get("interactive_report") or None,
 
         # Data sources
         "data_sources": {
@@ -2045,6 +2081,8 @@ def generate_enhanced_intelligence_report(
             "multi_agent": MULTI_AGENT_AVAILABLE and ticker is not None,
             "apollo_people": APOLLO_AVAILABLE and len(people_data) > 0,
             "deep_research": DEEP_RESEARCH_AVAILABLE,
+            "grounded_network_report": bool(report_intelligence.get("network_analysis")),
+            "grounded_correlation_report": bool(report_intelligence.get("correlation_analysis")),
         },
 
         # Summary (merge base + enhanced)
@@ -2071,6 +2109,9 @@ def generate_enhanced_intelligence_report(
             "deep_intel_revolving_door_count": deep_intel_summary.get("key_findings", {}).get("revolving_door_count", 0) if deep_intel_summary else 0,
             "deep_intel_risk_flags_count": deep_intel_summary.get("risk_flags_count", 0) if deep_intel_summary else 0,
             "deep_intel_high_severity_flags": deep_intel_summary.get("high_severity_flags", 0) if deep_intel_summary else 0,
+            "has_grounded_network_section": bool(report_intelligence.get("network_analysis")),
+            "has_grounded_correlation_section": bool(report_intelligence.get("correlation_analysis")),
+            "has_interactive_report_payload": bool(report_intelligence.get("interactive_report")),
         },
     }
 
@@ -2091,6 +2132,9 @@ def generate_enhanced_intelligence_report(
         "financial_health":  financial_health,
         "financial_data":    result["financial_data"],
         "deep_intel":        deep_intel_summary,  # Phase 1 deep research summary
+        "network_analysis":  result["network_analysis"],
+        "correlation_analysis": result["correlation_analysis"],
+        "interactive_report": result["interactive_report"],
         "sections_data":     {s.get("name", "Section"): s.get("data", {}) for s in all_sections},
     })
     return result
@@ -2178,6 +2222,9 @@ def get_enhanced_intelligence_report(db: Session, report_id: int) -> Optional[Di
         "risk_matrix": meta.get("risk_matrix"),
         "financial_health": meta.get("financial_health"),
         "financial_data": meta.get("financial_data"),
+        "network_analysis": meta.get("network_analysis"),
+        "correlation_analysis": meta.get("correlation_analysis"),
+        "interactive_report": meta.get("interactive_report"),
     }
 
 

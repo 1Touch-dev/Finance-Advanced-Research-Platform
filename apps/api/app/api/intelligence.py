@@ -14,16 +14,28 @@ GET  /intelligence/{report_id}/excel-detailed   — download multi-sheet Excel
 GET  /intelligence/{report_id}/powerpoint-detailed — download data-rich PowerPoint
 """
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import Optional, Dict, Any, List
 import io
+import logging
+import time
+from pydantic import BaseModel, Field
 from app.db.session import get_db
 from app.services.intelligence_service import (
     generate_intelligence_report,
     get_intelligence_report,
     list_intelligence_reports,
+)
+from app.services.intelligence_activation_service import (
+    build_paypal_mafia_report_addendum,
+    build_contract_probability_analysis,
+    build_correlation_analysis,
+    build_interactive_report_html,
+    build_network_analysis,
+    build_self_dealing_analysis,
+    render_interactive_report_from_report,
 )
 
 # Enhanced report functions
@@ -102,6 +114,106 @@ except ImportError:
     def format_quality_report(*args): return ""
 
 router = APIRouter(prefix="/intelligence")
+logger = logging.getLogger(__name__)
+
+
+class SelfDealingRequest(BaseModel):
+    entity_name: str = Field(min_length=1, max_length=200)
+    ticker: str = Field(default="", max_length=20)
+    related_entities: List[str] = Field(default_factory=list, max_length=25)
+    include_family_network: bool = True
+    include_institutional_holders: bool = True
+
+
+class NetworkRequest(BaseModel):
+    entity_name: str = Field(min_length=1, max_length=200)
+    ticker: str = Field(default="", max_length=20)
+    competitors: List[str] = Field(default_factory=list, max_length=12)
+    depth: int = Field(default=1, ge=1, le=5)
+
+
+class CorrelationRequest(BaseModel):
+    entity_name: str = Field(min_length=1, max_length=200)
+    ticker: str = Field(default="", max_length=20)
+    competitors: List[str] = Field(default_factory=list, max_length=12)
+    years: int = Field(default=2, ge=1, le=5)
+
+
+class ContractProbabilityRequest(BaseModel):
+    entity_name: str = Field(min_length=1, max_length=200)
+    ticker: str = Field(default="", max_length=20)
+    naics_codes: List[str] = Field(default_factory=list, max_length=20)
+    keywords: List[str] = Field(default_factory=list, max_length=20)
+    total_revenue: Optional[float] = None
+
+
+class InteractiveReportRequest(BaseModel):
+    entity_name: str = Field(min_length=1, max_length=200)
+    entity_type: str = Field(default="org", pattern="^(org|person)$")
+    ticker: str = Field(default="", max_length=20)
+
+
+@router.post("/self-dealing")
+def intelligence_self_dealing(payload: SelfDealingRequest):
+    return build_self_dealing_analysis(
+        entity_name=payload.entity_name,
+        ticker=payload.ticker,
+        related_entities=payload.related_entities,
+        include_family_network=payload.include_family_network,
+        include_institutional_holders=payload.include_institutional_holders,
+    )
+
+
+@router.post("/network")
+def intelligence_network(payload: NetworkRequest):
+    return build_network_analysis(
+        entity_name=payload.entity_name,
+        ticker=payload.ticker,
+        competitors=payload.competitors,
+        depth=payload.depth,
+    )
+
+
+@router.post("/correlation")
+def intelligence_correlation(payload: CorrelationRequest):
+    started = time.monotonic()
+    logger.warning("route:correlation:start ticker=%s", payload.ticker)
+    result = build_correlation_analysis(
+        entity_name=payload.entity_name,
+        ticker=payload.ticker,
+        competitors=payload.competitors,
+        years=payload.years,
+    )
+    logger.warning("route:correlation:return elapsed=%.3fs", time.monotonic() - started)
+    return result
+
+
+@router.post("/contract-probability")
+def intelligence_contract_probability(payload: ContractProbabilityRequest):
+    return build_contract_probability_analysis(
+        entity_name=payload.entity_name,
+        ticker=payload.ticker,
+        naics_codes=payload.naics_codes,
+        keywords=payload.keywords,
+        total_revenue=payload.total_revenue,
+    )
+
+
+@router.post("/interactive-report")
+def intelligence_interactive_report(
+    payload: InteractiveReportRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        result = build_interactive_report_html(
+            db,
+            entity_name=payload.entity_name,
+            entity_type=payload.entity_type,
+            ticker=payload.ticker,
+        )
+    except RuntimeError as error:
+        raise HTTPException(503, str(error))
+    return HTMLResponse(content=result["html"])
 
 
 @router.post("/generate")
@@ -338,6 +450,22 @@ def list_available_networks():
             }
         ]
     }
+
+
+@router.get("/{report_id}/interactive")
+def get_interactive_report(report_id: int, db: Session = Depends(get_db)):
+    report = None
+    if _ENHANCED_AVAILABLE:
+        report = get_enhanced_intelligence_report(db, report_id)
+    if not report:
+        report = get_intelligence_report(db, report_id)
+    if not report:
+        raise HTTPException(404, "Intelligence report not found")
+    try:
+        result = render_interactive_report_from_report(report)
+    except RuntimeError as error:
+        raise HTTPException(409, str(error))
+    return HTMLResponse(content=result["html"])
 
 
 @router.get("/{report_id}")
@@ -641,6 +769,8 @@ def generate_enhanced_report(
     entity_name: str,
     entity_type: str = "org",
     ticker: Optional[str] = None,
+    competitors: str = "",
+    network_depth: int = 1,
     include_investment_thesis: bool = True,
     include_swot: bool = True,
     include_risk_matrix: bool = True,
@@ -673,6 +803,8 @@ def generate_enhanced_report(
         entity_name=entity_name,
         entity_type=entity_type,
         ticker=ticker,
+        competitors=[item.strip().upper() for item in competitors.split(",") if item.strip()],
+        network_depth=network_depth,
         include_investment_thesis=include_investment_thesis,
         include_swot=include_swot,
         include_risk_matrix=include_risk_matrix,
@@ -1257,6 +1389,19 @@ from datetime import datetime
 _REPORT_JOBS: Dict[str, Dict[str, Any]] = {}
 
 
+def _append_grounded_network_addendum(markdown_path: Path, addendum_text: str) -> None:
+    marker = "## Grounded PayPal Network Addendum"
+    if not addendum_text or not markdown_path.exists():
+        return
+    existing = markdown_path.read_text(encoding="utf-8")
+    if marker in existing:
+        return
+    markdown_path.write_text(
+        existing.rstrip() + "\n\n" + addendum_text.strip() + "\n",
+        encoding="utf-8",
+    )
+
+
 @router.post("/generate-full-report")
 def generate_full_report(
     ticker: str,
@@ -1417,6 +1562,17 @@ def generate_network_report(
                     output_files["markdown"] = str(f)
                 elif f.suffix == ".json" and "json" not in output_files:
                     output_files["json"] = str(f)
+
+            if network == "paypal_mafia" and output_files.get("markdown"):
+                try:
+                    addendum = build_paypal_mafia_report_addendum()
+                    _append_grounded_network_addendum(
+                        Path(output_files["markdown"]),
+                        addendum.get("markdown", ""),
+                    )
+                    _REPORT_JOBS[job_id]["grounded_network_analysis"] = addendum.get("analysis")
+                except Exception as addendum_error:
+                    _REPORT_JOBS[job_id]["grounded_network_warning"] = str(addendum_error)
 
             _REPORT_JOBS[job_id]["status"] = "completed"
             _REPORT_JOBS[job_id]["output_files"] = output_files

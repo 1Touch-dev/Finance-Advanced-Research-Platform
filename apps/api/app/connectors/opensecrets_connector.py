@@ -467,7 +467,21 @@ def _lda_headers() -> Dict[str, str]:
     return headers
 
 
-def _fetch_lda_page(params: Dict[str, Any], attempts: int = 4) -> Dict[str, Any]:
+def _open_lda_circuit(last_status: Any) -> None:
+    keyed = bool(os.getenv("LDA_API_KEY") or os.getenv("SENATE_LDA_API_KEY"))
+    hosts = ", ".join(_lda_bases())
+    _LDA_STATE.update(
+        blocked=True,
+        reason=(f"the LDA register did not answer at {hosts} - the last "
+                f"response was {last_status}"
+                + ("" if keyed else
+                   " and no LDA_API_KEY is set; the key is free from "
+                   "lda.gov/api and raises the anonymous rate ceiling")),
+    )
+    logger.warning("LDA circuit open: %s", _LDA_STATE["reason"])
+
+
+def _fetch_lda_page(params: Dict[str, Any], attempts: int = 4, request_timeout: int = 30) -> Dict[str, Any]:
     """One page of LDA filings, retried on throttling and transient faults.
 
     403 is retried alongside the usual transient codes because the register
@@ -490,7 +504,7 @@ def _fetch_lda_page(params: Dict[str, Any], attempts: int = 4) -> Dict[str, Any]
             try:
                 resp = requests.get(f"{_LDA_STATE['base']}/filings/",
                                     params=params, headers=_lda_headers(),
-                                    timeout=30, allow_redirects=False)
+                                    timeout=request_timeout, allow_redirects=False)
                 last_status = resp.status_code
                 if resp.ok:
                     return resp.json()
@@ -502,7 +516,7 @@ def _fetch_lda_page(params: Dict[str, Any], attempts: int = 4) -> Dict[str, Any]
                     target = resp.headers.get("Location") or ""
                     if "/filings" in target:
                         resp = requests.get(target, params=params,
-                                            headers=_lda_headers(), timeout=30)
+                                            headers=_lda_headers(), timeout=request_timeout)
                         if resp.ok:
                             return resp.json()
                     break
@@ -510,16 +524,24 @@ def _fetch_lda_page(params: Dict[str, Any], attempts: int = 4) -> Dict[str, Any]
                 if resp.status_code == 404:
                     break
 
-                if resp.status_code in (403, 429, 500, 502, 503, 504):
-                    # An IP throttle needs longer than a transient server fault.
-                    base = 8 if resp.status_code in (403, 429) else 2
+                if resp.status_code in (401, 403):
+                    _open_lda_circuit(resp.status_code)
+                    return {}
+
+                if resp.status_code == 429:
+                    retry_after = resp.headers.get("Retry-After")
+                    status = f"429 Retry-After {retry_after}" if retry_after else 429
+                    _open_lda_circuit(status)
+                    return {}
+
+                if resp.status_code in (500, 502, 503, 504):
                     wait = (float(resp.headers.get("Retry-After") or 0)
-                            or base * (2 ** attempt))
+                            or 2 * (2 ** attempt))
                     if attempt < attempts - 1:
-                        logger.warning("LDA HTTP %s — retrying in %.0fs (%d/%d)",
+                        logger.warning("LDA HTTP %s - retrying in %.0fs (%d/%d)",
                                        resp.status_code, wait, attempt + 1,
                                        attempts)
-                        time.sleep(min(wait, 60))
+                        time.sleep(min(wait, 8))
                         continue
                     break
 
@@ -552,7 +574,7 @@ def _fetch_lda_page(params: Dict[str, Any], attempts: int = 4) -> Dict[str, Any]
         return {}
 
 
-def fetch_lobbying_summary(org_name: str, years: int = 7) -> Dict[str, Any]:
+def fetch_lobbying_summary(org_name: str, years: int = 7, lda_attempts: int = 4, request_timeout: int = 30) -> Dict[str, Any]:
     """
     Fetch lobbying disclosures for a client from the Senate LDA register.
 
@@ -600,7 +622,7 @@ def fetch_lobbying_summary(org_name: str, years: int = 7) -> Dict[str, Any]:
                 "client_name": search_name,
                 "filing_year": year,
                 "page": page,
-            })
+            }, attempts=lda_attempts, request_timeout=request_timeout)
             filings = data.get("results") or []
             if not filings:
                 break
@@ -744,7 +766,9 @@ def detect_revolving_door(company_name: str, executives: List[Dict] = None) -> L
 
 def get_political_intelligence(company_name: str,
                                 executives: List[Dict] = None,
-                                cycles: List[int] = None) -> Dict[str, Any]:
+                                cycles: List[int] = None,
+                                lda_attempts: int = 4,
+                                lda_request_timeout: int = 30) -> Dict[str, Any]:
     """
     Comprehensive political intelligence gathering.
 
@@ -838,7 +862,11 @@ def get_political_intelligence(company_name: str,
                     })
 
     # Step 3: Lobbying summary
-    result["lobbying_summary"] = fetch_lobbying_summary(company_name)
+    result["lobbying_summary"] = fetch_lobbying_summary(
+        company_name,
+        lda_attempts=lda_attempts,
+        request_timeout=lda_request_timeout,
+    )
 
     # A register that refused the query and a company that does no lobbying both
     # produce an empty summary, and the health check reads this payload rather

@@ -201,7 +201,9 @@ _LOW_SIGNAL_ITEMS = {"9.01", "7.01"}
 
 
 def enrich_8k_items(cik: str, events: List[Dict[str, Any]],
-                    max_filings: int = 40) -> List[Dict[str, Any]]:
+                    max_filings: int = 40,
+                    request_timeout: int = 15,
+                    max_workers: int = 4) -> List[Dict[str, Any]]:
     """
     Label each 8-K with the reportable events it discloses.
 
@@ -210,40 +212,50 @@ def enrich_8k_items(cik: str, events: List[Dict[str, Any]],
     the filing itself distinguishes an earnings release from an executive
     departure or a material agreement.
     """
-    processed = 0
-    for event in events:
-        if event.get("form_type") != "8-K" or processed >= max_filings:
+    candidates: List[Tuple[int, str]] = []
+    for index, event in enumerate(events):
+        if len(candidates) >= max_filings or event.get("form_type") != "8-K":
             continue
         accession = (event.get("accession") or "").replace("-", "")
         document = event.get("document") or ""
         if not accession or not document:
             continue
 
-        url = (f"https://www.sec.gov/Archives/edgar/data/{cik.lstrip('0')}/"
-               f"{accession}/{document}")
-        try:
-            resp = sec_get(url, timeout=15)
-            if resp is None or not resp.ok:
-                continue
-            text = " ".join(BeautifulSoup(resp.text, "html.parser").get_text().split())
-        except Exception as e:
-            logger.debug("8-K item parse failed for %s: %s", url, e)
-            continue
-        processed += 1
+        candidates.append((
+            index,
+            f"https://www.sec.gov/Archives/edgar/data/{cik.lstrip('0')}/{accession}/{document}",
+        ))
 
-        found = []
+    def parse_items(candidate: Tuple[int, str]) -> Tuple[int, List[str], str]:
+        index, url = candidate
+        resp = sec_get(url, timeout=request_timeout)
+        if resp is None or not resp.ok:
+            return index, [], url
+        text = " ".join(BeautifulSoup(resp.text, "html.parser").get_text().split())
+        found: List[str] = []
         for code in sorted(set(re.findall(r"Item\s+(\d\.\d{2})", text))):
             if code in FORM_8K_ITEMS and code not in found:
                 found.append(code)
-        if not found:
-            continue
+        return index, found, url
 
-        event["items"] = [{"code": c, "title": FORM_8K_ITEMS[c]} for c in found]
-        event["source_url"] = url
-        headline = next((c for c in found if c not in _LOW_SIGNAL_ITEMS), found[0])
-        event["title"] = FORM_8K_ITEMS[headline]
-        event["description"] = "; ".join(
-            f"Item {c} — {FORM_8K_ITEMS[c]}" for c in found)
+    with ThreadPoolExecutor(max_workers=max(1, min(max_workers, len(candidates) or 1))) as executor:
+        future_map = {executor.submit(parse_items, candidate): candidate for candidate in candidates}
+        for future in as_completed(future_map):
+            index, url = future_map[future]
+            try:
+                index, found, url = future.result()
+            except Exception as e:
+                logger.debug("8-K item parse failed for %s: %s", url, e)
+                continue
+            if not found:
+                continue
+            event = events[index]
+            event["items"] = [{"code": c, "title": FORM_8K_ITEMS[c]} for c in found]
+            event["source_url"] = url
+            headline = next((c for c in found if c not in _LOW_SIGNAL_ITEMS), found[0])
+            event["title"] = FORM_8K_ITEMS[headline]
+            event["description"] = "; ".join(
+                f"Item {c} - {FORM_8K_ITEMS[c]}" for c in found)
 
     return events
 
@@ -513,6 +525,9 @@ def generate_entity_timeline(
     include_price: bool = True,
     include_insider: bool = True,
     categories: List[str] = None,
+    resolved_cik: Optional[str] = None,
+    max_8k_item_enrichment: int = 40,
+    eight_k_request_timeout: int = 15,
 ) -> Dict[str, Any]:
     """
     Generate comprehensive timeline for an entity.
@@ -550,7 +565,7 @@ def generate_entity_timeline(
         "generated_at": datetime.utcnow().isoformat() + "Z",
     }
 
-    cik = _get_cik_from_ticker(ticker)
+    cik = resolved_cik or _get_cik_from_ticker(ticker)
     if not cik:
         result["error"] = f"Could not resolve CIK for {ticker}"
         return result
@@ -589,7 +604,12 @@ def generate_entity_timeline(
     # recent filings are the ones enriched when the cap binds.
     if cik:
         try:
-            all_events = enrich_8k_items(cik, all_events)
+            all_events = enrich_8k_items(
+                cik,
+                all_events,
+                max_filings=max_8k_item_enrichment,
+                request_timeout=eight_k_request_timeout,
+            )
         except Exception as e:
             logger.warning("8-K item enrichment failed for %s: %s", ticker, e)
 

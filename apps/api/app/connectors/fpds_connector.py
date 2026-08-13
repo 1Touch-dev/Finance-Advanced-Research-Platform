@@ -272,7 +272,9 @@ CONTRACT_ONLY_FIELDS = [
 def fetch_usaspending_full(entity_name: str, max_results: int = 100,
                            start_date: str = "2007-10-01",
                            subsidiaries: Optional[List[str]] = None,
-                           recipient_uei: Optional[str] = None) -> Dict[str, Any]:
+                           recipient_uei: Optional[str] = None,
+                           request_timeout: int = 20,
+                           max_elapsed_seconds: Optional[float] = None) -> Dict[str, Any]:
     """
     Fetch comprehensive award data from USASpending across ALL award-type groups.
 
@@ -329,7 +331,17 @@ def fetch_usaspending_full(entity_name: str, max_results: int = 100,
     # by full name so a generic one cannot broaden the primary search.
     search_terms = sorted({entity_name, entity_search_term(entity_name), *subsidiaries})
 
+    start_ts = time.monotonic()
+
     for group, codes in AWARD_TYPE_GROUPS.items():
+        if max_elapsed_seconds is not None:
+            remaining = max_elapsed_seconds - (time.monotonic() - start_ts)
+            if remaining <= 0:
+                logger.warning("USASpending fetch budget exhausted for %s after partial results", entity_name)
+                break
+            group_timeout = max(3, min(int(remaining), request_timeout))
+        else:
+            group_timeout = request_timeout
         fields = list(BASE_AWARD_FIELDS)
         if group in ("contracts", "idvs"):
             fields += CONTRACT_ONLY_FIELDS
@@ -363,7 +375,7 @@ def fetch_usaspending_full(entity_name: str, max_results: int = 100,
                 f"{USASPENDING_BASE}/search/spending_by_award/",
                 json=payload,
                 headers=HEADERS,
-                timeout=45,
+                timeout=group_timeout,
             )
         except Exception as e:
             logger.warning("USASpending %s group fetch error: %s", group, e)
@@ -372,6 +384,8 @@ def fetch_usaspending_full(entity_name: str, max_results: int = 100,
         if not resp.ok:
             logger.warning("USASpending %s group HTTP %s: %s",
                            group, resp.status_code, resp.text[:200])
+            if resp.status_code in (401, 403, 429):
+                break
             continue
 
         group_total = 0
@@ -466,7 +480,7 @@ def fetch_usaspending_full(entity_name: str, max_results: int = 100,
     return result
 
 
-def fetch_subcontracts(entity_name: str, max_results: int = 50) -> List[Dict[str, Any]]:
+def fetch_subcontracts(entity_name: str, max_results: int = 50, request_timeout: int = 30) -> List[Dict[str, Any]]:
     """
     Fetch subcontracts where entity is either prime or sub.
     Used for self-dealing detection.
@@ -492,7 +506,7 @@ def fetch_subcontracts(entity_name: str, max_results: int = 50) -> List[Dict[str
             f"{USASPENDING_BASE}/subawards/",
             json=payload,
             headers=HEADERS,
-            timeout=30,
+            timeout=request_timeout,
         )
 
         if resp.ok:
@@ -600,7 +614,10 @@ def detect_self_dealing(contracts: List[Dict], subcontracts: List[Dict],
 def get_full_contract_portfolio(entity_name: str,
                                  executives: List[str] = None,
                                  related_entities: List[str] = None,
-                                 subsidiaries: Optional[List[str]] = None) -> Dict[str, Any]:
+                                 subsidiaries: Optional[List[str]] = None,
+                                 request_timeout: int = 20,
+                                 max_elapsed_seconds: Optional[float] = None,
+                                 subaward_timeout: int = 30) -> Dict[str, Any]:
     """
     Comprehensive federal contract analysis for deep intelligence.
 
@@ -632,11 +649,14 @@ def get_full_contract_portfolio(entity_name: str,
         "source": "USASpending.gov + FPDS.gov",
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
+    start_ts = time.monotonic()
 
     # Fetch main contracts
     logger.info("Fetching full contract data for %s", entity_name)
     usa_data = fetch_usaspending_full(entity_name, max_results=100,
-                                      subsidiaries=subsidiaries)
+                                      subsidiaries=subsidiaries,
+                                      request_timeout=request_timeout,
+                                      max_elapsed_seconds=max_elapsed_seconds)
 
     result["contracts"] = usa_data.get("contracts", [])
     result["summary"]["total_contracts"] = len(result["contracts"])
@@ -662,7 +682,20 @@ def get_full_contract_portfolio(entity_name: str,
     result["competition_analysis"] = usa_data.get("competition_breakdown", {})
 
     # Fetch subcontracts
-    result["subcontracts"] = fetch_subcontracts(entity_name, max_results=50)
+    if max_elapsed_seconds is not None:
+        elapsed = time.monotonic() - start_ts if "start_ts" in locals() else 0
+        remaining = max_elapsed_seconds - elapsed
+        if remaining <= 0:
+            logger.warning("Skipping subcontract fetch for %s because the contract budget is exhausted", entity_name)
+            result["subcontracts"] = []
+        else:
+            result["subcontracts"] = fetch_subcontracts(
+                entity_name,
+                max_results=50,
+                request_timeout=max(3, min(int(remaining), subaward_timeout)),
+            )
+    else:
+        result["subcontracts"] = fetch_subcontracts(entity_name, max_results=50, request_timeout=subaward_timeout)
 
     # Self-dealing analysis
     result["self_dealing_analysis"] = detect_self_dealing(

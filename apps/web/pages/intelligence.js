@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/router'
 import { getApiBaseUrl } from '../lib/api'
@@ -6,7 +7,7 @@ import iStyles from '../src/styles/Intelligence.module.css'
 
 const DEMO_SEEDS = {
   paypal_mafia: {
-    label: '🕶 PayPal Mafia',
+    label: 'PayPal Mafia',
     seeds: [
       { label: 'Peter Thiel',     entity: 'Peter Thiel',     ticker: '',      type: 'person' },
       { label: 'Elon Musk',       entity: 'Elon Musk',       ticker: 'TSLA',  type: 'person' },
@@ -16,7 +17,7 @@ const DEMO_SEEDS = {
     ],
   },
   thiel_portfolio: {
-    label: '🛡 Thiel / AI / Defense',
+    label: 'Thiel / AI / Defense',
     seeds: [
       { label: 'Palantir Technologies', entity: 'Palantir Technologies', ticker: 'PLTR', type: 'org' },
       { label: 'Anduril Industries',    entity: 'Anduril Industries',    ticker: '',      type: 'org' },
@@ -170,7 +171,7 @@ function Section({ section, idx, onInvestigate, filters }) {
   return (
     <div  style={{ borderLeft: `3px solid ${sectionAccentColor}` }}>
       <button  onClick={() => setOpen(o => !o)}>
-        <span >§{section.order || idx + 1}</span>
+        <span >Section {section.order || idx + 1}</span>
         <span >{section.name}</span>
         <span
           
@@ -182,7 +183,7 @@ function Section({ section, idx, onInvestigate, filters }) {
             {isLinkedIn ? 'LinkedIn' : isNews ? 'News' : isPitchBook ? 'PitchBook' : 'Both Sides'}
           </span>
         )}
-        <span >{open ? '▲' : '▼'}</span>
+        <span >{open ? 'Up' : 'Down'}</span>
       </button>
       {open && (
         <div >
@@ -308,7 +309,7 @@ function FilterBar({ sections, filters, setFilters }) {
         <button
           
           onClick={() => setFilters({ category: 'All', source: 'All', confidence: 'All', search: '' })}
-        >✕ Clear</button>
+        >Clear</button>
       )}
     </div>
   )
@@ -371,7 +372,7 @@ function SortableTable({ claims, sectionName, onInvestigate }) {
     <div>
       <div >
         <span >{claims.length} item{claims.length !== 1 ? 's' : ''}</span>
-        <button  onClick={exportCsv} title="Export CSV">⬇ CSV</button>
+        <button  onClick={exportCsv} title="Export CSV">Download CSV</button>
       </div>
       <ul >
         {paginated.map((c, i) => (
@@ -380,9 +381,9 @@ function SortableTable({ claims, sectionName, onInvestigate }) {
       </ul>
       {totalPages > 1 && (
         <div >
-          <button  disabled={page === 0} onClick={() => setPage(p => p - 1)}>‹ Prev</button>
+          <button  disabled={page === 0} onClick={() => setPage(p => p - 1)}>Prev</button>
           <span >{page + 1} / {totalPages}</span>
-          <button  disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Next ›</button>
+          <button  disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Next</button>
         </div>
       )}
     </div>
@@ -392,7 +393,7 @@ function SortableTable({ claims, sectionName, onInvestigate }) {
 function SummaryBar({ summary }) {
   if (!summary) return null
   const items = [
-    { label: 'SEC CIK',          value: summary.sec_cik || '—' },
+    { label: 'SEC CIK',          value: summary.sec_cik || '-' },
     { label: 'Filings',          value: summary.sec_filings },
     { label: 'Contracts',        value: summary.contracts_found },
     { label: 'Obligated',        value: summary.total_obligated_usd ? `$${(summary.total_obligated_usd/1e6).toFixed(1)}M` : '$0' },
@@ -560,11 +561,11 @@ function EmbeddedGraph({ entityId, entityName, onNodeClick }) {
   return (
     <div >
       <div >
-        <span>🕸 Relationship Graph — {entityName}</span>
+        <span>Relationship Graph - {entityName}</span>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           <span >{nodeCount} nodes · {edgeCount} edges · click node to investigate</span>
-          <button  onClick={exportGraphPng} title="Export PNG">⬇ PNG</button>
-          <button  onClick={exportGraphJson} title="Export JSON">⬇ JSON</button>
+          <button  onClick={exportGraphPng} title="Export PNG">Download PNG</button>
+          <button  onClick={exportGraphJson} title="Export JSON">Download JSON</button>
         </div>
       </div>
       {loading && <p style={{ color: 'var(--text-muted)', padding: '1rem' }}>Loading graph...</p>}
@@ -615,7 +616,7 @@ function KpiDashboardView({ report, onInvestigate }) {
       {/* Row 1 — headline numbers */}
       <div >
         <div >
-          <div >💰 Government Contracts</div>
+          <div >Government Contracts</div>
           <div >
             {metric('Total Obligated', s.total_obligated_usd ? `$${(s.total_obligated_usd/1e6).toFixed(1)}M` : '$0', `${s.contracts_found||0} awards`, '#60a5fa')}
             {metric('Lobbying Spend', s.kpi_lobbying_spend ? `$${(s.kpi_lobbying_spend/1e3).toFixed(0)}K` : '$0', `${s.lobbying_filings||0} filings`, '#f97316')}
@@ -626,7 +627,7 @@ function KpiDashboardView({ report, onInvestigate }) {
         </div>
 
         <div >
-          <div >⚖️ Legal & Compliance</div>
+          <div >Legal & Compliance</div>
           <div >
             {metric('Court Cases', s.court_cases || 0, 'CourtListener', '#f87171')}
             {metric('Court Risk', riskBadge(s.kpi_court_risk || 'LOW'), '', '#f87171')}
@@ -640,7 +641,7 @@ function KpiDashboardView({ report, onInvestigate }) {
       {/* Row 2 — financial + media */}
       <div >
         <div >
-          <div >📈 Investors & Capital</div>
+          <div >Investors & Capital</div>
           <div >
             {metric('SEC Filings', s.sec_filings || 0, 'EDGAR', '#818cf8')}
             {metric('Investor Filings', s.investor_filings || 0, '13G/13D/D', '#a78bfa')}
@@ -654,7 +655,7 @@ function KpiDashboardView({ report, onInvestigate }) {
         </div>
 
         <div >
-          <div >📰 News & Intelligence</div>
+          <div >News & Intelligence</div>
           <div >
             {metric('News Articles', s.news_articles || 0, 'Google News', '#fbbf24')}
             {metric('Data Confidence', `${s.kpi_data_confidence||0}%`, `${s.kpi_sources_active||0}/8 sources`, '#34d399')}
@@ -668,7 +669,7 @@ function KpiDashboardView({ report, onInvestigate }) {
       {/* Row 3 — lobbying issue areas */}
       {(s.lobbying_issue_areas || []).length > 0 && (
         <div  style={{ gridColumn: '1/-1' }}>
-          <div >🏛 Lobbying Issue Areas</div>
+          <div >Lobbying Issue Areas</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.5rem' }}>
             {(s.lobbying_issue_areas || []).map((area, i) => (
               <span key={i} >{area}</span>
@@ -878,7 +879,7 @@ export default function IntelligencePage() {
       <section className="card">
         <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', fontWeight: 700,
                     letterSpacing: '0.08em', textTransform: 'uppercase', color: '#818cf8' }}>
-          Layer 1 v1.2 — Entity Network Intelligence
+          Layer 1 v1.2 - Entity Network Intelligence
         </p>
         <h1 style={{ margin: 0 }}>Intelligence Report Generator</h1>
         <p style={{ margin: '0.5rem 0 0', color: 'var(--text-muted)', maxWidth: 640 }}>
@@ -891,7 +892,7 @@ export default function IntelligencePage() {
       {/* ── Deep Intelligence Report Generator ─────────────────────────────── */}
       <section className="card" style={{ marginBottom: '1rem', borderLeft: '3px solid #f59e0b' }}>
         <h2 style={{ margin: '0 0 0.6rem', fontSize: '1rem', color: '#f59e0b' }}>
-          📋 Deep Intelligence Report (50–100+ pages)
+          Deep Intelligence Report (50-100+ pages)
         </h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '0 0 0.75rem' }}>
           Generate comprehensive PDF reports with financial profiles, lobbying, government contracts,
@@ -926,21 +927,21 @@ export default function IntelligencePage() {
             </>
           )}
           <button className="btn btn-primary" onClick={triggerDeepReport} disabled={deepLoading || (deepType === 'full' && !deepTicker)}>
-            {deepLoading ? '⏳ Generating...' : '🚀 Generate Deep Report'}
+            {deepLoading ? 'Generating...' : 'Generate Deep Report'}
           </button>
         </div>
         {deepStatus && (
           <div style={{ marginTop: '0.75rem', padding: '0.6rem 1rem', borderRadius: 8, background: deepStatus.status === 'completed' ? 'rgba(74,222,128,0.08)' : deepStatus.status === 'failed' ? 'rgba(248,113,113,0.08)' : 'rgba(129,140,248,0.08)', border: `1px solid ${deepStatus.status === 'completed' ? 'rgba(74,222,128,0.3)' : deepStatus.status === 'failed' ? 'rgba(248,113,113,0.3)' : 'rgba(129,140,248,0.3)'}` }}>
             <div style={{ fontWeight: 700, fontSize: '0.85rem', color: deepStatus.status === 'completed' ? '#4ade80' : deepStatus.status === 'failed' ? '#f87171' : '#818cf8' }}>
-              {deepStatus.status === 'completed' ? '✅ Report Ready' : deepStatus.status === 'failed' ? '❌ Failed' : '⏳ Generating...'}
+              {deepStatus.status === 'completed' ? 'Report Ready' : deepStatus.status === 'failed' ? 'Failed' : 'Generating...'}
             </div>
-            {deepStatus.status === 'running' && <p style={{ margin: '0.3rem 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>This may take 5–15 minutes. Pulling SEC filings, government contracts, lobbying data, financials, and generating charts...</p>}
+            {deepStatus.status === 'running' && <p style={{ margin: '0.3rem 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>This may take 5-15 minutes. Pulling SEC filings, government contracts, lobbying data, financials, and generating charts...</p>}
             {deepStatus.status === 'failed' && <p style={{ margin: '0.3rem 0 0', fontSize: '0.78rem', color: '#f87171' }}>{deepStatus.error}</p>}
             {deepStatus.status === 'completed' && deepStatus.output_files && (
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
                 {deepStatus.output_files.pdf && (
                   <a href={`${API}/intelligence/report-job/${deepJobId}/download/pdf`} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ fontSize: '0.8rem', padding: '0.3rem 0.8rem' }}>
-                    ⬇ Download PDF
+                    Download PDF
                   </a>
                 )}
                 {deepStatus.output_files.markdown && (
@@ -958,6 +959,31 @@ export default function IntelligencePage() {
           </div>
         )}
       </section>
+
+      {deepStatus?.status === 'completed' && (deepStatus.grounded_network_analysis || deepStatus.grounded_network_warning) && (
+        <section className="card" style={{ marginBottom: '1rem', borderLeft: '3px solid #818cf8' }}>
+          <h2 style={{ margin: '0 0 0.6rem', fontSize: '1rem', color: '#c7d2fe' }}>
+            Grounded Network Addendum
+          </h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '0 0 0.75rem' }}>
+            This addendum comes from the report-job markdown and JSON payload when available. Legacy PDF artifacts should not be assumed to include it unless regenerated from the updated markdown output.
+          </p>
+          {deepStatus.grounded_network_analysis?.founder_correlations?.key_findings?.length ? (
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: deepStatus.grounded_network_warning ? '0.75rem' : 0 }}>
+              {deepStatus.grounded_network_analysis.founder_correlations.key_findings.slice(0, 4).map((item, index) => (
+                <span key={`${item}-${index}`} style={{ background: 'rgba(129,140,248,0.12)', border: '1px solid rgba(129,140,248,0.28)', borderRadius: 999, color: '#c7d2fe', fontSize: '0.76rem', fontWeight: 700, padding: '0.28rem 0.68rem' }}>
+                  {item}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {deepStatus.grounded_network_warning ? (
+            <p style={{ margin: 0, fontSize: '0.78rem', color: '#fbbf24' }}>
+              Grounded addendum warning: {deepStatus.grounded_network_warning}
+            </p>
+          ) : null}
+        </section>
+      )}
 
       {/* Demo seeds */}
       {Object.values(DEMO_SEEDS).map(group => (
@@ -1002,7 +1028,7 @@ export default function IntelligencePage() {
               <label style={{display:"flex",alignItems:"center",gap:8,color:"var(--text-muted)",fontSize:"0.82rem",fontWeight:600,cursor:"pointer"}}>
                 <input type="checkbox" checked={enhanced}
                        onChange={e => setEnhanced(e.target.checked)} />
-                Enhanced (AI) — investment thesis, SWOT, risk matrix, financial health
+                Enhanced (AI) - investment thesis, SWOT, risk matrix, financial health
               </label>
               <div style={{display:"flex",gap:"0.5rem",flexWrap:"wrap"}}>
                 <button className="btn btn-primary" onClick={generate} disabled={loading}>
@@ -1011,9 +1037,9 @@ export default function IntelligencePage() {
               </div>
               {err && <p style={{color:"var(--red)",fontWeight:700}}>{err}</p>}
               <p style={{color:"var(--text-soft)",fontSize:"0.8rem"}}>
-                Runs 9–12 sections: SEC · FEC · FARA · USASpending · LDA (both sides) · OFAC ·
+                Runs 9-12 sections: SEC · FEC · FARA · USASpending · LDA (both sides) · OFAC ·
                 CourtListener · Wikipedia · FundedAPI · LinkedIn (Apify) · PitchBook (Apify) ·
-                Google News (Apify) · GPT narrative. Takes 30–90 seconds.
+                Google News (Apify) · GPT narrative. Takes 30-90 seconds.
               </p>
             </div>
           </div>
@@ -1040,8 +1066,8 @@ export default function IntelligencePage() {
           {!report && !loading && (
             <div className="card">
               <p style={{color:"var(--text-soft)",fontStyle:"italic",fontSize:"0.82rem"}}>
-                Select a demo entity above — try the <strong>PayPal Mafia</strong> group (Peter Thiel,
-                Elon Musk, Reid Hoffman…) or the <strong>Thiel / AI / Defense</strong> group (Palantir, Anduril…).
+                Select a demo entity above - try the <strong>PayPal Mafia</strong> group (Peter Thiel,
+                Elon Musk, Reid Hoffman...) or the <strong>Thiel / AI / Defense</strong> group (Palantir, Anduril...).
                 <br/><br/>
                 <strong>New in v1.2:</strong> Click any highlighted entity name in the report to investigate it.
                 LinkedIn education, PitchBook funding, and live news are included via Apify.
@@ -1056,7 +1082,7 @@ export default function IntelligencePage() {
                 <br/>SEC EDGAR · FEC · FARA · USASpending · LDA (both sides) · OFAC · CourtListener
                 <br/>Wikipedia · FundedAPI · Apify LinkedIn · Apify PitchBook · Google News...
                 <br/>Generating deep GPT-4o intelligence narrative (5-section format)...
-                <br/><span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>~30–90 seconds</span>
+                <br/><span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>~30-90 seconds</span>
               </p>
             </div>
           )}
@@ -1064,7 +1090,7 @@ export default function IntelligencePage() {
             <div>
               <div >
                 <div>
-                  <div >Layer 1 v1.2 — Entity Network Intelligence Report</div>
+                  <div >Layer 1 v1.2 - Entity Network Intelligence Report</div>
                   <h2 >{report.entity_name || report.title}</h2>
                   <div >
                     {report.report_id && <span>Report #{report.report_id}</span>}
@@ -1072,9 +1098,9 @@ export default function IntelligencePage() {
                     {report.generated_at && <span>{new Date(report.generated_at).toLocaleString()}</span>}
                     {report.data_sources && (
                       <>
-                        {report.data_sources.apify_linkedin && <span >LinkedIn ✓</span>}
-                        {report.data_sources.apify_pitchbook && <span >PitchBook ✓</span>}
-                        {report.data_sources.apify_news > 0 && <span >News ({report.data_sources.apify_news}) ✓</span>}
+                        {report.data_sources.apify_linkedin && <span >LinkedIn available</span>}
+                        {report.data_sources.apify_pitchbook && <span >PitchBook available</span>}
+                        {report.data_sources.apify_news > 0 && <span >News ({report.data_sources.apify_news}) available</span>}
                       </>
                     )}
                     {report.report_id && (
@@ -1083,7 +1109,7 @@ export default function IntelligencePage() {
                         target="_blank" rel="noopener noreferrer"
                         
                         title="Download Beautiful PDF"
-                      >⬇ PDF</a>
+                      >Download PDF</a>
                     )}
                   </div>
                 </div>
@@ -1171,7 +1197,7 @@ export default function IntelligencePage() {
                         <div style={{ flex:1 }}>
                           <div style={{ fontSize:'0.68rem', fontWeight:700, color:color, textTransform:'uppercase', letterSpacing:'0.05em' }}>[{conf}] {c.section}</div>
                           <div style={{ fontSize:'0.85rem', color:'var(--text)', lineHeight:1.5, marginTop:'0.15rem' }}>{c.text}</div>
-                          {c.source_url && <a href={c.source_url} target="_blank" rel="noopener noreferrer" style={{ fontSize:'0.7rem', color:'#818cf8' }}>↗ source</a>}
+                          {c.source_url && <a href={c.source_url} target="_blank" rel="noopener noreferrer" style={{ fontSize:'0.7rem', color:'#818cf8' }}>source link</a>}
                         </div>
                       </div>
                     )
@@ -1202,14 +1228,14 @@ export default function IntelligencePage() {
       {/* ── Floating RAG Chat Panel ─────────────────────────────────────── */}
       {report && (
         <div  onClick={() => setChatOpen(o => !o)} title="Ask AI about this report">
-          {chatOpen ? '✕' : '💬'}
+          {chatOpen ? 'Close' : 'Chat'}
         </div>
       )}
       {report && chatOpen && (
         <div >
           <div >
-            <span>🤖 Ask about {report.entity_name}</span>
-            <button  onClick={() => setChatOpen(false)}>✕</button>
+            <span>Ask about {report.entity_name}</span>
+            <button  onClick={() => setChatOpen(false)}>Close</button>
           </div>
           <div >
             {chatHistory.length === 0 && (
@@ -1224,14 +1250,14 @@ export default function IntelligencePage() {
                   <div >
                     {msg.sources.slice(0,2).map((s, j) => (
                       <span key={j} >
-                        {(s.source || '')} · {(s.text || '').slice(0, 60)}…
+                        {(s.source || '')} · {(s.text || '').slice(0, 60)}...
                       </span>
                     ))}
                   </div>
                 )}
               </div>
             ))}
-            {chatLoading && <div >Thinking…</div>}
+            {chatLoading && <div >Thinking...</div>}
           </div>
           <div >
             <input
@@ -1239,10 +1265,10 @@ export default function IntelligencePage() {
               value={chatInput}
               onChange={e => setChatInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && askChat()}
-              placeholder="Ask a question…"
+              placeholder="Ask a question..."
               disabled={chatLoading}
             />
-            <button  onClick={askChat} disabled={chatLoading || !chatInput.trim()}>→</button>
+            <button  onClick={askChat} disabled={chatLoading || !chatInput.trim()}>Send</button>
           </div>
         </div>
       )}

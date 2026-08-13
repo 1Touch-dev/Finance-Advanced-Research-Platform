@@ -37,7 +37,8 @@ dependencies = [
   "tenacity>=8.2",
   "sentence-transformers>=3.0",
   "pgvector>=0.3",
-  "prometheus-client>=0.20"
+  "prometheus-client>=0.20",
+  "beautifulsoup4>=4.12"
 ]
 [build-system]
 requires = ["setuptools", "wheel"]
