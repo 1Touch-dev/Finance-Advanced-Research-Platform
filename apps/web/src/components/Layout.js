@@ -60,6 +60,7 @@ const NAV_GROUPS = [
       { href: '/tracking', label: 'Tracking', icon: '◎' },
       { href: '/tracking/alerts', label: 'Alerts', icon: '⚑' },
       { href: '/skills', label: 'Skills', icon: '⚙' },
+      { href: '/metrics', label: 'Metrics', icon: '◈' },
     ],
   },
   {
