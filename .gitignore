@@ -58,6 +58,13 @@ npm-debug.log*
 exports/
 artifacts/
 
+# Trained quality-classifier model (Phase 3b) — regenerated locally via
+# train_quality_classifier.py from exports/quality_labels*.jsonl; not
+# reproducible in CI/review (depends on local label files + random seeds),
+# so the binary itself is never checked in. See docs/Quality-Judge.md for
+# the current model version and its real/synthetic label composition.
+apps/api/app/models/*.joblib
+
 # Coverage
 htmlcov/
 .coverage

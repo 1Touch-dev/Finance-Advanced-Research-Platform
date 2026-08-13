@@ -84,19 +84,52 @@ This is not "build India's frontier finance model." It's: fix documented TODOs i
 
 ---
 
-## Phase 3 — Quality-gate classifier
+## Phase 3 — Quality layer: LLM-as-judge now, classifier later
 
-> **Priority: HIGH. Best "real ML" ROI — supervised learning on data we already own.**
+> **Priority: HIGH.**
+> **STATUS: 🟢 Judge kickoff DONE (12 Aug 2026).** Reframed on discovery: ~0 real
+> quality labels existed anywhere in this system (39 DB reports, one on-disk
+> JSON, no labeled pass/fail set). Training a classifier on nothing would only
+> distill the existing regex rules. Shipped **LLM-as-judge** instead — it gives
+> the holistic "taste" the 10 regex gates structurally can't have, AND its
+> logged judgments are what makes the classifier trainable next. See
+> `docs/Quality-Judge.md` for the full writeup.
 
-| # | Task | Effort | Notes |
-|---|------|--------|-------|
-| 9 | Export historical pass/fail labels from `quality_gate_service.py` runs | 🟢 | Every report run already generates this label |
-| 10 | Train baseline classifier (logistic regression → gradient-boosted) | 🟢 | CPU only, no GPU needed |
-| 11 | Upgrade to small transformer classifier if baseline insufficient | 🟡 | Only if simple models plateau |
-| 12 | Run in parallel with regex gates, compare false-positive rate on sensitive claims | 🟡 | Especially `SENSITIVE_PATTERNS` (fraud, insider trading, etc.) |
-| 13 | Replace/augment regex gates once classifier outperforms | 🟡 | Keep regex as a hard-fail safety net |
+**What shipped (`feature/quality-gate-ml` branch, `apps/api/app/services/quality/`):**
+- `report_text.py` — pure `flatten_report()` digest (handles both the
+  deep-research and DB report shapes).
+- `judge.py` — LLM-as-judge core: 5-dimension holistic score (accuracy,
+  citations, clarity, relevance, neutrality), guardrail pre-screen, fail-soft
+  (no key/error → `ok=False`, never raises), optional self-consistency.
+- `decision.py` — `rules` \| `judge` \| `blend` modes; rules retain
+  **unconditional hard-veto** over the judge (compliance floor, non-negotiable).
+  Wired into `GET /report-job/{job_id}/quality-gates?mode=`.
+- `labels.py` + `app/scripts/backfill_quality_labels.py` — every judgment
+  logged to `exports/quality_labels.jsonl`; backfill replays existing reports
+  to seed the file before any judge has run live. **This is the classifier
+  bootstrap** — the training data problem this phase solves.
+- `app/scripts/quality_judge_demo.py` — before/after CLI (rules vs judge vs
+  blend on 3 sample reports, including one that sails through every rule gate
+  while reading vague/misleading — the exact gap being closed).
+- Tests: `tests/test_quality_judge.py` (21 passing, LLM mocked → offline).
 
-**Outcome:** fewer false positives/negatives on report quality, second owned model, clear metric story for stakeholders.
+**Original checklist (reframed, not abandoned):**
+
+| # | Task | Effort | Status |
+|---|------|--------|--------|
+| 9 | Export historical pass/fail labels from `quality_gate_service.py` runs | 🟢 | ✅ via `labels.py` + backfill script — but source is now judge output, not bare rule pass/fail, since rule-only labels don't capture what the classifier actually needs to learn (the judge's richer signal). **24 real labels** (22 DB reports + on-disk NVIDIA report) + **280 synthetic labels** (`synthetic.py` + `generate_synthetic_labels.py`, LLM-authored prose + real rule/judge scoring — see `docs/Quality-Judge.md`), all with `source` provenance so they're never silently blended. |
+| 10 | Train baseline classifier (logistic regression → gradient-boosted) | 🟢 | ✅ Shipped and trained for real: **`v1-n303`** (303 usable rows, 92.4% synthetic, composition tracked in the model's own metrics), `accuracy=0.689`, `f1=0.387` on a held-out split. Cleared the documented 200-sample floor without `--force` (only needed `--max-synthetic-fraction` raised, since real-label volume is still the minority). `f1` is modest at this N/class-imbalance — next lever is more real (not more synthetic) labels over time. |
+| 11 | Upgrade to small transformer classifier if baseline insufficient | 🟡 | ⏸️ Deferred, revisit once real-label volume grows and `f1` plateaus |
+| 12 | Run in parallel with regex gates, compare false-positive rate on sensitive claims | 🟡 | ✅ Partially covered today: `blend`/`ml` modes already run judge/classifier + rules in parallel per-request; false-positive comparison work moves to full Phase 3b once more real labels exist |
+| 13 | Replace/augment regex gates once classifier outperforms | 🟡 | ⏸️ Deferred until real-label volume grows further; rules keep veto power regardless |
+
+**Outcome so far:** a real holistic quality signal live today (behind
+`?mode=judge/blend`), a real (non-demo) trained classifier signal behind
+`?mode=ml` — `v1-n303`, honestly majority-synthetic today with the exact
+composition tracked and disclosed — zero regression to default behavior
+(`mode=rules` unchanged), and a growing real-label file that will gradually
+reduce reliance on synthetic data as live/backfill traffic accumulates.
+
 
 ---
 

@@ -13,7 +13,7 @@ GET  /intelligence/{report_id}/pdf-professional — download enhanced PDF with c
 GET  /intelligence/{report_id}/excel-detailed   — download multi-sheet Excel
 GET  /intelligence/{report_id}/powerpoint-detailed — download data-rich PowerPoint
 """
-from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
+from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, Query
 from fastapi.responses import HTMLResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -112,6 +112,15 @@ except ImportError:
     _QUALITY_GATES_AVAILABLE = False
     def run_quality_gates(*args): return {"passed": True, "gates_passed": 0, "gates_total": 0}
     def format_quality_report(*args): return ""
+
+try:
+    from app.services.quality.decision import evaluate as _quality_evaluate
+    _QUALITY_JUDGE_AVAILABLE = True
+except ImportError:
+    _QUALITY_JUDGE_AVAILABLE = False
+    def _quality_evaluate(*args, **kwargs):
+        return {"mode": "rules", "decision": "needs_review", "combined_score": None,
+                "rule_result": run_quality_gates(*args), "judge_result": None}
 
 router = APIRouter(prefix="/intelligence")
 logger = logging.getLogger(__name__)
@@ -707,11 +716,14 @@ def download_report_appendix(job_id: str):
 
 
 @router.get("/report-job/{job_id}/quality-gates")
-def check_quality_gates(job_id: str):
+def check_quality_gates(
+    job_id: str,
+    mode: str = Query("rules", description="rules | judge | blend | ml — see docs/Quality-Judge.md"),
+):
     """
-    Run the 10-gate quality battery on a generated report.
+    Run the quality battery on a generated report.
 
-    Quality gates:
+    Rule gates (always the compliance floor, hard-veto):
     1. Citation coverage (≥95% of numeric blocks)
     2. Arithmetic reconciliation (±0.5%)
     3. Duplicate detection (Jaccard >0.85 fails)
@@ -723,7 +735,15 @@ def check_quality_gates(job_id: str):
     9. Named-person accuracy (≥2 sources)
     10. Sensitive-claim review (documented facts only)
 
-    Returns pass/fail status for each gate and overall report quality score.
+    mode=rules (default): the 10 gates above, unchanged behavior.
+    mode=judge: LLM-as-judge holistic read (accuracy/citations/clarity/relevance/
+        neutrality) — catches subtly-bad reports that pass every rule.
+    mode=blend: rules veto hard failures first (non-negotiable); otherwise
+        combines the rule score with the judge score into one decision.
+    mode=ml: rules veto first; otherwise the supervised classifier (trained on
+        rule_features -> judge_publishable, see train_quality_classifier.py)
+        substitutes for the judge — no LLM call, near-instant. Degrades to
+        pure rules if no model has been trained yet.
     """
     if not _QUALITY_GATES_AVAILABLE:
         raise HTTPException(503, "Quality gate service unavailable")
@@ -752,11 +772,25 @@ def check_quality_gates(job_id: str):
     except Exception as e:
         raise HTTPException(500, f"Failed to read JSON data: {e}")
 
-    results = run_quality_gates(data)
+    if mode == "rules" or not _QUALITY_JUDGE_AVAILABLE:
+        results = run_quality_gates(data)
+        return {
+            "job_id": job_id,
+            "ticker": job.get("ticker"),
+            "mode": "rules",
+            "quality_gates": results,
+        }
+
+    evaluation = _quality_evaluate(data, mode=mode, report_id=job_id)
     return {
         "job_id": job_id,
         "ticker": job.get("ticker"),
-        "quality_gates": results,
+        "mode": evaluation["mode"],
+        "decision": evaluation["decision"],
+        "combined_score": evaluation["combined_score"],
+        "quality_gates": evaluation["rule_result"],
+        "judge": evaluation["judge_result"],
+        "ml": evaluation.get("ml_result"),
     }
 
 
