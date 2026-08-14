@@ -10,15 +10,20 @@ in-memory numpy/HNSW on SQLite/dev).
 
 Fallback chain (nothing hard-fails):
   vector/hybrid → embeddings unavailable → keyword (BM25) → TF-IDF
+
+Timeout handling:
+  If vector search exceeds RAG_SEARCH_TIMEOUT_MS, automatically fall back to
+  keyword search. This prevents slow queries from blocking the API.
 """
 from __future__ import annotations
 
+import concurrent.futures
 import logging
 import os
 import time
 from typing import List, Optional
 
-from . import guardrails, hybrid, keyword, metrics, rerank
+from . import guardrails, hybrid, keyword, metrics, rerank, training_log
 from .embeddings import EmbeddingUnavailable
 from .index import get_manager
 from .trace import Trace
@@ -30,6 +35,8 @@ logger = logging.getLogger(__name__)
 _CANDIDATE_MULT = 4
 # Hard upper bound so a caller can't request top_k=1e9 and OOM a slice.
 _MAX_TOP_K = int(os.getenv("RAG_MAX_TOP_K", "100"))
+# Timeout for vector search before falling back to keyword (in milliseconds).
+_SEARCH_TIMEOUT_MS = int(os.getenv("RAG_SEARCH_TIMEOUT_MS", "5000"))  # 5 seconds default
 
 
 def retrieve(
@@ -71,8 +78,24 @@ def retrieve(
             else:
                 store = mgr.get_memory_index(collection, docs)  # cached; no per-query rebuild
                 backend = "memory-cached"
-            dense = store.search(query, top_k=cand_k)
-            trace.stage("dense", hits=len(dense), top=_top(dense), backend=backend)
+
+            # Wrap dense search in timeout to prevent slow queries from blocking
+            timeout_sec = _SEARCH_TIMEOUT_MS / 1000.0
+            timed_out = False
+            try:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(store.search, query, top_k=cand_k)
+                    dense = future.result(timeout=timeout_sec)
+            except concurrent.futures.TimeoutError:
+                logger.warning("vector search timed out after %dms; falling back to keyword", _SEARCH_TIMEOUT_MS)
+                trace.stage("dense_timeout", timeout_ms=_SEARCH_TIMEOUT_MS)
+                effective_mode = RetrievalMode.KEYWORD
+                fallback = True
+                timed_out = True
+
+            if not timed_out:
+                trace.stage("dense", hits=len(dense), top=_top(dense), backend=backend)
+
         except EmbeddingUnavailable as exc:
             logger.info("embeddings unavailable (%s); degrading to keyword", exc)
             trace.stage("dense_fallback", reason=str(exc))
@@ -113,6 +136,16 @@ def retrieve(
         mode=mode.value, backend=backend, corpus_size=len(docs), latency_ms=latency_ms,
         top_score=_top(candidates), fallback=fallback, rerank_active=rerank_active,
         guardrail_flags=verdict.flags, query=query or "", correlation_id=correlation_id,
+    )
+
+    # ── training data logging (fail-soft) ─────────────────────────────────────
+    # Log retrieval for embedding fine-tuning data collection.
+    # Includes all candidates; high-score become positives, low-score become hard negatives.
+    training_log.log_retrieval_for_training(
+        query=query,
+        retrieved_docs=candidates,
+        collection=collection,
+        correlation_id=correlation_id,
     )
 
     return candidates

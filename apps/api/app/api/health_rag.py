@@ -1,10 +1,9 @@
 """
-RAG ops endpoints — readiness + metrics for the retrieval pipeline.
+Health & ops endpoints — readiness + metrics for the entire platform.
 
-GET /health/rag  → which backends are active (pgvector vs cached memory), whether
-the reranker/NLI models are warm, embedding provider, and a live metrics snapshot
-(latency percentiles, fallback rate, guardrail blocks). This is the ops-facing
-counterpart to the dev-facing per-request ?debug trace.
+GET /health/rag  → RAG pipeline status (embeddings, vector backend, reranker)
+GET /health/db   → Database connectivity and pool status
+GET /health/full → Combined health check for all components
 """
 from __future__ import annotations
 
@@ -16,6 +15,7 @@ router = APIRouter(prefix="/health", tags=["health"])
 
 @router.get("/rag")
 def rag_health():
+    """RAG pipeline health check."""
     info = {"status": "ok", "components": {}}
 
     # Embeddings provider / dim.
@@ -54,3 +54,58 @@ def rag_health():
         info["metrics"] = {"error": str(exc)}
 
     return info
+
+
+@router.get("/db")
+def db_health():
+    """Database connectivity and pool health check."""
+    try:
+        from app.db.session import check_db_health
+        return check_db_health()
+    except Exception as exc:
+        return {"status": "error", "error": str(exc)}
+
+
+@router.get("/full")
+def full_health():
+    """Combined health check for all platform components."""
+    result = {
+        "status": "ok",
+        "components": {},
+    }
+
+    # Database
+    try:
+        from app.db.session import check_db_health
+        db_result = check_db_health()
+        result["components"]["database"] = db_result
+        if db_result.get("status") != "ok":
+            result["status"] = "degraded"
+    except Exception as exc:
+        result["components"]["database"] = {"status": "error", "error": str(exc)}
+        result["status"] = "degraded"
+
+    # RAG pipeline
+    try:
+        rag_result = rag_health()
+        result["components"]["rag"] = rag_result
+    except Exception as exc:
+        result["components"]["rag"] = {"status": "error", "error": str(exc)}
+        result["status"] = "degraded"
+
+    # Quality classifier
+    try:
+        from app.services.quality.classifier import get_classifier
+        clf = get_classifier()
+        if clf:
+            result["components"]["quality_classifier"] = {
+                "status": "ok",
+                "version": clf.version,
+                "metrics": clf.metrics.get("test_f1", "unknown") if clf.metrics else "unknown",
+            }
+        else:
+            result["components"]["quality_classifier"] = {"status": "not_trained"}
+    except Exception as exc:
+        result["components"]["quality_classifier"] = {"status": "error", "error": str(exc)}
+
+    return result

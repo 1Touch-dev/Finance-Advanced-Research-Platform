@@ -715,10 +715,13 @@ def download_report_appendix(job_id: str):
     )
 
 
+_QUALITY_DEFAULT_MODE = os.getenv("QUALITY_DEFAULT_MODE", "blend")
+
+
 @router.get("/report-job/{job_id}/quality-gates")
 def check_quality_gates(
     job_id: str,
-    mode: str = Query("rules", description="rules | judge | blend | ml — see docs/Quality-Judge.md"),
+    mode: str = Query(_QUALITY_DEFAULT_MODE, description="rules | judge | blend | ml — see docs/Quality-Judge.md"),
 ):
     """
     Run the quality battery on a generated report.
@@ -1665,3 +1668,140 @@ def download_report_file(job_id: str, file_type: str):
         media_type=media_types.get(file_type, "application/octet-stream"),
         headers={"Content-Disposition": f'attachment; filename="{file_path.name}"'},
     )
+
+
+# ============================================================================
+# NARRATIVE EDIT COLLECTION (for AI fine-tuning)
+# ============================================================================
+
+from datetime import datetime, timezone
+from pathlib import Path as PathLib
+import json as json_lib
+
+_NARRATIVE_EDITS_PATH = PathLib(__file__).parent.parent / "exports" / "narrative_edits.jsonl"
+
+
+class NarrativeEditRequest(BaseModel):
+    """Request to save a human edit to a report section."""
+    section: str = Field(..., description="Section name (e.g., 'executive_summary', 'investment_thesis')")
+    original: str = Field(..., description="Original AI-generated text")
+    edited: str = Field(..., description="Human-edited text")
+    entity_name: Optional[str] = Field(None, description="Entity name for context")
+    edit_reason: Optional[str] = Field(None, description="Why the edit was made")
+
+
+class NarrativeEditResponse(BaseModel):
+    """Response after saving an edit."""
+    status: str
+    edit_id: str
+    message: str
+
+
+@router.post("/{report_id}/edit", response_model=NarrativeEditResponse)
+async def save_narrative_edit(
+    report_id: str,
+    edit: NarrativeEditRequest,
+):
+    """
+    Save a human edit to a report section for AI fine-tuning.
+
+    Human edits are gold-standard training data for narrative generation.
+    They capture the "preferred" output that the fine-tuned model should produce.
+
+    The edit is logged to exports/narrative_edits.jsonl with:
+    - report_id: Which report was edited
+    - section: Which section (executive_summary, swot_analysis, etc.)
+    - original: The AI-generated text
+    - edited: The human-corrected text
+    - timestamp: When the edit was made
+
+    This endpoint enables the "Edit & Save" feature in the report UI.
+    """
+    import hashlib
+
+    # Generate unique edit ID
+    edit_hash = hashlib.md5(
+        f"{report_id}:{edit.section}:{datetime.now(timezone.utc).isoformat()}".encode()
+    ).hexdigest()[:12]
+
+    log_entry = {
+        "edit_id": edit_hash,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "report_id": report_id,
+        "section": edit.section,
+        "original": edit.original[:20000],  # Truncate very long text
+        "edited": edit.edited[:20000],
+        "entity_name": edit.entity_name,
+        "edit_reason": edit.edit_reason,
+        "is_human_edit": True,
+        "original_length": len(edit.original),
+        "edited_length": len(edit.edited),
+        "change_ratio": round(len(edit.edited) / max(len(edit.original), 1), 4),
+    }
+
+    try:
+        _NARRATIVE_EDITS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(_NARRATIVE_EDITS_PATH, "a") as f:
+            f.write(json_lib.dumps(log_entry) + "\n")
+
+        return NarrativeEditResponse(
+            status="saved",
+            edit_id=edit_hash,
+            message=f"Edit logged for fine-tuning (section: {edit.section})",
+        )
+    except Exception as exc:
+        logger.error("Failed to save narrative edit: %s", exc)
+        raise HTTPException(500, f"Failed to save edit: {str(exc)}")
+
+
+@router.get("/training-stats")
+async def get_training_stats():
+    """
+    Get statistics about collected training data.
+
+    Returns counts of:
+    - embedding_triplets: For embedding fine-tuning
+    - rag_training_log: From RAG queries
+    - narrative_training_log: From narrative generation
+    - narrative_edits: From human corrections
+    """
+    exports_dir = PathLib(__file__).parent.parent / "exports"
+
+    stats = {}
+
+    files = [
+        ("embedding_triplets", "embedding_triplets.jsonl"),
+        ("rag_training_log", "rag_training_log.jsonl"),
+        ("narrative_training_log", "narrative_training_log.jsonl"),
+        ("narrative_edits", "narrative_edits.jsonl"),
+    ]
+
+    for name, filename in files:
+        path = exports_dir / filename
+        if path.exists():
+            try:
+                with open(path) as f:
+                    count = sum(1 for _ in f)
+                size_kb = path.stat().st_size / 1024
+                stats[name] = {
+                    "exists": True,
+                    "entries": count,
+                    "size_kb": round(size_kb, 2),
+                }
+            except Exception as exc:
+                stats[name] = {"exists": True, "error": str(exc)}
+        else:
+            stats[name] = {"exists": False, "entries": 0}
+
+    # Add summary
+    total_entries = sum(s.get("entries", 0) for s in stats.values())
+    stats["_summary"] = {
+        "total_entries": total_entries,
+        "ready_for_phase2": stats.get("embedding_triplets", {}).get("entries", 0) >= 1000,
+        "ready_for_phase4": (
+            stats.get("narrative_training_log", {}).get("entries", 0) +
+            stats.get("narrative_edits", {}).get("entries", 0) * 3  # Edits count 3x
+        ) >= 500,
+    }
+
+    return stats
