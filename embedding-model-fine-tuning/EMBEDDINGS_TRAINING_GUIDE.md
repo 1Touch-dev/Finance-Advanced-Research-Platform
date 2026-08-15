@@ -1369,6 +1369,25 @@ Dimension: 768
 pm2 restart finance-api
 ```
 
+### S3 Backup (Model Storage)
+
+Model is backed up to S3:
+```
+s3://finance-intelligence-models-203918873003/embeddings/finance-embed-v1/
+```
+
+**Download to new server:**
+```bash
+# Install AWS CLI
+sudo apt install awscli -y && aws configure
+
+# Download model from S3
+aws s3 sync s3://finance-intelligence-models-203918873003/embeddings/finance-embed-v1/ \
+    ~/Finance-Advanced-Research-Platform/models/finance-embed-v1/
+```
+
+**Cost:** ~$0.01/month storage
+
 ---
 
 ## CPU vs GPU for Deployment (FAQ)
