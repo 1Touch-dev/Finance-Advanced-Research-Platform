@@ -1,6 +1,6 @@
 # Finance Platform — Master Status & Task Tracker
 
-**Single Source of Truth — 14 August 2026**
+**Single Source of Truth — 15 August 2026**
 **Current Branch:** `feature/intelligence-correlation-full` (ahead of main)
 **Verified by:** Git commit history + codebase analysis
 
@@ -11,33 +11,45 @@
 | Category | Done | Partial | Remaining |
 |----------|------|---------|-----------|
 | **Core Platform** | 92% | 3% | 5% |
-| **AI Model Training (Phase 1-4)** | 60% | 15% | 25% |
+| **AI Model Training (Phase 1-4)** | 85% | 5% | 10% |
 | **72-Feature Register** | ~25% | ~10% | ~65% |
 | **James's Requirements** | ~65% | ~20% | ~15% |
 
-**Key Achievements (14 Aug 2026):**
-- Quality Gate ML Classifier improved from **F1=0.387 → F1=0.895** (+131.2%)
+**Key Achievements (15 Aug 2026):**
+- **Embeddings Model Fine-tuned**: +8.5% ranking accuracy, +82% confidence margin
+- Model trained on RunPod (RTX 4090), deployed to EC2 CPU
+- Quality Gate ML Classifier: **F1=0.895** (+131.2% from baseline)
 - Infrastructure hardening: DB pooling, search timeouts, rate limiting, health checks
-- Blended mode enabled as default for richer quality evaluation
 - E2E pipeline test and search benchmarks added
 
 ---
 
-## PRIORITY: GPU-Dependent Tasks (Blocking Progress)
+## PRIORITY: GPU-Dependent Tasks
 
-These tasks are the **TOP PRIORITY** once GPU infrastructure is available:
+### Completed (15 Aug 2026) ✅
+
+| Priority | Task | Description | Status |
+|----------|------|-------------|--------|
+| ~~P0~~ | ~~Phase 2.3~~ | ~~Fine-tune embeddings on RunPod~~ | ✅ **DONE** |
+| ~~P1~~ | ~~Phase 2.5~~ | ~~Deploy fine-tuned embeddings~~ | ✅ **DONE** |
+
+**Embeddings Model Results:**
+- +8.5% ranking accuracy (82% → 90.5%)
+- +82% confidence margin (0.178 → 0.325)
+- Model: `finance-embed-v1` deployed to EC2
+- Training: 7,198 triplets, 90s on RTX 4090
+
+### Remaining
 
 | Priority | Task | Description | Blocker |
 |----------|------|-------------|---------|
-| **P0** | Phase 2.3 | Set up fine-tuning infrastructure on RunPod | GPU required |
 | **P0** | Phase 4.3 | Fine-tune Llama/Qwen on narrative generation | GPU required |
-| **P1** | Phase 2.5 | Production swap to fine-tuned embeddings | Depends on 2.3 |
 | **P1** | Phase 4.6 | Deploy narrative model | Depends on 4.3 |
 
-### Pre-requisites Ready (Data Preparation Complete)
-- ✅ 5,000+ training pairs ready for embedding fine-tuning
-- ✅ Narrative samples collected for distillation
-- ✅ A/B evaluation framework ready
+### Pre-requisites Ready
+- ✅ Fine-tuned embeddings model deployed to EC2
+- ✅ A/B evaluation shows +8.5% improvement
+- ✅ Narrative samples collected for Phase 4 distillation
 - ✅ Production integration with fallback mechanism ready
 
 ---
@@ -245,19 +257,28 @@ python -m app.scripts.benchmark_search --iterations 20 --corpus-size 500
 | Phase | Description | Status | Completion |
 |-------|-------------|--------|------------|
 | **Phase 1** | Vector RAG (no training) | ✅ **Complete** | 100% |
-| **Phase 2** | Fine-tune Embeddings | ⚠️ **Partial** | 60% |
+| **Phase 2** | Fine-tune Embeddings | ✅ **Complete** | 100% |
 | **Phase 3** | Quality Classifier | ✅ **Complete** | 100% |
 | **Phase 4** | Narrative Distillation | ⚠️ **Partial** | 70% |
 
-### Phase 2: Fine-tune Embeddings (60% Complete)
+### Phase 2: Fine-tune Embeddings (100% Complete) ✅
 
 | Sub-Phase | Description | Status |
 |-----------|-------------|--------|
 | 2.1 | Claim-pair extraction pipeline | ✅ Complete |
 | 2.2 | RAG query logging for training data | ✅ Complete |
-| 2.3 | Fine-tuning infrastructure (RunPod) | ❌ **Requires GPU** |
+| 2.3 | Fine-tuning infrastructure (RunPod) | ✅ **Complete** |
 | 2.4 | A/B evaluation framework | ✅ Complete |
-| 2.5 | Production swap to fine-tuned model | ❌ **Requires trained model** |
+| 2.5 | Production swap to fine-tuned model | ✅ **Complete** |
+
+**Training Results (15 Aug 2026):**
+- Base model: `nomic-ai/nomic-embed-text-v1.5`
+- Training data: 7,198 triplets from 190+ intelligence reports
+- Training time: ~90 seconds on RTX 4090
+- **Ranking Accuracy**: 82.0% → **90.5%** (+8.5%)
+- **Avg Margin**: 0.1782 → **0.3251** (+82%)
+- Model deployed to: `~/Finance-Advanced-Research-Platform/models/finance-embed-v1/`
+- Guide: `embedding-model-fine-tuning/EMBEDDINGS_TRAINING_GUIDE.md`
 
 ### Phase 3: Quality Classifier (100% Complete) ✅
 
@@ -286,9 +307,11 @@ python -m app.scripts.benchmark_search --iterations 20 --corpus-size 500
 
 | Task | Description | Blocker |
 |------|-------------|---------|
-| Phase 2.3 | Set up fine-tuning infrastructure on RunPod | GPU required |
-| Phase 2.5 | Production swap to fine-tuned embeddings | Depends on 2.3 |
+| ~~Phase 2.3~~ | ~~Set up fine-tuning infrastructure on RunPod~~ | ✅ **DONE** |
+| ~~Phase 2.5~~ | ~~Production swap to fine-tuned embeddings~~ | ✅ **DONE** |
 | Phase 4.3 | Fine-tune Llama/Qwen on narrative generation | GPU required |
+
+**Note:** Embeddings fine-tuning complete. Only narrative model training remains GPU-dependent.
 
 ---
 
