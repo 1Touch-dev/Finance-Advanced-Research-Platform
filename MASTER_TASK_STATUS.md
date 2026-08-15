@@ -1,7 +1,7 @@
 # Finance Platform — Master Status & Task Tracker
 
 **Single Source of Truth — 15 August 2026**
-**Current Branch:** `feature/intelligence-correlation-full` (ahead of main)
+**Current Branch:** `8th-july-sprint` (active development)
 **Verified by:** Git commit history + codebase analysis
 
 ---
@@ -16,11 +16,13 @@
 | **James's Requirements** | ~65% | ~20% | ~15% |
 
 **Key Achievements (15 Aug 2026):**
-- **Embeddings Model Fine-tuned**: +8.5% ranking accuracy, +82% confidence margin
-- Model trained on RunPod (RTX 4090), deployed to EC2 CPU
+- **Embeddings Model Fine-tuned & Deployed**: +8.5% ranking accuracy, +82% confidence margin
+- Model trained on RunPod (RTX 4090), deployed to EC2 CPU, backed up to S3
+- RAG pipeline now uses fine-tuned model as primary with OpenAI fallback
 - Quality Gate ML Classifier: **F1=0.895** (+131.2% from baseline)
 - Infrastructure hardening: DB pooling, search timeouts, rate limiting, health checks
 - E2E pipeline test and search benchmarks added
+- Full docs restructure + 72 files committed
 
 ---
 
@@ -38,6 +40,8 @@
 - +82% confidence margin (0.178 → 0.325)
 - Model: `finance-embed-v1` deployed to EC2
 - Training: 7,198 triplets, 90s on RTX 4090
+- S3 Backup: `s3://finance-intelligence-models-203918873003/embeddings/finance-embed-v1/`
+- Guide: `embedding-model-fine-tuning/EMBEDDINGS_TRAINING_GUIDE.md`
 
 ### Remaining
 
@@ -60,8 +64,8 @@
 
 | Branch | Last Commit | Status | Notes |
 |--------|-------------|--------|-------|
-| `feature/intelligence-correlation-full` | 8ead589 | **CURRENT** | Intelligence + Quality Gate ML merged |
-| `8th-july-sprint` | c513961 | ✅ Synced | Previous dev branch |
+| `8th-july-sprint` | e830c6b | **CURRENT** | Embeddings + AI training infra |
+| `feature/intelligence-correlation-full` | 8ead589 | ✅ Synced | Intelligence + Quality Gate ML merged |
 | `feature/quality-gate-ml` | 4c08800 | ✅ **MERGED** | Quality Judge + Classifier |
 | `feature/13f-frontend` | — | ✅ Merged | 13F position diff |
 | `feature/trade-alerts` | — | ✅ Merged | F-03/F-04 trade alerts |
@@ -70,11 +74,12 @@
 ### Recent Commits
 
 ```
+e830c6b docs: add S3 backup info for fine-tuned model
+e0252c6 feat: AI training infrastructure + docs restructure (72 files)
+eaa2514 fix: add missing os import in intelligence.py
+c889742 feat: integrate fine-tuned embeddings model into RAG pipeline
+6370e34 feat(api): database pooling, search timeout, blended mode, E2E tests
 8ead589 Enterprise Intelligence activation workflows (Rishav)
-524cb03 docs: detailed post-integration task assignment
-c200fd4 merge: full-local UI fixes
-0b0a73e merge: trade alerts + Congress/Senate
-c5d7cc5 merge: 13F position-diff
 ```
 
 ---
