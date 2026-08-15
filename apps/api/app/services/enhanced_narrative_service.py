@@ -14,6 +14,8 @@ import os
 import json
 import logging
 import requests
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 from enum import Enum
@@ -39,6 +41,19 @@ _OPENAI_KEY = os.getenv("OPENAI_API_KEY", "")
 _OPENAI_BASE = "https://api.openai.com/v1/chat/completions"
 _MODEL = "gpt-4o-mini"
 _TIMEOUT = 60  # Extended timeout for complex analysis
+
+# Model selection for narrative generation
+# Options: "openai" (default), "local" (fine-tuned model)
+_NARRATIVE_MODEL = os.getenv("NARRATIVE_MODEL", "openai")
+_NARRATIVE_LOCAL_PATH = os.getenv("NARRATIVE_LOCAL_PATH", "models/finance-narrative-v1")
+_NARRATIVE_LOCAL_FALLBACK = os.getenv("NARRATIVE_LOCAL_FALLBACK", "true").lower() in ("true", "1", "on")
+
+# Narrative training data logging configuration
+_NARRATIVE_LOG_ENABLED = os.getenv("NARRATIVE_LOG_ENABLED", "true").lower() in ("true", "1", "on")
+_NARRATIVE_LOG_PATH = Path(os.getenv(
+    "NARRATIVE_LOG_PATH",
+    Path(__file__).parent.parent.parent / "exports" / "narrative_training_log.jsonl"
+))
 
 
 class RecommendationType(str, Enum):
@@ -104,6 +119,173 @@ class FinancialHealth:
     grade: str
     grade_rationale: str
     raw_narrative: str
+
+
+# ============================================================================
+# TRAINING DATA LOGGING
+# ============================================================================
+
+def _log_narrative_output(
+    entity: str,
+    section: str,
+    prompt: str,
+    output: str,
+    model_used: str = None,
+) -> bool:
+    """
+    Log narrative generation for fine-tuning dataset collection.
+
+    Args:
+        entity: Entity name (e.g., "NVIDIA CORP")
+        section: Section type (e.g., "executive_summary", "investment_thesis")
+        prompt: The full prompt sent to the model
+        output: The model's response
+        model_used: Which model was used ("openai" or "local")
+
+    Returns:
+        True if logged successfully, False otherwise
+    """
+    if not _NARRATIVE_LOG_ENABLED:
+        return False
+
+    if not prompt or not output or output.startswith("["):
+        # Skip error responses
+        return False
+
+    # Determine which model was actually used
+    if model_used is None:
+        model_used = _NARRATIVE_MODEL
+
+    try:
+        log_entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "entity": entity,
+            "section": section,
+            "prompt": prompt[:10000],  # Truncate very long prompts
+            "output": output[:10000],  # Truncate very long outputs
+            "model": _MODEL if model_used == "openai" else _NARRATIVE_LOCAL_PATH,
+            "model_type": model_used,  # "openai" or "local"
+            "token_count": len(output.split()),
+        }
+
+        _NARRATIVE_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(_NARRATIVE_LOG_PATH, "a") as f:
+            f.write(json.dumps(log_entry) + "\n")
+
+        return True
+
+    except Exception as exc:
+        logger.debug("Narrative training log failed: %s", exc)
+        return False
+
+
+# ============================================================================
+# LOCAL MODEL GENERATION (for fine-tuned models)
+# ============================================================================
+
+def _generate_local(
+    prompt: str,
+    system_instruction: str = "You are a senior intelligence analyst.",
+    max_tokens: int = 4000,
+) -> str:
+    """
+    Generate narrative using local fine-tuned model.
+
+    Args:
+        prompt: User prompt to send
+        system_instruction: System instruction for the model
+        max_tokens: Maximum tokens in response
+
+    Returns:
+        Model response text
+
+    Raises:
+        RuntimeError: If model loading or inference fails
+    """
+    try:
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+        import torch
+    except ImportError:
+        raise RuntimeError("transformers not installed. Install with: pip install transformers torch")
+
+    # Cache the model for reuse
+    if not hasattr(_generate_local, "_model") or _generate_local._model_path != _NARRATIVE_LOCAL_PATH:
+        logger.info("Loading local narrative model: %s", _NARRATIVE_LOCAL_PATH)
+        _generate_local._tokenizer = AutoTokenizer.from_pretrained(_NARRATIVE_LOCAL_PATH)
+        _generate_local._model = AutoModelForCausalLM.from_pretrained(
+            _NARRATIVE_LOCAL_PATH,
+            torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
+            device_map="auto" if torch.cuda.is_available() else None,
+        )
+        _generate_local._model_path = _NARRATIVE_LOCAL_PATH
+
+    # Format prompt with system instruction
+    full_prompt = f"### System:\n{system_instruction}\n\n### User:\n{prompt}\n\n### Assistant:\n"
+
+    inputs = _generate_local._tokenizer(
+        full_prompt,
+        return_tensors="pt",
+        truncation=True,
+        max_length=8192,
+    )
+    if torch.cuda.is_available():
+        inputs = {k: v.cuda() for k, v in inputs.items()}
+
+    outputs = _generate_local._model.generate(
+        **inputs,
+        max_new_tokens=max_tokens,
+        do_sample=True,
+        temperature=0.3,
+        top_p=0.9,
+        pad_token_id=_generate_local._tokenizer.eos_token_id,
+    )
+
+    # Decode and extract only the assistant's response
+    full_response = _generate_local._tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+    # Extract response after "### Assistant:" marker
+    if "### Assistant:" in full_response:
+        response = full_response.split("### Assistant:")[-1].strip()
+    else:
+        response = full_response[len(full_prompt):].strip()
+
+    return response
+
+
+def _generate(
+    prompt: str,
+    system_instruction: str = "You are a senior intelligence analyst.",
+    temperature: float = 0.3,
+    max_tokens: int = 4000,
+) -> str:
+    """
+    Unified generation function with automatic fallback.
+
+    Tries local fine-tuned model first (if configured), then falls back
+    to OpenAI if local fails or is not configured.
+
+    Args:
+        prompt: User prompt to send
+        system_instruction: System instruction for the model
+        temperature: Sampling temperature (only used for OpenAI)
+        max_tokens: Maximum tokens in response
+
+    Returns:
+        Model response text
+    """
+    if _NARRATIVE_MODEL == "local":
+        try:
+            return _generate_local(prompt, system_instruction, max_tokens)
+        except Exception as e:
+            if _NARRATIVE_LOCAL_FALLBACK:
+                logger.warning("Local model failed, falling back to OpenAI: %s", e)
+                return _call_openai(prompt, system_instruction, temperature, max_tokens)
+            else:
+                logger.error("Local model failed and fallback disabled: %s", e)
+                return f"[Local model error: {str(e)}]"
+    else:
+        return _call_openai(prompt, system_instruction, temperature, max_tokens)
 
 
 # ============================================================================
@@ -197,7 +379,10 @@ def generate_executive_summary(
 You write concise, actionable executive summaries suitable for C-suite executives.
 Always cite sources and tag claims with [DOCUMENTED], [REPORTED], or [ANALYTICAL]."""
 
-    narrative = _call_openai(prompt, system_instruction)
+    narrative = _generate(prompt, system_instruction)
+
+    # Log for training data collection
+    _log_narrative_output(entity_name, "executive_summary", prompt, narrative)
 
     return {
         "section_name": "Executive Summary",
@@ -248,7 +433,10 @@ You write rigorous, data-driven investment recommendations.
 Always provide specific price targets and quantified bull/bear cases.
 Tag all claims with [DOCUMENTED], [REPORTED], or [ANALYTICAL]."""
 
-    narrative = _call_openai(prompt, system_instruction, temperature=0.2)
+    narrative = _generate(prompt, system_instruction, temperature=0.2)
+
+    # Log for training data collection
+    _log_narrative_output(entity_name, "investment_thesis", prompt, narrative)
 
     # Parse recommendation from narrative
     recommendation = _extract_recommendation(narrative)
@@ -335,7 +523,10 @@ You provide rigorous, evidence-based SWOT analyses.
 Each item must have a clear evidence citation and impact rating.
 Tag all claims with [DOCUMENTED], [REPORTED], or [ANALYTICAL]."""
 
-    narrative = _call_openai(prompt, system_instruction)
+    narrative = _generate(prompt, system_instruction)
+
+    # Log for training data collection
+    _log_narrative_output(entity_name, "swot_analysis", prompt, narrative)
 
     # Parse SWOT quadrants from narrative
     swot_data = _parse_swot(narrative)
@@ -478,7 +669,10 @@ You identify and categorize all material risks with specific severity and likeli
 Provide actionable mitigation recommendations for top risks.
 Tag all claims with [DOCUMENTED], [REPORTED], or [ANALYTICAL]."""
 
-    narrative = _call_openai(prompt, system_instruction)
+    narrative = _generate(prompt, system_instruction)
+
+    # Log for training data collection
+    _log_narrative_output(entity_name, "risk_matrix", prompt, narrative)
 
     # Parse risk data from narrative
     risk_data = _parse_risk_matrix(narrative)
@@ -647,7 +841,10 @@ You provide rigorous financial health assessments with specific metrics and grad
 Compare metrics to industry averages where possible.
 Tag all data with [DOCUMENTED], [REPORTED], or [ANALYTICAL]."""
 
-    narrative = _call_openai(prompt, system_instruction)
+    narrative = _generate(prompt, system_instruction)
+
+    # Log for training data collection
+    _log_narrative_output(entity_name, "financial_health", prompt, narrative)
 
     # Extract grade from narrative
     grade_data = _extract_financial_grade(narrative)
@@ -725,7 +922,10 @@ You provide rigorous competitive assessments with specific market share data.
 Evaluate competitive moats using Warren Buffett's framework.
 Tag all claims with [DOCUMENTED], [REPORTED], or [ANALYTICAL]."""
 
-    narrative = _call_openai(prompt, system_instruction)
+    narrative = _generate(prompt, system_instruction)
+
+    # Log for training data collection
+    _log_narrative_output(entity_name, "competitive_analysis", prompt, narrative)
 
     return {
         "section_name": "Competitive Analysis",
@@ -767,7 +967,10 @@ You write dense, specific, actionable intelligence assessments.
 Every sentence should contain information a decision-maker can act on.
 Avoid hedging language. Be assertive and direct."""
 
-    narrative = _call_openai(prompt, system_instruction, temperature=0.2, max_tokens=1500)
+    narrative = _generate(prompt, system_instruction, temperature=0.2, max_tokens=1500)
+
+    # Log for training data collection
+    _log_narrative_output(entity_name, "bottom_line", prompt, narrative)
 
     return {
         "section_name": "Bottom Line",
@@ -805,7 +1008,10 @@ You compile detailed profiles with specific dates, institutions, and relationshi
 Focus on career trajectory, educational background, board interlocks, and financial ties.
 Flag any potential conflicts of interest or concerning connections."""
 
-    narrative = _call_openai(prompt, system_instruction, temperature=0.25, max_tokens=4000)
+    narrative = _generate(prompt, system_instruction, temperature=0.25, max_tokens=4000)
+
+    # Log for training data collection
+    _log_narrative_output(entity_name, "key_personnel", prompt, narrative)
 
     # Extract personnel list from narrative
     personnel = _parse_personnel(narrative)
@@ -863,7 +1069,10 @@ You identify ownership structures, board interlocks, shared investors, and polit
 Focus on relationships that create influence, risk, or opportunity.
 Be specific with names, percentages, and institutional affiliations."""
 
-    narrative = _call_openai(prompt, system_instruction, temperature=0.25, max_tokens=4000)
+    narrative = _generate(prompt, system_instruction, temperature=0.25, max_tokens=4000)
+
+    # Log for training data collection
+    _log_narrative_output(entity_name, "network_mapping", prompt, narrative)
 
     return {
         "section_name": "Network Mapping",
@@ -898,7 +1107,10 @@ Each watch item should be specific, actionable, and tied to a date or trigger ev
 Organize by timeframe and prioritize by materiality to the investment thesis.
 Include specific scenario triggers that would change the overall assessment."""
 
-    narrative = _call_openai(prompt, system_instruction, temperature=0.3, max_tokens=3000)
+    narrative = _generate(prompt, system_instruction, temperature=0.3, max_tokens=3000)
+
+    # Log for training data collection
+    _log_narrative_output(entity_name, "watch_items", prompt, narrative)
 
     # Extract watch items from narrative
     watch_items = _parse_watch_items(narrative)
@@ -955,7 +1167,10 @@ You analyze federal contracts, lobbying activity, regulatory relationships, and 
 Quantify exposure with specific dollar amounts and identify key agencies and relationships.
 Flag any concerning patterns or compliance risks."""
 
-    narrative = _call_openai(prompt, system_instruction, temperature=0.25, max_tokens=3500)
+    narrative = _generate(prompt, system_instruction, temperature=0.25, max_tokens=3500)
+
+    # Log for training data collection
+    _log_narrative_output(entity_name, "government_exposure", prompt, narrative)
 
     return {
         "section_name": "Government Exposure",
