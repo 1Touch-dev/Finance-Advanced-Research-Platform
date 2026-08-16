@@ -12,7 +12,9 @@
 |--------|-------|
 | **Tests** | 1183 (99.6% passing) |
 | **Features Done** | 78 of 72 (~108% - exceeded!) |
+| **Real Data Coverage** | ~70% (core research works) |
 | **Remaining Tasks** | 1 (browser extension - optional) |
+| **Data Integrations Pending** | 10 (mock → real data) |
 
 ---
 
@@ -80,6 +82,29 @@
 | [x] | E5 | Screen Sharing | WebRTC collaborative screen share |
 
 *Note: E1 (Native Push) and E4 (Home Screen Widgets) removed - require native iOS/Android app which doesn't exist.*
+
+### PENDING - Real Data Integrations (Features with Mock Data)
+
+**Status:** UI/API complete, needs real data source connections
+
+| Done | # | Feature | Current State | Required Integration | Effort |
+|:----:|---|---------|---------------|---------------------|--------|
+| [ ] | R1 | Short Interest | Simulated % | FINRA or S3 Partners API | 1-2 days |
+| [ ] | R2 | Insider Activity | Generic trades | SEC Form 4 EDGAR Parser | 1-2 days |
+| [ ] | R3 | IPO Calendar | Fake companies | FMP or Nasdaq IPO feed | 1 day |
+| [ ] | R4 | Earnings Calendar | Generated dates | FMP or Finnhub calendar | 1 day |
+| [ ] | R5 | Consensus Estimates | Fake analysts | FactSet/Refinitiv ($$$) | N/A |
+| [ ] | R6 | Brokerage Sync | Hardcoded brokers | Plaid API ($500/mo) | 2-3 days |
+| [ ] | R7 | Portfolio Analytics | Random factors | Real portfolio data | 1-2 days |
+| [ ] | R8 | Recursive Entity | Fake relationships | Graph DB (Neo4j) | 3-5 days |
+| [ ] | R9 | Autonomous Agent | Simulated discovery | OpenCorporates/GLEIF | 2-3 days |
+| [ ] | R10 | Global Markets | Static 10 exchanges | Real exchange status API | 1 day |
+
+**Notes:**
+- R5 (Consensus) requires expensive data license - may remain mock
+- R6 (Brokerage) requires Plaid production account
+- R7 depends on R6 for real portfolio data
+- Currently ~70% of platform uses real data, ~30% mock
 
 ---
 
