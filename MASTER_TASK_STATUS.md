@@ -12,7 +12,7 @@
 |--------|-------|
 | **Tests** | 1183 (99.6% passing) |
 | **Features Done** | 78 of 72 (~108% - exceeded!) |
-| **Remaining Tasks** | 3 (2 N/A native + 1 skipped) |
+| **Remaining Tasks** | 1 (browser extension - optional) |
 
 ---
 
@@ -71,15 +71,15 @@
 | [x] | D10 | Custom Benchmarks | Build custom benchmark blends |
 | [x] | D11 | Performance Attribution | Brinson attribution |
 
-### DEFERRED - Mobile Native (E1-E5) - 3 of 5 COMPLETE
+### PWA Advanced (E2, E3, E5) - ALL COMPLETE
 
 | Done | # | Task | Description |
 |:----:|---|------|-------------|
-| N/A | E1 | Native Push Notifications | iOS/Android push (requires native app) |
 | [x] | E2 | Offline Caching | Service worker offline mode (web PWA) |
 | [x] | E3 | Biometric Login | WebAuthn (Face ID / Touch ID on web) |
-| N/A | E4 | Home Screen Widgets | iOS/Android widgets (requires native app) |
 | [x] | E5 | Screen Sharing | WebRTC collaborative screen share |
+
+*Note: E1 (Native Push) and E4 (Home Screen Widgets) removed - require native iOS/Android app which doesn't exist.*
 
 ---
 
