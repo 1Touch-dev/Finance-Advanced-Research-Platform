@@ -167,6 +167,12 @@ except Exception:
     pass
 
 try:
+    from app.api.ontology import router as ontology_router
+    app.include_router(ontology_router)
+except Exception:
+    pass
+
+try:
     from app.api.health_rag import router as health_rag_router
     app.include_router(health_rag_router)
 except Exception:

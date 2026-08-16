@@ -78,5 +78,21 @@ module.exports = {
       log_file: './logs/investment-alert-scanner.log',
       error_file: './logs/investment-alert-scanner-error.log',
     },
+    // ── #7: Freshness Engine Scanner ──────────────────────────────────────────
+    {
+      name: 'freshness-scanner',
+      cwd: './apps/api',
+      script: '../../venv/bin/python3',
+      args: '-m app.scripts.run_freshness_scan --max-jobs 20',
+      interpreter: 'none',
+      env_file: '../../.env',
+      autorestart: true,
+      watch: false,
+      // Runs every hour at minute 15 to avoid overlap with other scanners
+      // 00:15, 01:15, 02:15, ... 23:15 UTC
+      cron_restart: '15 * * * *',
+      log_file: './logs/freshness-scanner.log',
+      error_file: './logs/freshness-scanner-error.log',
+    },
   ],
 };

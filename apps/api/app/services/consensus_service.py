@@ -656,12 +656,18 @@ def get_earnings_surprise(
         "META": "Meta Platforms Inc.", "AMZN": "Amazon.com Inc.",
     }
 
+    # Calculate report month based on fiscal period
+    # Q1 reports in April, Q2 in July, Q3 in October, Q4 in January (next year), FY in February
+    period_to_month = {"Q1": 4, "Q2": 7, "Q3": 10, "Q4": 1, "FY": 2}
+    report_month = period_to_month.get(fiscal_period.value, 2)
+    report_year = fiscal_year if fiscal_period != PeriodType.Q4 else fiscal_year + 1
+
     return EarningsSurprise(
         ticker=ticker,
         company_name=company_names.get(ticker, ticker),
         fiscal_year=fiscal_year,
         fiscal_period=fiscal_period,
-        report_date=date(fiscal_year, fiscal_period.value[1] * 3 + 1 if fiscal_period != PeriodType.FY else 2, 15),
+        report_date=date(report_year, report_month, 15),
         actual_eps=round(actual_eps, 2),
         consensus_eps=consensus.mean,
         surprise_amount=round(surprise_amount, 2),
