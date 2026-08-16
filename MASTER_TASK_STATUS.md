@@ -1,6 +1,6 @@
 # Finance Platform — Master Status & Task Tracker
 
-**Single Source of Truth — 16 August 2026**
+**Single Source of Truth — 17 August 2026**
 **Current Branch:** `8th-july-sprint` (active development)
 **Verified by:** Git commit history + codebase analysis
 
@@ -10,9 +10,9 @@
 
 | Metric | Value |
 |--------|-------|
-| **Tests** | 885 (99.6% passing) |
-| **Features Done** | 48 of 72 (~67%) |
-| **Remaining Tasks** | 32 |
+| **Tests** | 966 (99.6% passing) |
+| **Features Done** | 58 of 72 (~81%) |
+| **Remaining Tasks** | 22 |
 
 ---
 
@@ -26,21 +26,21 @@
 | [x] | 39 | M&A Rumor Tracking | Aggregate M&A rumors from news sources |
 | [x] | 41 | Insider Activity Screener | Screen Form 4 filings, cluster buys/sells |
 
-### MEDIUM (3-5 days each)
+### MEDIUM (3-5 days each) - 10 OF 11 COMPLETE
 
 | Done | # | Task | Description |
 |:----:|---|------|-------------|
 | [ ] | 12 | Browser Extension | Chrome/Firefox extension for quick lookups |
-| [ ] | 42 | Cost Basis Tracking | Track purchase prices, calculate gains/losses |
-| [ ] | 44 | Benchmark Attribution | Compare portfolio vs S&P500, sector benchmarks |
-| [ ] | 45 | Tax Lot Optimization | FIFO/LIFO/specific lot selection |
-| [ ] | 48 | Shared Workspaces | Team collaboration spaces |
-| [ ] | 49 | Team Permission Roles | Admin/editor/viewer roles |
-| [ ] | J1 | Person Timelines | Person events + stock price + news overlay |
-| [ ] | J2 | Data Visualizations | More charts/figures in reports |
-| [ ] | J3 | Valuation Timeline | Historical valuation multiples over time |
-| [ ] | J4 | Reddit/Whale Improvements | Better sentiment + whale tracking |
-| [ ] | J5 | Interactive Bubble Charts | PayPal Mafia style network visualization |
+| [x] | 42 | Cost Basis Tracking | Track purchase prices, calculate gains/losses |
+| [x] | 44 | Benchmark Attribution | Compare portfolio vs S&P500, sector benchmarks |
+| [x] | 45 | Tax Lot Optimization | FIFO/LIFO/specific lot selection |
+| [x] | 48 | Shared Workspaces | Team collaboration spaces |
+| [x] | 49 | Team Permission Roles | Admin/editor/viewer roles |
+| [x] | J1 | Person Timelines | Person events + stock price + news overlay |
+| [x] | J2 | Data Visualizations | More charts/figures in reports |
+| [x] | J3 | Valuation Timeline | Historical valuation multiples over time |
+| [x] | J4 | Reddit/Whale Improvements | Better sentiment + whale tracking |
+| [x] | J5 | Interactive Bubble Charts | PayPal Mafia style network visualization |
 
 ### HIGH (1-2 weeks each)
 
@@ -78,10 +78,22 @@
 
 ---
 
-## COMPLETED FEATURES (45 total)
+## COMPLETED FEATURES (58 total)
 
 <details>
 <summary>Click to expand completed features</summary>
+
+### Medium Tasks (10/11 done - 17 Aug 2026)
+- [x] #42 Cost Basis Tracking (FIFO/LIFO/HIFO/AVERAGE/SPECIFIC)
+- [x] #44 Benchmark Attribution (alpha, Sharpe, info ratio, tracking error)
+- [x] #45 Tax Lot Optimization (tax-efficient lot selection)
+- [x] #48 Shared Workspaces (team collaboration spaces)
+- [x] #49 Team Permission Roles (viewer/editor/admin/owner)
+- [x] J1 Person Timelines (events + stock price + news overlay)
+- [x] J2 Data Visualizations (pie, bar, heatmap, treemap, radar, histogram, gauge, waterfall)
+- [x] J3 Valuation Timeline (historical valuation multiples with Z-scores)
+- [x] J4 Reddit/Whale Improvements (social sentiment + whale tracking)
+- [x] J5 Interactive Bubble Charts (multi-dimensional visualization)
 
 ### Band A (13/14 done)
 - [x] #1 Pricing page
@@ -393,8 +405,8 @@ python -m app.scripts.benchmark_search --iterations 20 --corpus-size 500
 
 ## Test Suite Status
 
-**Total Tests:** 826
-**Passing:** 823 (99.6%)
+**Total Tests:** 907 (826 + 81 new medium task tests)
+**Passing:** 904 (99.6%)
 **Failed:** 3 (pre-existing, unrelated to current features)
 
 | Test File | Tests | Status |
@@ -427,6 +439,7 @@ python -m app.scripts.benchmark_search --iterations 20 --corpus-size 500
 | `test_deep_research_connectors.py` | 5 | ✅ All pass |
 | `test_entity_naming.py` | 5 | ✅ All pass |
 | `test_people_and_peer_resolution.py` | 1 | ⚠️ 1 flaky |
+| `test_medium_tasks_api.py` | 81 | ✅ All pass (NEW) |
 | Other tests | ~106 | ✅ All pass |
 
 ---
@@ -549,5 +562,5 @@ e5cd751 Full UI/UX overhaul
 
 ---
 
-*Document generated: 16 August 2026*
+*Document generated: 17 August 2026*
 *Author: Automated verification against git history + codebase*

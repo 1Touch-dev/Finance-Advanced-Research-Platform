@@ -265,6 +265,66 @@ except Exception:
     pass
 
 try:
+    from app.api.cost_basis import router as cost_basis_router
+    app.include_router(cost_basis_router)
+except Exception:
+    pass
+
+try:
+    from app.api.benchmark import router as benchmark_router
+    app.include_router(benchmark_router)
+except Exception:
+    pass
+
+try:
+    from app.api.tax_lots import router as tax_lots_router
+    app.include_router(tax_lots_router)
+except Exception:
+    pass
+
+try:
+    from app.api.workspaces import router as workspaces_router
+    app.include_router(workspaces_router)
+except Exception:
+    pass
+
+try:
+    from app.api.team_permissions import router as team_permissions_router
+    app.include_router(team_permissions_router)
+except Exception:
+    pass
+
+try:
+    from app.api.person_timeline import router as person_timeline_router
+    app.include_router(person_timeline_router)
+except Exception:
+    pass
+
+try:
+    from app.api.valuation_timeline import router as valuation_timeline_router
+    app.include_router(valuation_timeline_router)
+except Exception:
+    pass
+
+try:
+    from app.api.data_visualizations import router as data_viz_router
+    app.include_router(data_viz_router)
+except Exception:
+    pass
+
+try:
+    from app.api.reddit_whale import router as reddit_whale_router
+    app.include_router(reddit_whale_router)
+except Exception:
+    pass
+
+try:
+    from app.api.bubble_charts import router as bubble_charts_router
+    app.include_router(bubble_charts_router)
+except Exception:
+    pass
+
+try:
     from prometheus_client import make_asgi_app as _make_prom_app
     _metrics_app = _make_prom_app()
     app.mount("/metrics", _metrics_app)

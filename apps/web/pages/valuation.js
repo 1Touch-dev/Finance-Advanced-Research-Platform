@@ -1,324 +1,184 @@
-import { useState } from 'react'
-import { getApiBaseUrl } from '../lib/api'
-import styles from '../src/styles/Page.module.css'
+import { useState, useEffect } from 'react';
+import Head from 'next/head';
 
-const API = typeof window !== 'undefined' ? getApiBaseUrl() : ''
-
-const fmt = (v, d = 2) => v == null ? '—' : typeof v === 'number' ? v.toFixed(d) : v
-const fmtBig = v => {
-  if (v == null) return '—'
-  if (Math.abs(v) >= 1e12) return `$${(v/1e12).toFixed(2)}T`
-  if (Math.abs(v) >= 1e9)  return `$${(v/1e9).toFixed(2)}B`
-  if (Math.abs(v) >= 1e6)  return `$${(v/1e6).toFixed(2)}M`
-  return `$${v.toLocaleString()}`
-}
-
-const ASSESSMENT_COLORS = {
-  'SIGNIFICANTLY UNDERVALUED': '#22c55e',
-  'MODERATELY UNDERVALUED':    '#86efac',
-  'FAIRLY VALUED':             '#facc15',
-  'MODERATELY OVERVALUED':     '#fb923c',
-  'SIGNIFICANTLY OVERVALUED':  '#ef4444',
-  'UNKNOWN':                   '#94a3b8',
-}
-
-function AssessmentBadge({ value }) {
-  const color = ASSESSMENT_COLORS[value] || '#94a3b8'
-  return (
-    <span style={{ background: color + '22', color, border: `1px solid ${color}55`,
-      borderRadius: 8, padding: '4px 12px', fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.05em' }}>
-      {value || 'UNKNOWN'}
-    </span>
-  )
-}
-
-function MetricCard({ label, value, sub, color }) {
-  return (
-    <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--line)',
-      borderRadius: 10, padding: '0.75rem 1rem', minWidth: 110, textAlign: 'center' }}>
-      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: '1.1rem', fontWeight: 800, color: color || '#c7d2fe' }}>{value}</div>
-      {sub && <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 2 }}>{sub}</div>}
-    </div>
-  )
-}
-
-function DCFSection({ dcf }) {
-  if (!dcf || dcf.error) return <p style={{ color: '#94a3b8' }}>{dcf?.error || 'No DCF data'}</p>
-  const inputs = dcf.inputs || {}
-  const upside = dcf.upside_downside_pct
-  const upsideColor = upside == null ? '#94a3b8' : upside > 0 ? '#22c55e' : '#ef4444'
-
-  return (
-    <div>
-      <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
-        <MetricCard label="Intrinsic Value" value={dcf.intrinsic_price_per_share ? `$${fmt(dcf.intrinsic_price_per_share)}` : '—'} color="#818cf8" />
-        <MetricCard label="Market Price" value={dcf.current_market_price ? `$${fmt(dcf.current_market_price)}` : '—'} color="#e2e8f0" />
-        <MetricCard label="Upside / Downside" value={upside != null ? `${upside > 0 ? '+' : ''}${fmt(upside)}%` : '—'} color={upsideColor} />
-        <MetricCard label="Enterprise Value" value={fmtBig(dcf.enterprise_value)} color="#a5f3fc" />
-        <MetricCard label="Equity Value" value={fmtBig(dcf.equity_value)} color="#86efac" />
-        <MetricCard label="Net Debt" value={fmtBig(dcf.net_debt)} color="#fb923c" />
-      </div>
-
-      <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
-        <MetricCard label="WACC" value={`${fmt(inputs.wacc_pct)}%`} color="#f9a8d4" />
-        <MetricCard label="Cost of Equity" value={`${fmt(inputs.cost_of_equity_pct)}%`} />
-        <MetricCard label="FCF Growth (5yr)" value={`${fmt(inputs.fcf_growth_5y_assumed)}%`} color="#fbbf24" />
-        <MetricCard label="Historical CAGR" value={`${fmt(inputs.historical_cagr_pct)}%`} />
-        <MetricCard label="Terminal Growth" value={`${fmt(inputs.terminal_growth_pct)}%`} />
-        <MetricCard label="Beta" value={fmt(inputs.beta)} />
-        <MetricCard label="Risk-Free Rate" value={`${fmt(inputs.risk_free_rate_pct)}%`} />
-      </div>
-
-      {/* Scenarios */}
-      <h4 style={{ color: '#94a3b8', fontSize: '0.72rem', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Scenarios</h4>
-      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
-        {['bear', 'base', 'bull'].map(s => {
-          const sc = dcf.scenarios?.[s] || {}
-          const color = s === 'bull' ? '#22c55e' : s === 'bear' ? '#ef4444' : '#facc15'
-          return (
-            <div key={s} style={{ background: color + '11', border: `1px solid ${color}33`,
-              borderRadius: 10, padding: '0.75rem 1.25rem', textAlign: 'center', minWidth: 130 }}>
-              <div style={{ fontSize: '0.62rem', color, textTransform: 'uppercase', fontWeight: 700 }}>{s} Case</div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 800, color, marginTop: 4 }}>
-                {sc.intrinsic_price ? `$${sc.intrinsic_price}` : '—'}
-              </div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 2 }}>{sc.description}</div>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* FCF History */}
-      {dcf.fcf_history?.length > 0 && (
-        <>
-          <h4 style={{ color: '#94a3b8', fontSize: '0.72rem', textTransform: 'uppercase', marginBottom: '0.5rem' }}>FCF History</h4>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--line)' }}>
-                  {['FY', 'Period End', 'Op Cash Flow', 'CapEx', 'Free Cash Flow'].map(h =>
-                    <th key={h} style={{ textAlign: 'right', padding: '6px 12px', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.68rem', textTransform: 'uppercase' }}>{h}</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {dcf.fcf_history.map((r, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <td style={{ padding: '6px 12px', textAlign: 'right' }}>{r.fy}</td>
-                    <td style={{ padding: '6px 12px', textAlign: 'right', color: '#94a3b8' }}>{r.period_end}</td>
-                    <td style={{ padding: '6px 12px', textAlign: 'right', color: '#86efac' }}>{fmtBig(r.ocf)}</td>
-                    <td style={{ padding: '6px 12px', textAlign: 'right', color: '#fb923c' }}>{fmtBig(r.capex)}</td>
-                    <td style={{ padding: '6px 12px', textAlign: 'right', fontWeight: 700, color: r.fcf >= 0 ? '#22c55e' : '#ef4444' }}>{fmtBig(r.fcf)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      {/* 5-Year Projections */}
-      {dcf.projected_fcfs?.length > 0 && (
-        <>
-          <h4 style={{ color: '#94a3b8', fontSize: '0.72rem', textTransform: 'uppercase', margin: '1rem 0 0.5rem' }}>5-Year FCF Projections</h4>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--line)' }}>
-                  {['Year', 'Projected FCF', 'Present Value'].map(h =>
-                    <th key={h} style={{ textAlign: 'right', padding: '6px 12px', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.68rem', textTransform: 'uppercase' }}>{h}</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {dcf.projected_fcfs.map(r => (
-                  <tr key={r.year} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <td style={{ padding: '6px 12px', textAlign: 'right' }}>Year {r.year}</td>
-                    <td style={{ padding: '6px 12px', textAlign: 'right', color: '#86efac' }}>{fmtBig(r.projected_fcf)}</td>
-                    <td style={{ padding: '6px 12px', textAlign: 'right', color: '#a5f3fc' }}>{fmtBig(r.present_value)}</td>
-                  </tr>
-                ))}
-                <tr style={{ borderTop: '2px solid var(--line)', fontWeight: 700 }}>
-                  <td style={{ padding: '6px 12px', textAlign: 'right', color: '#94a3b8' }}>Terminal Value (PV)</td>
-                  <td></td>
-                  <td style={{ padding: '6px 12px', textAlign: 'right', color: '#c7d2fe' }}>{fmtBig(dcf.pv_terminal_value)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-function FilingAnalysisSection({ fa }) {
-  const [expanded, setExpanded] = useState(null)
-  if (!fa || fa.error) return <p style={{ color: '#94a3b8' }}>{fa?.error || 'No filing data'}</p>
-  return (
-    <div>
-      <p style={{ color: '#94a3b8', fontSize: '0.82rem', marginBottom: '1rem' }}>
-        {fa.filings_analyzed || 0} filing(s) analyzed
-      </p>
-      {(fa.analyses || []).map((a, i) => (
-        <div key={i} style={{ border: '1px solid var(--line)', borderRadius: 10, marginBottom: '1rem', overflow: 'hidden' }}>
-          <div style={{ padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.03)', display: 'flex', gap: '1rem', alignItems: 'center', cursor: 'pointer' }}
-               onClick={() => setExpanded(expanded === i ? null : i)}>
-            <span style={{ background: '#6366f122', color: '#818cf8', border: '1px solid #6366f144', borderRadius: 6, padding: '2px 8px', fontSize: '0.72rem', fontWeight: 700 }}>{a.form_type}</span>
-            <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{a.filing_date}</span>
-            {a.forward_guidance?.length > 0 && (
-              <span style={{ color: '#fbbf24', fontSize: '0.72rem' }}>⚡ {a.forward_guidance.length} guidance signals</span>
-            )}
-            <span style={{ marginLeft: 'auto', color: '#94a3b8', fontSize: '0.75rem' }}>{expanded === i ? '▲' : '▼'}</span>
-          </div>
-          {expanded === i && (
-            <div style={{ padding: '1rem' }}>
-              {a.forward_guidance?.length > 0 && (
-                <>
-                  <h5 style={{ color: '#fbbf24', fontSize: '0.72rem', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Forward Guidance</h5>
-                  {a.forward_guidance.map((g, j) => (
-                    <div key={j} style={{ background: 'rgba(251,191,36,0.07)', border: '1px solid rgba(251,191,36,0.2)',
-                      borderRadius: 8, padding: '0.5rem 0.75rem', marginBottom: '0.4rem', fontSize: '0.82rem', color: '#fef3c7' }}>
-                      <span style={{ fontSize: '0.62rem', color: '#fbbf24', textTransform: 'uppercase', marginRight: 8 }}>{g.type?.replace('_', ' ')}</span>
-                      {g.text}
-                    </div>
-                  ))}
-                </>
-              )}
-              {a.key_risks?.length > 0 && (
-                <>
-                  <h5 style={{ color: '#f87171', fontSize: '0.72rem', textTransform: 'uppercase', margin: '1rem 0 0.5rem' }}>Key Risks</h5>
-                  {a.key_risks.map((r, j) => (
-                    <div key={j} style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)',
-                      borderRadius: 8, padding: '0.5rem 0.75rem', marginBottom: '0.4rem', fontSize: '0.8rem', color: '#fecaca' }}>
-                      {r}
-                    </div>
-                  ))}
-                </>
-              )}
-              {a.mda_excerpt && (
-                <>
-                  <h5 style={{ color: '#94a3b8', fontSize: '0.72rem', textTransform: 'uppercase', margin: '1rem 0 0.5rem' }}>MD&A Excerpt</h5>
-                  <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--line)', borderRadius: 8,
-                    padding: '0.75rem', fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.7, maxHeight: 300, overflowY: 'auto', whiteSpace: 'pre-wrap' }}>
-                    {a.mda_excerpt?.slice(0, 2000)}
-                  </div>
-                </>
-              )}
-              <a href={a.doc_url} target="_blank" rel="noreferrer"
-                 style={{ color: '#6366f1', fontSize: '0.72rem', marginTop: '0.5rem', display: 'inline-block' }}>
-                View full filing ↗
-              </a>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  )
-}
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function ValuationPage() {
-  const [ticker, setTicker] = useState('AAPL')
-  const [input, setInput] = useState('AAPL')
-  const [tab, setTab] = useState('dcf')
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [selectedTicker, setSelectedTicker] = useState('NVDA');
+  const [valuation, setValuation] = useState(null);
+  const [comparison, setComparison] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const run = async (t) => {
-    const sym = (t || input).toUpperCase().trim()
-    if (!sym) return
-    setTicker(sym)
-    setLoading(true)
-    setError('')
-    setData(null)
+  const tickers = ['NVDA', 'AAPL', 'MSFT', 'GOOGL', 'META', 'AMZN', 'TSLA'];
+
+  useEffect(() => {
+    fetchData(selectedTicker);
+  }, [selectedTicker]);
+
+  async function fetchData(ticker) {
+    setLoading(true);
     try {
-      const [dcfRes, faRes] = await Promise.all([
-        fetch(`${API}/market/company/dcf-valuation/${sym}`),
-        fetch(`${API}/market/company/filing-analysis/${sym}`),
-      ])
-      const [dcf, fa] = await Promise.all([dcfRes.json(), faRes.json()])
-      setData({ dcf, fa })
-    } catch(e) {
-      setError('Failed to load: ' + e.message)
+      const [valRes, compRes] = await Promise.all([
+        fetch(API_BASE + '/valuation/' + ticker),
+        fetch(API_BASE + '/valuation/comparison?tickers=' + tickers.join(','))
+      ]);
+      const valData = await valRes.json();
+      const compData = await compRes.json();
+      setValuation(valData);
+      setComparison(compData);
+    } catch (err) {
+      console.error('Error:', err);
     }
-    setLoading(false)
+    setLoading(false);
   }
 
-  const TABS = [
-    { id: 'dcf', label: '📊 DCF Valuation' },
-    { id: 'filing', label: '📄 Filing Analysis' },
-  ]
+  const getZScoreColor = (zscore) => {
+    if (zscore <= -2) return 'text-green-400';
+    if (zscore <= -1) return 'text-green-300';
+    if (zscore <= 1) return 'text-yellow-400';
+    if (zscore <= 2) return 'text-orange-400';
+    return 'text-red-400';
+  };
+
+  const getSignalColor = (signal) => {
+    const s = signal?.toLowerCase();
+    if (s === 'undervalued') return 'bg-green-600';
+    if (s === 'fairly valued') return 'bg-yellow-600';
+    if (s === 'overvalued') return 'bg-red-600';
+    return 'bg-gray-600';
+  };
+
+  const formatMultiple = (val) => val?.toFixed(1) || '-';
 
   return (
-    <div >
-      <div >
-        <div>
-          <h1 >Financial Valuation Engine</h1>
-          <p >DCF intrinsic value · 10-K/10-Q analysis · Bull/Bear scenarios</p>
-        </div>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          <input value={input} onChange={e => setInput(e.target.value.toUpperCase())}
-            onKeyDown={e => e.key === 'Enter' && run()}
-            placeholder="Ticker (e.g. AAPL)" style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--line)',
-              background: 'var(--card)', color: '#e2e8f0', width: 150, fontSize: '0.9rem' }} />
-          <button onClick={() => run()} disabled={loading}
-            style={{ padding: '8px 18px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700 }}>
-            {loading ? '…' : 'Analyze'}
+    <div className="min-h-screen bg-gray-900 text-white p-6">
+      <Head>
+        <title>Valuation Analysis | Finance Platform</title>
+      </Head>
+
+      <h1 className="text-3xl font-bold mb-6">Valuation Timeline Analysis</h1>
+
+      <div className="flex gap-2 mb-6">
+        {tickers.map(ticker => (
+          <button
+            key={ticker}
+            onClick={() => setSelectedTicker(ticker)}
+            className={'px-4 py-2 rounded-lg ' + (selectedTicker === ticker ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600')}
+          >
+            {ticker}
           </button>
-          {['AAPL','MSFT','TSLA','NVDA','AMZN','GOOGL'].map(t => (
-            <button key={t} onClick={() => { setInput(t); run(t) }}
-              style={{ padding: '4px 10px', background: ticker === t ? '#6366f1' : 'rgba(255,255,255,0.05)',
-                color: ticker === t ? '#fff' : '#94a3b8', border: '1px solid var(--line)', borderRadius: 6, cursor: 'pointer', fontSize: '0.75rem' }}>
-              {t}
-            </button>
-          ))}
-        </div>
+        ))}
       </div>
 
-      {error && <div style={{ background: '#ef444420', border: '1px solid #ef444444', borderRadius: 8, padding: '0.75rem 1rem', color: '#fca5a5', marginBottom: '1rem' }}>{error}</div>}
-
-      {data && (
+      {loading ? (
+        <div className="text-center py-10">Loading valuation data...</div>
+      ) : valuation ? (
         <>
-          {/* Assessment Banner */}
-          <div className="card" style={{ padding: '1rem 1.5rem', marginBottom: '1rem', display: 'flex', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <div>
-              <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Overall Assessment</div>
-              <AssessmentBadge value={data.dcf?.assessment} />
+          <div className="bg-gray-800 rounded-lg p-6 mb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold">{valuation.ticker} Valuation</h2>
+                <p className="text-gray-400">{valuation.company_name}</p>
+              </div>
+              <div className="text-right">
+                <div className={'text-4xl font-bold ' + getZScoreColor(valuation.composite_zscore)}>
+                  {valuation.composite_zscore?.toFixed(2)}
+                </div>
+                <div className="text-gray-400">Composite Z-Score</div>
+                <span className={'inline-block mt-2 px-3 py-1 rounded-full text-sm ' + getSignalColor(valuation.signal)}>
+                  {valuation.signal}
+                </span>
+              </div>
             </div>
-            {data.dcf?.synthesis?.narrative && (
-              <p style={{ color: '#cbd5e1', fontSize: '0.85rem', lineHeight: 1.6, flex: 1, margin: 0 }}>
-                {data.dcf.synthesis?.narrative || data.dcf?.inputs && `WACC: ${data.dcf.inputs.wacc_pct}% | FCF Growth: ${data.dcf.inputs.fcf_growth_5y_assumed}%`}
-              </p>
-            )}
           </div>
 
-          {/* Tabs */}
-          <div style={{ display: 'flex', gap: 0, marginBottom: '1.25rem', borderBottom: '1px solid var(--line)' }}>
-            {TABS.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                style={{ padding: '8px 18px', background: 'transparent', border: 'none', borderBottom: tab === t.id ? '2px solid #6366f1' : '2px solid transparent',
-                  color: tab === t.id ? '#818cf8' : '#64748b', cursor: 'pointer', fontWeight: tab === t.id ? 700 : 400, fontSize: '0.85rem' }}>
-                {t.label}
-              </button>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            {valuation.multiples?.map(metric => (
+              <div key={metric.name} className="bg-gray-800 rounded-lg p-4">
+                <div className="text-gray-400 text-sm">{metric.name}</div>
+                <div className="text-2xl font-bold">{formatMultiple(metric.current)}</div>
+                <div className="flex items-center gap-2 text-sm mt-2">
+                  <span className="text-gray-400">5Y Avg:</span>
+                  <span>{formatMultiple(metric.historical_avg)}</span>
+                </div>
+                <div className={'text-sm ' + getZScoreColor(metric.zscore)}>
+                  Z-Score: {metric.zscore?.toFixed(2)}
+                </div>
+              </div>
             ))}
           </div>
 
-          <div className="card">
-            {tab === 'dcf' && <DCFSection dcf={data.dcf} />}
-            {tab === 'filing' && <FilingAnalysisSection fa={data.fa} />}
+          <div className="bg-gray-800 rounded-lg p-6 mb-6">
+            <h3 className="text-lg font-semibold mb-4">Historical Valuation Bands</h3>
+            <div className="space-y-4">
+              {valuation.bands?.map(band => (
+                <div key={band.metric}>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>{band.metric}</span>
+                    <span className="text-gray-400">
+                      Min: {formatMultiple(band.min)} | Avg: {formatMultiple(band.avg)} | Max: {formatMultiple(band.max)}
+                    </span>
+                  </div>
+                  <div className="relative h-6 bg-gray-700 rounded-full overflow-hidden">
+                    <div className="absolute h-full bg-blue-900/50" style={{ left: '0%', width: '100%' }} />
+                    <div className="absolute top-0 h-full w-1 bg-yellow-400" style={{ left: band.percentile + '%' }} />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs">
+                      {band.percentile}th percentile
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-        </>
-      )}
 
-      {!data && !loading && (
-        <div className="card" style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📊</div>
-          <div style={{ fontSize: '1rem', fontWeight: 600, color: '#94a3b8' }}>Enter a ticker to run DCF valuation</div>
-          <div style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>Analyzes SEC EDGAR XBRL financials · 10-K/10-Q management guidance · Intrinsic vs market price</div>
+          {comparison?.comparisons && (
+            <div className="bg-gray-800 rounded-lg p-4">
+              <h3 className="text-lg font-semibold mb-4">Cross-Company Comparison</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-700">
+                    <tr>
+                      <th className="px-4 py-2 text-left">Ticker</th>
+                      <th className="px-4 py-2 text-right">P/E</th>
+                      <th className="px-4 py-2 text-right">P/S</th>
+                      <th className="px-4 py-2 text-right">P/B</th>
+                      <th className="px-4 py-2 text-right">EV/EBITDA</th>
+                      <th className="px-4 py-2 text-right">Z-Score</th>
+                      <th className="px-4 py-2 text-center">Signal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {comparison.comparisons.map(item => (
+                      <tr
+                        key={item.ticker}
+                        className={'border-t border-gray-700 ' + (item.ticker === selectedTicker ? 'bg-blue-900/30' : '')}
+                      >
+                        <td className="px-4 py-3 font-semibold">{item.ticker}</td>
+                        <td className="px-4 py-3 text-right">{formatMultiple(item.pe_ratio)}</td>
+                        <td className="px-4 py-3 text-right">{formatMultiple(item.ps_ratio)}</td>
+                        <td className="px-4 py-3 text-right">{formatMultiple(item.pb_ratio)}</td>
+                        <td className="px-4 py-3 text-right">{formatMultiple(item.ev_ebitda)}</td>
+                        <td className={'px-4 py-3 text-right font-semibold ' + getZScoreColor(item.composite_zscore)}>
+                          {item.composite_zscore?.toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={'px-2 py-1 rounded text-xs ' + getSignalColor(item.signal)}>
+                            {item.signal}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="text-center text-gray-400 py-10">
+          No valuation data available
         </div>
       )}
     </div>
-  )
+  );
 }
