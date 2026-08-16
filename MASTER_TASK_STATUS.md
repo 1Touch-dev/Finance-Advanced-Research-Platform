@@ -6,97 +6,153 @@
 
 ---
 
-## Executive Summary
+## Quick Stats
 
-| Category | Done | Partial | Remaining |
-|----------|------|---------|-----------|
-| **Core Platform** | 92% | 3% | 5% |
-| **AI Model Training (Phase 1-4)** | 85% | 5% | 10% |
-| **72-Feature Register** | ~56% | ~10% | ~34% |
-| **James's Requirements** | ~65% | ~20% | ~15% |
-
-**Key Achievements (16 Aug 2026):**
-- **Band B Features #15-31 Complete**: All 17 Band B features done (100%)
-- **Band C Progress**: 14 of 25 features done (~56%)
-  - #35 Price Alerts with triggering & notifications
-  - #36 Earnings Calendar with surprises & history
-  - #37 Estimate Revision Screener with momentum analysis
-  - #40 Short Interest with squeeze candidates
-  - #46 Shared Watchlists & Dashboards
-  - #47 Comments & Annotations system with threading/reactions
-  - #50-56 L-series Litigation features (CourtListener integration)
-- **Frontend wiring complete**: Added calendar.js, alerts.js, short-interest.js, revisions.js + Comments/Annotations components
-- 826 tests across all services (49 new tests for earnings, alerts, short interest)
-- Fixed bug in earnings surprise report date calculation
-- **Embeddings Model Fine-tuned & Deployed**: +8.5% ranking accuracy, +82% confidence margin
-- Model trained on RunPod (RTX 4090), deployed to EC2 CPU, backed up to S3
-- RAG pipeline now uses fine-tuned model as primary with OpenAI fallback
-- Quality Gate ML Classifier: **F1=0.895** (+131.2% from baseline)
-- Infrastructure hardening: DB pooling, search timeouts, rate limiting, health checks
-- E2E pipeline test and search benchmarks added
-- Full docs restructure + 72 files committed
+| Metric | Value |
+|--------|-------|
+| **Tests** | 826 (99.6% passing) |
+| **Features Done** | 45 of 72 (~63%) |
+| **Remaining Tasks** | 35 |
 
 ---
 
-## PRIORITY: GPU-Dependent Tasks
+## REMAINING TASKS — Unified Checklist
 
-### Completed (15 Aug 2026) ✅
+### EASY (Quick wins, 1-2 days each)
 
-| Priority | Task | Description | Status |
-|----------|------|-------------|--------|
-| ~~P0~~ | ~~Phase 2.3~~ | ~~Fine-tune embeddings on RunPod~~ | ✅ **DONE** |
-| ~~P1~~ | ~~Phase 2.5~~ | ~~Deploy fine-tuned embeddings~~ | ✅ **DONE** |
+| Done | # | Task | Description |
+|:----:|---|------|-------------|
+| [ ] | 38 | IPO Calendar | Track upcoming IPOs, pricing, lockup expiry |
+| [ ] | 39 | M&A Rumor Tracking | Aggregate M&A rumors from news sources |
+| [ ] | 41 | Insider Activity Screener | Screen Form 4 filings, cluster buys/sells |
 
-**Embeddings Model Results:**
-- +8.5% ranking accuracy (82% → 90.5%)
-- +82% confidence margin (0.178 → 0.325)
-- Model: `finance-embed-v1` deployed to EC2
-- Training: 7,198 triplets, 90s on RTX 4090
-- S3 Backup: `s3://finance-intelligence-models-203918873003/embeddings/finance-embed-v1/`
-- Guide: `embedding-model-fine-tuning/EMBEDDINGS_TRAINING_GUIDE.md`
+### MEDIUM (3-5 days each)
 
-### Remaining
+| Done | # | Task | Description |
+|:----:|---|------|-------------|
+| [ ] | 12 | Browser Extension | Chrome/Firefox extension for quick lookups |
+| [ ] | 42 | Cost Basis Tracking | Track purchase prices, calculate gains/losses |
+| [ ] | 44 | Benchmark Attribution | Compare portfolio vs S&P500, sector benchmarks |
+| [ ] | 45 | Tax Lot Optimization | FIFO/LIFO/specific lot selection |
+| [ ] | 48 | Shared Workspaces | Team collaboration spaces |
+| [ ] | 49 | Team Permission Roles | Admin/editor/viewer roles |
+| [ ] | J1 | Person Timelines | Person events + stock price + news overlay |
+| [ ] | J2 | Data Visualizations | More charts/figures in reports |
+| [ ] | J3 | Valuation Timeline | Historical valuation multiples over time |
+| [ ] | J4 | Reddit/Whale Improvements | Better sentiment + whale tracking |
+| [ ] | J5 | Interactive Bubble Charts | PayPal Mafia style network visualization |
 
-| Priority | Task | Description | Blocker |
-|----------|------|-------------|---------|
-| **P0** | Phase 4.3 | Fine-tune Llama/Qwen on narrative generation | GPU required |
-| **P1** | Phase 4.6 | Deploy narrative model | Depends on 4.3 |
+### HIGH (1-2 weeks each)
 
-### Pre-requisites Ready
-- ✅ Fine-tuned embeddings model deployed to EC2
-- ✅ A/B evaluation shows +8.5% improvement
-- ✅ Narrative samples collected for Phase 4 distillation
-- ✅ Production integration with fallback mechanism ready
+| Done | # | Task | Description |
+|:----:|---|------|-------------|
+| [ ] | 32 | Portfolio Tracking | Full portfolio management with P&L |
+| [ ] | 33 | Mobile PWA | Progressive web app with push alerts |
+| [ ] | 34 | Global Equity Coverage | International markets (EU, Asia, etc.) |
+| [ ] | 43 | Brokerage Sync | Plaid/OAuth integration with brokers |
+| [ ] | J6 | Autonomous Agent Loop | Auto-discover subsidiaries/family entities |
+| [ ] | J7 | Recursive Entity Discovery | Deep recursive entity graph building |
+| [ ] | G1 | Phase 4.3 Narrative Model | Fine-tune Llama/Qwen (requires GPU) |
+| [ ] | G2 | Phase 4.6 Deploy Narrative | Deploy narrative model to production |
+
+### DEFERRED (Conditional/Low Priority)
+
+| Done | # | Task | Description |
+|:----:|---|------|-------------|
+| [ ] | D1 | Factor Decomposition | Multi-factor risk attribution |
+| [ ] | D2 | Rebalancing Engine | Auto-rebalance to target weights |
+| [ ] | D3 | Model Portfolios | Pre-built portfolio templates |
+| [ ] | D4 | Risk Parity | Risk-weighted allocation |
+| [ ] | D5 | Scenario Analysis | What-if portfolio simulations |
+| [ ] | D6 | Drawdown Analytics | Max drawdown, recovery analysis |
+| [ ] | D7 | Correlation Matrix | Asset correlation heatmaps |
+| [ ] | D8 | Sector Rotation | Sector momentum signals |
+| [ ] | D9 | Factor Timing | Factor exposure timing |
+| [ ] | D10 | Custom Benchmarks | Build custom benchmark blends |
+| [ ] | D11 | Performance Attribution | Brinson attribution |
+| [ ] | E1 | Native Push Notifications | iOS/Android push |
+| [ ] | E2 | Offline Caching | Service worker offline mode |
+| [ ] | E3 | Biometric Login | Face ID / Touch ID |
+| [ ] | E4 | Home Screen Widgets | iOS/Android widgets |
+| [ ] | E5 | Screen Sharing | Collaborative screen share |
 
 ---
 
-## Section 1: Git Branch Status
+## COMPLETED FEATURES (45 total)
 
-### Active Branches (sorted by recent activity)
+<details>
+<summary>Click to expand completed features</summary>
 
-| Branch | Last Commit | Status | Notes |
-|--------|-------------|--------|-------|
-| `8th-july-sprint` | e493afe | **CURRENT** | Band B complete + frontend wiring |
-| `feature/intelligence-correlation-full` | 8ead589 | ✅ Synced | Intelligence + Quality Gate ML merged |
-| `feature/quality-gate-ml` | 4c08800 | ✅ **MERGED** | Quality Judge + Classifier |
-| `feature/13f-frontend` | — | ✅ Merged | 13F position diff |
-| `feature/trade-alerts` | — | ✅ Merged | F-03/F-04 trade alerts |
-| `feature/band-a-priorities` | — | ✅ Merged | Band A (1-14) features |
+### Band A (13/14 done)
+- [x] #1 Pricing page
+- [x] #2 Renewal + cancel
+- [x] #3 Support escalation
+- [x] #4 Status page
+- [x] #5 Internal linking (SEO)
+- [x] #6 Sitemaps
+- [x] #7 Freshness engine
+- [x] #8 Editorial workflow
+- [x] #9 Compliance guardrails
+- [x] #10 A/B experiments
+- [x] #11 AI visibility tracking
+- [x] #13 Export/API/MCP
+- [x] #14 13F honesty layer
 
-### Recent Commits
+### Band B (17/17 done)
+- [x] #15 Filing redline + table-to-Excel
+- [x] #16 Company ontology + KPI schema
+- [x] #17 Private document ingestion
+- [x] #18 Multi-entity thematic corpora
+- [x] #19 Point-in-time rolling consensus
+- [x] #20 Consensus revision history
+- [x] #21 Estimate dispersion
+- [x] #22 Guidance vs actual tracking
+- [x] #23 Earnings surprise history
+- [x] #24 Per-analyst accuracy scoring
+- [x] #25 Whisper + buy/sell-side split
+- [x] #26 Custom formula charting
+- [x] #27 IV surface (delayed EOD)
+- [x] #28 Unusual volume screening
+- [x] #29 Public analyst profiles
+- [x] #30 Model + idea leaderboards
+- [x] #31 Docket-to-disclosure reconciliation
 
-```
-e493afe feat(frontend): add whisper and docket pages + navigation
-fd52aeb feat: implement whisper estimates + buy/sell-side split (Band B #25)
-9eeb856 test: add multi-entity thematic corpora tests (Band B #18)
-22348f5 test: add volatility API tests (Band B #27)
-e72b9f4 feat(band-b): complete #15 filing redline + table-to-Excel tests
-594eee0 feat(band-b): complete #17 document ingestion + #31 docket reconciliation
-```
+### Band C (14/25 done)
+- [x] #35 Price alerts
+- [x] #36 Earnings calendar
+- [x] #37 Estimate revision screener
+- [x] #40 Short interest data
+- [x] #46 Shared watchlists & dashboards
+- [x] #47 Comments & annotations
+- [x] #50-56 L-series litigation (7 features)
+
+### AI/ML Phases
+- [x] Phase 1: RAG Engine (100%)
+- [x] Phase 2: Fine-tuned Embeddings (+8.5% accuracy)
+- [x] Phase 3: Quality Classifier (F1=0.895)
+
+### Infrastructure
+- [x] DB pooling + health checks
+- [x] Search timeout with fallback
+- [x] Rate limiting
+- [x] E2E pipeline tests
+- [x] 40+ data connectors
+
+</details>
 
 ---
 
-## Section 2: What's DONE (Verified in Code)
+## Git Branch Status
+
+| Branch | Status | Notes |
+|--------|--------|-------|
+| `8th-july-sprint` | **CURRENT** | Active development |
+| `feature/intelligence-correlation-full` | ✅ Synced | Intelligence merged |
+| `feature/quality-gate-ml` | ✅ Merged | Quality Classifier |
+
+---
+
+## What's DONE (Technical Details)
 
 ### 2.1 RAG Engine — Phase 1 ✅ COMPLETE
 
@@ -332,116 +388,7 @@ python -m app.scripts.benchmark_search --iterations 20 --corpus-size 500
 
 ---
 
-## Section 4: What's REMAINING (Not Started)
-
-### 4.1 Band B — Differentiation Multipliers (17 items, 100% done) ✅
-
-| # | Feature | Status | Effort |
-|---|---------|--------|--------|
-| 15 | Filing redline + table-to-Excel | ✅ **Complete** | Medium |
-| 16 | Company-specific ontology + KPI schema | ✅ **Complete** | High |
-| 17 | Private document ingestion | ✅ **Complete** | Medium |
-| 18 | Multi-entity thematic corpora | ✅ **Complete** | Medium |
-| 19 | Point-in-time rolling consensus | ✅ **Complete** | High |
-| 20 | Consensus revision history | ✅ **Complete** | Medium |
-| 21 | Estimate dispersion | ✅ **Complete** | Low |
-| 22 | Guidance vs actual tracking | ✅ **Complete** | Medium |
-| 23 | Earnings surprise history | ✅ **Complete** | Low |
-| 24 | Per-analyst accuracy scoring | ✅ **Complete** | Medium |
-| 25 | Whisper + buy/sell-side split | ✅ **Complete** | High |
-| 26 | Custom formula charting | ✅ **Complete** | Medium |
-| 27 | IV surface (delayed EOD) | ✅ **Complete** | Medium |
-| 28 | Unusual volume screening | ✅ **Complete** | Medium |
-| 29 | Public analyst profiles | ✅ **Complete** | Low |
-| 30 | Model + idea leaderboards | ✅ **Complete** | Medium |
-| 31 | Docket-to-disclosure reconciliation | ✅ **Complete** | Medium |
-
-**Band B Features Completed (16 Aug 2026):**
-- **#15 Filing Redline + Table-to-Excel**: `GET /filings/compare` - 10-K/10-Q comparison, HTML redline, Excel export
-- **#16 Company Ontology + KPI Schema**: `GET /ontology/{ticker}` - Industry KPI templates, entity extraction
-- **#17 Private Document Ingestion**: `POST /documents/upload` - PDF/DOCX/XLSX/TXT ingestion, chunking, RAG search
-- **#18 Multi-entity Thematic Corpora**: `GET /entities/multi/` - Sector/industry queries, supply chain analysis, thematic analysis
-- **#19 Point-in-time Rolling Consensus**: `GET /consensus/rolling` - Weekly snapshots showing consensus evolution
-- **#20 Consensus Revision History**: `GET /consensus/revisions` - Tracks how analyst estimates changed over time
-- **#21 Estimate Dispersion**: `GET /consensus/dispersion` - Measures analyst disagreement with CV, quartiles, outliers
-- **#22 Guidance vs Actual Tracking**: `guidance_service.py` - Management credibility scoring, guidance revisions
-- **#23 Earnings Surprise History**: `GET /consensus/surprise-history` - Beat/miss patterns, streaks, market reactions
-- **#24 Per-Analyst Accuracy Scoring**: `GET /analysts/score/{id}` - MAE, direction accuracy, Brier score, calibration
-- **#25 Whisper + Buy/Sell-Side Split**: `GET /whisper/{ticker}` - Whisper estimates, buy-side vs sell-side analysis, historical accuracy
-- **#26 Custom Formula Charting**: `POST /formula/evaluate` - Safe expression parser, multi-ticker formulas
-- **#27 IV Surface (Delayed EOD)**: `GET /volatility/surface/{ticker}` - IV surface, term structure, skew analysis, IV screening
-- **#28 Unusual Volume Screening**: `volume_screening_service.py` - Sector flow, volume profiles, spike detection
-- **#29 Public Analyst Profiles**: `GET /analysts/profile/{id}` - Search, ranking, firm/sector coverage
-- **#30 Model + Idea Leaderboards**: `GET /leaderboard/predictions` - Brier scoring, calibration, user ranking
-- **#31 Docket-to-Disclosure Reconciliation**: `GET /docket/{ticker}/reconcile` - L-series feature, undisclosed litigation detection
-- **Dashboard**: `GET /consensus/dashboard/{ticker}` - Combined view of all metrics
-- **Compare**: `GET /consensus/compare?tickers=NVDA,AAPL` - Multi-ticker comparison
-- **Frontend Pages**: `whisper.js`, `docket.js` added to Research navigation in Layout.js
-- **Tests**: 540 tests across consensus, analyst, guidance, volume, formula, leaderboard, ontology, document, docket, filing, volatility, multi-entity, and whisper services
-
-### 4.2 Band C — Table Stakes (25 items, ~56% done)
-
-| # | Feature | Status | Notes |
-|---|---------|--------|-------|
-| 32 | Portfolio tracking | ❌ Not done | |
-| 33 | Mobile PWA with alerts | ❌ Not done | |
-| 34 | Global equity coverage | ❌ Not done | High effort |
-| 35 | Price alerts | ✅ **Complete** | `price_alert_service.py`, 17 tests |
-| 36 | Earnings calendar | ✅ **Complete** | `earnings_calendar_service.py`, 16 tests |
-| 37 | Estimate revision screener | ✅ **Complete** | `revision_screener_service.py`, 33 tests |
-| 38 | IPO calendar | ❌ Not done | |
-| 39 | M&A rumor tracking | ❌ Not done | |
-| 40 | Short interest data | ✅ **Complete** | `short_interest_service.py`, 16 tests |
-| 41 | Insider activity screener | ❌ Not done | |
-| 42 | Cost basis tracking | ❌ Not done | |
-| 43 | Brokerage sync | ❌ Not done | |
-| 44 | Benchmark attribution | ❌ Not done | |
-| 45 | Tax lot optimization | ❌ Not done | |
-| 46 | Shared watchlists & dashboards | ✅ **Complete** | `dashboard_service.py`, full CRUD |
-| 47 | Comments & annotations | ✅ **Complete** | `comments_service.py`, 36 tests |
-| 48 | Shared workspaces | ❌ Not done | |
-| 49 | Team permission roles | ❌ Not done | |
-| 50 | L-01: Litigation detail pages | ✅ **Complete** | `litigation_service.py` |
-| 51 | L-02: Search by company | ✅ **Complete** | Full-text search |
-| 52 | L-03: Case timeline | ✅ **Complete** | Timeline visualization |
-| 53 | L-04: Document viewer | ✅ **Complete** | Document display |
-| 54 | L-05: Judge/attorney analytics | ✅ **Complete** | Analytics endpoints |
-| 55 | L-06: Exposure calculator | ✅ **Complete** | Risk exposure |
-| 56 | L-07: Alerts on new filings | ✅ **Complete** | Alert system |
-
-**Band C Features Completed (16 Aug 2026):**
-- **#35 Price Alerts**: `POST /alerts`, `GET /alerts`, `POST /alerts/check` - Alert creation, triggering, notifications
-- **#36 Earnings Calendar**: `GET /earnings/upcoming`, `GET /earnings/week`, `GET /earnings/surprises` - Calendar, surprises, history
-- **#37 Estimate Revision Screener**: `GET /revisions/screen`, `GET /revisions/top-upward`, `GET /revisions/alerts` - Screen companies by estimate revisions with momentum analysis
-- **#40 Short Interest**: `GET /short-interest/most-shorted`, `GET /short-interest/squeeze-candidates` - Short data, squeeze indicators
-- **#46 Shared Watchlists & Dashboards**: `POST /dashboard`, `POST /watchlist/{id}/share` - Dashboard widgets, watchlist sharing
-- **#47 Comments & Annotations**: `POST /comments`, `POST /annotations` - Threaded comments with reactions, text annotations with highlighting
-- **#50-56 L-series Litigation**: `GET /litigation/{case_id}`, `GET /litigation/search`, `GET /litigation/analytics` - Full litigation tracking with CourtListener integration
-- **Frontend**: `calendar.js`, `alerts.js`, `short-interest.js`, `revisions.js`, `Comments.js`, `Annotations.js`
-
-### 4.3 Band D — Segment Unlocks (11 items, 0% done)
-
-All 11 items (factor decomposition, rebalancing, model portfolios, etc.) are NOT done. These are conditional on targeting advisors/teams.
-
-### 4.4 Band E — Low Priority (5 items, 0% done)
-
-All deferred (native push, offline caching, biometric login, widgets, screen sharing).
-
-### 4.5 James's Remaining Requirements
-
-| Requirement | Status |
-|-------------|--------|
-| Person timelines + stock price + news | ❌ Not done |
-| Data visualizations in reports | ⚠️ Partial (12 figures, needs more) |
-| Autonomous agent loop (subsidiary/family discovery) | ❌ Not done |
-| Recursive entity discovery | ❌ Not done |
-| Valuation timeline | ❌ Not done |
-| Reddit/whale tracker improvements | ⚠️ Partial |
-| Interactive bubble charts (PayPal Mafia style) | ❌ Not done |
-
----
-
-## Section 5: Test Suite Status
+## Test Suite Status
 
 **Total Tests:** 826
 **Passing:** 823 (99.6%)
@@ -481,55 +428,13 @@ All deferred (native push, offline caching, biometric login, widgets, screen sha
 
 ---
 
-## Section 6: API Routes Registered
+## API Routes
 
-**Total:** 41 routers
-
-**Core (always loaded):** 27 routers
-**Conditional (try/catch):** 14 routers
-
-All routes verified working.
+**Total:** 41 routers (27 core, 14 conditional)
 
 ---
 
-## Section 7: New Scripts Created (14 Aug 2026)
-
-| Script | Purpose | Usage |
-|--------|---------|-------|
-| `generate_publishable_synthetic.py` | Generate high-quality publishable reports using Opus 4.5 | `python -m app.scripts.generate_publishable_synthetic --n 100` |
-| `train_quality_classifier_v2.py` | Improved classifier training with RF, GBM, threshold optimization | `python -m app.scripts.train_quality_classifier_v2` |
-
----
-
-## Section 8: Immediate Action Items
-
-### Priority 1: GPU-Dependent Tasks
-
-```bash
-# These require RunPod or similar GPU infrastructure:
-# 1. Phase 2.3 - Fine-tune embeddings
-# 2. Phase 2.5 - Production swap
-# 3. Phase 4.3 - Fine-tune narrative model
-```
-
-### Priority 2: Push Recent Changes
-
-```bash
-git push origin feature/intelligence-correlation-full
-```
-
-### Priority 3: Track Untracked Files
-
-```bash
-git add apps/api/app/scripts/generate_publishable_synthetic.py
-git add apps/api/app/scripts/train_quality_classifier_v2.py
-git add apps/api/exports/opus_fragment_bank.json
-git commit -m "feat: quality classifier v2 with Opus 4.5 synthetic data (F1=0.895)"
-```
-
----
-
-## Section 9: Connectors Inventory (40+)
+## Connectors Inventory (40+)
 
 | Connector | Status | Data Source |
 |-----------|--------|-------------|
@@ -572,7 +477,7 @@ git commit -m "feat: quality classifier v2 with Opus 4.5 synthetic data (F1=0.89
 
 ---
 
-## Section 10: Environment & Deployment
+## Environment & Deployment
 
 ### Live Services (EC2: 184.72.123.188)
 
@@ -605,19 +510,17 @@ git commit -m "feat: quality classifier v2 with Opus 4.5 synthetic data (F1=0.89
 
 ---
 
-## Section 11: What's Blocking Progress
+## Blockers
 
 | Blocker | Impact | Resolution |
 |---------|--------|------------|
-| GPU infrastructure | Phase 2.3, 2.5, 4.3 blocked | Set up RunPod |
-| LinkedIn ToS decision | G-07, G-11 blocked | Policy decision |
-| PitchBook/Crunchbase cost | G-12 (co-investors) blocked | $6-20K/yr purchase |
-| Usage volume | Phase 4 training | Wait for usage |
-| Advisor visibility | G-06 | Structurally impossible |
+| GPU infrastructure | Phase 4.3 narrative model | RunPod when ready |
+| LinkedIn ToS | Deep company lookups | Policy decision |
+| PitchBook/Crunchbase | Co-investor data | $6-20K/yr if needed |
 
 ---
 
-## Appendix A: Commit History (Last 2 Months)
+## Recent Commits
 
 Key commits in chronological order:
 
