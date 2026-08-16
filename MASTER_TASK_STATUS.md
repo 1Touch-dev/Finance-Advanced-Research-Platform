@@ -10,9 +10,9 @@
 
 | Metric | Value |
 |--------|-------|
-| **Tests** | 1167 (99.6% passing) |
-| **Features Done** | 75 of 72 (~104% - exceeded!) |
-| **Remaining Tasks** | 6 (5 DEFERRED + 1 skipped) |
+| **Tests** | 1183 (99.6% passing) |
+| **Features Done** | 78 of 72 (~108% - exceeded!) |
+| **Remaining Tasks** | 3 (2 N/A native + 1 skipped) |
 
 ---
 
@@ -71,22 +71,27 @@
 | [x] | D10 | Custom Benchmarks | Build custom benchmark blends |
 | [x] | D11 | Performance Attribution | Brinson attribution |
 
-### DEFERRED - Mobile Native (E1-E5) - Remaining
+### DEFERRED - Mobile Native (E1-E5) - 3 of 5 COMPLETE
 
 | Done | # | Task | Description |
 |:----:|---|------|-------------|
-| [ ] | E1 | Native Push Notifications | iOS/Android push |
-| [ ] | E2 | Offline Caching | Service worker offline mode |
-| [ ] | E3 | Biometric Login | Face ID / Touch ID |
-| [ ] | E4 | Home Screen Widgets | iOS/Android widgets |
-| [ ] | E5 | Screen Sharing | Collaborative screen share |
+| N/A | E1 | Native Push Notifications | iOS/Android push (requires native app) |
+| [x] | E2 | Offline Caching | Service worker offline mode (web PWA) |
+| [x] | E3 | Biometric Login | WebAuthn (Face ID / Touch ID on web) |
+| N/A | E4 | Home Screen Widgets | iOS/Android widgets (requires native app) |
+| [x] | E5 | Screen Sharing | WebRTC collaborative screen share |
 
 ---
 
-## COMPLETED FEATURES (75 total)
+## COMPLETED FEATURES (78 total)
 
 <details>
 <summary>Click to expand completed features</summary>
+
+### PWA Advanced (E2, E3, E5) - 17 Aug 2026
+- [x] E2 Offline Caching (service worker config, cacheable routes, cache management)
+- [x] E3 Biometric Login (WebAuthn registration/login flow for web browsers)
+- [x] E5 Screen Sharing (WebRTC sessions with ICE server config)
 
 ### Portfolio Analytics (D1-D11) - 17 Aug 2026
 - [x] D1 Factor Decomposition (multi-factor risk attribution)
@@ -475,6 +480,7 @@ python -m app.scripts.benchmark_search --iterations 20 --corpus-size 500
 | `test_global_equity_api.py` | 10 | ✅ All pass (NEW) |
 | `test_mobile_pwa_api.py` | 9 | ✅ All pass (NEW) |
 | `test_portfolio_analytics_api.py` | 11 | ✅ All pass (NEW) |
+| `test_pwa_advanced_api.py` | 16 | ✅ All pass (NEW) |
 | Other tests | ~106 | ✅ All pass |
 
 ---
@@ -576,6 +582,7 @@ python -m app.scripts.benchmark_search --iterations 20 --corpus-size 500
 Key commits in chronological order:
 
 ```
+8e1896e feat(E2/E3/E5): PWA Advanced - offline caching, WebAuthn, screen sharing
 94943eb feat(D1-D11): implement complete portfolio analytics suite
 416ee87 feat(G1/G2): implement narrative model training and deployment
 15d91db feat(J7): implement recursive entity discovery with graph analysis
