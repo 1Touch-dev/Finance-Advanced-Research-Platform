@@ -355,6 +355,12 @@ except Exception:
     pass
 
 try:
+    from app.api.narrative_model import router as narrative_model_router
+    app.include_router(narrative_model_router)
+except Exception:
+    pass
+
+try:
     from prometheus_client import make_asgi_app as _make_prom_app
     _metrics_app = _make_prom_app()
     app.mount("/metrics", _metrics_app)
