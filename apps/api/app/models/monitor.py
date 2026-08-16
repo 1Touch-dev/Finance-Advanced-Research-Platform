@@ -82,3 +82,42 @@ class DeliveryChannel(Base):
     kind = Column(String, nullable=False)  # inapp|email|slack|teams|webhook
     target = Column(String, nullable=True)  # address/webhook URL
     meta = Column(JSON, nullable=True)
+
+
+# ── Shared Watchlists & Dashboards (#46) ─────────────────────────────────────
+
+class WatchlistShare(Base):
+    """Tracks watchlist sharing between users."""
+    __tablename__ = 'watchlist_shares'
+    id = Column(Integer, primary_key=True)
+    watchlist_id = Column(Integer, ForeignKey('watchlists.id'), nullable=False)
+    shared_by = Column(String, nullable=False)  # user email/id who shared
+    shared_with = Column(String, nullable=False)  # user email/id shared to
+    permission = Column(String, default='view')  # view|edit
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Dashboard(Base):
+    """User dashboard configuration with widgets."""
+    __tablename__ = 'dashboards'
+    id = Column(Integer, primary_key=True)
+    user_id = Column(String, nullable=False)
+    name = Column(String, nullable=False, default='My Dashboard')
+    is_default = Column(Boolean, default=False)
+    layout = Column(JSON, nullable=True)  # Grid layout configuration
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class DashboardWidget(Base):
+    """Individual widget on a dashboard."""
+    __tablename__ = 'dashboard_widgets'
+    id = Column(Integer, primary_key=True)
+    dashboard_id = Column(Integer, ForeignKey('dashboards.id'), nullable=False)
+    widget_type = Column(String, nullable=False)  # watchlist|portfolio|chart|news|calendar
+    title = Column(String, nullable=True)
+    config = Column(JSON, nullable=True)  # Widget-specific configuration
+    position_x = Column(Integer, default=0)
+    position_y = Column(Integer, default=0)
+    width = Column(Integer, default=1)
+    height = Column(Integer, default=1)
