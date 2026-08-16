@@ -554,6 +554,292 @@ def compare_analysts(analyst_ids: List[str]) -> List[AnalystAccuracyScore]:
     return scores
 
 
+# ── Rating Changes & Price Target History (#36) ───────────────────────────────
+
+@dataclass
+class RatingChange:
+    """Single rating change event."""
+    ticker: str
+    analyst_id: str
+    analyst_name: str
+    firm: str
+    change_date: date
+    action: RatingAction
+    old_rating: Optional[str]
+    new_rating: str
+    old_target: Optional[float]
+    new_target: float
+    price_at_change: float
+    target_upside: float  # % upside to target
+
+
+@dataclass
+class PriceTargetHistory:
+    """Price target history for a ticker."""
+    ticker: str
+    company_name: str
+    current_price: float
+    as_of_date: date
+
+    # Current consensus
+    consensus_target: float
+    consensus_upside: float
+    num_analysts: int
+    high_target: float
+    low_target: float
+
+    # Recent changes
+    recent_changes: List[RatingChange]
+
+    # Target evolution
+    target_30d_ago: float
+    target_90d_ago: float
+    target_change_30d_pct: float
+    target_change_90d_pct: float
+
+
+@dataclass
+class RatingDistribution:
+    """Rating distribution for a ticker."""
+    ticker: str
+    buy_count: int
+    hold_count: int
+    sell_count: int
+    total_analysts: int
+    buy_pct: float
+    hold_pct: float
+    sell_pct: float
+    consensus_rating: str  # strong buy, buy, hold, sell, strong sell
+
+
+def get_rating_changes(
+    ticker: str,
+    days: int = 90,
+) -> List[RatingChange]:
+    """
+    Get recent analyst rating changes for a ticker.
+
+    Returns upgrades, downgrades, and initiations.
+    """
+    import random
+    ticker = ticker.upper()
+
+    # Simulated current price
+    prices = {
+        "NVDA": 875.0, "AAPL": 178.0, "MSFT": 415.0, "GOOGL": 175.0,
+        "META": 495.0, "AMZN": 178.0, "TSLA": 245.0, "AMD": 165.0,
+    }
+    current_price = prices.get(ticker, 100.0)
+
+    changes = []
+    today = date.today()
+
+    # Generate simulated rating changes
+    for i in range(random.randint(3, 8)):
+        analyst_id = f"analyst_{(i % 10) + 1:03d}"
+        profile = ANALYST_PROFILES.get(analyst_id)
+        if not profile:
+            continue
+
+        # Random action
+        actions = [RatingAction.UPGRADE, RatingAction.DOWNGRADE, RatingAction.INITIATE, RatingAction.REITERATE]
+        action = random.choice(actions)
+
+        # Ratings
+        ratings = ["buy", "overweight", "hold", "underweight", "sell"]
+        if action == RatingAction.UPGRADE:
+            old_idx = random.randint(2, 4)
+            new_idx = random.randint(0, old_idx - 1)
+            old_rating = ratings[old_idx]
+            new_rating = ratings[new_idx]
+        elif action == RatingAction.DOWNGRADE:
+            old_idx = random.randint(0, 2)
+            new_idx = random.randint(old_idx + 1, 4)
+            old_rating = ratings[old_idx]
+            new_rating = ratings[new_idx]
+        elif action == RatingAction.INITIATE:
+            old_rating = None
+            new_rating = random.choice(["buy", "overweight", "hold"])
+        else:
+            old_rating = random.choice(ratings)
+            new_rating = old_rating
+
+        # Price targets
+        old_target = current_price * (1 + random.uniform(-0.1, 0.3)) if old_rating else None
+        new_target = current_price * (1 + random.uniform(0.05, 0.4))
+        target_upside = ((new_target - current_price) / current_price) * 100
+
+        changes.append(RatingChange(
+            ticker=ticker,
+            analyst_id=analyst_id,
+            analyst_name=profile.name,
+            firm=profile.firm,
+            change_date=today - timedelta(days=random.randint(1, days)),
+            action=action,
+            old_rating=old_rating,
+            new_rating=new_rating,
+            old_target=round(old_target, 2) if old_target else None,
+            new_target=round(new_target, 2),
+            price_at_change=round(current_price * (1 + random.uniform(-0.05, 0.05)), 2),
+            target_upside=round(target_upside, 2),
+        ))
+
+    # Sort by date (most recent first)
+    changes.sort(key=lambda x: x.change_date, reverse=True)
+    return changes
+
+
+def get_price_target_history(ticker: str) -> PriceTargetHistory:
+    """
+    Get price target history and consensus for a ticker.
+
+    Includes current consensus, target evolution, and recent changes.
+    """
+    ticker = ticker.upper()
+
+    # Simulated data
+    prices = {
+        "NVDA": 875.0, "AAPL": 178.0, "MSFT": 415.0, "GOOGL": 175.0,
+        "META": 495.0, "AMZN": 178.0, "TSLA": 245.0, "AMD": 165.0,
+    }
+    company_names = {
+        "NVDA": "NVIDIA Corporation", "AAPL": "Apple Inc.",
+        "MSFT": "Microsoft Corporation", "GOOGL": "Alphabet Inc.",
+        "META": "Meta Platforms Inc.", "AMZN": "Amazon.com Inc.",
+        "TSLA": "Tesla Inc.", "AMD": "Advanced Micro Devices",
+    }
+
+    import random
+
+    current_price = prices.get(ticker, 100.0)
+    company_name = company_names.get(ticker, ticker)
+
+    # Generate target range
+    consensus_target = current_price * (1 + random.uniform(0.1, 0.25))
+    high_target = consensus_target * 1.3
+    low_target = consensus_target * 0.7
+    num_analysts = random.randint(20, 40)
+
+    # Historical targets (targets were lower in the past)
+    target_30d_ago = consensus_target * (1 - random.uniform(-0.05, 0.15))
+    target_90d_ago = consensus_target * (1 - random.uniform(0.05, 0.25))
+
+    target_change_30d_pct = ((consensus_target - target_30d_ago) / target_30d_ago) * 100
+    target_change_90d_pct = ((consensus_target - target_90d_ago) / target_90d_ago) * 100
+
+    # Get recent rating changes
+    recent_changes = get_rating_changes(ticker, days=30)
+
+    return PriceTargetHistory(
+        ticker=ticker,
+        company_name=company_name,
+        current_price=current_price,
+        as_of_date=date.today(),
+        consensus_target=round(consensus_target, 2),
+        consensus_upside=round(((consensus_target - current_price) / current_price) * 100, 2),
+        num_analysts=num_analysts,
+        high_target=round(high_target, 2),
+        low_target=round(low_target, 2),
+        recent_changes=recent_changes,
+        target_30d_ago=round(target_30d_ago, 2),
+        target_90d_ago=round(target_90d_ago, 2),
+        target_change_30d_pct=round(target_change_30d_pct, 2),
+        target_change_90d_pct=round(target_change_90d_pct, 2),
+    )
+
+
+def get_rating_distribution(ticker: str) -> RatingDistribution:
+    """
+    Get current rating distribution for a ticker.
+
+    Shows breakdown of buy/hold/sell ratings.
+    """
+    import random
+    ticker = ticker.upper()
+
+    # Simulate realistic distribution (skewed toward buy for most stocks)
+    total = random.randint(20, 40)
+    buy_pct = random.uniform(0.4, 0.7)
+    sell_pct = random.uniform(0.05, 0.15)
+    hold_pct = 1 - buy_pct - sell_pct
+
+    buy_count = int(total * buy_pct)
+    sell_count = int(total * sell_pct)
+    hold_count = total - buy_count - sell_count
+
+    # Determine consensus
+    if buy_pct > 0.6:
+        consensus = "strong buy"
+    elif buy_pct > 0.45:
+        consensus = "buy"
+    elif sell_pct > 0.3:
+        consensus = "sell"
+    else:
+        consensus = "hold"
+
+    return RatingDistribution(
+        ticker=ticker,
+        buy_count=buy_count,
+        hold_count=hold_count,
+        sell_count=sell_count,
+        total_analysts=total,
+        buy_pct=round(buy_pct * 100, 1),
+        hold_pct=round(hold_pct * 100, 1),
+        sell_pct=round(sell_pct * 100, 1),
+        consensus_rating=consensus,
+    )
+
+
+def get_analyst_rating_history(
+    analyst_id: str,
+    limit: int = 20,
+) -> List[RatingChange]:
+    """
+    Get an analyst's rating history across all covered tickers.
+    """
+    profile = ANALYST_PROFILES.get(analyst_id)
+    if not profile:
+        raise ValueError(f"Analyst not found: {analyst_id}")
+
+    import random
+
+    changes = []
+    today = date.today()
+
+    for i, ticker in enumerate(profile.tickers_covered[:limit]):
+        # Generate rating change for each covered ticker
+        prices = {
+            "NVDA": 875.0, "AAPL": 178.0, "MSFT": 415.0, "GOOGL": 175.0,
+            "META": 495.0, "AMZN": 178.0, "TSLA": 245.0, "AMD": 165.0,
+        }
+        current_price = prices.get(ticker, 100.0)
+
+        action = random.choice([RatingAction.UPGRADE, RatingAction.REITERATE, RatingAction.INITIATE])
+        ratings = ["buy", "overweight", "hold"]
+        new_rating = random.choice(ratings)
+        old_rating = random.choice(ratings) if action != RatingAction.INITIATE else None
+
+        new_target = current_price * (1 + random.uniform(0.1, 0.35))
+
+        changes.append(RatingChange(
+            ticker=ticker,
+            analyst_id=analyst_id,
+            analyst_name=profile.name,
+            firm=profile.firm,
+            change_date=today - timedelta(days=random.randint(1, 180)),
+            action=action,
+            old_rating=old_rating,
+            new_rating=new_rating,
+            old_target=None,
+            new_target=round(new_target, 2),
+            price_at_change=round(current_price, 2),
+            target_upside=round(((new_target - current_price) / current_price) * 100, 2),
+        ))
+
+    changes.sort(key=lambda x: x.change_date, reverse=True)
+    return changes
+
+
 # ── Serialization ──────────────────────────────────────────────────────────────
 
 def profile_to_dict(profile: AnalystProfile) -> Dict[str, Any]:
@@ -629,4 +915,60 @@ def sector_ranking_to_dict(ranking: SectorAnalystRanking) -> Dict[str, Any]:
         "best_analyst": ranking.best_analyst,
         "coverage_count": ranking.coverage_count,
         "analysts": [accuracy_score_to_dict(a) for a in ranking.analysts],
+    }
+
+
+def rating_change_to_dict(change: RatingChange) -> Dict[str, Any]:
+    """Convert rating change to dictionary."""
+    return {
+        "ticker": change.ticker,
+        "analyst_id": change.analyst_id,
+        "analyst_name": change.analyst_name,
+        "firm": change.firm,
+        "change_date": change.change_date.isoformat(),
+        "action": change.action.value,
+        "old_rating": change.old_rating,
+        "new_rating": change.new_rating,
+        "old_target": change.old_target,
+        "new_target": change.new_target,
+        "price_at_change": change.price_at_change,
+        "target_upside": change.target_upside,
+    }
+
+
+def price_target_history_to_dict(history: PriceTargetHistory) -> Dict[str, Any]:
+    """Convert price target history to dictionary."""
+    return {
+        "ticker": history.ticker,
+        "company_name": history.company_name,
+        "current_price": history.current_price,
+        "as_of_date": history.as_of_date.isoformat(),
+        "consensus": {
+            "target": history.consensus_target,
+            "upside_pct": history.consensus_upside,
+            "high_target": history.high_target,
+            "low_target": history.low_target,
+            "num_analysts": history.num_analysts,
+        },
+        "target_evolution": {
+            "target_30d_ago": history.target_30d_ago,
+            "target_90d_ago": history.target_90d_ago,
+            "change_30d_pct": history.target_change_30d_pct,
+            "change_90d_pct": history.target_change_90d_pct,
+        },
+        "recent_changes": [rating_change_to_dict(c) for c in history.recent_changes],
+    }
+
+
+def rating_distribution_to_dict(dist: RatingDistribution) -> Dict[str, Any]:
+    """Convert rating distribution to dictionary."""
+    return {
+        "ticker": dist.ticker,
+        "total_analysts": dist.total_analysts,
+        "consensus_rating": dist.consensus_rating,
+        "distribution": {
+            "buy": {"count": dist.buy_count, "pct": dist.buy_pct},
+            "hold": {"count": dist.hold_count, "pct": dist.hold_pct},
+            "sell": {"count": dist.sell_count, "pct": dist.sell_pct},
+        },
     }

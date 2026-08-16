@@ -299,3 +299,174 @@ class TestFullProfile:
     def test_full_profile_not_found(self):
         response = client.get("/analysts/full/nonexistent")
         assert response.status_code == 404
+
+
+# ── Rating Changes Endpoint Tests (#36) ──────────────────────────────────────
+
+class TestRatingChanges:
+    """Tests for GET /analysts/ratings/{ticker} - Band C #36."""
+
+    def test_get_rating_changes(self):
+        response = client.get("/analysts/ratings/NVDA")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["ticker"] == "NVDA"
+        assert "summary" in data
+        assert "changes" in data
+
+    def test_rating_changes_summary(self):
+        response = client.get("/analysts/ratings/AAPL")
+        data = response.json()
+
+        summary = data["summary"]
+        assert "total_changes" in summary
+        assert "upgrades" in summary
+        assert "downgrades" in summary
+        assert "initiations" in summary
+        assert "net_sentiment" in summary
+
+    def test_rating_changes_with_days(self):
+        response = client.get("/analysts/ratings/MSFT?days=30")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["days"] == 30
+
+    def test_rating_change_fields(self):
+        response = client.get("/analysts/ratings/NVDA")
+        data = response.json()
+
+        if data["changes"]:
+            change = data["changes"][0]
+            assert "analyst_name" in change
+            assert "firm" in change
+            assert "action" in change
+            assert "new_rating" in change
+            assert "new_target" in change
+
+
+# ── Price Target History Endpoint Tests (#36) ────────────────────────────────
+
+class TestPriceTargetHistory:
+    """Tests for GET /analysts/price-targets/{ticker} - Band C #36."""
+
+    def test_get_price_targets(self):
+        response = client.get("/analysts/price-targets/NVDA")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["ticker"] == "NVDA"
+        assert "consensus" in data
+        assert "target_evolution" in data
+        assert "recent_changes" in data
+
+    def test_price_target_consensus(self):
+        response = client.get("/analysts/price-targets/AAPL")
+        data = response.json()
+
+        consensus = data["consensus"]
+        assert "target" in consensus
+        assert "upside_pct" in consensus
+        assert "high_target" in consensus
+        assert "low_target" in consensus
+        assert "num_analysts" in consensus
+
+    def test_price_target_evolution(self):
+        response = client.get("/analysts/price-targets/MSFT")
+        data = response.json()
+
+        evolution = data["target_evolution"]
+        assert "target_30d_ago" in evolution
+        assert "target_90d_ago" in evolution
+        assert "change_30d_pct" in evolution
+        assert "change_90d_pct" in evolution
+
+
+# ── Rating Distribution Endpoint Tests (#36) ─────────────────────────────────
+
+class TestRatingDistribution:
+    """Tests for GET /analysts/distribution/{ticker} - Band C #36."""
+
+    def test_get_distribution(self):
+        response = client.get("/analysts/distribution/NVDA")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["ticker"] == "NVDA"
+        assert "total_analysts" in data
+        assert "consensus_rating" in data
+        assert "distribution" in data
+
+    def test_distribution_breakdown(self):
+        response = client.get("/analysts/distribution/AAPL")
+        data = response.json()
+
+        dist = data["distribution"]
+        assert "buy" in dist
+        assert "hold" in dist
+        assert "sell" in dist
+
+        for rating in ["buy", "hold", "sell"]:
+            assert "count" in dist[rating]
+            assert "pct" in dist[rating]
+
+
+# ── Analyst Rating History Endpoint Tests (#36) ──────────────────────────────
+
+class TestAnalystRatingHistory:
+    """Tests for GET /analysts/rating-history/{analyst_id} - Band C #36."""
+
+    def test_get_analyst_rating_history(self):
+        response = client.get("/analysts/rating-history/analyst_001")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["analyst_id"] == "analyst_001"
+        assert "ratings" in data
+        assert "total" in data
+
+    def test_rating_history_limit(self):
+        response = client.get("/analysts/rating-history/analyst_001?limit=5")
+        data = response.json()
+
+        assert len(data["ratings"]) <= 5
+
+    def test_rating_history_not_found(self):
+        response = client.get("/analysts/rating-history/nonexistent")
+        assert response.status_code == 404
+
+
+# ── Ticker Analyst Summary Endpoint Tests (#36) ──────────────────────────────
+
+class TestTickerAnalystSummary:
+    """Tests for GET /analysts/summary/{ticker} - Band C #36."""
+
+    def test_get_summary(self):
+        response = client.get("/analysts/summary/NVDA")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["ticker"] == "NVDA"
+        assert "coverage" in data
+        assert "ratings" in data
+        assert "price_targets" in data
+        assert "recent_activity" in data
+
+    def test_summary_coverage(self):
+        response = client.get("/analysts/summary/AAPL")
+        data = response.json()
+
+        coverage = data["coverage"]
+        assert "total_analysts" in coverage
+        assert "top_rated_analyst" in coverage
+
+    def test_summary_price_targets(self):
+        response = client.get("/analysts/summary/MSFT")
+        data = response.json()
+
+        pt = data["price_targets"]
+        assert "consensus" in pt
+        assert "upside_pct" in pt
+        assert "high" in pt
+        assert "low" in pt
