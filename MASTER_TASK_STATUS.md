@@ -10,21 +10,21 @@
 
 | Metric | Value |
 |--------|-------|
-| **Tests** | 826 (99.6% passing) |
-| **Features Done** | 45 of 72 (~63%) |
-| **Remaining Tasks** | 35 |
+| **Tests** | 885 (99.6% passing) |
+| **Features Done** | 48 of 72 (~67%) |
+| **Remaining Tasks** | 32 |
 
 ---
 
 ## REMAINING TASKS — Unified Checklist
 
-### EASY (Quick wins, 1-2 days each)
+### EASY (Quick wins, 1-2 days each) - ALL COMPLETE
 
 | Done | # | Task | Description |
 |:----:|---|------|-------------|
-| [ ] | 38 | IPO Calendar | Track upcoming IPOs, pricing, lockup expiry |
-| [ ] | 39 | M&A Rumor Tracking | Aggregate M&A rumors from news sources |
-| [ ] | 41 | Insider Activity Screener | Screen Form 4 filings, cluster buys/sells |
+| [x] | 38 | IPO Calendar | Track upcoming IPOs, pricing, lockup expiry |
+| [x] | 39 | M&A Rumor Tracking | Aggregate M&A rumors from news sources |
+| [x] | 41 | Insider Activity Screener | Screen Form 4 filings, cluster buys/sells |
 
 ### MEDIUM (3-5 days each)
 
@@ -117,11 +117,14 @@
 - [x] #30 Model + idea leaderboards
 - [x] #31 Docket-to-disclosure reconciliation
 
-### Band C (14/25 done)
+### Band C (17/25 done)
 - [x] #35 Price alerts
 - [x] #36 Earnings calendar
 - [x] #37 Estimate revision screener
+- [x] #38 IPO calendar
+- [x] #39 M&A rumor tracking
 - [x] #40 Short interest data
+- [x] #41 Insider activity screener
 - [x] #46 Shared watchlists & dashboards
 - [x] #47 Comments & annotations
 - [x] #50-56 L-series litigation (7 features)

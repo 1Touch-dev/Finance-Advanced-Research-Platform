@@ -247,6 +247,24 @@ except Exception:
     pass
 
 try:
+    from app.api.ipo_calendar import router as ipo_router
+    app.include_router(ipo_router)
+except Exception:
+    pass
+
+try:
+    from app.api.ma_rumors import router as ma_rumors_router
+    app.include_router(ma_rumors_router)
+except Exception:
+    pass
+
+try:
+    from app.api.insider_activity import router as insider_activity_router
+    app.include_router(insider_activity_router)
+except Exception:
+    pass
+
+try:
     from prometheus_client import make_asgi_app as _make_prom_app
     _metrics_app = _make_prom_app()
     app.mount("/metrics", _metrics_app)
