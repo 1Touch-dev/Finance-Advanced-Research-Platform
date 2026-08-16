@@ -17,6 +17,7 @@
 
 **Key Achievements (16 Aug 2026):**
 - **Band B Features #15-31 Complete**: All 17 Band B features done (100%)
+- **Frontend wiring complete**: Added whisper.js and docket.js pages with full navigation
 - 540 tests across consensus, analyst, guidance, volume, formula, leaderboard, ontology, document, docket, filing, volatility, multi-entity, and whisper services
 - Fixed bug in earnings surprise report date calculation
 - **Embeddings Model Fine-tuned & Deployed**: +8.5% ranking accuracy, +82% confidence margin
@@ -67,7 +68,7 @@
 
 | Branch | Last Commit | Status | Notes |
 |--------|-------------|--------|-------|
-| `8th-july-sprint` | e830c6b | **CURRENT** | Embeddings + AI training infra |
+| `8th-july-sprint` | e493afe | **CURRENT** | Band B complete + frontend wiring |
 | `feature/intelligence-correlation-full` | 8ead589 | ✅ Synced | Intelligence + Quality Gate ML merged |
 | `feature/quality-gate-ml` | 4c08800 | ✅ **MERGED** | Quality Judge + Classifier |
 | `feature/13f-frontend` | — | ✅ Merged | 13F position diff |
@@ -77,12 +78,12 @@
 ### Recent Commits
 
 ```
-e830c6b docs: add S3 backup info for fine-tuned model
-e0252c6 feat: AI training infrastructure + docs restructure (72 files)
-eaa2514 fix: add missing os import in intelligence.py
-c889742 feat: integrate fine-tuned embeddings model into RAG pipeline
-6370e34 feat(api): database pooling, search timeout, blended mode, E2E tests
-8ead589 Enterprise Intelligence activation workflows (Rishav)
+e493afe feat(frontend): add whisper and docket pages + navigation
+fd52aeb feat: implement whisper estimates + buy/sell-side split (Band B #25)
+9eeb856 test: add multi-entity thematic corpora tests (Band B #18)
+22348f5 test: add volatility API tests (Band B #27)
+e72b9f4 feat(band-b): complete #15 filing redline + table-to-Excel tests
+594eee0 feat(band-b): complete #17 document ingestion + #31 docket reconciliation
 ```
 
 ---
@@ -325,7 +326,7 @@ python -m app.scripts.benchmark_search --iterations 20 --corpus-size 500
 
 ## Section 4: What's REMAINING (Not Started)
 
-### 4.1 Band B — Differentiation Multipliers (17 items, ~82% done)
+### 4.1 Band B — Differentiation Multipliers (17 items, 100% done) ✅
 
 | # | Feature | Status | Effort |
 |---|---------|--------|--------|
@@ -367,6 +368,7 @@ python -m app.scripts.benchmark_search --iterations 20 --corpus-size 500
 - **#31 Docket-to-Disclosure Reconciliation**: `GET /docket/{ticker}/reconcile` - L-series feature, undisclosed litigation detection
 - **Dashboard**: `GET /consensus/dashboard/{ticker}` - Combined view of all metrics
 - **Compare**: `GET /consensus/compare?tickers=NVDA,AAPL` - Multi-ticker comparison
+- **Frontend Pages**: `whisper.js`, `docket.js` added to Research navigation in Layout.js
 - **Tests**: 540 tests across consensus, analyst, guidance, volume, formula, leaderboard, ontology, document, docket, filing, volatility, multi-entity, and whisper services
 
 ### 4.2 Band C — Table Stakes (25 items, ~5% done)
