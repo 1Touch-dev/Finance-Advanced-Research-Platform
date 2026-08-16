@@ -229,6 +229,24 @@ except Exception:
     pass
 
 try:
+    from app.api.earnings_calendar import router as earnings_router
+    app.include_router(earnings_router)
+except Exception:
+    pass
+
+try:
+    from app.api.price_alerts import router as price_alerts_router
+    app.include_router(price_alerts_router)
+except Exception:
+    pass
+
+try:
+    from app.api.short_interest import router as short_interest_router
+    app.include_router(short_interest_router)
+except Exception:
+    pass
+
+try:
     from prometheus_client import make_asgi_app as _make_prom_app
     _metrics_app = _make_prom_app()
     app.mount("/metrics", _metrics_app)
