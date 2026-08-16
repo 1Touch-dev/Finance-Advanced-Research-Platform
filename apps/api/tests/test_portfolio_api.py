@@ -487,3 +487,185 @@ class TestRiskAPI:
         """GET /portfolio/{id}/risk returns 404 for missing."""
         response = client.get("/portfolio/99999/risk")
         assert response.status_code in (404, 500)
+
+
+# ── Position P&L Tests (#41) ─────────────────────────────────────────────────
+
+class TestPositionPnL:
+    """Test position-level P&L calculation (Band C #41)."""
+
+    def test_position_pnl_calculation(self):
+        """Position P&L calculates correctly."""
+        from app.services.portfolio_service import calculate_position_pnl
+
+        pnl = calculate_position_pnl(
+            position_id=1,
+            ticker="AAPL",
+            quantity=100,
+            cost_basis=150.0,
+        )
+
+        assert pnl.position_id == 1
+        assert pnl.ticker == "AAPL"
+        assert pnl.quantity == 100
+        assert pnl.cost_basis == 150.0
+        assert pnl.market_value > 0
+        assert pnl.current_price > 0
+
+    def test_position_pnl_period_returns(self):
+        """Period returns are calculated."""
+        from app.services.portfolio_service import calculate_position_pnl
+
+        pnl = calculate_position_pnl(
+            position_id=1,
+            ticker="NVDA",
+            quantity=50,
+            cost_basis=800.0,
+        )
+
+        # All period returns should be present
+        assert pnl.day_pnl is not None
+        assert pnl.week_pnl is not None
+        assert pnl.month_pnl is not None
+        assert pnl.ytd_pnl is not None
+
+    def test_position_pnl_to_dict(self):
+        """Position P&L serializes correctly."""
+        from app.services.portfolio_service import calculate_position_pnl
+
+        pnl = calculate_position_pnl(
+            position_id=1,
+            ticker="MSFT",
+            quantity=75,
+            cost_basis=350.0,
+        )
+
+        data = pnl.to_dict()
+        assert "position" in data
+        assert "pnl" in data
+        assert "period_returns" in data
+        assert "cost_tracking" in data
+
+        # Check period returns structure
+        pr = data["period_returns"]
+        assert "day" in pr
+        assert "week" in pr
+        assert "month" in pr
+        assert "ytd" in pr
+        assert "pnl" in pr["day"]
+        assert "pct" in pr["day"]
+
+    def test_position_pnl_unrealized(self):
+        """Unrealized P&L is calculated."""
+        from app.services.portfolio_service import calculate_position_pnl
+
+        pnl = calculate_position_pnl(
+            position_id=1,
+            ticker="AAPL",
+            quantity=100,
+            cost_basis=150.0,
+        )
+
+        expected_cost = 100 * 150.0
+        assert pnl.total_cost == expected_cost
+        assert pnl.unrealized_pnl == pnl.market_value - expected_cost
+
+
+class TestPortfolioPnLSummary:
+    """Test portfolio P&L summary."""
+
+    def test_portfolio_pnl_summary(self):
+        """Portfolio P&L summary calculates correctly."""
+        from app.services.portfolio_service import calculate_portfolio_pnl_summary
+
+        positions = [
+            {"id": 1, "ticker": "AAPL", "qty": 100, "cost_basis": 150.0},
+            {"id": 2, "ticker": "MSFT", "qty": 50, "cost_basis": 350.0},
+        ]
+
+        summary = calculate_portfolio_pnl_summary(
+            portfolio_id=1,
+            portfolio_name="Test Portfolio",
+            positions=positions,
+        )
+
+        assert summary.portfolio_id == 1
+        assert summary.portfolio_name == "Test Portfolio"
+        assert len(summary.positions) == 2
+        assert summary.total_market_value > 0
+
+    def test_portfolio_pnl_empty(self):
+        """Empty portfolio returns zero P&L."""
+        from app.services.portfolio_service import calculate_portfolio_pnl_summary
+
+        summary = calculate_portfolio_pnl_summary(
+            portfolio_id=1,
+            portfolio_name="Empty",
+            positions=[],
+        )
+
+        assert summary.total_market_value == 0
+        assert summary.total_unrealized_pnl == 0
+        assert len(summary.positions) == 0
+
+    def test_portfolio_pnl_summary_to_dict(self):
+        """Portfolio P&L summary serializes correctly."""
+        from app.services.portfolio_service import calculate_portfolio_pnl_summary
+
+        positions = [
+            {"id": 1, "ticker": "NVDA", "qty": 20, "cost_basis": 800.0},
+        ]
+
+        summary = calculate_portfolio_pnl_summary(
+            portfolio_id=1,
+            portfolio_name="Tech",
+            positions=positions,
+        )
+
+        data = summary.to_dict()
+        assert "summary" in data
+        assert "period_totals" in data
+        assert "statistics" in data
+        assert "positions" in data
+
+        # Check period totals
+        pt = data["period_totals"]
+        assert "day" in pt
+        assert "week" in pt
+        assert "month" in pt
+        assert "ytd" in pt
+
+    def test_portfolio_pnl_winners_losers(self):
+        """Winners and losers are tracked."""
+        from app.services.portfolio_service import calculate_portfolio_pnl_summary
+
+        positions = [
+            {"id": 1, "ticker": "AAPL", "qty": 100, "cost_basis": 150.0},
+            {"id": 2, "ticker": "NVDA", "qty": 50, "cost_basis": 800.0},
+            {"id": 3, "ticker": "JPM", "qty": 25, "cost_basis": 200.0},
+        ]
+
+        summary = calculate_portfolio_pnl_summary(
+            portfolio_id=1,
+            portfolio_name="Mixed",
+            positions=positions,
+        )
+
+        # Should have winners + losers = total positions
+        assert summary.winners_count + summary.losers_count == 3
+        assert summary.best_performer is not None
+        assert summary.worst_performer is not None
+
+
+class TestPositionPnLAPI:
+    """Test position P&L API endpoints."""
+
+    def test_portfolio_pnl_not_found(self):
+        """GET /portfolio/{id}/pnl returns 404 for missing."""
+        response = client.get("/portfolio/99999/pnl")
+        assert response.status_code in (404, 500)
+
+    def test_position_pnl_not_found(self):
+        """GET /portfolio/{id}/positions/{pos_id}/pnl returns 404."""
+        response = client.get("/portfolio/99999/positions/99999/pnl")
+        assert response.status_code in (404, 500)

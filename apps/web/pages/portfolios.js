@@ -75,7 +75,9 @@ function PortfolioCard({ portfolio, onClick }) {
 
 // ── Holdings Table ───────────────────────────────────────────────────────────
 
-function HoldingsTable({ holdings }) {
+function HoldingsTable({ holdings, pnlData }) {
+  const [showPeriodReturns, setShowPeriodReturns] = useState(false);
+
   if (!holdings?.length) {
     return (
       <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
@@ -84,40 +86,89 @@ function HoldingsTable({ holdings }) {
     );
   }
 
+  // Get period returns for each holding from pnlData if available
+  const getPeriodReturn = (ticker, period) => {
+    if (!pnlData?.positions) return null;
+    const pos = pnlData.positions.find(p => p.ticker === ticker);
+    return pos?.period_returns?.[period];
+  };
+
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
-      <table className="min-w-full text-sm">
-        <thead className="bg-gray-50">
-          <tr>
-            <th className="px-4 py-3 text-left">Ticker</th>
-            <th className="px-4 py-3 text-right">Shares</th>
-            <th className="px-4 py-3 text-right">Cost Basis</th>
-            <th className="px-4 py-3 text-right">Price</th>
-            <th className="px-4 py-3 text-right">Market Value</th>
-            <th className="px-4 py-3 text-right">P&L</th>
-            <th className="px-4 py-3 text-right">Weight</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {holdings.map((h, i) => (
-            <tr key={i} className="hover:bg-gray-50">
-              <td className="px-4 py-3">
-                <div className="font-medium text-blue-600">{h.ticker}</div>
-                <div className="text-xs text-gray-500">{h.sector}</div>
-              </td>
-              <td className="px-4 py-3 text-right">{h.quantity}</td>
-              <td className="px-4 py-3 text-right">${h.cost_basis?.toFixed(2)}</td>
-              <td className="px-4 py-3 text-right">${h.current_price?.toFixed(2)}</td>
-              <td className="px-4 py-3 text-right font-medium">${h.market_value?.toLocaleString()}</td>
-              <td className={`px-4 py-3 text-right font-medium ${h.unrealized_pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {h.unrealized_pnl >= 0 ? '+' : ''}${h.unrealized_pnl?.toFixed(2)}
-                <span className="text-xs ml-1">({h.unrealized_pnl_pct >= 0 ? '+' : ''}{h.unrealized_pnl_pct?.toFixed(1)}%)</span>
-              </td>
-              <td className="px-4 py-3 text-right">{h.weight?.toFixed(1)}%</td>
+      <div className="px-4 py-3 bg-gray-50 border-b flex justify-between items-center">
+        <span className="text-sm font-medium text-gray-700">Holdings</span>
+        <button
+          onClick={() => setShowPeriodReturns(!showPeriodReturns)}
+          className="text-sm text-blue-600 hover:text-blue-700"
+        >
+          {showPeriodReturns ? 'Hide Period Returns' : 'Show Period Returns'}
+        </button>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-3 text-left">Ticker</th>
+              <th className="px-4 py-3 text-right">Shares</th>
+              <th className="px-4 py-3 text-right">Cost Basis</th>
+              <th className="px-4 py-3 text-right">Price</th>
+              <th className="px-4 py-3 text-right">Market Value</th>
+              <th className="px-4 py-3 text-right">P&L</th>
+              {showPeriodReturns && (
+                <>
+                  <th className="px-4 py-3 text-right">Day</th>
+                  <th className="px-4 py-3 text-right">Week</th>
+                  <th className="px-4 py-3 text-right">Month</th>
+                  <th className="px-4 py-3 text-right">YTD</th>
+                </>
+              )}
+              <th className="px-4 py-3 text-right">Weight</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {holdings.map((h, i) => {
+              const dayReturn = getPeriodReturn(h.ticker, 'day');
+              const weekReturn = getPeriodReturn(h.ticker, 'week');
+              const monthReturn = getPeriodReturn(h.ticker, 'month');
+              const ytdReturn = getPeriodReturn(h.ticker, 'ytd');
+
+              return (
+                <tr key={i} className="hover:bg-gray-50">
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-blue-600">{h.ticker}</div>
+                    <div className="text-xs text-gray-500">{h.sector}</div>
+                  </td>
+                  <td className="px-4 py-3 text-right">{h.quantity}</td>
+                  <td className="px-4 py-3 text-right">${h.cost_basis?.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right">${h.current_price?.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right font-medium">${h.market_value?.toLocaleString()}</td>
+                  <td className={`px-4 py-3 text-right font-medium ${h.unrealized_pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {h.unrealized_pnl >= 0 ? '+' : ''}${h.unrealized_pnl?.toFixed(2)}
+                    <span className="text-xs ml-1">({h.unrealized_pnl_pct >= 0 ? '+' : ''}{h.unrealized_pnl_pct?.toFixed(1)}%)</span>
+                  </td>
+                  {showPeriodReturns && (
+                    <>
+                      <td className={`px-4 py-3 text-right text-xs ${dayReturn?.pct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {dayReturn ? `${dayReturn.pct >= 0 ? '+' : ''}${dayReturn.pct?.toFixed(1)}%` : '-'}
+                      </td>
+                      <td className={`px-4 py-3 text-right text-xs ${weekReturn?.pct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {weekReturn ? `${weekReturn.pct >= 0 ? '+' : ''}${weekReturn.pct?.toFixed(1)}%` : '-'}
+                      </td>
+                      <td className={`px-4 py-3 text-right text-xs ${monthReturn?.pct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {monthReturn ? `${monthReturn.pct >= 0 ? '+' : ''}${monthReturn.pct?.toFixed(1)}%` : '-'}
+                      </td>
+                      <td className={`px-4 py-3 text-right text-xs ${ytdReturn?.pct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {ytdReturn ? `${ytdReturn.pct >= 0 ? '+' : ''}${ytdReturn.pct?.toFixed(1)}%` : '-'}
+                      </td>
+                    </>
+                  )}
+                  <td className="px-4 py-3 text-right">{h.weight?.toFixed(1)}%</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -401,6 +452,7 @@ export default function PortfoliosPage() {
   const [portfolios, setPortfolios] = useState([]);
   const [selectedPortfolio, setSelectedPortfolio] = useState(null);
   const [portfolioDetail, setPortfolioDetail] = useState(null);
+  const [portfolioPnL, setPortfolioPnL] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAddPosition, setShowAddPosition] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -427,6 +479,16 @@ export default function PortfoliosPage() {
     }
   };
 
+  const fetchPortfolioPnL = async (id) => {
+    try {
+      const res = await fetch(`${API_BASE}/portfolio/${id}/pnl`);
+      const data = await res.json();
+      setPortfolioPnL(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     fetchPortfolios();
   }, []);
@@ -434,6 +496,9 @@ export default function PortfoliosPage() {
   useEffect(() => {
     if (selectedPortfolio) {
       fetchPortfolioDetail(selectedPortfolio);
+      fetchPortfolioPnL(selectedPortfolio);
+    } else {
+      setPortfolioPnL(null);
     }
   }, [selectedPortfolio]);
 
@@ -528,10 +593,42 @@ export default function PortfoliosPage() {
                     <SectorAllocation sectors={portfolioDetail.sector_allocation} />
                   </div>
 
+                  {/* Period P&L Summary */}
+                  {portfolioPnL && (
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <h3 className="font-semibold mb-4">Period Returns</h3>
+                      <div className="grid grid-cols-4 gap-4">
+                        <div className={`p-4 rounded ${portfolioPnL.period_totals?.day >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                          <div className="text-sm text-gray-600">Today</div>
+                          <div className={`text-xl font-bold ${portfolioPnL.period_totals?.day >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {portfolioPnL.period_totals?.day >= 0 ? '+' : ''}${portfolioPnL.period_totals?.day?.toFixed(2)}
+                          </div>
+                        </div>
+                        <div className={`p-4 rounded ${portfolioPnL.period_totals?.week >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                          <div className="text-sm text-gray-600">This Week</div>
+                          <div className={`text-xl font-bold ${portfolioPnL.period_totals?.week >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {portfolioPnL.period_totals?.week >= 0 ? '+' : ''}${portfolioPnL.period_totals?.week?.toFixed(2)}
+                          </div>
+                        </div>
+                        <div className={`p-4 rounded ${portfolioPnL.period_totals?.month >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                          <div className="text-sm text-gray-600">This Month</div>
+                          <div className={`text-xl font-bold ${portfolioPnL.period_totals?.month >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {portfolioPnL.period_totals?.month >= 0 ? '+' : ''}${portfolioPnL.period_totals?.month?.toFixed(2)}
+                          </div>
+                        </div>
+                        <div className={`p-4 rounded ${portfolioPnL.period_totals?.ytd >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                          <div className="text-sm text-gray-600">YTD</div>
+                          <div className={`text-xl font-bold ${portfolioPnL.period_totals?.ytd >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {portfolioPnL.period_totals?.ytd >= 0 ? '+' : ''}${portfolioPnL.period_totals?.ytd?.toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Holdings */}
                   <div>
-                    <h3 className="text-lg font-semibold mb-4">Holdings</h3>
-                    <HoldingsTable holdings={portfolioDetail.holdings} />
+                    <HoldingsTable holdings={portfolioDetail.holdings} pnlData={portfolioPnL} />
                   </div>
                 </div>
               )}

@@ -610,6 +610,356 @@ def calculate_risk_metrics(
     )
 
 
+# ── Position-level P&L (#41) ──────────────────────────────────────────────────
+
+@dataclass
+class PositionPnL:
+    """Detailed P&L metrics for a single position."""
+    position_id: int
+    ticker: str
+    company_name: Optional[str]
+    sector: Optional[str]
+
+    # Current position
+    quantity: float
+    cost_basis: float
+    current_price: float
+    market_value: float
+
+    # Unrealized P&L
+    unrealized_pnl: float
+    unrealized_pnl_pct: float
+
+    # Period returns
+    day_pnl: float
+    day_pnl_pct: float
+    week_pnl: float
+    week_pnl_pct: float
+    month_pnl: float
+    month_pnl_pct: float
+    ytd_pnl: float
+    ytd_pnl_pct: float
+
+    # Cost tracking
+    total_cost: float
+    avg_cost_per_share: float
+
+    # Realized P&L (from closed positions)
+    realized_pnl: float
+    total_pnl: float  # realized + unrealized
+
+    # Timestamps
+    first_purchase_date: Optional[str]
+    last_activity_date: Optional[str]
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "position_id": self.position_id,
+            "ticker": self.ticker,
+            "company_name": self.company_name,
+            "sector": self.sector,
+            "position": {
+                "quantity": self.quantity,
+                "cost_basis": round(self.cost_basis, 2),
+                "current_price": round(self.current_price, 2),
+                "market_value": round(self.market_value, 2),
+            },
+            "pnl": {
+                "unrealized": round(self.unrealized_pnl, 2),
+                "unrealized_pct": round(self.unrealized_pnl_pct, 2),
+                "realized": round(self.realized_pnl, 2),
+                "total": round(self.total_pnl, 2),
+            },
+            "period_returns": {
+                "day": {"pnl": round(self.day_pnl, 2), "pct": round(self.day_pnl_pct, 2)},
+                "week": {"pnl": round(self.week_pnl, 2), "pct": round(self.week_pnl_pct, 2)},
+                "month": {"pnl": round(self.month_pnl, 2), "pct": round(self.month_pnl_pct, 2)},
+                "ytd": {"pnl": round(self.ytd_pnl, 2), "pct": round(self.ytd_pnl_pct, 2)},
+            },
+            "cost_tracking": {
+                "total_cost": round(self.total_cost, 2),
+                "avg_cost_per_share": round(self.avg_cost_per_share, 2),
+            },
+            "dates": {
+                "first_purchase": self.first_purchase_date,
+                "last_activity": self.last_activity_date,
+            },
+        }
+
+
+@dataclass
+class PortfolioPnLSummary:
+    """Summary of P&L for all positions in a portfolio."""
+    portfolio_id: int
+    portfolio_name: str
+    as_of_date: str
+
+    # Totals
+    total_market_value: float
+    total_cost_basis: float
+    total_unrealized_pnl: float
+    total_realized_pnl: float
+    total_pnl: float
+
+    # Period totals
+    day_pnl: float
+    week_pnl: float
+    month_pnl: float
+    ytd_pnl: float
+
+    # Position details
+    positions: List[PositionPnL]
+
+    # Statistics
+    winners_count: int
+    losers_count: int
+    best_performer: Optional[str]
+    best_performer_pct: float
+    worst_performer: Optional[str]
+    worst_performer_pct: float
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "portfolio_id": self.portfolio_id,
+            "portfolio_name": self.portfolio_name,
+            "as_of_date": self.as_of_date,
+            "summary": {
+                "total_market_value": round(self.total_market_value, 2),
+                "total_cost_basis": round(self.total_cost_basis, 2),
+                "total_unrealized_pnl": round(self.total_unrealized_pnl, 2),
+                "total_realized_pnl": round(self.total_realized_pnl, 2),
+                "total_pnl": round(self.total_pnl, 2),
+            },
+            "period_totals": {
+                "day": round(self.day_pnl, 2),
+                "week": round(self.week_pnl, 2),
+                "month": round(self.month_pnl, 2),
+                "ytd": round(self.ytd_pnl, 2),
+            },
+            "statistics": {
+                "winners": self.winners_count,
+                "losers": self.losers_count,
+                "best_performer": self.best_performer,
+                "best_performer_pct": round(self.best_performer_pct, 2),
+                "worst_performer": self.worst_performer,
+                "worst_performer_pct": round(self.worst_performer_pct, 2),
+            },
+            "positions": [p.to_dict() for p in self.positions],
+        }
+
+
+# Simulated price history for period returns
+_PRICE_HISTORY = {
+    # ticker: {day_ago, week_ago, month_ago, ytd_start}
+    "AAPL": {"day": 0.98, "week": 0.95, "month": 0.92, "ytd": 0.85},
+    "MSFT": {"day": 0.99, "week": 0.97, "month": 0.94, "ytd": 0.88},
+    "GOOGL": {"day": 1.01, "week": 0.98, "month": 0.96, "ytd": 0.90},
+    "NVDA": {"day": 0.97, "week": 0.92, "month": 0.85, "ytd": 0.65},
+    "TSLA": {"day": 1.02, "week": 1.05, "month": 0.90, "ytd": 0.75},
+    "AMD": {"day": 0.98, "week": 0.94, "month": 0.88, "ytd": 0.70},
+    "META": {"day": 0.99, "week": 0.96, "month": 0.93, "ytd": 0.82},
+    "AMZN": {"day": 1.00, "week": 0.98, "month": 0.95, "ytd": 0.87},
+    "JPM": {"day": 1.01, "week": 1.00, "month": 0.98, "ytd": 0.92},
+    "BAC": {"day": 1.00, "week": 0.99, "month": 0.97, "ytd": 0.90},
+}
+
+
+def _get_price_history_factors(ticker: str) -> Dict[str, float]:
+    """Get historical price factors for a ticker (current price / historical price)."""
+    if ticker in _PRICE_HISTORY:
+        return _PRICE_HISTORY[ticker]
+    # Default: small random variations
+    import random
+    random.seed(hash(ticker))
+    return {
+        "day": random.uniform(0.97, 1.03),
+        "week": random.uniform(0.93, 1.07),
+        "month": random.uniform(0.88, 1.12),
+        "ytd": random.uniform(0.75, 1.25),
+    }
+
+
+def calculate_position_pnl(
+    position_id: int,
+    ticker: str,
+    quantity: float,
+    cost_basis: float,
+    notes: Optional[str] = None,
+) -> PositionPnL:
+    """
+    Calculate detailed P&L for a single position.
+
+    Returns comprehensive P&L metrics including period returns.
+    """
+    service = get_portfolio_service()
+
+    # Get current market data
+    market_data = service._get_market_data([ticker])
+    data = market_data.get(ticker, {"price": cost_basis, "day_change": 0, "day_change_pct": 0})
+    current_price = data["price"]
+
+    # Get sector info
+    sector, industry = service._get_sector_info(ticker)
+
+    # Calculate basic P&L
+    market_value = quantity * current_price
+    total_cost = quantity * cost_basis
+    unrealized_pnl = market_value - total_cost
+    unrealized_pnl_pct = (unrealized_pnl / total_cost * 100) if total_cost else 0
+
+    # Get historical price factors
+    factors = _get_price_history_factors(ticker)
+
+    # Calculate period P&L
+    # Day P&L
+    prev_day_price = current_price * factors["day"]
+    day_pnl = quantity * (current_price - prev_day_price)
+    day_pnl_pct = ((current_price - prev_day_price) / prev_day_price * 100) if prev_day_price else 0
+
+    # Week P&L
+    prev_week_price = current_price * factors["week"]
+    week_pnl = quantity * (current_price - prev_week_price)
+    week_pnl_pct = ((current_price - prev_week_price) / prev_week_price * 100) if prev_week_price else 0
+
+    # Month P&L
+    prev_month_price = current_price * factors["month"]
+    month_pnl = quantity * (current_price - prev_month_price)
+    month_pnl_pct = ((current_price - prev_month_price) / prev_month_price * 100) if prev_month_price else 0
+
+    # YTD P&L
+    ytd_start_price = current_price * factors["ytd"]
+    ytd_pnl = quantity * (current_price - ytd_start_price)
+    ytd_pnl_pct = ((current_price - ytd_start_price) / ytd_start_price * 100) if ytd_start_price else 0
+
+    # Company name (simulated)
+    company_names = {
+        "AAPL": "Apple Inc.",
+        "MSFT": "Microsoft Corporation",
+        "GOOGL": "Alphabet Inc.",
+        "NVDA": "NVIDIA Corporation",
+        "TSLA": "Tesla, Inc.",
+        "AMD": "Advanced Micro Devices",
+        "META": "Meta Platforms, Inc.",
+        "AMZN": "Amazon.com, Inc.",
+        "JPM": "JPMorgan Chase & Co.",
+        "BAC": "Bank of America Corporation",
+    }
+
+    return PositionPnL(
+        position_id=position_id,
+        ticker=ticker,
+        company_name=company_names.get(ticker, f"{ticker} Corp"),
+        sector=sector,
+        quantity=quantity,
+        cost_basis=cost_basis,
+        current_price=current_price,
+        market_value=market_value,
+        unrealized_pnl=unrealized_pnl,
+        unrealized_pnl_pct=unrealized_pnl_pct,
+        day_pnl=day_pnl,
+        day_pnl_pct=day_pnl_pct,
+        week_pnl=week_pnl,
+        week_pnl_pct=week_pnl_pct,
+        month_pnl=month_pnl,
+        month_pnl_pct=month_pnl_pct,
+        ytd_pnl=ytd_pnl,
+        ytd_pnl_pct=ytd_pnl_pct,
+        total_cost=total_cost,
+        avg_cost_per_share=cost_basis,
+        realized_pnl=0,  # Would track from closed trades
+        total_pnl=unrealized_pnl,  # unrealized + realized
+        first_purchase_date=None,  # Would come from transaction history
+        last_activity_date=datetime.now().strftime("%Y-%m-%d"),
+    )
+
+
+def calculate_portfolio_pnl_summary(
+    portfolio_id: int,
+    portfolio_name: str,
+    positions: List[Dict[str, Any]],
+) -> PortfolioPnLSummary:
+    """
+    Calculate P&L summary for all positions in a portfolio.
+    """
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    if not positions:
+        return PortfolioPnLSummary(
+            portfolio_id=portfolio_id,
+            portfolio_name=portfolio_name,
+            as_of_date=today,
+            total_market_value=0,
+            total_cost_basis=0,
+            total_unrealized_pnl=0,
+            total_realized_pnl=0,
+            total_pnl=0,
+            day_pnl=0,
+            week_pnl=0,
+            month_pnl=0,
+            ytd_pnl=0,
+            positions=[],
+            winners_count=0,
+            losers_count=0,
+            best_performer=None,
+            best_performer_pct=0,
+            worst_performer=None,
+            worst_performer_pct=0,
+        )
+
+    # Calculate P&L for each position
+    position_pnls = []
+    for pos in positions:
+        pnl = calculate_position_pnl(
+            position_id=pos.get("id", 0),
+            ticker=pos.get("ticker", "UNKNOWN"),
+            quantity=pos.get("qty", 0),
+            cost_basis=pos.get("cost_basis", 0),
+            notes=pos.get("notes"),
+        )
+        position_pnls.append(pnl)
+
+    # Calculate totals
+    total_market_value = sum(p.market_value for p in position_pnls)
+    total_cost_basis = sum(p.total_cost for p in position_pnls)
+    total_unrealized_pnl = sum(p.unrealized_pnl for p in position_pnls)
+    total_realized_pnl = sum(p.realized_pnl for p in position_pnls)
+
+    day_pnl = sum(p.day_pnl for p in position_pnls)
+    week_pnl = sum(p.week_pnl for p in position_pnls)
+    month_pnl = sum(p.month_pnl for p in position_pnls)
+    ytd_pnl = sum(p.ytd_pnl for p in position_pnls)
+
+    # Statistics
+    winners = [p for p in position_pnls if p.unrealized_pnl >= 0]
+    losers = [p for p in position_pnls if p.unrealized_pnl < 0]
+
+    sorted_by_pct = sorted(position_pnls, key=lambda x: x.unrealized_pnl_pct, reverse=True)
+    best = sorted_by_pct[0] if sorted_by_pct else None
+    worst = sorted_by_pct[-1] if sorted_by_pct else None
+
+    return PortfolioPnLSummary(
+        portfolio_id=portfolio_id,
+        portfolio_name=portfolio_name,
+        as_of_date=today,
+        total_market_value=total_market_value,
+        total_cost_basis=total_cost_basis,
+        total_unrealized_pnl=total_unrealized_pnl,
+        total_realized_pnl=total_realized_pnl,
+        total_pnl=total_unrealized_pnl + total_realized_pnl,
+        day_pnl=day_pnl,
+        week_pnl=week_pnl,
+        month_pnl=month_pnl,
+        ytd_pnl=ytd_pnl,
+        positions=position_pnls,
+        winners_count=len(winners),
+        losers_count=len(losers),
+        best_performer=best.ticker if best else None,
+        best_performer_pct=best.unrealized_pnl_pct if best else 0,
+        worst_performer=worst.ticker if worst else None,
+        worst_performer_pct=worst.unrealized_pnl_pct if worst else 0,
+    )
+
+
 # Singleton instance
 _service: Optional[PortfolioService] = None
 

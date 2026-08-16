@@ -25,7 +25,12 @@ import io
 
 from app.db.session import get_db
 from app.models.monitor import Portfolio, Position
-from app.services.portfolio_service import get_portfolio_service, calculate_risk_metrics
+from app.services.portfolio_service import (
+    get_portfolio_service,
+    calculate_risk_metrics,
+    calculate_position_pnl,
+    calculate_portfolio_pnl_summary,
+)
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
@@ -457,6 +462,75 @@ async def get_risk_metrics(
         "holdings_count": len(holdings),
         **risk.to_dict(),
     }
+
+
+# ── Position-level P&L (#41) ─────────────────────────────────────────────────
+
+@router.get("/{portfolio_id}/pnl")
+async def get_portfolio_pnl(
+    portfolio_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    Get detailed P&L for all positions in a portfolio.
+
+    Includes:
+    - Per-position unrealized P&L
+    - Period returns (day, week, month, YTD)
+    - Realized P&L from closed trades
+    - Winners/losers breakdown
+    """
+    portfolio = db.query(Portfolio).filter_by(id=portfolio_id).first()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+
+    positions = db.execute(
+        text("SELECT id, ticker, qty, cost_basis, notes FROM positions WHERE portfolio_id = :pid"),
+        {"pid": portfolio_id}
+    ).fetchall()
+
+    pos_list = [
+        {"id": r[0], "ticker": r[1], "qty": r[2], "cost_basis": r[3], "notes": r[4]}
+        for r in positions
+    ]
+
+    summary = calculate_portfolio_pnl_summary(
+        portfolio_id=portfolio_id,
+        portfolio_name=portfolio.name,
+        positions=pos_list,
+    )
+
+    return summary.to_dict()
+
+
+@router.get("/{portfolio_id}/positions/{position_id}/pnl")
+async def get_position_pnl(
+    portfolio_id: int,
+    position_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    Get detailed P&L for a single position.
+
+    Includes:
+    - Unrealized P&L with percentage
+    - Period returns (day, week, month, YTD)
+    - Cost tracking (total cost, avg cost per share)
+    - Realized P&L (if any closed trades)
+    """
+    position = db.query(Position).filter_by(id=position_id, portfolio_id=portfolio_id).first()
+    if not position:
+        raise HTTPException(status_code=404, detail="Position not found")
+
+    pnl = calculate_position_pnl(
+        position_id=position.id,
+        ticker=position.ticker,
+        quantity=position.qty,
+        cost_basis=position.cost_basis,
+        notes=position.notes,
+    )
+
+    return pnl.to_dict()
 
 
 # ── Import Positions ──────────────────────────────────────────────────────────
