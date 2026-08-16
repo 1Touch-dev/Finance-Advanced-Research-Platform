@@ -222,6 +222,13 @@ except Exception:
     pass
 
 try:
+    from app.api.comments import router as comments_router, annotations_router
+    app.include_router(comments_router)
+    app.include_router(annotations_router)
+except Exception:
+    pass
+
+try:
     from prometheus_client import make_asgi_app as _make_prom_app
     _metrics_app = _make_prom_app()
     app.mount("/metrics", _metrics_app)

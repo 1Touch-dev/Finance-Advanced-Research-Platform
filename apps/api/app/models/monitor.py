@@ -121,3 +121,62 @@ class DashboardWidget(Base):
     position_y = Column(Integer, default=0)
     width = Column(Integer, default=1)
     height = Column(Integer, default=1)
+
+
+# ── Comments & Annotations (#47) ─────────────────────────────────────────────
+
+
+class EntityComment(Base):
+    """User comment on an entity (stock, filing, report, etc.)."""
+    __tablename__ = 'entity_comments'
+    id = Column(Integer, primary_key=True)
+    user_id = Column(String, nullable=False)
+    user_name = Column(String, nullable=True)  # Display name
+    # Target entity
+    entity_type = Column(String, nullable=False)  # stock|filing|report|watchlist|portfolio
+    entity_id = Column(String, nullable=False)  # ticker or ID
+    # Comment content
+    content = Column(Text, nullable=False)
+    # Threading
+    parent_id = Column(Integer, ForeignKey('entity_comments.id'), nullable=True)  # For replies
+    # Visibility
+    visibility = Column(String, default='private')  # private|team|public
+    # Metadata
+    is_edited = Column(Boolean, default=False)
+    is_deleted = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class CommentReaction(Base):
+    """Reaction/like on a comment."""
+    __tablename__ = 'comment_reactions'
+    id = Column(Integer, primary_key=True)
+    comment_id = Column(Integer, ForeignKey('entity_comments.id'), nullable=False)
+    user_id = Column(String, nullable=False)
+    reaction_type = Column(String, nullable=False)  # like|insightful|disagree|question
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Annotation(Base):
+    """Text annotation/highlight in a document."""
+    __tablename__ = 'annotations'
+    id = Column(Integer, primary_key=True)
+    user_id = Column(String, nullable=False)
+    # Target document
+    document_type = Column(String, nullable=False)  # filing|report|transcript|news
+    document_id = Column(String, nullable=False)
+    # Position in document
+    start_offset = Column(Integer, nullable=False)
+    end_offset = Column(Integer, nullable=False)
+    selected_text = Column(Text, nullable=True)  # The highlighted text
+    # Annotation content
+    note = Column(Text, nullable=True)  # User's note
+    color = Column(String, default='yellow')  # yellow|green|blue|red|purple
+    # Tags for organization
+    tags = Column(JSON, nullable=True)  # ["risk", "key-metric", etc.]
+    # Visibility
+    visibility = Column(String, default='private')  # private|team|public
+    # Metadata
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
