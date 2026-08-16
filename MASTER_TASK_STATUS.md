@@ -16,8 +16,8 @@
 | **James's Requirements** | ~65% | ~20% | ~15% |
 
 **Key Achievements (16 Aug 2026):**
-- **Band B Features #15-17, #19-24, #26-31 Complete**: 15 of 17 Band B features now done (~88%)
-- 427 tests across consensus, analyst, guidance, volume, formula, leaderboard, ontology, document, docket, filing, and volatility services
+- **Band B Features #15-31 Complete (except #25)**: 16 of 17 Band B features now done (~94%)
+- 486 tests across consensus, analyst, guidance, volume, formula, leaderboard, ontology, document, docket, filing, volatility, and multi-entity services
 - Fixed bug in earnings surprise report date calculation
 - **Embeddings Model Fine-tuned & Deployed**: +8.5% ranking accuracy, +82% confidence margin
 - Model trained on RunPod (RTX 4090), deployed to EC2 CPU, backed up to S3
@@ -332,7 +332,7 @@ python -m app.scripts.benchmark_search --iterations 20 --corpus-size 500
 | 15 | Filing redline + table-to-Excel | ✅ **Complete** | Medium |
 | 16 | Company-specific ontology + KPI schema | ✅ **Complete** | High |
 | 17 | Private document ingestion | ✅ **Complete** | Medium |
-| 18 | Multi-entity thematic corpora | ❌ Not done | Medium |
+| 18 | Multi-entity thematic corpora | ✅ **Complete** | Medium |
 | 19 | Point-in-time rolling consensus | ✅ **Complete** | High |
 | 20 | Consensus revision history | ✅ **Complete** | Medium |
 | 21 | Estimate dispersion | ✅ **Complete** | Low |
@@ -351,6 +351,7 @@ python -m app.scripts.benchmark_search --iterations 20 --corpus-size 500
 - **#15 Filing Redline + Table-to-Excel**: `GET /filings/compare` - 10-K/10-Q comparison, HTML redline, Excel export
 - **#16 Company Ontology + KPI Schema**: `GET /ontology/{ticker}` - Industry KPI templates, entity extraction
 - **#17 Private Document Ingestion**: `POST /documents/upload` - PDF/DOCX/XLSX/TXT ingestion, chunking, RAG search
+- **#18 Multi-entity Thematic Corpora**: `GET /entities/multi/` - Sector/industry queries, supply chain analysis, thematic analysis
 - **#19 Point-in-time Rolling Consensus**: `GET /consensus/rolling` - Weekly snapshots showing consensus evolution
 - **#20 Consensus Revision History**: `GET /consensus/revisions` - Tracks how analyst estimates changed over time
 - **#21 Estimate Dispersion**: `GET /consensus/dispersion` - Measures analyst disagreement with CV, quartiles, outliers
@@ -365,7 +366,7 @@ python -m app.scripts.benchmark_search --iterations 20 --corpus-size 500
 - **#31 Docket-to-Disclosure Reconciliation**: `GET /docket/{ticker}/reconcile` - L-series feature, undisclosed litigation detection
 - **Dashboard**: `GET /consensus/dashboard/{ticker}` - Combined view of all metrics
 - **Compare**: `GET /consensus/compare?tickers=NVDA,AAPL` - Multi-ticker comparison
-- **Tests**: 427 tests across consensus, analyst, guidance, volume, formula, leaderboard, ontology, document, docket, filing, and volatility services
+- **Tests**: 486 tests across consensus, analyst, guidance, volume, formula, leaderboard, ontology, document, docket, filing, volatility, and multi-entity services
 
 ### 4.2 Band C — Table Stakes (25 items, ~5% done)
 
@@ -401,8 +402,8 @@ All deferred (native push, offline caching, biometric login, widgets, screen sha
 
 ## Section 5: Test Suite Status
 
-**Total Tests:** 595
-**Passing:** 592 (99.5%)
+**Total Tests:** 654
+**Passing:** 651 (99.5%)
 **Failed:** 3 (pre-existing, unrelated to Band B features)
 
 | Test File | Tests | Status |
@@ -419,6 +420,7 @@ All deferred (native push, offline caching, biometric login, widgets, screen sha
 | `test_document_api.py` | 34 | ✅ All pass |
 | `test_docket_api.py` | 33 | ✅ All pass |
 | `test_volatility_api.py` | 51 | ✅ All pass |
+| `test_multi_entity_api.py` | 59 | ✅ All pass |
 | `test_filing_api.py` | 43 | ✅ 42 pass, 1 skip (NEW) |
 | `test_rag_vector.py` | 34 | ⚠️ 2 flaky |
 | `test_rag_eval_gate.py` | 4 | ✅ All pass |
