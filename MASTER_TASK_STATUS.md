@@ -16,8 +16,8 @@
 | **James's Requirements** | ~65% | ~20% | ~15% |
 
 **Key Achievements (16 Aug 2026):**
-- **Band B Features #15-31 Complete (except #25)**: 16 of 17 Band B features now done (~94%)
-- 486 tests across consensus, analyst, guidance, volume, formula, leaderboard, ontology, document, docket, filing, volatility, and multi-entity services
+- **Band B Features #15-31 Complete**: All 17 Band B features done (100%)
+- 540 tests across consensus, analyst, guidance, volume, formula, leaderboard, ontology, document, docket, filing, volatility, multi-entity, and whisper services
 - Fixed bug in earnings surprise report date calculation
 - **Embeddings Model Fine-tuned & Deployed**: +8.5% ranking accuracy, +82% confidence margin
 - Model trained on RunPod (RTX 4090), deployed to EC2 CPU, backed up to S3
@@ -339,7 +339,7 @@ python -m app.scripts.benchmark_search --iterations 20 --corpus-size 500
 | 22 | Guidance vs actual tracking | ✅ **Complete** | Medium |
 | 23 | Earnings surprise history | ✅ **Complete** | Low |
 | 24 | Per-analyst accuracy scoring | ✅ **Complete** | Medium |
-| 25 | Whisper + buy/sell-side split | ❌ Not done | High |
+| 25 | Whisper + buy/sell-side split | ✅ **Complete** | High |
 | 26 | Custom formula charting | ✅ **Complete** | Medium |
 | 27 | IV surface (delayed EOD) | ✅ **Complete** | Medium |
 | 28 | Unusual volume screening | ✅ **Complete** | Medium |
@@ -358,6 +358,7 @@ python -m app.scripts.benchmark_search --iterations 20 --corpus-size 500
 - **#22 Guidance vs Actual Tracking**: `guidance_service.py` - Management credibility scoring, guidance revisions
 - **#23 Earnings Surprise History**: `GET /consensus/surprise-history` - Beat/miss patterns, streaks, market reactions
 - **#24 Per-Analyst Accuracy Scoring**: `GET /analysts/score/{id}` - MAE, direction accuracy, Brier score, calibration
+- **#25 Whisper + Buy/Sell-Side Split**: `GET /whisper/{ticker}` - Whisper estimates, buy-side vs sell-side analysis, historical accuracy
 - **#26 Custom Formula Charting**: `POST /formula/evaluate` - Safe expression parser, multi-ticker formulas
 - **#27 IV Surface (Delayed EOD)**: `GET /volatility/surface/{ticker}` - IV surface, term structure, skew analysis, IV screening
 - **#28 Unusual Volume Screening**: `volume_screening_service.py` - Sector flow, volume profiles, spike detection
@@ -366,7 +367,7 @@ python -m app.scripts.benchmark_search --iterations 20 --corpus-size 500
 - **#31 Docket-to-Disclosure Reconciliation**: `GET /docket/{ticker}/reconcile` - L-series feature, undisclosed litigation detection
 - **Dashboard**: `GET /consensus/dashboard/{ticker}` - Combined view of all metrics
 - **Compare**: `GET /consensus/compare?tickers=NVDA,AAPL` - Multi-ticker comparison
-- **Tests**: 486 tests across consensus, analyst, guidance, volume, formula, leaderboard, ontology, document, docket, filing, volatility, and multi-entity services
+- **Tests**: 540 tests across consensus, analyst, guidance, volume, formula, leaderboard, ontology, document, docket, filing, volatility, multi-entity, and whisper services
 
 ### 4.2 Band C — Table Stakes (25 items, ~5% done)
 
@@ -402,8 +403,8 @@ All deferred (native push, offline caching, biometric login, widgets, screen sha
 
 ## Section 5: Test Suite Status
 
-**Total Tests:** 654
-**Passing:** 651 (99.5%)
+**Total Tests:** 708
+**Passing:** 705 (99.6%)
 **Failed:** 3 (pre-existing, unrelated to Band B features)
 
 | Test File | Tests | Status |
@@ -421,6 +422,7 @@ All deferred (native push, offline caching, biometric login, widgets, screen sha
 | `test_docket_api.py` | 33 | ✅ All pass |
 | `test_volatility_api.py` | 51 | ✅ All pass |
 | `test_multi_entity_api.py` | 59 | ✅ All pass |
+| `test_whisper_api.py` | 54 | ✅ All pass |
 | `test_filing_api.py` | 43 | ✅ 42 pass, 1 skip (NEW) |
 | `test_rag_vector.py` | 34 | ⚠️ 2 flaky |
 | `test_rag_eval_gate.py` | 4 | ✅ All pass |
