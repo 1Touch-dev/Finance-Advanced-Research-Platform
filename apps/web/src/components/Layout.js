@@ -61,6 +61,7 @@ const NAV_GROUPS = [
       { href: '/graph', label: 'Graph', icon: '⬡' },
       { href: '/tracking', label: 'Tracking', icon: '◎' },
       { href: '/tracking/alerts', label: 'Alerts', icon: '⚑' },
+      { href: '/portfolios', label: 'Portfolios', icon: '⊡' },
       { href: '/skills', label: 'Skills', icon: '⚙' },
       { href: '/metrics', label: 'Metrics', icon: '◈' },
     ],
