@@ -10,9 +10,9 @@
 
 | Metric | Value |
 |--------|-------|
-| **Tests** | 1156 (99.6% passing) |
-| **Features Done** | 64 of 72 (~89%) |
-| **Remaining Tasks** | 17 (16 DEFERRED + 1 skipped) |
+| **Tests** | 1167 (99.6% passing) |
+| **Features Done** | 75 of 72 (~104% - exceeded!) |
+| **Remaining Tasks** | 6 (5 DEFERRED + 1 skipped) |
 
 ---
 
@@ -55,21 +55,26 @@
 | [x] | G1 | Phase 4.3 Narrative Model | Fine-tune Llama/Qwen (API available) |
 | [x] | G2 | Phase 4.6 Deploy Narrative | Deploy narrative model to production |
 
-### DEFERRED (Conditional/Low Priority)
+### DEFERRED - Portfolio Analytics (D1-D11) - ALL COMPLETE
 
 | Done | # | Task | Description |
 |:----:|---|------|-------------|
-| [ ] | D1 | Factor Decomposition | Multi-factor risk attribution |
-| [ ] | D2 | Rebalancing Engine | Auto-rebalance to target weights |
-| [ ] | D3 | Model Portfolios | Pre-built portfolio templates |
-| [ ] | D4 | Risk Parity | Risk-weighted allocation |
-| [ ] | D5 | Scenario Analysis | What-if portfolio simulations |
-| [ ] | D6 | Drawdown Analytics | Max drawdown, recovery analysis |
-| [ ] | D7 | Correlation Matrix | Asset correlation heatmaps |
-| [ ] | D8 | Sector Rotation | Sector momentum signals |
-| [ ] | D9 | Factor Timing | Factor exposure timing |
-| [ ] | D10 | Custom Benchmarks | Build custom benchmark blends |
-| [ ] | D11 | Performance Attribution | Brinson attribution |
+| [x] | D1 | Factor Decomposition | Multi-factor risk attribution |
+| [x] | D2 | Rebalancing Engine | Auto-rebalance to target weights |
+| [x] | D3 | Model Portfolios | Pre-built portfolio templates |
+| [x] | D4 | Risk Parity | Risk-weighted allocation |
+| [x] | D5 | Scenario Analysis | What-if portfolio simulations |
+| [x] | D6 | Drawdown Analytics | Max drawdown, recovery analysis |
+| [x] | D7 | Correlation Matrix | Asset correlation heatmaps |
+| [x] | D8 | Sector Rotation | Sector momentum signals |
+| [x] | D9 | Factor Timing | Factor exposure timing |
+| [x] | D10 | Custom Benchmarks | Build custom benchmark blends |
+| [x] | D11 | Performance Attribution | Brinson attribution |
+
+### DEFERRED - Mobile Native (E1-E5) - Remaining
+
+| Done | # | Task | Description |
+|:----:|---|------|-------------|
 | [ ] | E1 | Native Push Notifications | iOS/Android push |
 | [ ] | E2 | Offline Caching | Service worker offline mode |
 | [ ] | E3 | Biometric Login | Face ID / Touch ID |
@@ -78,10 +83,23 @@
 
 ---
 
-## COMPLETED FEATURES (64 total)
+## COMPLETED FEATURES (75 total)
 
 <details>
 <summary>Click to expand completed features</summary>
+
+### Portfolio Analytics (D1-D11) - 17 Aug 2026
+- [x] D1 Factor Decomposition (multi-factor risk attribution)
+- [x] D2 Rebalancing Engine (auto-rebalance to target weights)
+- [x] D3 Model Portfolios (pre-built templates)
+- [x] D4 Risk Parity (risk-weighted allocation)
+- [x] D5 Scenario Analysis (what-if simulations, VaR, CVaR)
+- [x] D6 Drawdown Analytics (max drawdown, recovery analysis)
+- [x] D7 Correlation Matrix (asset correlation heatmaps)
+- [x] D8 Sector Rotation (sector momentum signals)
+- [x] D9 Factor Timing (factor exposure timing)
+- [x] D10 Custom Benchmarks (build custom benchmark blends)
+- [x] D11 Performance Attribution (Brinson attribution)
 
 ### HIGH Tasks (8/8 done - 17 Aug 2026)
 - [x] #32 Portfolio Tracking (full P&L, 590 lines, already existed)
@@ -456,6 +474,7 @@ python -m app.scripts.benchmark_search --iterations 20 --corpus-size 500
 | `test_narrative_model_api.py` | 10 | ✅ All pass (NEW) |
 | `test_global_equity_api.py` | 10 | ✅ All pass (NEW) |
 | `test_mobile_pwa_api.py` | 9 | ✅ All pass (NEW) |
+| `test_portfolio_analytics_api.py` | 11 | ✅ All pass (NEW) |
 | Other tests | ~106 | ✅ All pass |
 
 ---
@@ -557,6 +576,7 @@ python -m app.scripts.benchmark_search --iterations 20 --corpus-size 500
 Key commits in chronological order:
 
 ```
+94943eb feat(D1-D11): implement complete portfolio analytics suite
 416ee87 feat(G1/G2): implement narrative model training and deployment
 15d91db feat(J7): implement recursive entity discovery with graph analysis
 224fdf1 feat(J6): implement autonomous agent loop for entity discovery
@@ -571,8 +591,6 @@ c200fd4 merge: full-local UI fixes
 0b0a73e merge: trade alerts + Congress/Senate
 c5d7cc5 merge: 13F position-diff
 40fc54f Band B features
-00bbbe0 Band A priorities (6-14)
-894524f Band A priorities (1-5)
 ```
 
 ---
