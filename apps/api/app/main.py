@@ -349,6 +349,12 @@ except Exception:
     pass
 
 try:
+    from app.api.recursive_entity import router as recursive_entity_router
+    app.include_router(recursive_entity_router)
+except Exception:
+    pass
+
+try:
     from prometheus_client import make_asgi_app as _make_prom_app
     _metrics_app = _make_prom_app()
     app.mount("/metrics", _metrics_app)
