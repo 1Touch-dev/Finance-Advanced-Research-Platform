@@ -16,8 +16,8 @@
 | **James's Requirements** | ~65% | ~20% | ~15% |
 
 **Key Achievements (16 Aug 2026):**
-- **Band B Features #16, #19-24, #26, #28-30 Complete**: 11 of 17 Band B features now done (~65%)
-- 266 new tests across consensus, analyst, guidance, volume, formula, leaderboard, and ontology services
+- **Band B Features #16, #17, #19-24, #26, #28-31 Complete**: 13 of 17 Band B features now done (~76%)
+- 333 tests across consensus, analyst, guidance, volume, formula, leaderboard, ontology, document, and docket services
 - Fixed bug in earnings surprise report date calculation
 - **Embeddings Model Fine-tuned & Deployed**: +8.5% ranking accuracy, +82% confidence margin
 - Model trained on RunPod (RTX 4090), deployed to EC2 CPU, backed up to S3
@@ -325,13 +325,13 @@ python -m app.scripts.benchmark_search --iterations 20 --corpus-size 500
 
 ## Section 4: What's REMAINING (Not Started)
 
-### 4.1 Band B — Differentiation Multipliers (17 items, ~65% done)
+### 4.1 Band B — Differentiation Multipliers (17 items, ~76% done)
 
 | # | Feature | Status | Effort |
 |---|---------|--------|--------|
 | 15 | Filing redline + table-to-Excel | ❌ Not done | Medium |
 | 16 | Company-specific ontology + KPI schema | ✅ **Complete** | High |
-| 17 | Private document ingestion | ❌ Not done | Medium |
+| 17 | Private document ingestion | ✅ **Complete** | Medium |
 | 18 | Multi-entity thematic corpora | ❌ Not done | Medium |
 | 19 | Point-in-time rolling consensus | ✅ **Complete** | High |
 | 20 | Consensus revision history | ✅ **Complete** | Medium |
@@ -345,23 +345,25 @@ python -m app.scripts.benchmark_search --iterations 20 --corpus-size 500
 | 28 | Unusual volume screening | ✅ **Complete** | Medium |
 | 29 | Public analyst profiles | ✅ **Complete** | Low |
 | 30 | Model + idea leaderboards | ✅ **Complete** | Medium |
-| 31 | Docket-to-disclosure reconciliation | ❌ Not done | Medium |
+| 31 | Docket-to-disclosure reconciliation | ✅ **Complete** | Medium |
 
 **Band B Features Completed (16 Aug 2026):**
+- **#16 Company Ontology + KPI Schema**: `GET /ontology/{ticker}` - Industry KPI templates, entity extraction
+- **#17 Private Document Ingestion**: `POST /documents/upload` - PDF/DOCX/XLSX/TXT ingestion, chunking, RAG search
 - **#19 Point-in-time Rolling Consensus**: `GET /consensus/rolling` - Weekly snapshots showing consensus evolution
 - **#20 Consensus Revision History**: `GET /consensus/revisions` - Tracks how analyst estimates changed over time
 - **#21 Estimate Dispersion**: `GET /consensus/dispersion` - Measures analyst disagreement with CV, quartiles, outliers
 - **#22 Guidance vs Actual Tracking**: `guidance_service.py` - Management credibility scoring, guidance revisions
 - **#23 Earnings Surprise History**: `GET /consensus/surprise-history` - Beat/miss patterns, streaks, market reactions
 - **#24 Per-Analyst Accuracy Scoring**: `GET /analysts/score/{id}` - MAE, direction accuracy, Brier score, calibration
+- **#26 Custom Formula Charting**: `POST /formula/evaluate` - Safe expression parser, multi-ticker formulas
 - **#28 Unusual Volume Screening**: `volume_screening_service.py` - Sector flow, volume profiles, spike detection
 - **#29 Public Analyst Profiles**: `GET /analysts/profile/{id}` - Search, ranking, firm/sector coverage
-- **#16 Company Ontology + KPI Schema**: `GET /ontology/{ticker}` - Industry KPI templates, entity extraction
-- **#26 Custom Formula Charting**: `POST /formula/evaluate` - Safe expression parser, multi-ticker formulas
 - **#30 Model + Idea Leaderboards**: `GET /leaderboard/predictions` - Brier scoring, calibration, user ranking
+- **#31 Docket-to-Disclosure Reconciliation**: `GET /docket/{ticker}/reconcile` - L-series feature, undisclosed litigation detection
 - **Dashboard**: `GET /consensus/dashboard/{ticker}` - Combined view of all metrics
 - **Compare**: `GET /consensus/compare?tickers=NVDA,AAPL` - Multi-ticker comparison
-- **Tests**: 266 tests across consensus, analyst, guidance, volume, formula, leaderboard, and ontology services
+- **Tests**: 333 tests across consensus, analyst, guidance, volume, formula, leaderboard, ontology, document, and docket services
 
 ### 4.2 Band C — Table Stakes (25 items, ~5% done)
 
@@ -397,8 +399,8 @@ All deferred (native push, offline caching, biometric login, widgets, screen sha
 
 ## Section 5: Test Suite Status
 
-**Total Tests:** 434
-**Passing:** 431 (99.3%)
+**Total Tests:** 501
+**Passing:** 498 (99.4%)
 **Failed:** 3 (pre-existing, unrelated to Band B features)
 
 | Test File | Tests | Status |
@@ -411,7 +413,9 @@ All deferred (native push, offline caching, biometric login, widgets, screen sha
 | `test_volume_service.py` | 34 | ✅ All pass |
 | `test_formula_api.py` | 18 | ✅ All pass |
 | `test_leaderboard_api.py` | 23 | ✅ All pass |
-| `test_ontology_api.py` | 18 | ✅ All pass (NEW) |
+| `test_ontology_api.py` | 18 | ✅ All pass |
+| `test_document_api.py` | 34 | ✅ All pass (NEW) |
+| `test_docket_api.py` | 33 | ✅ All pass (NEW) |
 | `test_rag_vector.py` | 34 | ⚠️ 2 flaky |
 | `test_rag_eval_gate.py` | 4 | ✅ All pass |
 | `test_quality_classifier.py` | 8 | ✅ All pass |

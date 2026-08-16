@@ -1,6 +1,6 @@
 """
 Document Ingestion API Routes (Band B #17)
-────────────────────────────────────────────────────────────────────────────
+--------------------------------------------------------------------------------
 Provides endpoints for:
   - File upload
   - Document processing
@@ -25,6 +25,8 @@ router = APIRouter(prefix="/documents")
 
 _SEARCH_LIMIT = int(os.getenv("RAG_SEARCH_RATE_LIMIT", "30"))
 
+
+# -- Static routes first (before parameterized routes) ------------------------
 
 @router.post("/upload")
 async def upload_document(
@@ -72,6 +74,135 @@ async def upload_document(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
+
+@router.post("/bulk-upload")
+async def bulk_upload_documents(
+    files: List[UploadFile] = File(...),
+    ticker: Optional[str] = Form(None),
+    tags: Optional[str] = Form(None),
+    user_id: Optional[str] = Form(None),
+):
+    """
+    Upload multiple documents at once.
+    """
+    service = get_ingestion_service()
+    results = []
+
+    tag_list = [t.strip() for t in tags.split(",")] if tags else []
+
+    for file in files:
+        try:
+            metadata = service.upload_document(
+                file=file.file,
+                filename=file.filename,
+                user_id=user_id,
+                ticker=ticker.upper() if ticker else None,
+                tags=tag_list,
+            )
+            results.append({
+                "filename": file.filename,
+                "success": True,
+                "document_id": metadata.id,
+            })
+        except Exception as e:
+            results.append({
+                "filename": file.filename,
+                "success": False,
+                "error": str(e),
+            })
+
+    return {
+        "total": len(files),
+        "successful": sum(1 for r in results if r["success"]),
+        "failed": sum(1 for r in results if not r["success"]),
+        "results": results,
+    }
+
+
+@router.get("/search", dependencies=[Depends(rate_limiter("docs_search", limit=_SEARCH_LIMIT, window=60))])
+async def search_documents(
+    query: str = Query(..., description="Search query", max_length=2000),
+    ticker: Optional[str] = Query(None, description="Filter by ticker"),
+    document_ids: Optional[str] = Query(None, description="Comma-separated document IDs"),
+    limit: int = Query(10, ge=1, le=100, description="Maximum results (1-100)"),
+    mode: str = Query("hybrid", description="Retrieval mode: vector | keyword | hybrid"),
+    debug: bool = Query(False, description="Attach per-stage RAG retrieval trace"),
+    user_id: Optional[str] = Query(None, description="Tenant scope — only this user's docs"),
+):
+    """
+    Search across document chunks (vector / keyword / hybrid + rerank).
+    Falls back to keyword automatically when embeddings are unavailable.
+    Rate-limited and tenant-scoped (user_id) to prevent abuse / cross-tenant leakage.
+    """
+    service = get_ingestion_service()
+
+    doc_id_list = None
+    if document_ids:
+        doc_id_list = [d.strip() for d in document_ids.split(",")]
+
+    results = service.search_chunks(
+        query=query,
+        document_ids=doc_id_list,
+        ticker=ticker.upper() if ticker else None,
+        limit=limit,
+        mode=mode,
+        debug=debug,
+        user_id=user_id,
+    )
+
+    # Pull the trace off the last result (set by the service when debug=True).
+    trace = None
+    if debug and results and "_trace" in results[-1]:
+        trace = results[-1].pop("_trace")
+
+    return {
+        "query": query,
+        "mode": mode,
+        "filters": {
+            "ticker": ticker,
+            "document_ids": doc_id_list,
+            "user_id": user_id,
+        },
+        "results": results,
+        "count": len(results),
+        **({"trace": trace} if trace else {}),
+    }
+
+
+@router.get("/")
+async def list_documents(
+    ticker: Optional[str] = Query(None, description="Filter by ticker"),
+    entity_id: Optional[str] = Query(None, description="Filter by entity ID"),
+    user_id: Optional[str] = Query(None, description="Filter by user ID"),
+    status: Optional[str] = Query(None, description="Filter by processing status"),
+):
+    """
+    List all uploaded documents with optional filters.
+    """
+    service = get_ingestion_service()
+
+    # Parse status
+    proc_status = None
+    if status:
+        try:
+            proc_status = ProcessingStatus(status.lower())
+        except ValueError:
+            pass
+
+    documents = service.list_documents(
+        user_id=user_id,
+        ticker=ticker.upper() if ticker else None,
+        entity_id=entity_id,
+        status=proc_status,
+    )
+
+    return {
+        "documents": [metadata_to_dict(d) for d in documents],
+        "total": len(documents),
+    }
+
+
+# -- Parameterized routes (after static routes) -------------------------------
 
 @router.post("/{document_id}/process")
 async def process_document(document_id: str):
@@ -161,89 +292,6 @@ async def get_document_chunks(
     }
 
 
-@router.get("/search", dependencies=[Depends(rate_limiter("docs_search", limit=_SEARCH_LIMIT, window=60))])
-async def search_documents(
-    query: str = Query(..., description="Search query", max_length=2000),
-    ticker: Optional[str] = Query(None, description="Filter by ticker"),
-    document_ids: Optional[str] = Query(None, description="Comma-separated document IDs"),
-    limit: int = Query(10, ge=1, le=100, description="Maximum results (1-100)"),
-    mode: str = Query("hybrid", description="Retrieval mode: vector | keyword | hybrid"),
-    debug: bool = Query(False, description="Attach per-stage RAG retrieval trace"),
-    user_id: Optional[str] = Query(None, description="Tenant scope — only this user's docs"),
-):
-    """
-    Search across document chunks (vector / keyword / hybrid + rerank).
-    Falls back to keyword automatically when embeddings are unavailable.
-    Rate-limited and tenant-scoped (user_id) to prevent abuse / cross-tenant leakage.
-    """
-    service = get_ingestion_service()
-
-    doc_id_list = None
-    if document_ids:
-        doc_id_list = [d.strip() for d in document_ids.split(",")]
-
-    results = service.search_chunks(
-        query=query,
-        document_ids=doc_id_list,
-        ticker=ticker.upper() if ticker else None,
-        limit=limit,
-        mode=mode,
-        debug=debug,
-        user_id=user_id,
-    )
-
-    # Pull the trace off the last result (set by the service when debug=True).
-    trace = None
-    if debug and results and "_trace" in results[-1]:
-        trace = results[-1].pop("_trace")
-
-    return {
-        "query": query,
-        "mode": mode,
-        "filters": {
-            "ticker": ticker,
-            "document_ids": doc_id_list,
-            "user_id": user_id,
-        },
-        "results": results,
-        "count": len(results),
-        **({"trace": trace} if trace else {}),
-    }
-
-
-@router.get("/")
-async def list_documents(
-    ticker: Optional[str] = Query(None, description="Filter by ticker"),
-    entity_id: Optional[str] = Query(None, description="Filter by entity ID"),
-    user_id: Optional[str] = Query(None, description="Filter by user ID"),
-    status: Optional[str] = Query(None, description="Filter by processing status"),
-):
-    """
-    List all uploaded documents with optional filters.
-    """
-    service = get_ingestion_service()
-
-    # Parse status
-    proc_status = None
-    if status:
-        try:
-            proc_status = ProcessingStatus(status.lower())
-        except ValueError:
-            pass
-
-    documents = service.list_documents(
-        user_id=user_id,
-        ticker=ticker.upper() if ticker else None,
-        entity_id=entity_id,
-        status=proc_status,
-    )
-
-    return {
-        "documents": [metadata_to_dict(d) for d in documents],
-        "total": len(documents),
-    }
-
-
 @router.delete("/{document_id}")
 async def delete_document(document_id: str):
     """
@@ -258,48 +306,4 @@ async def delete_document(document_id: str):
     return {
         "success": True,
         "message": f"Document {document_id} deleted",
-    }
-
-
-@router.post("/bulk-upload")
-async def bulk_upload_documents(
-    files: List[UploadFile] = File(...),
-    ticker: Optional[str] = Form(None),
-    tags: Optional[str] = Form(None),
-    user_id: Optional[str] = Form(None),
-):
-    """
-    Upload multiple documents at once.
-    """
-    service = get_ingestion_service()
-    results = []
-
-    tag_list = [t.strip() for t in tags.split(",")] if tags else []
-
-    for file in files:
-        try:
-            metadata = service.upload_document(
-                file=file.file,
-                filename=file.filename,
-                user_id=user_id,
-                ticker=ticker.upper() if ticker else None,
-                tags=tag_list,
-            )
-            results.append({
-                "filename": file.filename,
-                "success": True,
-                "document_id": metadata.id,
-            })
-        except Exception as e:
-            results.append({
-                "filename": file.filename,
-                "success": False,
-                "error": str(e),
-            })
-
-    return {
-        "total": len(files),
-        "successful": sum(1 for r in results if r["success"]),
-        "failed": sum(1 for r in results if not r["success"]),
-        "results": results,
     }
