@@ -12,17 +12,21 @@
 |----------|------|---------|-----------|
 | **Core Platform** | 92% | 3% | 5% |
 | **AI Model Training (Phase 1-4)** | 85% | 5% | 10% |
-| **72-Feature Register** | ~50% | ~10% | ~40% |
+| **72-Feature Register** | ~56% | ~10% | ~34% |
 | **James's Requirements** | ~65% | ~20% | ~15% |
 
 **Key Achievements (16 Aug 2026):**
 - **Band B Features #15-31 Complete**: All 17 Band B features done (100%)
-- **Band C Progress**: 10 of 25 features done (~40%)
+- **Band C Progress**: 14 of 25 features done (~56%)
+  - #35 Price Alerts with triggering & notifications
+  - #36 Earnings Calendar with surprises & history
   - #37 Estimate Revision Screener with momentum analysis
+  - #40 Short Interest with squeeze candidates
+  - #46 Shared Watchlists & Dashboards
   - #47 Comments & Annotations system with threading/reactions
   - #50-56 L-series Litigation features (CourtListener integration)
-- **Frontend wiring complete**: Added whisper.js, docket.js, revisions.js pages + Comments/Annotations components
-- 609 tests across all services (69 new tests for revision screener, comments, annotations)
+- **Frontend wiring complete**: Added calendar.js, alerts.js, short-interest.js, revisions.js + Comments/Annotations components
+- 826 tests across all services (49 new tests for earnings, alerts, short interest)
 - Fixed bug in earnings surprise report date calculation
 - **Embeddings Model Fine-tuned & Deployed**: +8.5% ranking accuracy, +82% confidence margin
 - Model trained on RunPod (RTX 4090), deployed to EC2 CPU, backed up to S3
@@ -375,25 +379,25 @@ python -m app.scripts.benchmark_search --iterations 20 --corpus-size 500
 - **Frontend Pages**: `whisper.js`, `docket.js` added to Research navigation in Layout.js
 - **Tests**: 540 tests across consensus, analyst, guidance, volume, formula, leaderboard, ontology, document, docket, filing, volatility, multi-entity, and whisper services
 
-### 4.2 Band C — Table Stakes (25 items, ~40% done)
+### 4.2 Band C — Table Stakes (25 items, ~56% done)
 
 | # | Feature | Status | Notes |
 |---|---------|--------|-------|
 | 32 | Portfolio tracking | ❌ Not done | |
 | 33 | Mobile PWA with alerts | ❌ Not done | |
 | 34 | Global equity coverage | ❌ Not done | High effort |
-| 35 | Price alerts | ❌ Not done | |
-| 36 | Earnings calendar | ❌ Not done | |
+| 35 | Price alerts | ✅ **Complete** | `price_alert_service.py`, 17 tests |
+| 36 | Earnings calendar | ✅ **Complete** | `earnings_calendar_service.py`, 16 tests |
 | 37 | Estimate revision screener | ✅ **Complete** | `revision_screener_service.py`, 33 tests |
 | 38 | IPO calendar | ❌ Not done | |
 | 39 | M&A rumor tracking | ❌ Not done | |
-| 40 | Short interest data | ❌ Not done | |
+| 40 | Short interest data | ✅ **Complete** | `short_interest_service.py`, 16 tests |
 | 41 | Insider activity screener | ❌ Not done | |
 | 42 | Cost basis tracking | ❌ Not done | |
 | 43 | Brokerage sync | ❌ Not done | |
 | 44 | Benchmark attribution | ❌ Not done | |
 | 45 | Tax lot optimization | ❌ Not done | |
-| 46 | Shared watchlists & dashboards | ❌ Not done | Models ready |
+| 46 | Shared watchlists & dashboards | ✅ **Complete** | `dashboard_service.py`, full CRUD |
 | 47 | Comments & annotations | ✅ **Complete** | `comments_service.py`, 36 tests |
 | 48 | Shared workspaces | ❌ Not done | |
 | 49 | Team permission roles | ❌ Not done | |
@@ -406,10 +410,14 @@ python -m app.scripts.benchmark_search --iterations 20 --corpus-size 500
 | 56 | L-07: Alerts on new filings | ✅ **Complete** | Alert system |
 
 **Band C Features Completed (16 Aug 2026):**
+- **#35 Price Alerts**: `POST /alerts`, `GET /alerts`, `POST /alerts/check` - Alert creation, triggering, notifications
+- **#36 Earnings Calendar**: `GET /earnings/upcoming`, `GET /earnings/week`, `GET /earnings/surprises` - Calendar, surprises, history
 - **#37 Estimate Revision Screener**: `GET /revisions/screen`, `GET /revisions/top-upward`, `GET /revisions/alerts` - Screen companies by estimate revisions with momentum analysis
+- **#40 Short Interest**: `GET /short-interest/most-shorted`, `GET /short-interest/squeeze-candidates` - Short data, squeeze indicators
+- **#46 Shared Watchlists & Dashboards**: `POST /dashboard`, `POST /watchlist/{id}/share` - Dashboard widgets, watchlist sharing
 - **#47 Comments & Annotations**: `POST /comments`, `POST /annotations` - Threaded comments with reactions, text annotations with highlighting
 - **#50-56 L-series Litigation**: `GET /litigation/{case_id}`, `GET /litigation/search`, `GET /litigation/analytics` - Full litigation tracking with CourtListener integration
-- **Frontend**: `revisions.js` page, `Comments.js` and `Annotations.js` components
+- **Frontend**: `calendar.js`, `alerts.js`, `short-interest.js`, `revisions.js`, `Comments.js`, `Annotations.js`
 
 ### 4.3 Band D — Segment Unlocks (11 items, 0% done)
 
@@ -435,8 +443,8 @@ All deferred (native push, offline caching, biometric login, widgets, screen sha
 
 ## Section 5: Test Suite Status
 
-**Total Tests:** 777
-**Passing:** 774 (99.6%)
+**Total Tests:** 826
+**Passing:** 823 (99.6%)
 **Failed:** 3 (pre-existing, unrelated to current features)
 
 | Test File | Tests | Status |
@@ -456,8 +464,11 @@ All deferred (native push, offline caching, biometric login, widgets, screen sha
 | `test_multi_entity_api.py` | 59 | ✅ All pass |
 | `test_whisper_api.py` | 54 | ✅ All pass |
 | `test_filing_api.py` | 43 | ✅ 42 pass, 1 skip |
-| `test_revision_screener_api.py` | 33 | ✅ All pass (NEW) |
-| `test_comments_api.py` | 36 | ✅ All pass (NEW) |
+| `test_revision_screener_api.py` | 33 | ✅ All pass |
+| `test_comments_api.py` | 36 | ✅ All pass |
+| `test_earnings_calendar_api.py` | 16 | ✅ All pass (NEW) |
+| `test_price_alerts_api.py` | 17 | ✅ All pass (NEW) |
+| `test_short_interest_api.py` | 16 | ✅ All pass (NEW) |
 | `test_litigation_api.py` | 38 | ✅ All pass |
 | `test_rag_vector.py` | 34 | ⚠️ 2 flaky |
 | `test_rag_eval_gate.py` | 4 | ✅ All pass |
