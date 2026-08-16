@@ -12,13 +12,17 @@
 |----------|------|---------|-----------|
 | **Core Platform** | 92% | 3% | 5% |
 | **AI Model Training (Phase 1-4)** | 85% | 5% | 10% |
-| **72-Feature Register** | ~40% | ~10% | ~50% |
+| **72-Feature Register** | ~50% | ~10% | ~40% |
 | **James's Requirements** | ~65% | ~20% | ~15% |
 
 **Key Achievements (16 Aug 2026):**
 - **Band B Features #15-31 Complete**: All 17 Band B features done (100%)
-- **Frontend wiring complete**: Added whisper.js and docket.js pages with full navigation
-- 540 tests across consensus, analyst, guidance, volume, formula, leaderboard, ontology, document, docket, filing, volatility, multi-entity, and whisper services
+- **Band C Progress**: 10 of 25 features done (~40%)
+  - #37 Estimate Revision Screener with momentum analysis
+  - #47 Comments & Annotations system with threading/reactions
+  - #50-56 L-series Litigation features (CourtListener integration)
+- **Frontend wiring complete**: Added whisper.js, docket.js, revisions.js pages + Comments/Annotations components
+- 609 tests across all services (69 new tests for revision screener, comments, annotations)
 - Fixed bug in earnings surprise report date calculation
 - **Embeddings Model Fine-tuned & Deployed**: +8.5% ranking accuracy, +82% confidence margin
 - Model trained on RunPod (RTX 4090), deployed to EC2 CPU, backed up to S3
@@ -371,15 +375,41 @@ python -m app.scripts.benchmark_search --iterations 20 --corpus-size 500
 - **Frontend Pages**: `whisper.js`, `docket.js` added to Research navigation in Layout.js
 - **Tests**: 540 tests across consensus, analyst, guidance, volume, formula, leaderboard, ontology, document, docket, filing, volatility, multi-entity, and whisper services
 
-### 4.2 Band C — Table Stakes (25 items, ~5% done)
+### 4.2 Band C — Table Stakes (25 items, ~40% done)
 
-| # | Feature | Status |
-|---|---------|--------|
-| 32 | Portfolio tracking | ❌ Not done |
-| 33 | Mobile PWA with alerts | ❌ Not done |
-| 34 | Global equity coverage | ❌ Not done (High) |
-| 35-49 | Various table stakes | ❌ Not done |
-| 50-56 | L-series litigation | ❌ Not done |
+| # | Feature | Status | Notes |
+|---|---------|--------|-------|
+| 32 | Portfolio tracking | ❌ Not done | |
+| 33 | Mobile PWA with alerts | ❌ Not done | |
+| 34 | Global equity coverage | ❌ Not done | High effort |
+| 35 | Price alerts | ❌ Not done | |
+| 36 | Earnings calendar | ❌ Not done | |
+| 37 | Estimate revision screener | ✅ **Complete** | `revision_screener_service.py`, 33 tests |
+| 38 | IPO calendar | ❌ Not done | |
+| 39 | M&A rumor tracking | ❌ Not done | |
+| 40 | Short interest data | ❌ Not done | |
+| 41 | Insider activity screener | ❌ Not done | |
+| 42 | Cost basis tracking | ❌ Not done | |
+| 43 | Brokerage sync | ❌ Not done | |
+| 44 | Benchmark attribution | ❌ Not done | |
+| 45 | Tax lot optimization | ❌ Not done | |
+| 46 | Shared watchlists & dashboards | ❌ Not done | Models ready |
+| 47 | Comments & annotations | ✅ **Complete** | `comments_service.py`, 36 tests |
+| 48 | Shared workspaces | ❌ Not done | |
+| 49 | Team permission roles | ❌ Not done | |
+| 50 | L-01: Litigation detail pages | ✅ **Complete** | `litigation_service.py` |
+| 51 | L-02: Search by company | ✅ **Complete** | Full-text search |
+| 52 | L-03: Case timeline | ✅ **Complete** | Timeline visualization |
+| 53 | L-04: Document viewer | ✅ **Complete** | Document display |
+| 54 | L-05: Judge/attorney analytics | ✅ **Complete** | Analytics endpoints |
+| 55 | L-06: Exposure calculator | ✅ **Complete** | Risk exposure |
+| 56 | L-07: Alerts on new filings | ✅ **Complete** | Alert system |
+
+**Band C Features Completed (16 Aug 2026):**
+- **#37 Estimate Revision Screener**: `GET /revisions/screen`, `GET /revisions/top-upward`, `GET /revisions/alerts` - Screen companies by estimate revisions with momentum analysis
+- **#47 Comments & Annotations**: `POST /comments`, `POST /annotations` - Threaded comments with reactions, text annotations with highlighting
+- **#50-56 L-series Litigation**: `GET /litigation/{case_id}`, `GET /litigation/search`, `GET /litigation/analytics` - Full litigation tracking with CourtListener integration
+- **Frontend**: `revisions.js` page, `Comments.js` and `Annotations.js` components
 
 ### 4.3 Band D — Segment Unlocks (11 items, 0% done)
 
@@ -405,9 +435,9 @@ All deferred (native push, offline caching, biometric login, widgets, screen sha
 
 ## Section 5: Test Suite Status
 
-**Total Tests:** 708
-**Passing:** 705 (99.6%)
-**Failed:** 3 (pre-existing, unrelated to Band B features)
+**Total Tests:** 777
+**Passing:** 774 (99.6%)
+**Failed:** 3 (pre-existing, unrelated to current features)
 
 | Test File | Tests | Status |
 |-----------|-------|--------|
@@ -425,7 +455,10 @@ All deferred (native push, offline caching, biometric login, widgets, screen sha
 | `test_volatility_api.py` | 51 | ✅ All pass |
 | `test_multi_entity_api.py` | 59 | ✅ All pass |
 | `test_whisper_api.py` | 54 | ✅ All pass |
-| `test_filing_api.py` | 43 | ✅ 42 pass, 1 skip (NEW) |
+| `test_filing_api.py` | 43 | ✅ 42 pass, 1 skip |
+| `test_revision_screener_api.py` | 33 | ✅ All pass (NEW) |
+| `test_comments_api.py` | 36 | ✅ All pass (NEW) |
+| `test_litigation_api.py` | 38 | ✅ All pass |
 | `test_rag_vector.py` | 34 | ⚠️ 2 flaky |
 | `test_rag_eval_gate.py` | 4 | ✅ All pass |
 | `test_quality_classifier.py` | 8 | ✅ All pass |

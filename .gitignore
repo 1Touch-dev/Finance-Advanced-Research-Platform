@@ -88,3 +88,6 @@ apps/web/out/
 embedding-model-fine-tuning/finance-embed-v1/
 embedding-model-fine-tuning/*.tar.gz
 *.safetensors
+
+# User uploads (runtime data - not source code)
+apps/api/uploads/
