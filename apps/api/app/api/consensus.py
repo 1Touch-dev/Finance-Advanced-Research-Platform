@@ -24,6 +24,7 @@ from app.services.consensus_service import (
     get_estimate_dispersion,
     get_earnings_surprise,
     get_surprise_history,
+    get_forward_multiples,
     # Serializers
     consensus_snapshot_to_dict,
     revision_to_dict,
@@ -31,6 +32,7 @@ from app.services.consensus_service import (
     dispersion_to_dict,
     surprise_to_dict,
     surprise_history_to_dict,
+    forward_multiples_to_dict,
 )
 
 router = APIRouter(prefix="/consensus")
@@ -242,6 +244,89 @@ def get_dispersion(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error calculating dispersion: {str(e)}")
+
+
+# ── Forward Multiples ──────────────────────────────────────────────────────────
+
+@router.get("/multiples")
+def get_multiples(
+    ticker: str = Query(..., description="Stock ticker symbol"),
+    fiscal_year: Optional[int] = Query(None, description="Fiscal year for forward estimates"),
+):
+    """
+    Get forward valuation multiples based on consensus estimates.
+
+    Returns:
+    - Forward P/E, P/S, EV/EBITDA
+    - PEG ratio (P/E / EPS growth)
+    - Relative valuation vs sector
+    - Historical P/E context
+    """
+    try:
+        multiples = get_forward_multiples(
+            ticker=ticker,
+            fiscal_year=fiscal_year,
+        )
+        return forward_multiples_to_dict(multiples)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching multiples: {str(e)}")
+
+
+@router.get("/multiples/compare")
+def compare_multiples(
+    tickers: str = Query(..., description="Comma-separated tickers"),
+    fiscal_year: Optional[int] = Query(None, description="Fiscal year"),
+):
+    """
+    Compare forward multiples across multiple tickers.
+
+    Useful for peer comparison and relative valuation.
+    """
+    ticker_list = [t.strip().upper() for t in tickers.split(",")]
+    fy = fiscal_year or date.today().year
+
+    results = []
+    for ticker in ticker_list:
+        try:
+            multiples = get_forward_multiples(ticker=ticker, fiscal_year=fy)
+            results.append({
+                "ticker": ticker,
+                "forward_pe": multiples.forward_pe,
+                "forward_ps": multiples.forward_ps,
+                "forward_ev_ebitda": multiples.forward_ev_ebitda,
+                "peg_ratio": multiples.peg_ratio,
+                "eps_growth_rate": multiples.eps_growth_rate,
+                "pe_premium_discount": multiples.pe_premium_discount,
+            })
+        except Exception:
+            results.append({
+                "ticker": ticker,
+                "error": "Failed to fetch data",
+            })
+
+    # Calculate comparison stats
+    valid_results = [r for r in results if "error" not in r]
+    if valid_results:
+        avg_pe = sum(r["forward_pe"] for r in valid_results) / len(valid_results)
+        avg_ev_ebitda = sum(r["forward_ev_ebitda"] for r in valid_results) / len(valid_results)
+        cheapest = min(valid_results, key=lambda x: x["forward_pe"])
+        most_expensive = max(valid_results, key=lambda x: x["forward_pe"])
+    else:
+        avg_pe = avg_ev_ebitda = 0
+        cheapest = most_expensive = None
+
+    return {
+        "fiscal_year": fy,
+        "comparison": results,
+        "summary": {
+            "avg_forward_pe": round(avg_pe, 2),
+            "avg_forward_ev_ebitda": round(avg_ev_ebitda, 2),
+            "cheapest_pe": cheapest["ticker"] if cheapest else None,
+            "most_expensive_pe": most_expensive["ticker"] if most_expensive else None,
+        },
+    }
 
 
 # ── Earnings Surprises ─────────────────────────────────────────────────────────

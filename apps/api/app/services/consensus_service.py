@@ -219,6 +219,48 @@ class SurpriseHistory:
     avg_miss_reaction: Optional[float] = None
 
 
+@dataclass
+class ForwardMultiples:
+    """Forward valuation multiples based on consensus estimates."""
+    ticker: str
+    company_name: str
+    as_of_date: date
+    fiscal_year: int
+
+    # Current price data
+    current_price: float
+    shares_outstanding: float  # in millions
+    market_cap: float  # in billions
+    enterprise_value: float  # in billions
+
+    # Forward EPS-based multiples
+    forward_eps: float
+    forward_pe: float
+
+    # Forward revenue-based multiples
+    forward_revenue: float  # in billions
+    forward_revenue_per_share: float
+    forward_ps: float
+
+    # Forward EBITDA-based multiples
+    forward_ebitda: float  # in billions
+    forward_ev_ebitda: float
+
+    # Growth-adjusted multiples
+    eps_growth_rate: float  # YoY %
+    peg_ratio: float  # P/E / EPS growth
+
+    # Relative valuation
+    sector_avg_pe: float
+    pe_premium_discount: float  # % vs sector
+    sector_avg_ev_ebitda: float
+    ev_ebitda_premium_discount: float
+
+    # Historical context
+    historical_avg_pe: float  # 5-year average
+    pe_vs_historical: float  # % vs historical average
+
+
 # ── Simulated Data Store ───────────────────────────────────────────────────────
 # In production, this would be a bitemporal database
 
@@ -758,6 +800,144 @@ def get_surprise_history(
     )
 
 
+def get_forward_multiples(
+    ticker: str,
+    fiscal_year: Optional[int] = None,
+) -> ForwardMultiples:
+    """
+    Get forward valuation multiples based on consensus estimates.
+
+    Calculates forward P/E, P/S, EV/EBITDA, and PEG ratio.
+    """
+    ticker = ticker.upper()
+    fy = fiscal_year or date.today().year
+
+    # Simulated market data (would come from market data API in production)
+    market_data = {
+        "NVDA": {"price": 875.0, "shares": 2470, "debt": 10.0, "cash": 26.0, "sector": "Technology"},
+        "AAPL": {"price": 178.0, "shares": 15500, "debt": 109.0, "cash": 62.0, "sector": "Technology"},
+        "MSFT": {"price": 415.0, "shares": 7430, "debt": 47.0, "cash": 80.0, "sector": "Technology"},
+        "GOOGL": {"price": 175.0, "shares": 12500, "debt": 14.0, "cash": 111.0, "sector": "Technology"},
+        "META": {"price": 495.0, "shares": 2560, "debt": 18.0, "cash": 65.0, "sector": "Technology"},
+        "AMZN": {"price": 178.0, "shares": 10400, "debt": 67.0, "cash": 86.0, "sector": "Consumer Discretionary"},
+        "AMD": {"price": 165.0, "shares": 1620, "debt": 2.0, "cash": 6.0, "sector": "Technology"},
+        "INTC": {"price": 31.0, "shares": 4250, "debt": 50.0, "cash": 25.0, "sector": "Technology"},
+        "TSLA": {"price": 245.0, "shares": 3180, "debt": 5.0, "cash": 29.0, "sector": "Consumer Discretionary"},
+        "JPM": {"price": 195.0, "shares": 2870, "debt": 0.0, "cash": 0.0, "sector": "Financials"},
+        "GS": {"price": 480.0, "shares": 320, "debt": 0.0, "cash": 0.0, "sector": "Financials"},
+        "V": {"price": 275.0, "shares": 1650, "debt": 21.0, "cash": 18.0, "sector": "Financials"},
+    }
+
+    # Revenue estimates (in billions)
+    revenue_estimates = {
+        "NVDA": 120.0, "AAPL": 395.0, "MSFT": 280.0, "GOOGL": 350.0,
+        "META": 165.0, "AMZN": 640.0, "AMD": 28.0, "INTC": 55.0,
+        "TSLA": 115.0, "JPM": 175.0, "GS": 52.0, "V": 38.0,
+    }
+
+    # EBITDA estimates (in billions)
+    ebitda_estimates = {
+        "NVDA": 75.0, "AAPL": 135.0, "MSFT": 115.0, "GOOGL": 110.0,
+        "META": 70.0, "AMZN": 95.0, "AMD": 6.5, "INTC": 15.0,
+        "TSLA": 18.0, "JPM": 65.0, "GS": 18.0, "V": 22.0,
+    }
+
+    # Historical P/E averages (5-year)
+    historical_pe = {
+        "NVDA": 45.0, "AAPL": 22.0, "MSFT": 28.0, "GOOGL": 24.0,
+        "META": 20.0, "AMZN": 60.0, "AMD": 35.0, "INTC": 12.0,
+        "TSLA": 75.0, "JPM": 11.0, "GS": 10.0, "V": 30.0,
+    }
+
+    # Sector averages
+    sector_multiples = {
+        "Technology": {"pe": 28.0, "ev_ebitda": 18.0},
+        "Consumer Discretionary": {"pe": 22.0, "ev_ebitda": 12.0},
+        "Financials": {"pe": 12.0, "ev_ebitda": 8.0},
+    }
+
+    # Get market data with defaults
+    data = market_data.get(ticker, {
+        "price": 100.0, "shares": 1000, "debt": 10.0, "cash": 5.0, "sector": "Technology"
+    })
+
+    price = data["price"]
+    shares = data["shares"]  # in millions
+    debt = data["debt"]  # in billions
+    cash = data["cash"]  # in billions
+    sector = data["sector"]
+
+    # Calculate market cap and EV
+    market_cap = (price * shares) / 1000  # in billions
+    enterprise_value = market_cap + debt - cash
+
+    # Get forward EPS from consensus
+    eps_snapshot = get_consensus_snapshot(ticker, EstimateType.EPS, fy)
+    forward_eps = eps_snapshot.mean
+
+    # Get prior year EPS for growth calculation
+    prior_eps_snapshot = get_consensus_snapshot(ticker, EstimateType.EPS, fy - 1)
+    prior_eps = prior_eps_snapshot.mean
+
+    # Calculate forward multiples
+    forward_pe = price / forward_eps if forward_eps > 0 else 0
+    eps_growth = ((forward_eps - prior_eps) / abs(prior_eps) * 100) if prior_eps != 0 else 0
+    peg_ratio = forward_pe / eps_growth if eps_growth > 0 else 0
+
+    # Revenue multiples
+    forward_revenue = revenue_estimates.get(ticker, 50.0)
+    forward_revenue_per_share = (forward_revenue * 1000) / shares  # revenue per share
+    forward_ps = market_cap / forward_revenue if forward_revenue > 0 else 0
+
+    # EBITDA multiples
+    forward_ebitda = ebitda_estimates.get(ticker, 10.0)
+    forward_ev_ebitda = enterprise_value / forward_ebitda if forward_ebitda > 0 else 0
+
+    # Relative valuation
+    sector_avgs = sector_multiples.get(sector, {"pe": 20.0, "ev_ebitda": 12.0})
+    pe_premium_discount = ((forward_pe - sector_avgs["pe"]) / sector_avgs["pe"] * 100) if sector_avgs["pe"] > 0 else 0
+    ev_ebitda_premium_discount = ((forward_ev_ebitda - sector_avgs["ev_ebitda"]) / sector_avgs["ev_ebitda"] * 100) if sector_avgs["ev_ebitda"] > 0 else 0
+
+    # Historical context
+    hist_pe = historical_pe.get(ticker, 20.0)
+    pe_vs_historical = ((forward_pe - hist_pe) / hist_pe * 100) if hist_pe > 0 else 0
+
+    company_names = {
+        "NVDA": "NVIDIA Corporation", "AAPL": "Apple Inc.",
+        "MSFT": "Microsoft Corporation", "GOOGL": "Alphabet Inc.",
+        "META": "Meta Platforms Inc.", "AMZN": "Amazon.com Inc.",
+        "AMD": "Advanced Micro Devices", "INTC": "Intel Corporation",
+        "TSLA": "Tesla Inc.", "JPM": "JPMorgan Chase & Co.",
+        "GS": "Goldman Sachs Group", "V": "Visa Inc.",
+    }
+
+    return ForwardMultiples(
+        ticker=ticker,
+        company_name=company_names.get(ticker, ticker),
+        as_of_date=date.today(),
+        fiscal_year=fy,
+        current_price=price,
+        shares_outstanding=shares,
+        market_cap=round(market_cap, 2),
+        enterprise_value=round(enterprise_value, 2),
+        forward_eps=forward_eps,
+        forward_pe=round(forward_pe, 2),
+        forward_revenue=forward_revenue,
+        forward_revenue_per_share=round(forward_revenue_per_share, 2),
+        forward_ps=round(forward_ps, 2),
+        forward_ebitda=forward_ebitda,
+        forward_ev_ebitda=round(forward_ev_ebitda, 2),
+        eps_growth_rate=round(eps_growth, 2),
+        peg_ratio=round(peg_ratio, 2),
+        sector_avg_pe=sector_avgs["pe"],
+        pe_premium_discount=round(pe_premium_discount, 2),
+        sector_avg_ev_ebitda=sector_avgs["ev_ebitda"],
+        ev_ebitda_premium_discount=round(ev_ebitda_premium_discount, 2),
+        historical_avg_pe=hist_pe,
+        pe_vs_historical=round(pe_vs_historical, 2),
+    )
+
+
 # ── Serialization ──────────────────────────────────────────────────────────────
 
 def consensus_snapshot_to_dict(snapshot: ConsensusSnapshot) -> Dict[str, Any]:
@@ -900,4 +1080,42 @@ def surprise_history_to_dict(history: SurpriseHistory) -> Dict[str, Any]:
             "avg_miss_reaction": history.avg_miss_reaction,
         },
         "history": [surprise_to_dict(s) for s in history.surprises],
+    }
+
+
+def forward_multiples_to_dict(multiples: ForwardMultiples) -> Dict[str, Any]:
+    """Convert forward multiples to dictionary."""
+    return {
+        "ticker": multiples.ticker,
+        "company_name": multiples.company_name,
+        "as_of_date": multiples.as_of_date.isoformat(),
+        "fiscal_year": multiples.fiscal_year,
+        "market_data": {
+            "current_price": multiples.current_price,
+            "shares_outstanding_mm": multiples.shares_outstanding,
+            "market_cap_bn": multiples.market_cap,
+            "enterprise_value_bn": multiples.enterprise_value,
+        },
+        "forward_multiples": {
+            "forward_eps": multiples.forward_eps,
+            "forward_pe": multiples.forward_pe,
+            "forward_revenue_bn": multiples.forward_revenue,
+            "forward_ps": multiples.forward_ps,
+            "forward_ebitda_bn": multiples.forward_ebitda,
+            "forward_ev_ebitda": multiples.forward_ev_ebitda,
+        },
+        "growth_adjusted": {
+            "eps_growth_rate_pct": multiples.eps_growth_rate,
+            "peg_ratio": multiples.peg_ratio,
+        },
+        "relative_valuation": {
+            "sector_avg_pe": multiples.sector_avg_pe,
+            "pe_premium_discount_pct": multiples.pe_premium_discount,
+            "sector_avg_ev_ebitda": multiples.sector_avg_ev_ebitda,
+            "ev_ebitda_premium_discount_pct": multiples.ev_ebitda_premium_discount,
+        },
+        "historical_context": {
+            "historical_avg_pe": multiples.historical_avg_pe,
+            "pe_vs_historical_pct": multiples.pe_vs_historical,
+        },
     }

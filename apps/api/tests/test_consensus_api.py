@@ -341,3 +341,119 @@ class TestRollingEndpoint:
         assert "snapshots" in data
         assert "count" in data
         assert len(data["snapshots"]) > 0
+
+
+# ── Forward Multiples Endpoint (#35) ─────────────────────────────────────────
+
+class TestForwardMultiplesEndpoint:
+    """Tests for GET /consensus/multiples - Band C #35."""
+
+    def test_multiples_basic(self, test_ticker):
+        response = client.get(f"/consensus/multiples?ticker={test_ticker}")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["ticker"] == test_ticker.upper()
+        assert "forward_multiples" in data
+        assert "market_data" in data
+
+    def test_multiples_has_forward_pe(self, test_ticker):
+        response = client.get(f"/consensus/multiples?ticker={test_ticker}")
+        data = response.json()
+
+        assert "forward_pe" in data["forward_multiples"]
+        assert data["forward_multiples"]["forward_pe"] > 0
+
+    def test_multiples_has_forward_ps(self, test_ticker):
+        response = client.get(f"/consensus/multiples?ticker={test_ticker}")
+        data = response.json()
+
+        assert "forward_ps" in data["forward_multiples"]
+        assert data["forward_multiples"]["forward_ps"] > 0
+
+    def test_multiples_has_ev_ebitda(self, test_ticker):
+        response = client.get(f"/consensus/multiples?ticker={test_ticker}")
+        data = response.json()
+
+        assert "forward_ev_ebitda" in data["forward_multiples"]
+        assert data["forward_multiples"]["forward_ev_ebitda"] > 0
+
+    def test_multiples_has_peg_ratio(self, test_ticker):
+        response = client.get(f"/consensus/multiples?ticker={test_ticker}")
+        data = response.json()
+
+        assert "growth_adjusted" in data
+        assert "peg_ratio" in data["growth_adjusted"]
+
+    def test_multiples_has_relative_valuation(self, test_ticker):
+        response = client.get(f"/consensus/multiples?ticker={test_ticker}")
+        data = response.json()
+
+        assert "relative_valuation" in data
+        assert "sector_avg_pe" in data["relative_valuation"]
+        assert "pe_premium_discount_pct" in data["relative_valuation"]
+
+    def test_multiples_has_historical_context(self, test_ticker):
+        response = client.get(f"/consensus/multiples?ticker={test_ticker}")
+        data = response.json()
+
+        assert "historical_context" in data
+        assert "historical_avg_pe" in data["historical_context"]
+        assert "pe_vs_historical_pct" in data["historical_context"]
+
+    def test_multiples_has_market_data(self, test_ticker):
+        response = client.get(f"/consensus/multiples?ticker={test_ticker}")
+        data = response.json()
+
+        market_data = data["market_data"]
+        assert "current_price" in market_data
+        assert "market_cap_bn" in market_data
+        assert "enterprise_value_bn" in market_data
+
+    def test_multiples_with_fiscal_year(self, test_ticker, current_year):
+        response = client.get(f"/consensus/multiples?ticker={test_ticker}&fiscal_year={current_year}")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["fiscal_year"] == current_year
+
+
+class TestForwardMultiplesCompareEndpoint:
+    """Tests for GET /consensus/multiples/compare - Band C #35."""
+
+    def test_multiples_compare_basic(self):
+        response = client.get("/consensus/multiples/compare?tickers=NVDA,AAPL,MSFT")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert "comparison" in data
+        assert len(data["comparison"]) == 3
+
+    def test_multiples_compare_has_summary(self):
+        response = client.get("/consensus/multiples/compare?tickers=NVDA,AAPL")
+        data = response.json()
+
+        assert "summary" in data
+        assert "avg_forward_pe" in data["summary"]
+        assert "avg_forward_ev_ebitda" in data["summary"]
+        assert "cheapest_pe" in data["summary"]
+        assert "most_expensive_pe" in data["summary"]
+
+    def test_multiples_compare_items_have_metrics(self):
+        response = client.get("/consensus/multiples/compare?tickers=NVDA,AAPL")
+        data = response.json()
+
+        for item in data["comparison"]:
+            if "error" not in item:
+                assert "ticker" in item
+                assert "forward_pe" in item
+                assert "forward_ps" in item
+                assert "forward_ev_ebitda" in item
+                assert "peg_ratio" in item
+
+    def test_multiples_compare_with_fiscal_year(self, current_year):
+        response = client.get(f"/consensus/multiples/compare?tickers=NVDA,AAPL&fiscal_year={current_year}")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["fiscal_year"] == current_year
