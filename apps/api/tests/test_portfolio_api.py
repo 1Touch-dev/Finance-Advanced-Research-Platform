@@ -357,3 +357,133 @@ class TestEnums:
         assert AssetClass.ETF.value == "etf"
         assert AssetClass.CRYPTO.value == "crypto"
         assert AssetClass.CASH.value == "cash"
+
+
+# ── Risk Metrics Tests (#45) ─────────────────────────────────────────────────
+
+class TestRiskMetrics:
+    """Test risk metrics calculation (Band C #45)."""
+
+    def test_risk_metrics_calculation(self):
+        """Risk metrics calculate correctly."""
+        from app.services.portfolio_service import (
+            get_portfolio_service,
+            calculate_risk_metrics,
+        )
+        service = get_portfolio_service()
+
+        positions = [
+            {"ticker": "AAPL", "qty": 100, "cost_basis": 150.0},
+            {"ticker": "MSFT", "qty": 50, "cost_basis": 350.0},
+            {"ticker": "NVDA", "qty": 20, "cost_basis": 800.0},
+        ]
+        holdings = service.calculate_holdings(positions)
+        performance = service.calculate_performance(holdings)
+
+        risk = calculate_risk_metrics(
+            portfolio_id=1,
+            holdings=holdings,
+            total_value=performance.total_market_value,
+        )
+
+        assert risk.portfolio_id == 1
+        assert risk.portfolio_beta > 0
+        assert risk.var_95_daily > 0
+        assert risk.portfolio_volatility > 0
+
+    def test_risk_metrics_empty_portfolio(self):
+        """Empty portfolio returns zero risk metrics."""
+        from app.services.portfolio_service import calculate_risk_metrics
+
+        risk = calculate_risk_metrics(
+            portfolio_id=1,
+            holdings=[],
+            total_value=0,
+        )
+
+        assert risk.portfolio_beta == 0
+        assert risk.var_95_daily == 0
+        assert risk.max_drawdown == 0
+
+    def test_risk_metrics_to_dict(self):
+        """Risk metrics serialize correctly."""
+        from app.services.portfolio_service import (
+            get_portfolio_service,
+            calculate_risk_metrics,
+        )
+        service = get_portfolio_service()
+
+        positions = [{"ticker": "AAPL", "qty": 100, "cost_basis": 150.0}]
+        holdings = service.calculate_holdings(positions)
+        performance = service.calculate_performance(holdings)
+
+        risk = calculate_risk_metrics(
+            portfolio_id=1,
+            holdings=holdings,
+            total_value=performance.total_market_value,
+        )
+
+        data = risk.to_dict()
+        assert "value_at_risk" in data
+        assert "beta" in data
+        assert "volatility" in data
+        assert "drawdown" in data
+        assert "concentration" in data
+        assert "diversification" in data
+
+    def test_risk_metrics_var_values(self):
+        """VaR values are reasonable."""
+        from app.services.portfolio_service import (
+            get_portfolio_service,
+            calculate_risk_metrics,
+        )
+        service = get_portfolio_service()
+
+        positions = [{"ticker": "NVDA", "qty": 100, "cost_basis": 800.0}]
+        holdings = service.calculate_holdings(positions)
+        performance = service.calculate_performance(holdings)
+
+        risk = calculate_risk_metrics(
+            portfolio_id=1,
+            holdings=holdings,
+            total_value=performance.total_market_value,
+        )
+
+        # 99% VaR should be higher than 95% VaR
+        assert risk.var_99_daily > risk.var_95_daily
+        # Monthly VaR should be higher than daily
+        assert risk.var_95_monthly > risk.var_95_daily
+
+    def test_risk_metrics_concentration(self):
+        """Concentration metrics are calculated."""
+        from app.services.portfolio_service import (
+            get_portfolio_service,
+            calculate_risk_metrics,
+        )
+        service = get_portfolio_service()
+
+        positions = [
+            {"ticker": "AAPL", "qty": 100, "cost_basis": 150.0},
+            {"ticker": "MSFT", "qty": 50, "cost_basis": 350.0},
+        ]
+        holdings = service.calculate_holdings(positions)
+        performance = service.calculate_performance(holdings)
+
+        risk = calculate_risk_metrics(
+            portfolio_id=1,
+            holdings=holdings,
+            total_value=performance.total_market_value,
+        )
+
+        assert risk.top_5_concentration > 0
+        assert risk.herfindahl_index > 0
+        assert risk.sector_concentration > 0
+
+
+class TestRiskAPI:
+    """Test portfolio risk API endpoints."""
+
+    def test_risk_endpoint_not_found(self):
+        """GET /portfolio/{id}/risk returns 404 for missing."""
+        response = client.get("/portfolio/99999/risk")
+        assert response.status_code in (404, 500)

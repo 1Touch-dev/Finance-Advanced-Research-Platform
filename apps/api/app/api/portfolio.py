@@ -25,7 +25,7 @@ import io
 
 from app.db.session import get_db
 from app.models.monitor import Portfolio, Position
-from app.services.portfolio_service import get_portfolio_service
+from app.services.portfolio_service import get_portfolio_service, calculate_risk_metrics
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
@@ -408,6 +408,54 @@ async def get_allocation(
         "portfolio_id": portfolio_id,
         "portfolio_name": portfolio.name,
         "sectors": [a.to_dict() for a in allocation],
+    }
+
+
+# ── Risk Metrics (#45) ────────────────────────────────────────────────────────
+
+@router.get("/{portfolio_id}/risk")
+async def get_risk_metrics(
+    portfolio_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    Get comprehensive risk metrics for a portfolio.
+
+    Includes:
+    - Value at Risk (VaR) - 95% and 99% confidence, daily and monthly
+    - Beta - Portfolio beta vs S&P 500
+    - Volatility - Annualized volatility, Sharpe ratio, Sortino ratio
+    - Drawdown - Max drawdown, current drawdown, duration
+    - Concentration - Top 5 concentration, Herfindahl index, sector concentration
+    - Diversification - Average pairwise correlation, diversification ratio
+    """
+    portfolio = db.query(Portfolio).filter_by(id=portfolio_id).first()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+
+    positions = db.execute(
+        text("SELECT ticker, qty, cost_basis FROM positions WHERE portfolio_id = :pid"),
+        {"pid": portfolio_id}
+    ).fetchall()
+
+    pos_list = [{"ticker": r[0], "qty": r[1], "cost_basis": r[2]} for r in positions]
+
+    service = get_portfolio_service()
+    holdings = service.calculate_holdings(pos_list)
+    performance = service.calculate_performance(holdings)
+
+    risk = calculate_risk_metrics(
+        portfolio_id=portfolio_id,
+        holdings=holdings,
+        total_value=performance.total_market_value,
+    )
+
+    return {
+        "portfolio_id": portfolio_id,
+        "portfolio_name": portfolio.name,
+        "total_value": round(performance.total_market_value, 2),
+        "holdings_count": len(holdings),
+        **risk.to_dict(),
     }
 
 
