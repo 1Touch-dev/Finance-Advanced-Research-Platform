@@ -331,6 +331,12 @@ except Exception:
     pass
 
 try:
+    from app.api.global_equity import router as global_equity_router
+    app.include_router(global_equity_router)
+except Exception:
+    pass
+
+try:
     from prometheus_client import make_asgi_app as _make_prom_app
     _metrics_app = _make_prom_app()
     app.mount("/metrics", _metrics_app)
