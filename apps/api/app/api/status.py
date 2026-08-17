@@ -2,15 +2,18 @@
 System Status & Incident API
 Band A Priority #4: Honest status page with incident history
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from app.db.session import get_db
+import logging
 import uuid
 import asyncio
 import httpx
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/status", tags=["status"])
 
@@ -141,6 +144,87 @@ def _get_overall_status() -> str:
     return "operational"
 
 
+def _ensure_subscriber_table() -> None:
+    """Create the status_subscribers table on first use (no Alembic migration in this repo yet)."""
+    from app.models.base import Base
+    from app.db.session import engine
+    from app.models.monitor import StatusSubscriber  # noqa: F401 — registers the table on Base.metadata
+    Base.metadata.create_all(bind=engine)
+
+
+def _notify_subscribers(incident: dict, event: str) -> dict:
+    """
+    Fan out an incident create/update to every active subscriber via
+    email (SendGrid), generic webhook, and/or Slack incoming webhook.
+    Best-effort: one subscriber's delivery failure never blocks the others
+    or the incident API response. Runs as a FastAPI BackgroundTask, so it
+    opens its own short-lived DB session rather than reusing the (already
+    closed-by-then) request-scoped one.
+    """
+    from app.db.session import SessionLocal
+    from app.models.monitor import StatusSubscriber
+    from app.services.sendgrid_client import sendgrid_client
+
+    _ensure_subscriber_table()
+
+    db = SessionLocal()
+    try:
+        try:
+            subscribers = db.query(StatusSubscriber).filter(StatusSubscriber.active == True).all()  # noqa: E712
+        except Exception as e:
+            log.warning("Could not load status subscribers: %s", e)
+            return {"notified": 0, "failed": 0, "error": str(e)}
+
+        verb = "created" if event == "created" else "updated"
+        title = incident.get("title", "Incident")
+        latest_message = (incident.get("updates") or [{}])[0].get("message", "")
+        subject = f"[Status] {title} — {incident.get('status', 'update')}"
+        body_html = (
+            f"<p><strong>{title}</strong> was just {verb}.</p>"
+            f"<p>Status: <strong>{incident.get('status')}</strong> · Severity: {incident.get('severity')}</p>"
+            f"<p>{latest_message}</p>"
+            f"<p>Affected services: {', '.join(incident.get('affected_services') or []) or 'n/a'}</p>"
+        )
+        webhook_payload = {
+            "event": f"incident.{event}",
+            "incident": incident,
+        }
+        slack_payload = {
+            "text": f"*{title}* {verb} — status: {incident.get('status')} ({incident.get('severity')})\n{latest_message}",
+        }
+
+        notified, failed = 0, 0
+        for sub in subscribers:
+            ok = False
+            if sub.email:
+                result = sendgrid_client.send_email(sub.email, subject, body_html)
+                ok = ok or bool(result.get("success"))
+                if result.get("error"):
+                    log.info("Status email notify skipped/failed for subscriber %s: %s", sub.id, result["error"])
+            if sub.webhook_url:
+                try:
+                    r = httpx.post(sub.webhook_url, json=webhook_payload, timeout=10)
+                    ok = ok or r.status_code < 400
+                except Exception as e:
+                    log.info("Status webhook notify failed for subscriber %s: %s", sub.id, e)
+            if sub.slack_webhook:
+                try:
+                    r = httpx.post(sub.slack_webhook, json=slack_payload, timeout=10)
+                    ok = ok or r.status_code < 400
+                except Exception as e:
+                    log.info("Status Slack notify failed for subscriber %s: %s", sub.id, e)
+            if ok:
+                notified += 1
+            else:
+                failed += 1
+
+        log.info("Status incident %s notify: %d ok / %d failed / %d total subscribers",
+                  event, notified, failed, len(subscribers))
+        return {"notified": notified, "failed": failed, "total_subscribers": len(subscribers)}
+    finally:
+        db.close()
+
+
 # ─── Routes ─────────────────────────────────────────────────────────────────
 
 @router.get("")
@@ -240,7 +324,7 @@ def get_incident(incident_id: str):
 
 
 @router.post("/incidents")
-def create_incident(incident: IncidentCreate):
+def create_incident(incident: IncidentCreate, background_tasks: BackgroundTasks):
     """Create a new incident (admin only in production)."""
     incident_id = f"inc-{uuid.uuid4().hex[:6]}"
     now = datetime.utcnow().isoformat()
@@ -264,13 +348,13 @@ def create_incident(incident: IncidentCreate):
 
     _incidents.insert(0, incident_data)
 
-    # TODO: Send notifications to subscribers
+    background_tasks.add_task(_notify_subscribers, incident_data, "created")
 
     return incident_data
 
 
 @router.post("/incidents/{incident_id}/update")
-def update_incident(incident_id: str, update: IncidentUpdate):
+def update_incident(incident_id: str, update: IncidentUpdate, background_tasks: BackgroundTasks):
     """Add an update to an incident."""
     incident = next((i for i in _incidents if i["id"] == incident_id), None)
     if not incident:
@@ -291,7 +375,7 @@ def update_incident(incident_id: str, update: IncidentUpdate):
         if update.status in ["resolved", "completed"]:
             incident["resolved_at"] = now
 
-    # TODO: Send notifications to subscribers
+    background_tasks.add_task(_notify_subscribers, incident, "updated")
 
     return incident
 
@@ -317,19 +401,67 @@ def subscribe_to_updates(
     email: Optional[str] = None,
     webhook_url: Optional[str] = None,
     slack_webhook: Optional[str] = None,
+    db: Session = Depends(get_db),
 ):
-    """Subscribe to status updates."""
-    # TODO: Implement subscription storage
+    """Subscribe to status updates. Persisted to status_subscribers (Band A #4)."""
+    from app.models.monitor import StatusSubscriber
 
     if not any([email, webhook_url, slack_webhook]):
         raise HTTPException(400, "Provide at least one notification method")
 
-    subscription_id = f"sub_{uuid.uuid4().hex[:8]}"
+    _ensure_subscriber_table()
+
+    existing = None
+    if email:
+        existing = db.query(StatusSubscriber).filter(
+            StatusSubscriber.email == email, StatusSubscriber.active == True  # noqa: E712
+        ).first()
+
+    if existing:
+        existing.webhook_url = webhook_url or existing.webhook_url
+        existing.slack_webhook = slack_webhook or existing.slack_webhook
+        db.commit()
+        db.refresh(existing)
+        sub = existing
+    else:
+        sub = StatusSubscriber(
+            email=email,
+            webhook_url=webhook_url,
+            slack_webhook=slack_webhook,
+            active=True,
+        )
+        db.add(sub)
+        db.commit()
+        db.refresh(sub)
+
+    subscription_id = f"sub_{sub.id}"
 
     return {
         "subscription_id": subscription_id,
-        "email": email,
-        "webhook_url": webhook_url,
-        "slack_webhook": slack_webhook,
+        "email": sub.email,
+        "webhook_url": sub.webhook_url,
+        "slack_webhook": sub.slack_webhook,
         "message": "Subscription created. You will receive notifications for incidents and maintenance.",
     }
+
+
+@router.delete("/subscribe/{subscription_id}")
+def unsubscribe_from_updates(subscription_id: str, db: Session = Depends(get_db)):
+    """Unsubscribe from status updates (subscription_id is the 'sub_<id>' string returned by POST /subscribe)."""
+    from app.models.monitor import StatusSubscriber
+
+    try:
+        sub_pk = int(subscription_id.replace("sub_", ""))
+    except ValueError:
+        raise HTTPException(400, "Invalid subscription_id")
+
+    _ensure_subscriber_table()
+    sub = db.query(StatusSubscriber).filter(StatusSubscriber.id == sub_pk).first()
+    if not sub:
+        raise HTTPException(404, "Subscription not found")
+
+    sub.active = False
+    sub.unsubscribed_at = datetime.utcnow()
+    db.commit()
+
+    return {"status": "unsubscribed", "subscription_id": subscription_id}

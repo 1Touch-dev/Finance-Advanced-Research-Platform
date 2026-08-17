@@ -82,3 +82,15 @@ class DeliveryChannel(Base):
     kind = Column(String, nullable=False)  # inapp|email|slack|teams|webhook
     target = Column(String, nullable=True)  # address/webhook URL
     meta = Column(JSON, nullable=True)
+
+
+class StatusSubscriber(Base):
+    """Band A #4 — persisted subscribers for the status page (apps/api/app/api/status.py)."""
+    __tablename__ = 'status_subscribers'
+    id = Column(Integer, primary_key=True)
+    email = Column(String, nullable=True)
+    webhook_url = Column(String, nullable=True)
+    slack_webhook = Column(String, nullable=True)
+    active = Column(Boolean, default=True, nullable=False, server_default='1')
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    unsubscribed_at = Column(DateTime(timezone=True), nullable=True)

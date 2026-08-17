@@ -844,6 +844,263 @@ def get_most_active_members(days: int = 90, top_n: int = 20) -> list:
     return get_most_active_members_congress(top_n=top_n)
 
 
+# ─── Gov Depth: Company/Trend Filter + Whale Tracker (James asks, Task 2.3) ──
+#
+# Both features are built on CongressInvests trade-level data (_ci_get_all_trades),
+# which is the only free source here with a ticker + buy/sell + $-range on every
+# row. get_house_ptr_filers()/get_senate_ptr_filers() are filing-level only (no
+# per-trade ticker/amount), so they can't power a ticker or amount filter.
+
+# STOCK Act disclosure amount buckets, e.g. "$1,001 - $15,000" or "Over $50,000,000".
+_AMOUNT_RANGE_RE = re.compile(r"\$?([\d,]+)\s*-\s*\$?([\d,]+)")
+_AMOUNT_OVER_RE = re.compile(r"Over\s*\$?([\d,]+)", re.IGNORECASE)
+
+
+def _parse_amount_range(amount: str) -> tuple:
+    """Parse a STOCK Act disclosure amount bucket into (low, high) floats. ('', '') -> (0.0, 0.0)."""
+    if not amount:
+        return (0.0, 0.0)
+    m = _AMOUNT_RANGE_RE.search(amount)
+    if m:
+        try:
+            low = float(m.group(1).replace(",", ""))
+            high = float(m.group(2).replace(",", ""))
+            return (low, high)
+        except ValueError:
+            return (0.0, 0.0)
+    m_over = _AMOUNT_OVER_RE.search(amount)
+    if m_over:
+        try:
+            low = float(m_over.group(1).replace(",", ""))
+            return (low, low * 2)  # no upper bound disclosed — estimate for sorting only
+        except ValueError:
+            return (0.0, 0.0)
+    return (0.0, 0.0)
+
+
+_TREND_BUY_KEYWORDS = ("purchase", "buy")
+_TREND_SELL_KEYWORDS = ("sale", "sell")
+
+
+def _classify_trend(transaction: str) -> str:
+    t = (transaction or "").lower()
+    if any(k in t for k in _TREND_BUY_KEYWORDS):
+        return "buy"
+    if any(k in t for k in _TREND_SELL_KEYWORDS):
+        return "sell"
+    return "other"
+
+
+def get_congress_trades_filtered(
+    days: int = 90,
+    ticker: Optional[str] = None,
+    company: Optional[str] = None,
+    trend: Optional[str] = None,
+    chamber: Optional[str] = None,
+    limit: int = 100,
+) -> list:
+    """
+    Filter congressional trades by ticker/company and/or trend (buy/sell).
+    James ask: "filter by company/trend" on the gov-trading page (Task 2.3).
+
+    - ticker: exact ticker match (case-insensitive), e.g. "NVDA"
+    - company: substring match against asset_description (for trades without
+      a resolved ticker, e.g. private placements, or partial company names)
+    - trend: "buy" | "sell" | "other" | None (no filter)
+    - chamber: "house" | "senate" | None (both)
+    """
+    trend_norm = (trend or "").lower().strip() or None
+    ticker_norm = (ticker or "").upper().strip() or None
+    company_norm = (company or "").lower().strip() or None
+    cutoff = datetime.now() - timedelta(days=days)
+
+    raw_trades = _ci_get_all_trades(chamber=(chamber or "").capitalize() if chamber else "")
+    results = []
+    for trade in raw_trades:
+        tx_date = trade.get("tx_date", "")
+        dt = None
+        for fmt in ("%Y-%m-%d", "%m/%d/%Y"):
+            try:
+                dt = datetime.strptime(tx_date[:10], fmt)
+                break
+            except Exception:
+                pass
+        if dt and dt < cutoff:
+            continue
+
+        norm = _ci_normalize(trade)
+        if ticker_norm and norm.get("ticker", "").upper() != ticker_norm:
+            continue
+        if company_norm and company_norm not in (norm.get("asset_description") or "").lower():
+            continue
+        tx_trend = _classify_trend(norm.get("transaction", ""))
+        if trend_norm and tx_trend != trend_norm:
+            continue
+
+        low, high = _parse_amount_range(norm.get("amount", ""))
+        results.append({**norm, "trend": tx_trend, "amount_low": low, "amount_high": high})
+
+    results.sort(key=lambda x: x.get("date", ""), reverse=True)
+    return results[:limit]
+
+
+def get_whale_trades(days: int = 90, min_amount: float = 50_000, limit: int = 50) -> list:
+    """
+    "Whale tracker" — the largest disclosed congressional trades in the window,
+    ranked by the top of their STOCK Act disclosure amount bucket. (James ask,
+    Task 2.3.) Note: STOCK Act discloses ranges, not exact dollar figures, so
+    "size" here is the upper bound of the disclosed bucket.
+    """
+    cutoff = datetime.now() - timedelta(days=days)
+    raw_trades = _ci_get_all_trades(chamber="")
+    whales = []
+    for trade in raw_trades:
+        tx_date = trade.get("tx_date", "")
+        dt = None
+        for fmt in ("%Y-%m-%d", "%m/%d/%Y"):
+            try:
+                dt = datetime.strptime(tx_date[:10], fmt)
+                break
+            except Exception:
+                pass
+        if dt and dt < cutoff:
+            continue
+
+        norm = _ci_normalize(trade)
+        low, high = _parse_amount_range(norm.get("amount", ""))
+        if high < min_amount:
+            continue
+        whales.append({
+            **norm,
+            "trend": _classify_trend(norm.get("transaction", "")),
+            "amount_low": low,
+            "amount_high": high,
+        })
+
+    whales.sort(key=lambda x: x["amount_high"], reverse=True)
+    return whales[:limit]
+
+
+def get_trending_tickers(days: int = 30, top_n: int = 15) -> list:
+    """
+    Tickers with the most congressional trading activity recently, split by
+    buy vs sell trend — feeds the "trend" side of the company/trend filter
+    (which tickers are hot right now, and in which direction).
+    """
+    cutoff = datetime.now() - timedelta(days=days)
+    raw_trades = _ci_get_all_trades(chamber="")
+    by_ticker: dict = defaultdict(lambda: {"buy": 0, "sell": 0, "other": 0, "members": set()})
+
+    for trade in raw_trades:
+        tx_date = trade.get("tx_date", "")
+        dt = None
+        for fmt in ("%Y-%m-%d", "%m/%d/%Y"):
+            try:
+                dt = datetime.strptime(tx_date[:10], fmt)
+                break
+            except Exception:
+                pass
+        if dt and dt < cutoff:
+            continue
+
+        ticker = (trade.get("ticker") or "").upper().strip()
+        if not ticker:
+            continue
+        trend = _classify_trend(trade.get("trade_type", ""))
+        by_ticker[ticker][trend] += 1
+        by_ticker[ticker]["members"].add(trade.get("member", ""))
+
+    ranked = sorted(
+        by_ticker.items(),
+        key=lambda kv: kv[1]["buy"] + kv[1]["sell"] + kv[1]["other"],
+        reverse=True,
+    )
+    return [
+        {
+            "ticker": ticker,
+            "buy_count": v["buy"],
+            "sell_count": v["sell"],
+            "total_trades": v["buy"] + v["sell"] + v["other"],
+            "distinct_members": len(v["members"]),
+            "sentiment": "bullish" if v["buy"] > v["sell"] else ("bearish" if v["sell"] > v["buy"] else "mixed"),
+        }
+        for ticker, v in ranked[:top_n]
+    ]
+
+
+# ─── Reddit Tracker (James ask, Task 2.3) ────────────────────────────────────
+#
+# Import-wrapped so this module keeps degrading gracefully if
+# news_intelligence_connector (or its Reddit OAuth deps) aren't available —
+# same pattern used for crawl4ai_connector elsewhere in this codebase.
+try:
+    from app.connectors.news_intelligence_connector import reddit_mentions as _reddit_mentions
+    _REDDIT_TRACKER_IMPORTABLE = True
+except ImportError:
+    _reddit_mentions = None
+    _REDDIT_TRACKER_IMPORTABLE = False
+
+
+def get_reddit_buzz(query: str, limit: int = 25) -> dict:
+    """
+    Retail Reddit chatter about a politician's name or a ticker they've
+    traded. Tries Reddit OAuth first, then falls back to the existing Apify
+    Reddit scraper when REDDIT_CLIENT_ID/REDDIT_CLIENT_SECRET are unavailable
+    or blocked by Reddit's newer API approval flow. Degrades to available=False
+    with a clear reason instead of raising, so the gov-trading page can render
+    a helpful empty state rather than erroring out.
+    """
+    query = (query or "").strip()
+    if not query:
+        return {"available": False, "query": query, "posts": [], "count": 0, "reason": "query is required"}
+    if not _REDDIT_TRACKER_IMPORTABLE:
+        return {"available": False, "query": query, "posts": [], "count": 0,
+                "reason": "news_intelligence_connector not importable"}
+    try:
+        posts = _reddit_mentions(query, limit=limit)
+        return {"available": True, "query": query, "posts": posts, "count": len(posts), "source": "Reddit"}
+    except RuntimeError as e:
+        # OAuth unavailable/unapproved. Fall back to Apify Reddit scraping, which
+        # this repo already uses elsewhere for the same data source.
+        try:
+            from app.connectors.apify_connector import fetch_reddit_posts
+            apify_posts = fetch_reddit_posts(query, max_posts=limit)
+            posts = [
+                {
+                    "title": p.get("title", ""),
+                    "summary": p.get("body", "")[:200],
+                    "score": p.get("score", 0),
+                    "url": p.get("url", ""),
+                    "outlet": f"r/{p.get('subreddit', '')}",
+                    "source": "Reddit (Apify)",
+                    "published": p.get("created"),
+                }
+                for p in apify_posts
+            ]
+            if posts:
+                return {
+                    "available": True,
+                    "query": query,
+                    "posts": posts,
+                    "count": len(posts),
+                    "source": "Reddit (Apify fallback)",
+                    "reason": str(e),
+                }
+            return {
+                "available": False,
+                "query": query,
+                "posts": [],
+                "count": 0,
+                "reason": "Reddit OAuth unavailable and Apify returned no posts",
+            }
+        except Exception as apify_err:
+            log.warning("Reddit Apify fallback failed for %r: %s", query, apify_err)
+            return {"available": False, "query": query, "posts": [], "count": 0, "reason": str(e)}
+    except Exception as e:
+        log.warning("Reddit buzz fetch failed for %r: %s", query, e)
+        return {"available": False, "query": query, "posts": [], "count": 0, "reason": f"fetch failed: {e}"}
+
+
 # ─── Named Politician / Figure Tracker ───────────────────────────────────────
 
 # Known politicians with their House/Senate names for searching

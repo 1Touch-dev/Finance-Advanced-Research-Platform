@@ -464,9 +464,20 @@ def osint_person_report(name: str, username: str = "", email: str = "", company:
 
 @router.get("/osint/company")
 def osint_company_report(company: str, domain: str = ""):
-    """Company OSINT report: domain intel + UK Companies House + LinkedIn."""
+    """Company OSINT report: domain intel + UK Companies House + LinkedIn + Crawl4AI web intel."""
     from app.connectors.osint_connector import company_osint_report
-    return company_osint_report(company, domain=domain or None)
+    report = company_osint_report(company, domain=domain or None)
+
+    # Crawl4AI: crawl the company's own site (about/leadership/investors) for
+    # free, self-hosted web intel — additive, replaces nothing here (F-07)
+    if domain:
+        try:
+            from app.connectors.crawl4ai_connector import crawl_company_intel
+            report["web_intel"] = crawl_company_intel(domain)
+        except Exception:
+            report["web_intel"] = {}
+
+    return report
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -617,6 +628,58 @@ def gov_trading_most_active(days: int = 90, top_n: int = 20):
     """Most active congressional traders."""
     from app.connectors.gov_trading_connector import get_most_active_members
     return {"period_days": days, "members": get_most_active_members(days=days, top_n=top_n)}
+
+
+@router.get("/gov-trading/filtered")
+def gov_trading_filtered(
+    days: int = 90,
+    ticker: Optional[str] = None,
+    company: Optional[str] = None,
+    trend: Optional[str] = None,
+    chamber: Optional[str] = None,
+    limit: int = 100,
+):
+    """
+    Filter congressional trades by company (ticker or name substring) and/or
+    trend (buy/sell) — James ask, Task 2.3 "filter by company/trend".
+    """
+    from app.connectors.gov_trading_connector import get_congress_trades_filtered
+    trades = get_congress_trades_filtered(
+        days=days, ticker=ticker, company=company, trend=trend, chamber=chamber, limit=limit,
+    )
+    return {"trades": trades, "count": len(trades), "filters": {
+        "days": days, "ticker": ticker, "company": company, "trend": trend, "chamber": chamber,
+    }}
+
+
+@router.get("/gov-trading/whale-tracker")
+def gov_trading_whale_tracker(days: int = 90, min_amount: float = 50_000, limit: int = 50):
+    """
+    Largest disclosed congressional trades in the window — James ask,
+    Task 2.3 "whale tracker". Ranked by the top of the STOCK Act disclosure
+    amount bucket (exact dollar figures aren't required by law).
+    """
+    from app.connectors.gov_trading_connector import get_whale_trades
+    whales = get_whale_trades(days=days, min_amount=min_amount, limit=limit)
+    return {"whales": whales, "count": len(whales), "min_amount": min_amount, "period_days": days}
+
+
+@router.get("/gov-trading/trending-tickers")
+def gov_trading_trending_tickers(days: int = 30, top_n: int = 15):
+    """Tickers with the most congressional trading activity recently, with buy/sell sentiment."""
+    from app.connectors.gov_trading_connector import get_trending_tickers
+    return {"period_days": days, "tickers": get_trending_tickers(days=days, top_n=top_n)}
+
+
+@router.get("/gov-trading/reddit-buzz")
+def gov_trading_reddit_buzz(query: str, limit: int = 25):
+    """
+    Retail Reddit chatter about a politician's name or a ticker they've
+    traded — James ask, Task 2.3 "Reddit tracker". Needs REDDIT_CLIENT_ID/
+    REDDIT_CLIENT_SECRET in .env; degrades gracefully (available=False) if unset.
+    """
+    from app.connectors.gov_trading_connector import get_reddit_buzz
+    return get_reddit_buzz(query=query, limit=limit)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -964,10 +1027,13 @@ def company_funding(entity_name: str, ticker: str = ""):
 
 
 @router.get("/company/private-intel/{entity_name}")
-def company_private_intel(entity_name: str, jurisdiction: str = ""):
+def company_private_intel(entity_name: str, jurisdiction: str = "", domain: str = ""):
     """
     Full private company intelligence: OpenCorporates + GLEIF + FinCEN + FDIC.
     Includes contracts, funding, and corporate registration data.
+    If `domain` is provided, also crawls the company's public site (about,
+    leadership, investors, news pages) via Crawl4AI for free web intel (F-07) —
+    replaces the Apify website-content-crawler actor for this use case.
     """
     from app.connectors.private_company_connector import fetch_private_company_intel
 
@@ -978,11 +1044,20 @@ def company_private_intel(entity_name: str, jurisdiction: str = ""):
     contracts = company_contracts(entity_name, limit=10)
     funding = company_funding(entity_name)
 
+    web_intel = {}
+    if domain:
+        try:
+            from app.connectors.crawl4ai_connector import crawl_company_intel
+            web_intel = crawl_company_intel(domain)
+        except Exception:
+            web_intel = {}
+
     return {
         "entity_name": entity_name,
         "registration": private_data,
         "contracts": contracts,
         "funding": funding,
+        "web_intel": web_intel,
     }
 
 
@@ -1163,12 +1238,19 @@ def gov_legislation_search(
 
 @router.get("/gov-trading/legislation/bill/{congress}/{bill_type}/{bill_number}")
 def gov_legislation_bill_detail(congress: int, bill_type: str, bill_number: int):
-    """Full bill detail — sponsors, latest action, cosponsor/summary counts, text link."""
-    from fastapi import HTTPException
+    """
+    Full bill detail — sponsors, latest action, cosponsor/summary counts, text link.
+
+    Graceful-degrade to 200 with an {"error": ...} payload when the bill isn't
+    found, rather than raising 404 — matches the connector's own no-raise
+    contract (get_bill_details() never throws, only returns None) and the
+    frontend's existing billDetail?.error handling in gov-trading.js.
+    (Task 2.1 — resolves the 404-vs-200 mismatch flagged in the lead review.)
+    """
     from app.connectors.gov_trading_connector import get_bill_details
     bill = get_bill_details(congress, bill_type, bill_number)
     if not bill:
-        raise HTTPException(status_code=404, detail=f"Bill {bill_type.upper()} {bill_number} not found in congress {congress}")
+        return {"error": f"Bill {bill_type.upper()} {bill_number} not found in congress {congress}"}
     return bill
 
 

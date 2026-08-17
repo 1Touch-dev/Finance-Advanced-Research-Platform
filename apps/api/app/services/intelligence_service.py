@@ -32,6 +32,18 @@ except ImportError:
     def fetch_pitchbook_company(n): return {"investors": [], "funding_rounds": [], "source": "unavailable"}
     def fetch_news(q, max_articles=8): return []
 
+# Crawl4AI — free self-hosted replacement for Apify news + company page scraping (F-07)
+try:
+    from app.connectors.crawl4ai_connector import (
+        crawl_news,
+        crawl_company_intel,
+        CRAWL4AI_AVAILABLE,  # reflects whether the `crawl4ai` engine itself is installed
+    )
+except ImportError:
+    CRAWL4AI_AVAILABLE = False
+    def crawl_news(q, max_articles=8): return []
+    def crawl_company_intel(domain): return {}
+
 # Browser research agent (fallback for uncovered jurisdictions)
 try:
     from app.connectors.browser_research_agent import (
@@ -809,10 +821,14 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
     funded_data   = _fetch_funded_api(entity_name)
     investor_data = _fetch_sec_investors(entity_name, sec_data.get("cik"))
 
-    # Apify enrichment (LinkedIn + PitchBook + News + Social)
+    # News: Crawl4AI first (free Google News RSS, no engine dependency), Apify fallback (F-07)
+    apify_news = crawl_news(entity_name, max_articles=8)
+    if not apify_news and APIFY_AVAILABLE:
+        apify_news = fetch_news(entity_name, max_articles=8)
+
+    # Apify enrichment (LinkedIn + PitchBook + Social) — news handled above
     apify_linkedin   = {}
     apify_pitchbook  = {}
-    apify_news       = []
     apify_social     = {}
     apify_key_people = []
     if APIFY_AVAILABLE:
@@ -824,7 +840,6 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
             except Exception as _kpe:
                 logger.warning("Key people scrape failed: %s", _kpe)
         apify_pitchbook = fetch_pitchbook_company(entity_name)
-        apify_news = fetch_news(entity_name, max_articles=8)
         try:
             apify_social = fetch_social_footprint(entity_name)
         except Exception as _se:
@@ -1243,9 +1258,10 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
                                  "source": "Apify/PitchBook",
                              }})
 
-    # ── Section 9: News & Media Timeline (Apify) ─────────────────────────────
-    if APIFY_AVAILABLE and apify_news:
+    # ── Section 9: News & Media Timeline (Crawl4AI, Apify fallback — F-07) ────
+    if apify_news:
         sec_news_claims = []
+        news_via = "Crawl4AI/Google News RSS" if any(a.get("fetched_via", "").startswith("Crawl4AI") for a in apify_news) else "Apify/Google News"
         for article in apify_news[:8]:
             date_str = f" ({article['published']})" if article.get("published") else ""
             src_str  = f" [{article['source']}]" if article.get("source") else ""
@@ -1254,12 +1270,12 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
             sec_news_claims.append({
                 "text": f"{article.get('title','')}{date_str}{src_str}{snippet}{url_str}",
                 "confidence": "REPORTED",
-                "source": f"Google News via Apify ({article.get('source','')})",
+                "source": f"Google News via {news_via.split('/')[0]} ({article.get('source','')})",
             })
         if sec_news_claims:
             sections.append({"name": "News & Media Timeline", "order": 10,
                              "claims": sec_news_claims,
-                             "data": {"articles_found": len(apify_news), "source": "Apify/Google News"}})
+                             "data": {"articles_found": len(apify_news), "source": news_via}})
 
     # ── Section 10: Browser Research (non-US jurisdictions) ──────────────────
     if run_browser_agent:
@@ -1498,6 +1514,7 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
 
     # ── Section N-1: Data Sources ─────────────────────────────────────────────
     apify_status = f"Apify enrichment: {'active' if APIFY_AVAILABLE else 'inactive (no token)'}. " \
+                   f"Crawl4AI: {'active' if CRAWL4AI_AVAILABLE else 'inactive (not installed)'}. " \
                    f"LinkedIn: {'profile fetched' if apify_linkedin.get('headline') else 'slug-based lookup attempted'}. " \
                    f"PitchBook: {len(apify_pitchbook.get('investors', []))} investors. " \
                    f"News: {len(apify_news)} articles."

@@ -685,6 +685,209 @@ function SummaryTab({ days, setDays }) {
   )
 }
 
+function WhaleTrackerTab() {
+  const [days, setDays] = useState(90)
+  const [minAmount, setMinAmount] = useState(50000)
+  const [ticker, setTicker] = useState('')
+  const [company, setCompany] = useState('')
+  const [trend, setTrend] = useState('all')
+  const [mode, setMode] = useState('whales') // 'whales' | 'filtered'
+
+  const { data: whaleData, isLoading: whaleLoading } = useSWR(
+    mode === 'whales' ? `${API}/market/gov-trading/whale-tracker?days=${days}&min_amount=${minAmount}&limit=50` : null,
+    fetcher
+  )
+  const { data: filteredData, isLoading: filteredLoading } = useSWR(
+    mode === 'filtered' ? `${API}/market/gov-trading/filtered?days=${days}&limit=100${ticker ? `&ticker=${encodeURIComponent(ticker)}` : ''}${company ? `&company=${encodeURIComponent(company)}` : ''}${trend !== 'all' ? `&trend=${trend}` : ''}` : null,
+    fetcher
+  )
+  const { data: trendingData } = useSWR(`${API}/market/gov-trading/trending-tickers?days=30&top_n=12`, fetcher)
+
+  const isLoading = mode === 'whales' ? whaleLoading : filteredLoading
+  const rows = mode === 'whales' ? (whaleData?.whales || []) : (filteredData?.trades || [])
+  const trending = trendingData?.tickers || []
+
+  const trendBadge = (t) => {
+    if (t === 'buy') return { label: 'BUY', color: '#4ade80' }
+    if (t === 'sell') return { label: 'SELL', color: '#f87171' }
+    return { label: 'OTHER', color: '#94a3b8' }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      {/* Mode toggle + filters */}
+      <section className="card" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.4rem' }}>
+          {[['whales', '🐋 Whale Tracker'], ['filtered', '🔎 Filter by Company/Trend']].map(([id, label]) => (
+            <button key={id} onClick={() => setMode(id)}
+              style={{
+                padding: '0.4rem 0.9rem', borderRadius: 6, border: '1px solid',
+                borderColor: mode === id ? '#818cf8' : 'var(--line)',
+                background: mode === id ? 'rgba(129,140,248,0.15)' : 'rgba(255,255,255,0.03)',
+                color: mode === id ? '#818cf8' : '#94a3b8',
+                fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer',
+              }}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <select value={days} onChange={e => setDays(Number(e.target.value))}
+          style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid var(--line)', borderRadius: 6, color: '#e2e8f0', padding: '0.4rem 0.75rem', fontSize: '0.82rem' }}>
+          <option value={30}>Last 30 days</option>
+          <option value={60}>Last 60 days</option>
+          <option value={90}>Last 90 days</option>
+          <option value={180}>Last 6 months</option>
+          <option value={365}>Last year</option>
+        </select>
+
+        {mode === 'whales' && (
+          <select value={minAmount} onChange={e => setMinAmount(Number(e.target.value))}
+            style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid var(--line)', borderRadius: 6, color: '#e2e8f0', padding: '0.4rem 0.75rem', fontSize: '0.82rem' }}>
+            <option value={15000}>Min $15,000+</option>
+            <option value={50000}>Min $50,000+</option>
+            <option value={100000}>Min $100,000+</option>
+            <option value={1000000}>Min $1,000,000+</option>
+            <option value={5000000}>Min $5,000,000+</option>
+          </select>
+        )}
+
+        {mode === 'filtered' && (
+          <>
+            <input className="inp" value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())}
+              placeholder="Ticker e.g. NVDA" style={{ maxWidth: 130, fontWeight: 700 }} />
+            <input className="inp" value={company} onChange={e => setCompany(e.target.value)}
+              placeholder="Company name contains…" style={{ maxWidth: 220 }} />
+            <select value={trend} onChange={e => setTrend(e.target.value)}
+              style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid var(--line)', borderRadius: 6, color: '#e2e8f0', padding: '0.4rem 0.75rem', fontSize: '0.82rem' }}>
+              <option value="all">Buy + Sell</option>
+              <option value="buy">Buy only</option>
+              <option value="sell">Sell only</option>
+            </select>
+          </>
+        )}
+      </section>
+
+      {/* Trending tickers strip */}
+      {trending.length > 0 && (
+        <section className="card">
+          <h2 style={{ marginBottom: '0.6rem', fontSize: '0.95rem' }}>📈 Trending Tickers (30d Congressional Activity)</h2>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {trending.map(t => (
+              <button key={t.ticker} onClick={() => { setMode('filtered'); setTicker(t.ticker); setCompany('') }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer',
+                  background: 'rgba(255,255,255,0.03)', border: '1px solid var(--line)', borderRadius: 8, padding: '0.4rem 0.75rem',
+                }}>
+                <span style={{ fontWeight: 800, color: '#e2e8f0', fontSize: '0.82rem' }}>{t.ticker}</span>
+                <span style={{ fontSize: '0.68rem', color: t.sentiment === 'bullish' ? '#4ade80' : t.sentiment === 'bearish' ? '#f87171' : '#94a3b8', fontWeight: 700 }}>
+                  {t.sentiment === 'bullish' ? '▲' : t.sentiment === 'bearish' ? '▼' : '—'} {t.buy_count}B/{t.sell_count}S
+                </span>
+                <span style={{ fontSize: '0.65rem', color: '#64748b' }}>{t.distinct_members} members</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Results table */}
+      <section className="card">
+        <h2 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>
+          {mode === 'whales' ? `🐋 Largest Disclosed Trades (${days}d)` : `Filtered Trades (${days}d) — ${rows.length} results`}
+        </h2>
+        {isLoading && <p style={{ color: '#94a3b8' }}>Loading…</p>}
+        {!isLoading && rows.length === 0 && (
+          <p style={{ color: '#64748b', fontSize: '0.85rem' }}>No trades match these filters.</p>
+        )}
+        {!isLoading && rows.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            {rows.map((t, i) => {
+              const badge = trendBadge(t.trend)
+              return (
+                <div key={i} style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', padding: '0.5rem 0.75rem', border: '1px solid var(--line)', borderRadius: 8, flexWrap: 'wrap' }}>
+                  <span style={{ background: `${badge.color}22`, color: badge.color, borderRadius: 5, padding: '2px 8px', fontSize: '0.65rem', fontWeight: 700 }}>{badge.label}</span>
+                  <span style={{ fontWeight: 700, color: '#818cf8', minWidth: 60 }}>{t.ticker || '—'}</span>
+                  <span style={{ fontWeight: 600, color: '#e2e8f0', fontSize: '0.85rem' }}>{t.name}</span>
+                  <span style={{ color: '#64748b', fontSize: '0.7rem', textTransform: 'capitalize' }}>{t.chamber}</span>
+                  <span style={{ color: '#94a3b8', fontSize: '0.75rem', marginLeft: 'auto' }}>{t.asset_description}</span>
+                  <span style={{ color: '#c7d2fe', fontWeight: 700, fontSize: '0.82rem', minWidth: 130, textAlign: 'right' }}>{t.amount || '—'}</span>
+                  <span style={{ color: '#64748b', fontSize: '0.7rem', minWidth: 90, textAlign: 'right' }}>{t.date}</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </section>
+    </div>
+  )
+}
+
+function RedditTrackerTab() {
+  const [query, setQuery] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
+  const { data, isLoading } = useSWR(
+    searchTerm ? `${API}/market/gov-trading/reddit-buzz?query=${encodeURIComponent(searchTerm)}&limit=25` : null,
+    fetcher
+  )
+
+  const SUGGESTIONS = ['Nancy Pelosi', 'NVDA', 'Tommy Tuberville', 'Marjorie Taylor Greene', 'TSLA']
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <section className="card" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <input className="inp" value={query} onChange={e => setQuery(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && setSearchTerm(query)}
+          placeholder="Search Reddit for a politician or ticker…" style={{ flex: 1, minWidth: 260 }} />
+        <button className="btn btn-primary" onClick={() => setSearchTerm(query)}>🔍 Search Reddit</button>
+        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+          {SUGGESTIONS.map(s => (
+            <button key={s} onClick={() => { setQuery(s); setSearchTerm(s) }}
+              style={{ background: 'rgba(129,140,248,0.1)', border: '1px solid rgba(129,140,248,0.2)', borderRadius: 5, color: '#818cf8', padding: '2px 8px', fontSize: '0.72rem', cursor: 'pointer' }}>
+              {s}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {isLoading && <p style={{ color: '#94a3b8' }}>Searching Reddit…</p>}
+
+      {data && !isLoading && !data.available && (
+        <section className="card">
+          <div style={{ fontSize: '2rem', textAlign: 'center' }}>👽</div>
+          <p style={{ color: '#fbbf24', fontSize: '0.85rem', textAlign: 'center' }}>{data.reason}</p>
+          {(data.reason || '').includes('REDDIT_CLIENT_ID') && (
+            <p style={{ color: '#64748b', fontSize: '0.78rem', textAlign: 'center', marginTop: '0.4rem' }}>
+              Free registration at <a href="https://www.reddit.com/prefs/apps" target="_blank" rel="noopener noreferrer" style={{ color: '#818cf8' }}>reddit.com/prefs/apps</a> — add the client id/secret to <code>.env</code> as <code>REDDIT_CLIENT_ID</code> / <code>REDDIT_CLIENT_SECRET</code>.
+            </p>
+          )}
+        </section>
+      )}
+
+      {data?.available && !isLoading && (
+        <section className="card">
+          <h2 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>
+            Reddit results for "{data.query}" ({data.count})
+          </h2>
+          {data.posts.length === 0 && <p style={{ color: '#64748b', fontSize: '0.85rem' }}>No posts found. Try a different search.</p>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {data.posts.map((p, i) => (
+              <a key={i} href={p.url} target="_blank" rel="noopener noreferrer"
+                style={{ display: 'block', padding: '0.6rem 0.9rem', border: '1px solid var(--line)', borderRadius: 8, textDecoration: 'none' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ background: '#ff450022', color: '#ff8a5c', borderRadius: 5, padding: '2px 8px', fontSize: '0.65rem', fontWeight: 700 }}>{p.outlet}</span>
+                  <span style={{ color: '#64748b', fontSize: '0.7rem', marginLeft: 'auto' }}>▲ {p.score ?? 0} · 💬 {p.comments ?? 0}</span>
+                </div>
+                <div style={{ color: '#e2e8f0', fontSize: '0.85rem', marginTop: '0.35rem', fontWeight: 500 }}>{p.title}</div>
+                {p.summary && <div style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '0.25rem' }}>{p.summary}</div>}
+                <div style={{ color: '#475569', fontSize: '0.68rem', marginTop: '0.25rem' }}>{p.date}</div>
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  )
+}
+
 function InsiderTab() {
   const [ticker, setTicker] = useState('AAPL')
   const [query, setQuery] = useState('AAPL')
@@ -751,6 +954,8 @@ export default function GovTradingPage() {
     { id: 'summary', label: '🏛️ Congressional Summary' },
     { id: 'insider', label: '📊 Corporate Insider Trades' },
     { id: 'politicians', label: '👤 Politician Tracker' },
+    { id: 'whales', label: '🐋 Whale & Trend Filter' },
+    { id: 'reddit', label: '📱 Reddit Tracker' },
     { id: 'legislation', label: '📜 Legislation Search' },
   ]
 
@@ -791,6 +996,8 @@ export default function GovTradingPage() {
       {tab === 'summary' && <SummaryTab days={days} setDays={setDays} />}
       {tab === 'insider' && <InsiderTab />}
       {tab === 'politicians' && <PoliticianTab />}
+      {tab === 'whales' && <WhaleTrackerTab />}
+      {tab === 'reddit' && <RedditTrackerTab />}
       {tab === 'legislation' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <LegislationSearchTab />

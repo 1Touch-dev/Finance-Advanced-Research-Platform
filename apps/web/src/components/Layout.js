@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { useMemo, useState } from 'react'
+import useSWR from 'swr'
 import { getAdminBaseUrl, getApiBaseUrl } from '../../lib/api'
 
 const NAV_GROUPS = [
@@ -73,7 +74,16 @@ export default function Layout({ children }) {
   const router = useRouter()
   const path = router.pathname || '/'
   const adminUrl = useMemo(() => getAdminBaseUrl(), [])
+  const apiUrl = useMemo(() => getApiBaseUrl(), [])
   const [sidebarOpen, setSidebarOpen] = useState(true)
+
+  const { data: alertCountData } = useSWR(
+    `${apiUrl}/tracking/alerts/count`,
+    url => fetch(url).then(r => r.json()).catch(() => null),
+    { refreshInterval: 30000 }
+  )
+  const unreadAlerts = alertCountData?.total || 0
+  const hasCriticalAlerts = !!alertCountData?.has_critical
 
   const isActive = (href) =>
     href === '/' ? path === '/' : path === href || path.startsWith(`${href}/`)
@@ -139,6 +149,8 @@ export default function Layout({ children }) {
               )}
               {group.items.map(item => {
                 const active = isActive(item.href)
+                const isAlertsLink = item.href === '/tracking/alerts'
+                const badgeCount = isAlertsLink ? unreadAlerts : 0
                 return (
                   <Link href={item.href} key={item.href} legacyBehavior>
                     <a
@@ -181,8 +193,36 @@ export default function Layout({ children }) {
                         textAlign: 'center',
                         flexShrink: 0,
                         color: active ? 'var(--brand-hover)' : 'inherit',
-                      }}>{item.icon}</span>
+                        position: 'relative',
+                      }}>
+                        {item.icon}
+                        {badgeCount > 0 && !sidebarOpen && (
+                          <span style={{
+                            position: 'absolute', top: -6, right: -8,
+                            width: 8, height: 8, borderRadius: '50%',
+                            background: hasCriticalAlerts ? '#f87171' : '#818cf8',
+                            border: '1px solid var(--bg-elev-1)',
+                          }} />
+                        )}
+                      </span>
                       {sidebarOpen && item.label}
+                      {sidebarOpen && badgeCount > 0 && (
+                        <span style={{
+                          marginLeft: 'auto',
+                          background: hasCriticalAlerts ? 'rgba(248,113,113,0.18)' : 'rgba(129,140,248,0.18)',
+                          color: hasCriticalAlerts ? '#f87171' : '#818cf8',
+                          border: `1px solid ${hasCriticalAlerts ? 'rgba(248,113,113,0.4)' : 'rgba(129,140,248,0.4)'}`,
+                          borderRadius: 999,
+                          fontSize: '0.65rem',
+                          fontWeight: 800,
+                          padding: '1px 6px',
+                          minWidth: 18,
+                          textAlign: 'center',
+                          lineHeight: 1.4,
+                        }}>
+                          {badgeCount > 99 ? '99+' : badgeCount}
+                        </span>
+                      )}
                     </a>
                   </Link>
                 )

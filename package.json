@@ -11,6 +11,14 @@
     "build": "lerna run build",
     "test": "lerna run test"
   },
+  "overrides": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "admin": {
+      "react": "17.0.2",
+      "react-dom": "17.0.2"
+    }
+  },
   "devDependencies": {
     "lerna": "^4.0.0",
     "playwright": "^1.62.1"

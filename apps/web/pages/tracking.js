@@ -275,7 +275,7 @@ export default function TrackingPage() {
   const [scanDryRun,  setScanDryRun]  = useState(true)
 
   const { data: watchlist, mutate: mutateList } = useSWR(`${API}/tracking/watchlist`, fetcher, { refreshInterval: 30000 })
-  const { data: digestLogs } = useSWR(`${API}/tracking/digest/logs`, fetcher, { refreshInterval: 60000 })
+  const { data: digestLogs, mutate: mutateLogs } = useSWR(`${API}/tracking/digest/logs`, fetcher, { refreshInterval: 60000 })
 
   const entities = watchlist || []
   const logs     = digestLogs || []
@@ -302,10 +302,87 @@ export default function TrackingPage() {
 
   const runDigest = async () => {
     setDigestRunning(true); setDigestResult(null)
+    const clientStartMs = Date.now()
+
+    const checkRecentLog = async () => {
+      try {
+        const r = await fetch(`${API}/tracking/digest/logs?limit=5`)
+        if (!r.ok) return null
+        const rows = await r.json()
+        return (rows || []).find(row => {
+          const sentMs = new Date(row.sent_at.replace(' ', 'T') + 'Z').getTime()
+          return sentMs >= clientStartMs - 5000 // small buffer for clock skew
+        }) || null
+      } catch { return null }
+    }
+
     try {
-      const r = await fetch(`${API}/tracking/digest/run?dry_run=${dryRun}`, { method: 'POST' })
-      setDigestResult(await r.json())
-    } catch(e) {
+      const start = await fetch(`${API}/tracking/digest/run?dry_run=${dryRun}`, { method: 'POST' })
+      const started = await start.json()
+      if (!start.ok) {
+        setDigestResult({ error: started.detail || started.error || `HTTP ${start.status}` })
+        return
+      }
+      // Digest regenerates reports per entity (often 2–10+ min depending on
+      // external API latency). Poll job status so the browser doesn't hold
+      // one request open and hit "Failed to fetch".
+      const jobId = started.job_id
+      setDigestResult({ status: 'started', job_id: jobId, message: 'Digest running in background…' })
+
+      const MAX_POLLS = 360 // 30 min budget at 5s/poll
+      for (let i = 0; i < MAX_POLLS; i++) {
+        await new Promise(r => setTimeout(r, 5000))
+        let pr, data
+        try {
+          pr = await fetch(`${API}/tracking/digest/job/${jobId}`)
+          data = await pr.json()
+        } catch {
+          // transient network blip — keep polling rather than bailing
+          continue
+        }
+        if (!pr.ok) {
+          // Job entry can be lost if the API dev-server auto-reloaded mid-run.
+          // The digest itself (background task) may still finish and log —
+          // fall back to Digest History instead of declaring a hard failure.
+          const recent = await checkRecentLog()
+          if (recent) {
+            setDigestResult({
+              status: recent.status, entities_checked: recent.entity_count,
+              message: `Job tracking was lost (API reloaded?), but Digest History shows it completed: ${recent.status}.`,
+            })
+            mutateLogs?.()
+            return
+          }
+          setDigestResult({ error: data.detail || `Job poll failed (${pr.status})` })
+          return
+        }
+        if (data.status === 'completed' || data.status === 'failed') {
+          setDigestResult(data.status === 'failed'
+            ? { error: data.error || 'Digest failed', ...data }
+            : data)
+          mutateLogs?.()
+          return
+        }
+        setDigestResult({
+          status: data.status || 'running',
+          job_id: jobId,
+          message: `Still running… (${Math.round((i + 1) * 5 / 60)}m elapsed)`,
+        })
+      }
+
+      // Exceeded poll budget — check Digest History before declaring failure,
+      // since a slow run can finish right around the timeout boundary.
+      const recent = await checkRecentLog()
+      if (recent) {
+        setDigestResult({
+          status: recent.status, entities_checked: recent.entity_count,
+          message: `Finished around the polling deadline — Digest History shows it completed: ${recent.status}.`,
+        })
+      } else {
+        setDigestResult({ error: 'Digest is taking longer than 30 minutes — check Digest History below or API logs.' })
+      }
+      mutateLogs?.()
+    } catch (e) {
       setDigestResult({ error: e.message })
     } finally {
       setDigestRunning(false)
@@ -514,9 +591,24 @@ export default function TrackingPage() {
             <input type="checkbox" checked={dryRun} onChange={e => setDryRun(e.target.checked)} />
             Dry run (no emails/SMS)
           </label>
-          <button onClick={runDigest} disabled={digestRunning || entities.length === 0}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={runDigest}
+            disabled={digestRunning || entities.length === 0}
+            title={entities.length === 0 ? 'Add at least one entity to the watchlist first' : 'Run digest now'}
+            style={{
+              opacity: digestRunning || entities.length === 0 ? 0.55 : 1,
+              cursor: digestRunning || entities.length === 0 ? 'not-allowed' : 'pointer',
+            }}
+          >
             {digestRunning ? '⏳ Running digest…' : '▶ Run Digest Now'}
           </button>
+          {entities.length === 0 && (
+            <span style={{ fontSize: '0.78rem', color: '#fbbf24' }}>
+              Add a watchlist entity first (button stays disabled while empty / API offline)
+            </span>
+          )}
         </div>
 
         {digestResult && (
@@ -524,6 +616,7 @@ export default function TrackingPage() {
                         borderRadius: 8, padding: '0.75rem', fontSize: '0.82rem' }}>
             <div style={{ fontWeight: 700, color: digestResult.error ? '#f87171' : '#4ade80', marginBottom: '0.4rem' }}>
               {digestResult.error ? `Error: ${digestResult.error}` :
+               digestResult.message ? digestResult.message :
                `${digestResult.status?.toUpperCase()} — ${digestResult.entities_checked} entities checked, ${digestResult.total_changes || 0} changes`}
             </div>
             {digestResult.changes && Object.entries(digestResult.changes).map(([name, changes], i) => (

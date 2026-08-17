@@ -10,7 +10,8 @@ Architecture:
   1. Detect jurisdiction from entity name / context
   2. Build a set of target URLs per jurisdiction (public registries, courts,
      government procurement portals, news sites)
-  3. Use Apify's cheerio-scraper or browser-based actor to fetch page content
+  3. Fetch page content via Crawl4AI (free, self-hosted — F-07), falling back
+     to Apify's cheerio-scraper, then plain HTTP GET
   4. Send raw content to GPT-4o for extraction + structuring
   5. Return structured findings with source URLs and confidence tags
 
@@ -126,12 +127,21 @@ def detect_jurisdiction(entity_name: str, context: str = "") -> str:
 
 def _scrape_url(url: str, query: str) -> str:
     """
-    Fetch a URL via Apify Cheerio scraper and return extracted text.
-    Falls back to simple requests GET if Apify is unavailable.
+    Fetch a URL's text content. Order: Crawl4AI (handles JS-rendered pages,
+    free, self-hosted — F-07) → Apify Cheerio scraper → plain HTTP GET.
     """
     target_url = url.replace("{query}", requests.utils.quote(query))
 
-    # Try Apify cheerio scraper first (handles JS-rendered pages better)
+    # Try Crawl4AI first — free, self-hosted, handles JS-heavy gov/registry sites
+    try:
+        from app.connectors.crawl4ai_connector import crawl_url
+        markdown = crawl_url(target_url)
+        if markdown:
+            return markdown[:3000]
+    except Exception as e:
+        logger.debug("Crawl4AI scrape failed for %s: %s", target_url, e)
+
+    # Try Apify cheerio scraper next (handles JS-rendered pages better than plain GET)
     if APIFY_TOKEN:
         try:
             run_resp = requests.post(

@@ -123,7 +123,7 @@ def save_snapshot(db: Session, entity_name: str, report: dict):
     }
     db.execute(text("""
         INSERT INTO entity_snapshots (entity_name, snapshot_json)
-        VALUES (:name, :snap::jsonb)
+        VALUES (:name, :snap)
     """), {"name": entity_name, "snap": json.dumps(snapshot)})
     db.commit()
 
@@ -185,19 +185,28 @@ def send_email_digest(subject: str, html_body: str, recipient: str) -> bool:
     if not _SENDGRID_KEY or not recipient:
         logger.warning("SendGrid not configured — skipping email digest")
         return False
+    # Same verified-sender pattern as sendgrid_client (single-sender identity).
+    from_email = (
+        os.getenv("ALERT_SENDER_EMAIL")
+        or os.getenv("ALERT_RECIPIENT_EMAIL")
+        or recipient
+    )
     try:
         resp = requests.post(
             "https://api.sendgrid.com/v3/mail/send",
             headers={"Authorization": f"Bearer {_SENDGRID_KEY}", "Content-Type": "application/json"},
             json={
                 "personalizations": [{"to": [{"email": recipient}]}],
-                "from":             {"email": "noreply@intelligenceplatform.ai", "name": "Intelligence Platform"},
+                "from":             {"email": from_email, "name": "Intelligence Platform"},
                 "subject":          subject,
                 "content":          [{"type": "text/html", "value": html_body}],
             },
             timeout=15,
         )
-        return resp.status_code in (200, 202)
+        if resp.status_code not in (200, 202):
+            logger.warning("SendGrid digest failed %s: %s", resp.status_code, resp.text)
+            return False
+        return True
     except Exception as e:
         logger.warning("SendGrid error: %s", e)
         return False
@@ -236,7 +245,7 @@ def _build_digest_html(entity_changes: Dict[str, List[str]]) -> str:
 <html><body style="font-family:sans-serif;background:#0f172a;color:#e2e8f0;padding:20px">
 <div style="max-width:600px;margin:0 auto">
   <h2 style="color:#818cf8;margin-bottom:4px">Intelligence Daily Digest</h2>
-  <p style="color:#64748b;font-size:13px;margin-top:0">{datetime.utcdatetime('now').strftime('%A, %B %d, %Y')} — 6:00 AM UTC</p>
+  <p style="color:#64748b;font-size:13px;margin-top:0">{datetime.now(timezone.utc).strftime('%A, %B %d, %Y')} — 6:00 AM UTC</p>
   <table style="width:100%;border-collapse:collapse;background:#1e293b;border-radius:8px;overflow:hidden">
     <thead>
       <tr style="background:#0f172a">

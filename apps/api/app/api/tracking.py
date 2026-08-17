@@ -21,14 +21,19 @@ POST   /tracking/scan/insider-trades           — trigger F-03 scan manually
 GET    /tracking/watchlist/{ticker}/threshold  — get user threshold settings
 PATCH  /tracking/watchlist/{ticker}/threshold  — save user threshold settings
 POST   /tracking/scan/investments              — trigger F-04 scan manually
+
+── Alert Inbox UX (Task 2.2) ──────────────────────────────────────
+GET    /tracking/alerts/count                  — unread count for nav badge
 """
 import re
+import uuid
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from app.db.session import get_db
+from app.db.session import get_db, SessionLocal
 
 try:
     from app.services.tracking_service import (
@@ -42,6 +47,30 @@ except ImportError:
 router = APIRouter(prefix="/tracking", tags=["Tracking"])
 
 _E164_RE = re.compile(r"^\+[1-9]\d{7,14}$")
+
+# In-memory digest jobs (same pattern as intelligence report-job).
+# Long sync digests drop browser fetch after minutes → "Failed to fetch".
+_DIGEST_JOBS: Dict[str, Dict[str, Any]] = {}
+
+
+def _run_digest_job(job_id: str, dry_run: bool):
+    db = SessionLocal()
+    try:
+        _DIGEST_JOBS[job_id]["status"] = "running"
+        result = run_daily_digest(db, dry_run=dry_run)
+        _DIGEST_JOBS[job_id].update({
+            "status": "completed",
+            "result": result,
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception as exc:
+        _DIGEST_JOBS[job_id].update({
+            "status": "failed",
+            "error": str(exc),
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        })
+    finally:
+        db.close()
 
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
@@ -99,10 +128,46 @@ def remove_watch(entity_name: str, db: Session = Depends(get_db)):
 
 
 @router.post("/digest/run")
-def trigger_digest(dry_run: bool = False, background_tasks: BackgroundTasks = None, db: Session = Depends(get_db)):
+def trigger_digest(dry_run: bool = False, background_tasks: BackgroundTasks = None):
+    """
+    Start digest in the background and return a job_id immediately.
+    Poll GET /tracking/digest/job/{job_id} for status/result.
+    """
     if not _TRACKING_OK:
         raise HTTPException(503, "Tracking service not available")
-    return run_daily_digest(db, dry_run=dry_run)
+
+    job_id = str(uuid.uuid4())[:8]
+    _DIGEST_JOBS[job_id] = {
+        "job_id": job_id,
+        "status": "started",
+        "dry_run": dry_run,
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "result": None,
+        "error": None,
+    }
+    if background_tasks is not None:
+        background_tasks.add_task(_run_digest_job, job_id, dry_run)
+    else:
+        _run_digest_job(job_id, dry_run)
+    return {"job_id": job_id, "status": "started", "dry_run": dry_run}
+
+
+@router.get("/digest/job/{job_id}")
+def digest_job_status(job_id: str):
+    job = _DIGEST_JOBS.get(job_id)
+    if not job:
+        raise HTTPException(404, "Digest job not found")
+    out = {
+        "job_id": job["job_id"],
+        "status": job["status"],
+        "dry_run": job.get("dry_run"),
+        "started_at": job.get("started_at"),
+        "completed_at": job.get("completed_at"),
+        "error": job.get("error"),
+    }
+    if job.get("result"):
+        out.update(job["result"])
+    return out
 
 
 @router.get("/digest/logs")
@@ -133,6 +198,31 @@ def entity_changes(entity_name: str, report_id: Optional[int] = None, db: Sessio
 
 
 # ── Alerts inbox ──────────────────────────────────────────────────────────────
+
+@router.get("/alerts/count")
+def get_alerts_count(db: Session = Depends(get_db)):
+    """
+    Unread-alert badge count for the nav (Task 2.2 — in-app UX). "Unread" =
+    status='new' (i.e. not yet acknowledged or snoozed). Also breaks down by
+    severity so the UI can color the badge.
+    """
+    try:
+        rows = db.execute(text("""
+            SELECT severity, COUNT(*) as n
+            FROM entity_alerts
+            WHERE status = 'new'
+            GROUP BY severity
+        """)).fetchall()
+        by_severity = {r._mapping["severity"] or "info": r._mapping["n"] for r in rows}
+        total = sum(by_severity.values())
+        return {
+            "total": total,
+            "by_severity": by_severity,
+            "has_critical": by_severity.get("critical", 0) > 0,
+        }
+    except Exception:
+        return {"total": 0, "by_severity": {}, "has_critical": False}
+
 
 @router.get("/alerts")
 def get_alerts(status: Optional[str] = None, severity: Optional[str] = None,
