@@ -1,348 +1,999 @@
-import { useState, useMemo } from 'react'
+import Head from 'next/head'
 import { useRouter } from 'next/router'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Area,
+  Line,
+  Scatter,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+} from 'recharts'
+
+import { fetchTimeline, fetchTimelineCompare } from '../lib/intelligence'
 import styles from '../src/styles/Page.module.css'
-import eStyles from '../src/styles/Entity.module.css'
 import tStyles from '../src/styles/Timeline.module.css'
-import { getApiBaseUrl } from '../lib/api'
-import Link from 'next/link'
 
-const API = getApiBaseUrl()
-
-// ── Category config ───────────────────────────────────────────────────────────
-
-const CATEGORIES = [
-  { id: 'all',        label: 'All',       color: '#c7d2fe' },
-  { id: 'career',     label: 'Career',    color: '#60a5fa' },
-  { id: 'financial',  label: 'Financial', color: '#4ade80' },
-  { id: 'legal',      label: 'Legal',     color: '#f87171' },
-  { id: 'government', label: 'Government',color: '#fbbf24' },
-  { id: 'news',       label: 'News',      color: '#a78bfa' },
-  { id: 'education',  label: 'Education', color: '#34d399' },
+const YEAR_OPTIONS = [1, 2, 5]
+const TICKER_PATTERN = /^[A-Z][A-Z0-9.\-]{0,9}$/
+const MAX_COMPARE_TICKERS = 5
+const TICKER_COLORS = ['#818cf8', '#38bdf8', '#4ade80', '#fbbf24', '#f472b6', '#fb7185']
+const CATEGORY_CONFIG = [
+  { id: 'all', label: 'All', color: '#c7d2fe' },
+  { id: 'financial', label: 'Financial', color: '#4ade80' },
+  { id: 'insider', label: 'Insider', color: '#fbbf24' },
+  { id: 'governance', label: 'Governance', color: '#f472b6' },
+  { id: 'market', label: 'Market', color: '#60a5fa' },
+  { id: 'strategic', label: 'Strategic', color: '#818cf8' },
+  { id: 'other', label: 'Other', color: '#94a3b8' },
 ]
+const CATEGORY_MAP = Object.fromEntries(CATEGORY_CONFIG.map((item) => [item.id, item]))
+const DEFAULT_CATEGORY = CATEGORY_MAP.other
 
-const CAT_COLOR = Object.fromEntries(CATEGORIES.map(c => [c.id, c.color]))
-
-// ── Demo seeded timeline events (for Palantir / Peter Thiel / Elon Musk) ─────
-
-const DEMO_TIMELINES = {
-  'Peter Thiel': [
-    { date: '1968', category: 'education', text: 'Born in Frankfurt, Germany. Moved to US as a child.', source: 'Wikipedia' },
-    { date: '1989', category: 'education', text: 'Graduated from Stanford University (BA in Philosophy).', source: 'Wikipedia' },
-    { date: '1992', category: 'education', text: 'Graduated Stanford Law School (JD).', source: 'Wikipedia' },
-    { date: '1998', category: 'career',    text: 'Co-founded PayPal with Max Levchin and others.', source: 'Wikipedia' },
-    { date: '2002', category: 'financial', text: 'PayPal acquired by eBay for $1.5B. Thiel receives ~$55M.', source: 'SEC/M&A records' },
-    { date: '2003', category: 'career',    text: 'Founded Palantir Technologies with Alex Karp.', source: 'Palantir S-1' },
-    { date: '2004', category: 'financial', text: 'Invested $500K in Facebook as first outside investor.', source: 'SEC' },
-    { date: '2005', category: 'career',    text: 'Founded Founders Fund VC firm.', source: 'Founders Fund' },
-    { date: '2011', category: 'career',    text: 'Launched Thiel Fellowship — $100K grants for 20-Under-20.', source: 'Thiel Foundation' },
-    { date: '2016', category: 'government', text: 'Spoke at Republican National Convention; donated to Trump campaign.', source: 'FEC OpenData' },
-    { date: '2016', category: 'legal',     text: 'Funded Hulk Hogan lawsuit against Gawker Media ($140M verdict).', source: 'Court records' },
-    { date: '2020', category: 'financial', text: 'Palantir Technologies IPO (NYSE: PLTR) — direct listing at $9.50/share.', source: 'SEC S-1' },
-    { date: '2022', category: 'government', text: 'Retired from Palantir board. Focused on political donations.', source: 'SEC Form 4' },
-    { date: '2022', category: 'financial', text: 'Net worth estimated at ~$7.5B (Forbes).', source: 'Forbes' },
-  ],
-  'Elon Musk': [
-    { date: '1971', category: 'education',  text: 'Born in Pretoria, South Africa.', source: 'Wikipedia' },
-    { date: '1995', category: 'career',     text: 'Co-founded Zip2 with brother Kimbal Musk.', source: 'Wikipedia' },
-    { date: '1999', category: 'financial',  text: 'Zip2 acquired by Compaq for $307M.', source: 'SEC' },
-    { date: '1999', category: 'career',     text: 'Founded X.com (became PayPal after merger with Confinity).', source: 'Wikipedia' },
-    { date: '2002', category: 'financial',  text: 'PayPal acquired by eBay for $1.5B; Musk earns ~$180M.', source: 'SEC' },
-    { date: '2002', category: 'career',     text: 'Founded SpaceX.', source: 'SpaceX' },
-    { date: '2004', category: 'career',     text: 'Joined Tesla Motors as chairman and lead investor.', source: 'SEC' },
-    { date: '2008', category: 'legal',      text: 'Near-bankruptcy for Tesla and SpaceX. Diverted funds.', source: 'WSJ' },
-    { date: '2018', category: 'legal',      text: 'SEC charged Musk over "funding secured" tweet. Settled $20M.', source: 'SEC' },
-    { date: '2022', category: 'financial',  text: 'Acquired Twitter for $44B.', source: 'SEC 13D' },
-    { date: '2024', category: 'government', text: 'Donated $250M+ to Trump PAC; appointed to DOGE advisory role.', source: 'FEC OpenData' },
-  ],
-  'Palantir Technologies': [
-    { date: '2003', category: 'career',     text: 'Founded by Peter Thiel, Alex Karp, Joe Lonsdale, and others in Palo Alto.', source: 'Palantir S-1' },
-    { date: '2004', category: 'financial',  text: 'First VC funding — $2M seed from Founders Fund and Thiel.', source: 'PitchBook' },
-    { date: '2006', category: 'government', text: 'CIA-funded through In-Q-Tel. First government contract.', source: 'SEC' },
-    { date: '2010', category: 'government', text: 'NSA, FBI, and DHS contracts; Palantir Gotham deployed in counterterrorism.', source: 'Media' },
-    { date: '2014', category: 'legal',      text: 'Sued for gender discrimination; settled out of court.', source: 'Court records' },
-    { date: '2015', category: 'legal',      text: 'OFCCP lawsuit over hiring discrimination at US DoL.', source: 'Court records' },
-    { date: '2016', category: 'government', text: 'Won $876M US Army contract for intelligence systems.', source: 'USASpending' },
-    { date: '2020', category: 'financial',  text: 'IPO via direct listing (NYSE: PLTR) at $9.50. Market cap $16B.', source: 'SEC S-1' },
-    { date: '2021', category: 'government', text: 'Awarded $823M TITAN contract for US Army battlefield AI.', source: 'USASpending' },
-    { date: '2023', category: 'financial',  text: 'Added to S&P 500 index.', source: 'S&P' },
-    { date: '2024', category: 'financial',  text: 'Revenue $2.87B; first year of GAAP profitability.', source: 'SEC 10-K' },
-  ],
+function normalizeTicker(value) {
+  return String(value || '').trim().toUpperCase()
 }
 
-function getDemo(name) {
-  const key = Object.keys(DEMO_TIMELINES).find(k => k.toLowerCase() === name.toLowerCase())
-  return key ? DEMO_TIMELINES[key] : null
+function normalizeYears(value) {
+  const numeric = Number.parseInt(String(value || ''), 10)
+  return YEAR_OPTIONS.includes(numeric) ? numeric : 2
 }
 
-// ── Timeline Event Card ───────────────────────────────────────────────────────
+function normalizeCompareInput(value) {
+  return String(value || '')
+    .split(',')
+    .map((item) => normalizeTicker(item))
+    .filter(Boolean)
+    .join(',')
+}
 
-function EventCard({ ev, isLast }) {
-  const color  = CAT_COLOR[ev.category] || '#818cf8'
-  const catCfg = CATEGORIES.find(c => c.id === ev.category) || CATEGORIES[0]
+function parseCompareTickers(value, primaryTicker = '') {
+  const primary = normalizeTicker(primaryTicker)
+  const seen = new Set(primary ? [primary] : [])
+  const valid = []
+  const invalid = []
+  let limitApplied = false
+
+  String(value || '')
+    .split(',')
+    .map((item) => normalizeTicker(item))
+    .filter(Boolean)
+    .forEach((ticker) => {
+      if (seen.has(ticker)) {
+        return
+      }
+
+      if (!TICKER_PATTERN.test(ticker)) {
+        invalid.push(ticker)
+        return
+      }
+
+      if (valid.length >= MAX_COMPARE_TICKERS) {
+        limitApplied = true
+        return
+      }
+
+      seen.add(ticker)
+      valid.push(ticker)
+    })
+
+  return {
+    valid,
+    invalid,
+    limitApplied,
+    normalized: valid.join(','),
+  }
+}
+
+function buildDisplayCompare(value, primaryTicker = '') {
+  return parseCompareTickers(value, primaryTicker).normalized
+}
+
+function formatDate(value) {
+  if (!value) {
+    return 'Unknown date'
+  }
+
+  const parsed = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(parsed.getTime())) {
+    return value
+  }
+
+  return parsed.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function formatNumber(value, digits = 0) {
+  if (value === null || value === undefined || value === '') {
+    return '-'
+  }
+
+  return Number(value).toLocaleString(undefined, {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  })
+}
+
+function formatPrice(value) {
+  if (value === null || value === undefined || value === '') {
+    return '-'
+  }
+
+  return `$${Number(value).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`
+}
+
+function formatPercent(value) {
+  if (value === null || value === undefined || value === '') {
+    return ''
+  }
+
+  const numeric = Number(value)
+  const prefix = numeric > 0 ? '+' : ''
+  return `${prefix}${numeric.toFixed(2)}%`
+}
+
+function formatWarning(warning) {
+  if (!warning) {
+    return ''
+  }
+
+  if (warning.detail) {
+    return warning.detail
+  }
+
+  if (warning.code) {
+    return warning.code.replace(/_/g, ' ')
+  }
+
+  return 'A timeline source was unavailable for this request.'
+}
+
+function getEventCategory(category) {
+  return CATEGORY_MAP[category] || DEFAULT_CATEGORY
+}
+
+function getTickerColor(ticker, colorMap) {
+  return colorMap[ticker] || TICKER_COLORS[0]
+}
+
+function normalizeSinglePayload(payload) {
+  return {
+    mode: 'single',
+    titleTicker: payload?.ticker || '',
+    entityName: payload?.entity_name || payload?.ticker || '',
+    tickers: payload?.ticker ? [payload.ticker] : [],
+    primaryTicker: payload?.ticker || '',
+    compareTickers: [],
+    period: payload?.period || null,
+    events: Array.isArray(payload?.events)
+      ? payload.events.map((event) => ({
+        ...event,
+        ticker: event?.ticker || payload?.ticker || '',
+      }))
+      : [],
+    priceSeriesByTicker: payload?.ticker
+      ? {
+          [payload.ticker]: Array.isArray(payload?.price_series) ? payload.price_series : [],
+        }
+      : {},
+    summary: payload?.summary || { total_events: 0, by_category: {}, most_significant: [] },
+    partial: Boolean(payload?.partial),
+    warnings: Array.isArray(payload?.warnings) ? payload.warnings : [],
+  }
+}
+
+function normalizeComparePayload(payload) {
+  const tickers = Array.isArray(payload?.tickers) ? payload.tickers : []
+  const seriesMap = {}
+
+  ;(payload?.price_series || []).forEach((entry) => {
+    if (!entry?.ticker) {
+      return
+    }
+    seriesMap[entry.ticker] = Array.isArray(entry.points) ? entry.points : []
+  })
+
+  return {
+    mode: 'compare',
+    titleTicker: payload?.primary_ticker || tickers[0] || '',
+    entityName: payload?.primary_ticker || tickers[0] || '',
+    tickers,
+    primaryTicker: payload?.primary_ticker || tickers[0] || '',
+    compareTickers: tickers.slice(1),
+    period: payload?.period || null,
+    events: Array.isArray(payload?.events) ? payload.events : [],
+    priceSeriesByTicker: seriesMap,
+    summary: payload?.summary || { total_events: 0, by_ticker: {}, by_category: {}, most_significant: [] },
+    partial: Boolean(payload?.partial),
+    warnings: Array.isArray(payload?.warnings) ? payload.warnings : [],
+  }
+}
+
+function buildChartModel(priceSeriesByTicker, events, tickers, colorMap) {
+  const seriesMap = priceSeriesByTicker || {}
+  const rowsByDate = new Map()
+  const markerGroups = {}
+
+  tickers.forEach((ticker) => {
+    const points = [...(seriesMap[ticker] || [])].sort((left, right) => left.date.localeCompare(right.date))
+    markerGroups[ticker] = []
+
+    points.forEach((point) => {
+      if (!rowsByDate.has(point.date)) {
+        rowsByDate.set(point.date, { date: point.date })
+      }
+      const row = rowsByDate.get(point.date)
+      row[ticker] = point.close
+    })
+  })
+
+  const rows = [...rowsByDate.values()].sort((left, right) => left.date.localeCompare(right.date))
+  const closeByTickerDate = new Map()
+
+  tickers.forEach((ticker) => {
+    ;(seriesMap[ticker] || []).forEach((point) => {
+      closeByTickerDate.set(`${ticker}:${point.date}`, point.close)
+    })
+  })
+
+  ;(events || []).forEach((event) => {
+    const ticker = event.ticker
+    if (!ticker || !markerGroups[ticker]) {
+      return
+    }
+
+    const plottedClose = event.related_price?.close ?? closeByTickerDate.get(`${ticker}:${event.date}`)
+    if (plottedClose === null || plottedClose === undefined) {
+      return
+    }
+
+    markerGroups[ticker].push({
+      ticker,
+      date: event.date,
+      close: plottedClose,
+      eventId: event.id,
+      title: event.title,
+      category: event.category,
+      significance: event.significance,
+      source: event.source,
+      relatedPrice: event.related_price || null,
+      tickerColor: getTickerColor(ticker, colorMap),
+    })
+  })
+
+  return { chartRows: rows, markerGroups }
+}
+
+function TimelineTooltip({ active, payload, label, isCompare }) {
+  if (!active || !payload || !payload.length) {
+    return null
+  }
+
+  const markerEntry = payload.find((entry) => entry.payload?.eventId)
+  const marker = markerEntry?.payload
+  const priceEntries = payload.filter((entry) => !entry.payload?.eventId && typeof entry.value === 'number')
+
   return (
-    <div className={tStyles.event}>
-      <div className={tStyles.eventLeft}>
-        <div className={tStyles.dot} style={{ background: color }} />
-        {!isLast && <div className={tStyles.line} />}
-      </div>
-      <div className={tStyles.eventCard}>
-        <div className={tStyles.eventHeader}>
-          <span className={tStyles.eventDate}>{ev.date}</span>
-          <span className={tStyles.eventCat} style={{ background: `${color}22`, color, borderColor: `${color}55` }}>
-            {catCfg.label}
-          </span>
-          {ev.source && <span className={tStyles.eventSrc}>{ev.source}</span>}
-        </div>
-        <p className={tStyles.eventText}>{ev.text}</p>
-      </div>
+    <div className={tStyles.tooltip}>
+      <div className={tStyles.tooltipDate}>{formatDate(marker?.date || label)}</div>
+      {marker ? (
+        <>
+          <div className={tStyles.tooltipCategory}>{getEventCategory(marker.category).label}</div>
+          <div className={tStyles.tooltipTitle}>
+            {marker.ticker ? `${marker.ticker} - ` : ''}
+            {marker.title}
+          </div>
+          <div className={tStyles.tooltipMeta}>
+            <span>Significance {marker.significance}</span>
+            {marker.source ? <span>{marker.source}</span> : null}
+          </div>
+          <div className={tStyles.tooltipPrice}>
+            {marker.relatedPrice?.close !== undefined ? formatPrice(marker.relatedPrice.close) : formatPrice(marker.close)}
+            {marker.relatedPrice?.change_pct !== undefined ? ` ${formatPercent(marker.relatedPrice.change_pct)}` : ''}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className={tStyles.tooltipTitle}>{isCompare ? 'Closing Prices' : 'Closing Price'}</div>
+          <div className={tStyles.tooltipPrices}>
+            {priceEntries.map((entry) => (
+              <div key={entry.dataKey} className={tStyles.tooltipPriceRow}>
+                <span className={tStyles.tooltipTicker}>{entry.name || entry.dataKey}</span>
+                <span>{formatPrice(entry.value)}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
+function MarkerShape({ cx, cy, payload, onSelect }) {
+  if (cx === undefined || cy === undefined || !payload?.eventId) {
+    return null
+  }
+
+  const category = getEventCategory(payload.category)
+  const radius = Math.max(5, Math.min(11, 4 + Number(payload.significance || 0) * 0.6))
+
+  return (
+    <g
+      className={tStyles.chartMarker}
+      onClick={() => onSelect(payload.eventId)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onSelect(payload.eventId)
+        }
+      }}
+    >
+      <circle cx={cx} cy={cy} r={radius + 3} fill="rgba(8, 13, 26, 0.9)" />
+      <circle cx={cx} cy={cy} r={radius + 1} fill={payload.tickerColor || '#818cf8'} opacity="0.4" />
+      <circle cx={cx} cy={cy} r={radius - 1} fill={category.color} stroke={payload.tickerColor || '#818cf8'} strokeWidth={2} />
+    </g>
+  )
+}
+
+function EventCard({ event, selected, cardRef, tickerColor }) {
+  const category = getEventCategory(event.category)
+
+  return (
+    <article
+      ref={cardRef}
+      className={`${tStyles.eventCard} ${selected ? tStyles.eventCardSelected : ''}`}
+    >
+      <div className={tStyles.eventTopRow}>
+        <div className={tStyles.eventMeta}>
+          <span className={tStyles.eventDate}>{formatDate(event.date)}</span>
+          <span
+            className={tStyles.eventCategory}
+            style={{
+              background: `${category.color}18`,
+              borderColor: `${category.color}4d`,
+              color: category.color,
+            }}
+          >
+            {category.label}
+          </span>
+          <span className={tStyles.eventSignificance}>Significance {event.significance}</span>
+        </div>
+        <div className={tStyles.eventSourceRow}>
+          {event.ticker ? (
+            <span
+              className={tStyles.eventTicker}
+              style={{
+                borderColor: `${tickerColor}66`,
+                color: tickerColor,
+              }}
+            >
+              {event.ticker}
+            </span>
+          ) : null}
+          {event.source ? <span className={tStyles.eventSource}>{event.source}</span> : null}
+        </div>
+      </div>
+
+      <h3 className={tStyles.eventTitle}>{event.title}</h3>
+      {event.description ? <p className={tStyles.eventDescription}>{event.description}</p> : null}
+
+      {(event.related_price?.close !== undefined || event.related_price?.change_pct !== undefined) ? (
+        <div className={tStyles.eventPriceRow}>
+          {event.related_price?.close !== undefined ? <span>{formatPrice(event.related_price.close)}</span> : null}
+          {event.related_price?.change_pct !== undefined ? <span>{formatPercent(event.related_price.change_pct)}</span> : null}
+        </div>
+      ) : null}
+
+      {event.source_url ? (
+        <div className={tStyles.eventActions}>
+          <a
+            href={event.source_url}
+            target="_blank"
+            rel="noreferrer"
+            className={tStyles.eventLink}
+          >
+            View Source
+          </a>
+        </div>
+      ) : null}
+    </article>
+  )
+}
 
 export default function TimelinePage() {
   const router = useRouter()
-  const [entityName, setEntityName]   = useState('Peter Thiel')
-  const [loading,    setLoading]      = useState(false)
-  const [events,     setEvents]       = useState(DEMO_TIMELINES['Peter Thiel'])
-  const [loaded,     setLoaded]       = useState('Peter Thiel')
-  const [filterCat,  setFilterCat]    = useState('all')
-  const [search,     setSearch]       = useState('')
-  const [viewMode,   setViewMode]     = useState('vertical') // 'vertical' | 'cards'
+  const eventRefs = useRef({})
+  const requestIdRef = useRef(0)
+  const highlightTimerRef = useRef(null)
 
-  const load = async () => {
-    // Check demo first
-    const demo = getDemo(entityName)
-    if (demo) {
-      setEvents(demo)
-      setLoaded(entityName)
+  const [tickerInput, setTickerInput] = useState('')
+  const [compareInput, setCompareInput] = useState('')
+  const [yearsInput, setYearsInput] = useState(2)
+  const [timeline, setTimeline] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('all')
+  const [selectedEventId, setSelectedEventId] = useState('')
+
+  const fetchAndSetTimeline = useCallback(async ({ ticker, years, compare }) => {
+    const normalizedTicker = normalizeTicker(ticker)
+    const normalizedYears = normalizeYears(years)
+    const compareState = parseCompareTickers(compare, normalizedTicker)
+    const requestId = requestIdRef.current + 1
+    requestIdRef.current = requestId
+
+    setLoading(true)
+    setError('')
+    setSelectedCategory('all')
+    setSelectedEventId('')
+
+    try {
+      const payload = compareState.valid.length
+        ? await fetchTimelineCompare({
+            ticker: normalizedTicker,
+            against: compareState.normalized,
+            years: normalizedYears,
+          })
+        : await fetchTimeline({
+            ticker: normalizedTicker,
+            years: normalizedYears,
+          })
+
+      if (requestId !== requestIdRef.current) {
+        return
+      }
+
+      const normalizedPayload = compareState.valid.length
+        ? normalizeComparePayload(payload)
+        : normalizeSinglePayload(payload)
+
+      setTimeline(normalizedPayload)
+      setTickerInput(normalizedTicker)
+      setCompareInput(compareState.normalized)
+      setYearsInput(normalizedYears)
+    } catch (requestError) {
+      if (requestId !== requestIdRef.current) {
+        return
+      }
+
+      setTimeline(null)
+      setError(requestError.message || 'Timeline request failed.')
+    } finally {
+      if (requestId === requestIdRef.current) {
+        setLoading(false)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current) {
+        clearTimeout(highlightTimerRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!router.isReady) {
       return
     }
 
-    setLoading(true)
-    try {
-      // Try to get timeline from entities API
-      const r = await fetch(`${API}/intelligence/generate?entity_name=${encodeURIComponent(entityName)}&entity_type=org`, {
-        method: 'POST',
-      })
-      if (r.ok) {
-        const data = await r.json()
-        // Build timeline from sections
-        const built = []
-        for (const sec of (data.sections || [])) {
-          const cat = guessCategory(sec.name)
-          for (const claim of (sec.claims || []).slice(0, 5)) {
-            const text = (claim.text || claim || '').replace(/^\[(DOCUMENTED|REPORTED|ANALYTICAL)\]\s*/, '')
-            if (text) {
-              built.push({
-                date:     new Date().getFullYear().toString(),
-                category: cat,
-                text:     text.slice(0, 300),
-                source:   claim.source || sec.name,
-              })
-            }
-          }
-        }
-        setEvents(built.slice(0, 40))
-        setLoaded(entityName)
-      }
-    } catch (e) {
-      console.error(e)
-    } finally {
+    const queryTicker = normalizeTicker(router.query.ticker)
+    const queryYears = normalizeYears(router.query.years)
+    const rawCompare = typeof router.query.compare === 'string' ? router.query.compare : ''
+    const compareState = parseCompareTickers(rawCompare, queryTicker)
+
+    setTickerInput(queryTicker)
+    setCompareInput(compareState.normalized)
+    setYearsInput(queryYears)
+
+    if (!queryTicker) {
+      setTimeline(null)
+      setError('')
       setLoading(false)
+      setSelectedCategory('all')
+      setSelectedEventId('')
+      return
     }
-  }
 
-  function guessCategory(sectionName) {
-    const n = (sectionName || '').toLowerCase()
-    if (n.includes('linkedin') || n.includes('people') || n.includes('career')) return 'career'
-    if (n.includes('sec') || n.includes('fund') || n.includes('contract')) return 'financial'
-    if (n.includes('court') || n.includes('litigation') || n.includes('sanction')) return 'legal'
-    if (n.includes('fec') || n.includes('fara') || n.includes('government') || n.includes('lda')) return 'government'
-    if (n.includes('news')) return 'news'
-    return 'career'
-  }
+    if (!TICKER_PATTERN.test(queryTicker)) {
+      setTimeline(null)
+      setLoading(false)
+      setError('Enter a valid ticker symbol such as NVDA, AAPL, or MSFT.')
+      return
+    }
 
-  const filtered = useMemo(() => {
-    let evs = [...events].sort((a, b) => {
-      const ya = parseInt(a.date) || 0
-      const yb = parseInt(b.date) || 0
-      return ya - yb
+    if (rawCompare && !compareState.valid.length) {
+      setTimeline(null)
+      setLoading(false)
+      setError('Enter at least one valid comparison ticker such as AMD or INTC.')
+      return
+    }
+
+    fetchAndSetTimeline({
+      ticker: queryTicker,
+      years: queryYears,
+      compare: compareState.normalized,
     })
-    if (filterCat !== 'all') evs = evs.filter(e => e.category === filterCat)
-    if (search)              evs = evs.filter(e =>
-      (e.text || '').toLowerCase().includes(search.toLowerCase()) ||
-      (e.source || '').toLowerCase().includes(search.toLowerCase())
-    )
-    return evs
-  }, [events, filterCat, search])
+  }, [fetchAndSetTimeline, router.isReady, router.query.compare, router.query.ticker, router.query.years])
 
-  const SEEDS = [
-    { label: 'Peter Thiel', type: 'person' },
-    { label: 'Elon Musk',   type: 'person' },
-    { label: 'Palantir Technologies', type: 'org' },
+  const handleRun = useCallback(async () => {
+    const normalizedTicker = normalizeTicker(tickerInput)
+    const normalizedYears = normalizeYears(yearsInput)
+    const compareState = parseCompareTickers(compareInput, normalizedTicker)
+
+    if (!normalizedTicker) {
+      setTimeline(null)
+      setError('Ticker is required.')
+      return
+    }
+
+    if (!TICKER_PATTERN.test(normalizedTicker)) {
+      setTimeline(null)
+      setError('Enter a valid ticker symbol such as NVDA, AAPL, or MSFT.')
+      return
+    }
+
+    if (compareInput && !compareState.valid.length) {
+      setTimeline(null)
+      setError('Enter at least one valid comparison ticker such as AMD or INTC.')
+      return
+    }
+
+    const nextQuery = {
+      ticker: normalizedTicker,
+      years: normalizedYears,
+    }
+
+    if (compareState.valid.length) {
+      nextQuery.compare = compareState.normalized
+    }
+
+    await router.push(
+      {
+        pathname: '/timeline',
+        query: nextQuery,
+      },
+      undefined,
+      { shallow: true }
+    )
+  }, [compareInput, router, tickerInput, yearsInput])
+
+  const handleMarkerSelect = useCallback((eventId) => {
+    setSelectedEventId(eventId)
+
+    if (highlightTimerRef.current) {
+      clearTimeout(highlightTimerRef.current)
+    }
+
+    const target = eventRefs.current[eventId]
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+
+    highlightTimerRef.current = setTimeout(() => {
+      setSelectedEventId((current) => (current === eventId ? '' : current))
+    }, 2200)
+  }, [])
+
+  const timelineWarnings = useMemo(
+    () => (Array.isArray(timeline?.warnings) ? timeline.warnings : []),
+    [timeline]
+  )
+
+  const colorMap = useMemo(() => {
+    const tickers = timeline?.tickers || []
+    return tickers.reduce((accumulator, ticker, index) => {
+      accumulator[ticker] = TICKER_COLORS[index % TICKER_COLORS.length]
+      return accumulator
+    }, {})
+  }, [timeline])
+
+  const sortedEvents = useMemo(() => {
+    const rawEvents = Array.isArray(timeline?.events) ? timeline.events : []
+    if (timeline?.mode === 'compare') {
+      return rawEvents
+    }
+
+    return [...rawEvents].sort((left, right) => {
+      if (left.date !== right.date) {
+        return String(right.date || '').localeCompare(String(left.date || ''))
+      }
+      return Number(right.significance || 0) - Number(left.significance || 0)
+    })
+  }, [timeline])
+
+  const availableCategories = useMemo(() => {
+    const present = new Set(sortedEvents.map((event) => event.category).filter(Boolean))
+    return CATEGORY_CONFIG.filter((item) => item.id === 'all' || present.has(item.id))
+  }, [sortedEvents])
+
+  const filteredEvents = useMemo(() => {
+    if (selectedCategory === 'all') {
+      return sortedEvents
+    }
+
+    return sortedEvents.filter((event) => event.category === selectedCategory)
+  }, [selectedCategory, sortedEvents])
+
+  const { chartRows, markerGroups } = useMemo(
+    () => buildChartModel(timeline?.priceSeriesByTicker || {}, filteredEvents, timeline?.tickers || [], colorMap),
+    [colorMap, filteredEvents, timeline]
+  )
+
+  const showPartialNotice = Boolean(timeline?.partial || timelineWarnings.length)
+  const latestTicker = timeline?.titleTicker || normalizeTicker(router.query.ticker)
+  const pageTitle = latestTicker ? `${latestTicker} Timeline` : 'Timeline'
+  const isCompareMode = timeline?.mode === 'compare'
+  const compareSummary = parseCompareTickers(compareInput, tickerInput)
+  const statusMessages = [
+    ...compareSummary.invalid.map((ticker) => `Ignored invalid comparison ticker: ${ticker}.`),
+    ...(compareSummary.limitApplied ? [`Only the first ${MAX_COMPARE_TICKERS} comparison tickers will be used.`] : []),
   ]
 
   return (
-    <main className="page-wrap">
-      {/* Header */}
-      <section className="card">
-        <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', fontWeight: 700,
-                    letterSpacing: '0.08em', textTransform: 'uppercase', color: '#818cf8' }}>
-          Layer 1 v1.2 — Person &amp; Entity Timeline
-        </p>
-        <h1 style={{ margin: 0 }}>Intelligence Timeline</h1>
-        <p style={{ margin: '0.5rem 0 0', color: 'var(--text-muted)', maxWidth: 640 }}>
-          Chronological event timeline — career moves, filings, contracts, legal events,
-          and news for any person or organization.
-        </p>
-      </section>
+    <>
+      <Head>
+        <title>{pageTitle} | Enterprise Intelligence</title>
+      </Head>
 
-      {/* Quick seeds */}
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)' }}>Quick:</span>
-        {SEEDS.map(s => (
-          <button
-            key={s.label}
-            onClick={() => { setEntityName(s.label); setEvents(DEMO_TIMELINES[s.label] || []); setLoaded(s.label) }}
-            style={{
-              background: 'rgba(129,140,248,0.1)',
-              border: '1px solid rgba(129,140,248,0.3)',
-              borderRadius: 7,
-              color: '#c7d2fe',
-              cursor: 'pointer',
-              fontSize: '0.78rem',
-              fontWeight: 600,
-              padding: '0.25rem 0.6rem',
-            }}
-          >{s.label}</button>
-        ))}
-      </div>
-
-      {/* Controls */}
-      <div className="card">
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <label style={{display:"flex",flexDirection:"column",gap:4,color:"var(--text-muted)",fontSize:"0.82rem",fontWeight:600}} style={{ flex: '1 1 240px' }}>
-            Entity / Person Name
-            <input
-              className="inp"
-              value={entityName}
-              onChange={e => setEntityName(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && load()}
-              placeholder="e.g. Peter Thiel"
-            />
-          </label>
-          <button  onClick={load} disabled={loading} style={{ marginBottom: 0, alignSelf: 'flex-end' }}>
-            {loading ? 'Loading...' : 'Load Timeline'}
-          </button>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        {CATEGORIES.map(c => (
-          <button
-            key={c.id}
-            onClick={() => setFilterCat(c.id)}
-            style={{
-              background:  filterCat === c.id ? `${c.color}22` : 'transparent',
-              border:      `1px solid ${filterCat === c.id ? c.color : 'var(--line)'}`,
-              borderRadius: 7,
-              color:       filterCat === c.id ? c.color : 'var(--text-muted)',
-              cursor:      'pointer',
-              fontSize:    '0.76rem',
-              fontWeight:  700,
-              padding:     '0.25rem 0.65rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-            }}
-          >{c.label}</button>
-        ))}
-        <input
-          placeholder="Search events…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{
-            background: 'rgba(8,13,26,0.9)',
-            border:    '1px solid var(--line)',
-            borderRadius: 7,
-            color:     'var(--text)',
-            font:      'inherit',
-            fontSize:  '0.8rem',
-            padding:   '0.25rem 0.6rem',
-            marginLeft: 'auto',
-          }}
-        />
-        <button
-          onClick={() => setViewMode(v => v === 'vertical' ? 'cards' : 'vertical')}
-          style={{
-            background:  'rgba(15,20,40,0.7)',
-            border:      '1px solid var(--line)',
-            borderRadius: 7,
-            color:       'var(--text-muted)',
-            cursor:      'pointer',
-            fontSize:    '0.78rem',
-            fontWeight:  600,
-            padding:     '0.25rem 0.65rem',
-          }}
-        >{viewMode === 'vertical' ? '⊞ Cards' : '↕ Timeline'}</button>
-      </div>
-
-      {/* Stats bar */}
-      {loaded && (
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          {CATEGORIES.filter(c => c.id !== 'all').map(c => {
-            const count = events.filter(e => e.category === c.id).length
-            if (!count) return null
-            return (
-              <span key={c.id} style={{ fontSize: '0.75rem', fontWeight: 700, color: c.color }}>
-                {c.label}: {count}
-              </span>
-            )
-          })}
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>
-            Showing {filtered.length} of {events.length} events for <strong>{loaded}</strong>
-          </span>
-        </div>
-      )}
-
-      {/* Timeline */}
-      {filtered.length === 0 && !loading && (
-        <div className="card">
-          <p style={{color:"var(--text-soft)",fontStyle:"italic",fontSize:"0.82rem"}}>
-            No events to display. Try one of the demo seeds above or load any entity.
+      <main className={styles.page}>
+        <section className={styles.hero}>
+          <h1>Interactive Entity Timeline</h1>
+          <p>
+            Explore real stock-price history and grounded event chronology for one company or compare
+            multiple tickers on the same timeline using the live backend timeline endpoints.
           </p>
-        </div>
-      )}
+        </section>
 
-      {viewMode === 'vertical' && filtered.length > 0 && (
-        <div className="card" style={{ padding: '1rem 1.25rem' }}>
-          <div className={tStyles.timelineWrap}>
-            {filtered.map((ev, i) => (
-              <EventCard key={i} ev={ev} isLast={i === filtered.length - 1} />
-            ))}
-          </div>
-        </div>
-      )}
+        <section className={styles.grid2}>
+          <div className={styles.panel}>
+            <h2>Timeline Request</h2>
+            <div className={styles.controls}>
+              <div className={tStyles.controlGrid}>
+                <label className={styles.label}>
+                  Primary Ticker
+                  <input
+                    className={styles.input}
+                    value={tickerInput}
+                    onChange={(event) => setTickerInput(normalizeTicker(event.target.value))}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && !loading) {
+                        handleRun()
+                      }
+                    }}
+                    placeholder="NVDA"
+                    autoComplete="off"
+                  />
+                </label>
 
-      {viewMode === 'cards' && filtered.length > 0 && (
-        <div className={tStyles.cardGrid}>
-          {filtered.map((ev, i) => {
-            const color = CAT_COLOR[ev.category] || '#818cf8'
-            return (
-              <div key={i} className={tStyles.card} style={{ borderTopColor: color }}>
-                <div className={tStyles.cardDate}>{ev.date}</div>
-                <span className={tStyles.cardCat} style={{ color, background: `${color}15` }}>
-                  {ev.category}
-                </span>
-                <p className={tStyles.cardText}>{ev.text}</p>
-                <span className={tStyles.cardSrc}>{ev.source}</span>
+                <label className={styles.label}>
+                  Years
+                  <select
+                    className={styles.select}
+                    value={yearsInput}
+                    onChange={(event) => setYearsInput(normalizeYears(event.target.value))}
+                  >
+                    {YEAR_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
-            )
-          })}
-        </div>
-      )}
-    </main>
+
+              <label className={styles.label}>
+                Comparison Tickers
+                <input
+                  className={styles.input}
+                  value={compareInput}
+                  onChange={(event) => setCompareInput(normalizeCompareInput(event.target.value))}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !loading) {
+                      handleRun()
+                    }
+                  }}
+                  placeholder="AMD,INTC"
+                  autoComplete="off"
+                />
+              </label>
+
+              <div className={tStyles.compareHint}>
+                Leave comparison tickers empty for single-company mode. When provided, the URL becomes
+                shareable as <span className={styles.chip}>/timeline?ticker=NVDA&years=2&compare=AMD,INTC</span>.
+              </div>
+
+              {statusMessages.length ? (
+                <div className={tStyles.compareMessages}>
+                  {statusMessages.map((message) => (
+                    <div key={message} className={tStyles.compareMessage}>
+                      {message}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              <div className={styles.buttonRow}>
+                <button className={styles.button} onClick={handleRun} disabled={loading}>
+                  {loading ? 'Loading Timeline...' : isCompareMode || compareSummary.valid.length ? 'Compare Timelines' : 'View Timeline'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className={styles.panel}>
+            <h2>Timeline Status</h2>
+            {loading ? (
+              <p className={styles.subtle}>Fetching live timeline, price series, and grounded events.</p>
+            ) : error ? (
+              <p className={styles.dangerText}>{error}</p>
+            ) : timeline ? (
+              <>
+                <div className={styles.metaRow}>
+                  <span className={styles.chip}>{timeline.entityName || timeline.titleTicker}</span>
+                  {timeline.tickers.map((ticker) => (
+                    <span key={ticker} className={styles.chip}>
+                      {ticker}
+                    </span>
+                  ))}
+                  <span className={styles.chip}>
+                    {timeline.period?.start} to {timeline.period?.end}
+                  </span>
+                  <span className={styles.chip}>{timeline.summary?.total_events || 0} events</span>
+                </div>
+                <p className={styles.subtle}>
+                  {isCompareMode
+                    ? 'The chart overlays backend price series for all returned tickers and keeps merged backend event ordering.'
+                    : 'The chart uses backend price_series, and the event cards use backend event IDs for marker navigation.'}
+                </p>
+              </>
+            ) : (
+              <p className={styles.empty}>Enter a valid ticker and load the real timeline.</p>
+            )}
+          </div>
+        </section>
+
+        {showPartialNotice ? (
+          <section className={tStyles.notice}>
+            <h2 className={tStyles.noticeTitle}>Partial timeline data returned</h2>
+            <p className={tStyles.noticeText}>
+              Some optional timeline sources were unavailable for this request. The usable grounded
+              data below is still real and safe to inspect.
+            </p>
+            {timelineWarnings.length ? (
+              <ul className={tStyles.warningList}>
+                {timelineWarnings.map((warning, index) => (
+                  <li key={`${warning.source || 'warning'}-${warning.code || index}`} className={tStyles.warningItem}>
+                    <span className={tStyles.warningSource}>
+                      {(warning.source || 'timeline').replace(/_/g, ' ')}
+                    </span>
+                    <span>{formatWarning(warning)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </section>
+        ) : null}
+
+        {timeline ? (
+          <>
+            <section className={tStyles.summaryGrid}>
+              <div className={styles.panel}>
+                <h3>Summary</h3>
+                <div className={tStyles.kpiGrid}>
+                  <div className={tStyles.kpiCard}>
+                    <span className={tStyles.kpiLabel}>Primary Ticker</span>
+                    <span className={tStyles.kpiValue}>{timeline.primaryTicker || '-'}</span>
+                  </div>
+                  <div className={tStyles.kpiCard}>
+                    <span className={tStyles.kpiLabel}>{isCompareMode ? 'Compared Tickers' : 'Entity'}</span>
+                    <span className={tStyles.kpiValue}>
+                      {isCompareMode
+                        ? timeline.compareTickers.length
+                        : timeline.entityName || timeline.primaryTicker}
+                    </span>
+                  </div>
+                  <div className={tStyles.kpiCard}>
+                    <span className={tStyles.kpiLabel}>Events</span>
+                    <span className={tStyles.kpiValue}>{formatNumber(timeline.summary?.total_events || 0)}</span>
+                  </div>
+                  <div className={tStyles.kpiCard}>
+                    <span className={tStyles.kpiLabel}>Price Points</span>
+                    <span className={tStyles.kpiValue}>
+                      {formatNumber(
+                        Object.values(timeline.priceSeriesByTicker || {}).reduce(
+                          (total, points) => total + (Array.isArray(points) ? points.length : 0),
+                          0
+                        )
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                {isCompareMode && timeline.tickers.length ? (
+                  <div className={tStyles.tickerLegend}>
+                    {timeline.tickers.map((ticker) => (
+                      <span
+                        key={ticker}
+                        className={tStyles.tickerLegendItem}
+                        style={{ borderColor: `${getTickerColor(ticker, colorMap)}66` }}
+                      >
+                        <span
+                          className={tStyles.tickerLegendDot}
+                          style={{ background: getTickerColor(ticker, colorMap) }}
+                        />
+                        {ticker}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </section>
+
+            <section className={styles.panel}>
+              <div className={tStyles.sectionHeader}>
+                <div>
+                  <h2 className={tStyles.sectionTitle}>Price Timeline and Event Overlay</h2>
+                  <p className={tStyles.sectionText}>
+                    {isCompareMode
+                      ? 'Daily close from backend compare price series for each ticker with grounded event markers overlaid on the same chart.'
+                      : 'Daily close from backend price_series with grounded event markers aligned by backend date and related price data where available.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className={tStyles.filterRow}>
+                {availableCategories.map((category) => {
+                  const active = selectedCategory === category.id
+                  return (
+                    <button
+                      key={category.id}
+                      className={`${tStyles.filterPill} ${active ? tStyles.filterPillActive : ''}`}
+                      style={active ? { borderColor: category.color, color: category.color } : undefined}
+                      onClick={() => setSelectedCategory(category.id)}
+                    >
+                      {category.label}
+                    </button>
+                  )
+                })}
+              </div>
+
+              <div className={tStyles.chartWrap}>
+                {chartRows.length ? (
+                  <ResponsiveContainer width="100%" height={380}>
+                    <ComposedChart data={chartRows} margin={{ top: 20, right: 20, bottom: 10, left: 0 }}>
+                      <CartesianGrid stroke="rgba(148, 163, 184, 0.12)" vertical={false} />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fill: '#94a3b8', fontSize: 11 }}
+                        minTickGap={28}
+                        tickFormatter={(value) => formatDate(value)}
+                      />
+                      <YAxis
+                        tick={{ fill: '#94a3b8', fontSize: 11 }}
+                        tickFormatter={(value) => formatPrice(value)}
+                        width={88}
+                      />
+                      <Tooltip content={<TimelineTooltip isCompare={isCompareMode} />} />
+                      {isCompareMode ? <Legend wrapperStyle={{ fontSize: '12px' }} /> : null}
+                      {timeline.tickers.map((ticker, index) => {
+                        const color = getTickerColor(ticker, colorMap)
+                        if (isCompareMode) {
+                          return (
+                            <Line
+                              key={`line-${ticker}`}
+                              type="monotone"
+                              dataKey={ticker}
+                              name={ticker}
+                              stroke={color}
+                              strokeWidth={ticker === timeline.primaryTicker ? 2.8 : 2}
+                              dot={false}
+                              connectNulls
+                              isAnimationActive={false}
+                            />
+                          )
+                        }
+
+                        return (
+                          <Area
+                            key={`area-${ticker}`}
+                            type="monotone"
+                            dataKey={ticker}
+                            name={ticker}
+                            stroke={color}
+                            strokeWidth={2}
+                            fill="rgba(99, 102, 241, 0.16)"
+                            dot={false}
+                            isAnimationActive={false}
+                          />
+                        )
+                      })}
+                      {timeline.tickers.map((ticker) => (
+                        <Scatter
+                          key={`scatter-${ticker}`}
+                          data={markerGroups[ticker] || []}
+                          dataKey="close"
+                          name={`${ticker} Events`}
+                          shape={(props) => <MarkerShape {...props} onSelect={handleMarkerSelect} />}
+                          isAnimationActive={false}
+                        />
+                      ))}
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className={tStyles.emptyChart}>
+                    No price series was available for this request.
+                  </div>
+                )}
+              </div>
+
+              <div className={tStyles.chartMeta}>
+                <span>
+                  {Object.values(markerGroups).reduce((total, markers) => total + markers.length, 0)} plotted markers
+                </span>
+                <span>{filteredEvents.length} visible events</span>
+                {isCompareMode ? <span>{timeline.tickers.length} ticker series</span> : null}
+              </div>
+            </section>
+
+            <section className={styles.panel}>
+              <div className={tStyles.sectionHeader}>
+                <div>
+                  <h2 className={tStyles.sectionTitle}>Timeline Events</h2>
+                  <p className={tStyles.sectionText}>
+                    {isCompareMode
+                      ? 'Merged backend event ordering across all returned tickers. Marker clicks scroll to the matching event card by backend event ID.'
+                      : 'Newest first. Marker clicks scroll to the matching card using the backend event ID.'}
+                  </p>
+                </div>
+              </div>
+
+              {filteredEvents.length ? (
+                <div className={tStyles.eventList}>
+                  {filteredEvents.map((event) => (
+                    <EventCard
+                      key={event.id}
+                      event={event}
+                      selected={selectedEventId === event.id}
+                      tickerColor={getTickerColor(event.ticker, colorMap)}
+                      cardRef={(node) => {
+                        if (node) {
+                          eventRefs.current[event.id] = node
+                        } else {
+                          delete eventRefs.current[event.id]
+                        }
+                      }}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className={styles.empty}>No events match the selected filter.</p>
+              )}
+            </section>
+          </>
+        ) : null}
+
+        {!loading && !error && !timeline ? (
+          <section className={styles.panel}>
+            <p className={styles.empty}>
+              Load a ticker to view the real entity timeline with stock price overlay, or add comparison tickers for multi-company mode.
+            </p>
+          </section>
+        ) : null}
+      </main>
+    </>
   )
 }

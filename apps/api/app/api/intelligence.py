@@ -18,7 +18,12 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import Optional, Dict, Any, List
+from datetime import date, timedelta
+from queue import Queue, Empty
+import hashlib
 import io
+import re
+import threading
 from app.db.session import get_db
 from app.services.intelligence_service import (
     generate_intelligence_report,
@@ -63,6 +68,21 @@ except ImportError:
     _PRIV_CO_AVAILABLE = False
 
 try:
+    from app.connectors.timeline_connector import generate_entity_timeline, compare_entity_timelines
+    _TIMELINE_AVAILABLE = True
+except ImportError:
+    _TIMELINE_AVAILABLE = False
+    def generate_entity_timeline(*args, **kwargs): return {}
+    def compare_entity_timelines(*args, **kwargs): return {}
+
+try:
+    from app.connectors.market_data_connector import get_price_history
+    _PRICE_HISTORY_AVAILABLE = True
+except ImportError:
+    _PRICE_HISTORY_AVAILABLE = False
+    def get_price_history(*args, **kwargs): return {"bars": []}
+
+try:
     from app.services.pdf_service import generate_report_pdf
     _PDF_AVAILABLE = True
 except ImportError:
@@ -102,6 +122,523 @@ except ImportError:
     def format_quality_report(*args): return ""
 
 router = APIRouter(prefix="/intelligence")
+_TIMELINE_ROUTE_TIMEOUT_SECONDS = 15.0
+_TIMELINE_MAX_MOST_SIGNIFICANT = 10
+_TIMELINE_ALLOWED_YEARS = range(1, 6)
+_TIMELINE_SIGNIFICANCE_MIN = 0
+_TIMELINE_SIGNIFICANCE_MAX = 9
+_TIMELINE_MAX_COMPARE_TICKERS = 5
+_TIMELINE_TICKER_PATTERN = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
+_TIMELINE_INTERACTIVE_SOURCE_TIMEOUTS = {
+    "sec_filings": 6.0,
+    "8k_events": 6.0,
+    "stock_events": 6.0,
+    "insider_events": 6.0,
+    "8k_enrichment": 4.0,
+}
+
+
+def _normalize_timeline_categories(categories: Optional[str]) -> List[str]:
+    if not categories:
+        return []
+    normalized = []
+    for raw in categories.split(","):
+        category = raw.strip().lower()
+        if category and category not in normalized:
+            normalized.append(category)
+    return normalized
+
+
+def _validate_timeline_inputs(years: int, significance_min: int) -> None:
+    if years not in _TIMELINE_ALLOWED_YEARS:
+        raise HTTPException(422, "years must be between 1 and 5")
+    if not (_TIMELINE_SIGNIFICANCE_MIN <= significance_min <= _TIMELINE_SIGNIFICANCE_MAX):
+        raise HTTPException(422, "significance_min must be between 0 and 9")
+
+
+def _run_bounded_timeline_generation(
+    ticker: str,
+    *,
+    years: int,
+    include_price: bool,
+    source_timeouts: Optional[Dict[str, float]] = None,
+    timeout: Optional[float] = None,
+) -> Dict[str, Any]:
+    timeout = timeout or _TIMELINE_ROUTE_TIMEOUT_SECONDS
+    result: "Queue[tuple[bool, Any]]" = Queue(maxsize=1)
+
+    def runner():
+        try:
+            payload = generate_entity_timeline(
+                ticker,
+                years=years,
+                include_price=include_price,
+                include_insider=True,
+                categories=None,
+                source_timeouts=source_timeouts,
+            )
+            result.put((True, payload))
+        except Exception as error:  # pragma: no cover - exercised via route
+            result.put((False, error))
+
+    thread = threading.Thread(target=runner, daemon=True, name=f"timeline-{ticker}")
+    thread.start()
+    thread.join(timeout)
+    if thread.is_alive():
+        raise TimeoutError(f"timeline generation exceeded {timeout}s")
+    try:
+        ok, payload = result.get_nowait()
+    except Empty:
+        raise TimeoutError("timeline generation produced no result before timeout")
+    if ok:
+        return payload
+    raise payload
+
+
+def _run_bounded_timeline_compare(
+    tickers: List[str],
+    *,
+    years: int,
+    timeout: Optional[float] = None,
+) -> Dict[str, Any]:
+    timeout = timeout or _TIMELINE_ROUTE_TIMEOUT_SECONDS
+    result: "Queue[tuple[bool, Any]]" = Queue(maxsize=1)
+
+    def runner():
+        try:
+            payload = compare_entity_timelines(tickers, years=years)
+            result.put((True, payload))
+        except Exception as error:  # pragma: no cover - exercised via route
+            result.put((False, error))
+
+    thread = threading.Thread(target=runner, daemon=True, name=f"timeline-compare-{'-'.join(tickers)}")
+    thread.start()
+    thread.join(timeout)
+    if thread.is_alive():
+        raise TimeoutError(f"timeline compare exceeded {timeout}s")
+    try:
+        ok, payload = result.get_nowait()
+    except Empty:
+        raise TimeoutError("timeline compare produced no result before timeout")
+    if ok:
+        return payload
+    raise payload
+
+
+def _timeline_warning(source: str, code: str, detail: str) -> Dict[str, str]:
+    return {"source": source, "code": code, "detail": detail}
+
+
+def _sanitize_timeline_detail(detail: Any, default: str) -> str:
+    text = str(detail or "").strip()
+    if not text:
+        return default
+    lowered = text.lower()
+    if any(token in lowered for token in ("traceback", "apikey", "token=", "password", "secret")):
+        return default
+    return text[:240]
+
+
+def _build_timeline_event_id(event: Dict[str, Any]) -> str:
+    parts = [
+        str(event.get("date") or ""),
+        str(event.get("category") or ""),
+        str(event.get("event_type") or ""),
+        str(event.get("form_type") or ""),
+        str(event.get("accession") or ""),
+        str(event.get("document") or ""),
+        str(event.get("title") or ""),
+    ]
+    digest = hashlib.sha1("|".join(parts).encode("utf-8")).hexdigest()
+    return f"evt_{digest[:16]}"
+
+
+def _normalize_timeline_event(event: Dict[str, Any]) -> Dict[str, Any]:
+    normalized = {
+        "id": _build_timeline_event_id(event),
+        "date": str(event.get("date") or ""),
+        "category": str(event.get("category") or "other").strip().lower() or "other",
+        "title": str(event.get("title") or ""),
+        "description": str(event.get("description") or ""),
+        "significance": int(event.get("priority") or 0),
+        "source": str(event.get("source") or ""),
+        "source_url": str(event.get("source_url") or ""),
+    }
+    related_price: Dict[str, Any] = {}
+    if event.get("price") is not None:
+        related_price["close"] = event.get("price")
+    if event.get("change_pct") is not None:
+        related_price["change_pct"] = event.get("change_pct")
+    if related_price:
+        normalized["related_price"] = related_price
+    return normalized
+
+
+def _normalize_price_series(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    bars = []
+    for bar in (payload or {}).get("bars") or []:
+        if not isinstance(bar, dict):
+            continue
+        if not bar.get("date") or bar.get("close") is None:
+            continue
+        bars.append({
+            "date": str(bar.get("date")),
+            "close": bar.get("close"),
+            "volume": bar.get("volume"),
+        })
+    return bars
+
+
+def _filter_timeline_events(
+    events: List[Dict[str, Any]],
+    *,
+    categories: List[str],
+    significance_min: int,
+) -> List[Dict[str, Any]]:
+    filtered = []
+    for event in events:
+        if categories and event.get("category") not in categories:
+            continue
+        if int(event.get("significance") or 0) < significance_min:
+            continue
+        filtered.append(event)
+    return filtered
+
+
+def _build_timeline_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    by_category: Dict[str, int] = {}
+    for event in events:
+        category = event.get("category") or "other"
+        by_category[category] = by_category.get(category, 0) + 1
+    most_significant = sorted(
+        events,
+        key=lambda item: (
+            -int(item.get("significance") or 0),
+            str(item.get("date") or ""),
+            str(item.get("id") or ""),
+        ),
+        reverse=False,
+    )[:_TIMELINE_MAX_MOST_SIGNIFICANT]
+    return {
+        "total_events": len(events),
+        "by_category": by_category,
+        "most_significant": most_significant,
+    }
+
+
+def _normalize_compare_tickers(primary_ticker: str, against: str) -> tuple[List[str], List[Dict[str, str]]]:
+    warnings: List[Dict[str, str]] = []
+    normalized: List[str] = []
+    seen = {primary_ticker}
+    extras_skipped = 0
+
+    for raw in (against or "").split(","):
+        ticker = raw.strip().upper()
+        if not ticker:
+            continue
+        if ticker == primary_ticker or ticker in seen:
+            continue
+        if not _TIMELINE_TICKER_PATTERN.match(ticker):
+            warnings.append(_timeline_warning("comparators", "malformed_ticker", f"Ignored malformed comparator: {ticker}"))
+            continue
+        if len(normalized) >= _TIMELINE_MAX_COMPARE_TICKERS:
+            extras_skipped += 1
+            continue
+        seen.add(ticker)
+        normalized.append(ticker)
+
+    if extras_skipped:
+        warnings.append(
+            _timeline_warning(
+                "comparators",
+                "limit_applied",
+                f"Only the first {_TIMELINE_MAX_COMPARE_TICKERS} comparison tickers were used.",
+            )
+        )
+
+    if not normalized:
+        raise HTTPException(422, "against must include at least one valid comparison ticker")
+    return normalized, warnings
+
+
+def _normalize_compare_event(ticker: str, event: Dict[str, Any]) -> Dict[str, Any]:
+    normalized = _normalize_timeline_event(event)
+    normalized["ticker"] = ticker
+    return normalized
+
+
+def _sort_compare_events(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return sorted(
+        events,
+        key=lambda item: (
+            -int(str(item.get("date") or "0000-00-00").replace("-", "") or 0),
+            -int(item.get("significance") or 0),
+            str(item.get("ticker") or ""),
+            str(item.get("id") or ""),
+        ),
+    )
+
+
+def _build_compare_summary(events: List[Dict[str, Any]], tickers: List[str]) -> Dict[str, Any]:
+    by_ticker = {ticker: 0 for ticker in tickers}
+    by_category: Dict[str, int] = {}
+    for event in events:
+        ticker = str(event.get("ticker") or "")
+        if ticker in by_ticker:
+            by_ticker[ticker] += 1
+        category = str(event.get("category") or "other")
+        by_category[category] = by_category.get(category, 0) + 1
+    return {
+        "total_events": len(events),
+        "by_ticker": by_ticker,
+        "by_category": by_category,
+        "most_significant": _sort_compare_events(events)[:_TIMELINE_MAX_MOST_SIGNIFICANT],
+    }
+
+
+def _timeline_period(years: int) -> Dict[str, str]:
+    end = date.today()
+    start = end - timedelta(days=years * 365)
+    return {"start": start.isoformat(), "end": end.isoformat()}
+
+
+@router.get("/timeline/{ticker}")
+def get_single_ticker_timeline(
+    ticker: str,
+    years: int = 2,
+    categories: Optional[str] = None,
+    include_price: bool = True,
+    significance_min: int = 0,
+):
+    if not _TIMELINE_AVAILABLE:
+        raise HTTPException(503, "Timeline connector unavailable")
+
+    ticker = str(ticker or "").strip().upper()
+    if not ticker:
+        raise HTTPException(422, "ticker is required")
+
+    _validate_timeline_inputs(years, significance_min)
+    normalized_categories = _normalize_timeline_categories(categories)
+    warnings: List[Dict[str, str]] = []
+    partial = False
+
+    try:
+        timeline = _run_bounded_timeline_generation(
+            ticker,
+            years=years,
+            include_price=include_price,
+            source_timeouts=_TIMELINE_INTERACTIVE_SOURCE_TIMEOUTS,
+        )
+    except TimeoutError:
+        raise HTTPException(504, "Timeline generation timed out")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(502, "Timeline generation failed")
+
+    if not isinstance(timeline, dict):
+        raise HTTPException(502, "Timeline response was unusable")
+    if timeline.get("error"):
+        raise HTTPException(422, _sanitize_timeline_detail(timeline.get("error"), "Timeline request could not be completed"))
+
+    raw_events = timeline.get("events")
+    if raw_events is None or not isinstance(raw_events, list):
+        raise HTTPException(502, "Timeline response was unusable")
+
+    partial = bool(timeline.get("partial"))
+    for warning in timeline.get("warnings") or []:
+        if not isinstance(warning, dict):
+            continue
+        warnings.append(
+            _timeline_warning(
+                str(warning.get("source") or "timeline"),
+                str(warning.get("code") or "unavailable"),
+                _sanitize_timeline_detail(warning.get("detail"), "Timeline support data was unavailable."),
+            )
+        )
+
+    normalized_events = [
+        _normalize_timeline_event(event)
+        for event in raw_events
+        if isinstance(event, dict) and event.get("date")
+    ]
+    filtered_events = _filter_timeline_events(
+        normalized_events,
+        categories=normalized_categories,
+        significance_min=significance_min,
+    )
+
+    entity_name = ticker
+    for event in raw_events:
+        if isinstance(event, dict):
+            entity_name = str(event.get("entity") or "").strip() or entity_name
+            if entity_name != ticker:
+                break
+
+    price_series: List[Dict[str, Any]] = []
+    if include_price:
+        if _PRICE_HISTORY_AVAILABLE:
+            try:
+                price_payload = get_price_history(ticker, days=years * 365, resolution="D") or {}
+                price_series = _normalize_price_series(price_payload)
+                if not price_series:
+                    partial = True
+                    warnings.append(_timeline_warning("price_series", "unavailable", "Price series unavailable for this request."))
+            except Exception:
+                partial = True
+                warnings.append(_timeline_warning("price_series", "unavailable", "Price series unavailable for this request."))
+        else:
+            partial = True
+            warnings.append(_timeline_warning("price_series", "unavailable", "Price series unavailable for this request."))
+
+    return {
+        "ticker": ticker,
+        "entity_name": entity_name,
+        "period": _timeline_period(years),
+        "events": filtered_events,
+        "price_series": price_series,
+        "summary": _build_timeline_summary(filtered_events),
+        "partial": partial,
+        "warnings": warnings,
+    }
+
+
+@router.get("/timeline/{ticker}/compare")
+def get_compare_timeline(
+    ticker: str,
+    against: str,
+    years: int = 1,
+):
+    if not _TIMELINE_AVAILABLE:
+        raise HTTPException(503, "Timeline connector unavailable")
+
+    primary_ticker = str(ticker or "").strip().upper()
+    if not primary_ticker or not _TIMELINE_TICKER_PATTERN.match(primary_ticker):
+        raise HTTPException(422, "ticker is required")
+
+    _validate_timeline_inputs(years, 0)
+    compare_tickers, warnings = _normalize_compare_tickers(primary_ticker, against)
+    requested_tickers = [primary_ticker] + compare_tickers
+    partial = False
+
+    try:
+        compare_payload = _run_bounded_timeline_compare(requested_tickers, years=years)
+    except TimeoutError:
+        raise HTTPException(504, "Timeline comparison timed out")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(502, "Timeline comparison failed")
+
+    if not isinstance(compare_payload, dict):
+        raise HTTPException(502, "Timeline comparison response was unusable")
+
+    timelines = compare_payload.get("timelines")
+    if not isinstance(timelines, dict):
+        raise HTTPException(502, "Timeline comparison response was unusable")
+
+    merged_events: List[Dict[str, Any]] = []
+    included_tickers: List[str] = []
+
+    for current_ticker in requested_tickers:
+        timeline = timelines.get(current_ticker)
+        if timeline is None:
+            partial = True
+            warnings.append(
+                _timeline_warning(
+                    "timeline_compare",
+                    "ticker_unavailable",
+                    f"Timeline unavailable for {current_ticker}.",
+                )
+            )
+            continue
+        if not isinstance(timeline, dict):
+            partial = True
+            warnings.append(
+                _timeline_warning(
+                    "timeline_compare",
+                    "ticker_unusable",
+                    f"Timeline response was unusable for {current_ticker}.",
+                )
+            )
+            continue
+        if timeline.get("error"):
+            partial = True
+            warnings.append(
+                _timeline_warning(
+                    "timeline_compare",
+                    "ticker_unavailable",
+                    f"{current_ticker}: {_sanitize_timeline_detail(timeline.get('error'), 'Timeline unavailable for this ticker.')}",
+                )
+            )
+            continue
+        raw_events = timeline.get("events")
+        if raw_events is None or not isinstance(raw_events, list):
+            partial = True
+            warnings.append(
+                _timeline_warning(
+                    "timeline_compare",
+                    "ticker_unusable",
+                    f"Timeline response was unusable for {current_ticker}.",
+                )
+            )
+            continue
+        included_tickers.append(current_ticker)
+        for event in raw_events:
+            if isinstance(event, dict) and event.get("date"):
+                merged_events.append(_normalize_compare_event(current_ticker, event))
+
+    if not included_tickers:
+        raise HTTPException(502, "Timeline comparison response was unusable")
+
+    merged_events = _sort_compare_events(merged_events)
+    price_series: List[Dict[str, Any]] = []
+
+    for current_ticker in included_tickers:
+        points: List[Dict[str, Any]] = []
+        if _PRICE_HISTORY_AVAILABLE:
+            try:
+                price_payload = get_price_history(current_ticker, days=years * 365, resolution="D") or {}
+                points = _normalize_price_series(price_payload)
+                if not points:
+                    partial = True
+                    warnings.append(
+                        _timeline_warning(
+                            "price_series",
+                            "unavailable",
+                            f"Price series unavailable for {current_ticker}.",
+                        )
+                    )
+            except Exception:
+                partial = True
+                warnings.append(
+                    _timeline_warning(
+                        "price_series",
+                        "unavailable",
+                        f"Price series unavailable for {current_ticker}.",
+                    )
+                )
+        else:
+            partial = True
+            warnings.append(
+                _timeline_warning(
+                    "price_series",
+                    "unavailable",
+                    f"Price series unavailable for {current_ticker}.",
+                )
+            )
+        price_series.append({"ticker": current_ticker, "points": points})
+
+    return {
+        "primary_ticker": primary_ticker,
+        "tickers": included_tickers,
+        "period": _timeline_period(years),
+        "events": merged_events,
+        "price_series": price_series,
+        "summary": _build_compare_summary(merged_events, included_tickers),
+        "partial": partial,
+        "warnings": warnings,
+    }
 
 
 @router.post("/generate")

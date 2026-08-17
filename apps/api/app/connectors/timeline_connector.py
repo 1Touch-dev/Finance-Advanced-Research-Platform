@@ -27,15 +27,25 @@ import re
 import time
 import logging
 import requests
+import threading
 from bs4 import BeautifulSoup
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timedelta
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from queue import Queue, Empty
 
 from app.connectors.sec_http import sec_get
 
 logger = logging.getLogger(__name__)
+
+_TIMELINE_SOURCE_TIMEOUTS = {
+    "sec_filings": 6.0,
+    "8k_events": 6.0,
+    "stock_events": 6.0,
+    "insider_events": 6.0,
+    "8k_enrichment": 4.0,
+}
 
 # SEC EDGAR headers
 SEC_HEADERS = {"User-Agent": os.getenv("SEC_USER_AGENT", "FinanceIntelPlatform/1.0 research@example.com")}
@@ -163,6 +173,52 @@ def _fetch_sec_filings(cik: str, years: int = 2) -> List[Dict[str, Any]]:
         logger.warning("Error fetching SEC filings for CIK %s: %s", cik, e)
 
     return events
+
+
+def _timeline_warning(source: str, code: str, detail: str) -> Dict[str, str]:
+    return {"source": source, "code": code, "detail": detail}
+
+
+def _start_timeline_source(name: str, func, *args, **kwargs) -> Dict[str, Any]:
+    result: "Queue[tuple[bool, Any]]" = Queue(maxsize=1)
+    started = time.perf_counter()
+
+    def runner():
+        try:
+            payload = func(*args, **kwargs)
+            result.put((True, payload))
+        except Exception as error:  # pragma: no cover - defensive
+            result.put((False, error))
+
+    thread = threading.Thread(target=runner, daemon=True, name=f"timeline-source-{name}")
+    thread.start()
+    return {"name": name, "thread": thread, "result": result, "started": started}
+
+
+def _collect_timeline_source(
+    task: Dict[str, Any],
+    *,
+    timeout_seconds: float,
+    default: Any,
+    timeout_detail: str,
+    error_detail: str,
+) -> Tuple[Any, Optional[Dict[str, str]]]:
+    elapsed = time.perf_counter() - float(task["started"])
+    remaining = max(timeout_seconds - elapsed, 0.0)
+    task["thread"].join(remaining)
+    if task["thread"].is_alive():
+        return default, _timeline_warning(task["name"], "timeout", timeout_detail)
+
+    try:
+        ok, payload = task["result"].get_nowait()
+    except Empty:
+        return default, _timeline_warning(task["name"], "unavailable", error_detail)
+
+    if ok:
+        return payload, None
+
+    logger.warning("Timeline source %s failed: %s", task["name"], payload)
+    return default, _timeline_warning(task["name"], "unavailable", error_detail)
 
 
 # Form 8-K reportable events, per the SEC's General Instruction B.
@@ -513,6 +569,7 @@ def generate_entity_timeline(
     include_price: bool = True,
     include_insider: bool = True,
     categories: List[str] = None,
+    source_timeouts: Optional[Dict[str, float]] = None,
 ) -> Dict[str, Any]:
     """
     Generate comprehensive timeline for an entity.
@@ -548,7 +605,13 @@ def generate_entity_timeline(
         },
         "highlights": [],
         "generated_at": datetime.utcnow().isoformat() + "Z",
+        "partial": False,
+        "warnings": [],
     }
+
+    effective_source_timeouts = dict(_TIMELINE_SOURCE_TIMEOUTS)
+    if source_timeouts:
+        effective_source_timeouts.update(source_timeouts)
 
     cik = _get_cik_from_ticker(ticker)
     if not cik:
@@ -557,26 +620,38 @@ def generate_entity_timeline(
 
     all_events = []
 
-    # Fetch events from all sources in parallel
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = {
-            executor.submit(_fetch_sec_filings, cik, years): "sec_filings",
-            executor.submit(_fetch_8k_events, cik, years): "8k_events",
-        }
+    source_tasks = {
+        "sec_filings": _start_timeline_source("sec_filings", _fetch_sec_filings, cik, years),
+        "8k_events": _start_timeline_source("8k_events", _fetch_8k_events, cik, years),
+    }
 
-        if include_price:
-            futures[executor.submit(_fetch_stock_events, ticker, years)] = "stock_events"
+    if include_price:
+        source_tasks["stock_events"] = _start_timeline_source("stock_events", _fetch_stock_events, ticker, years)
 
-        if include_insider:
-            futures[executor.submit(_fetch_insider_transactions, cik, years)] = "insider_events"
+    if include_insider:
+        source_tasks["insider_events"] = _start_timeline_source("insider_events", _fetch_insider_transactions, cik, years)
 
-        for future in as_completed(futures):
-            source = futures[future]
-            try:
-                events = future.result()
-                all_events.extend(events)
-            except Exception as e:
-                logger.warning("Error fetching %s: %s", source, e)
+    source_messages = {
+        "sec_filings": ("SEC filing source timed out.", "SEC filing source unavailable."),
+        "8k_events": ("8-K event source timed out.", "8-K event source unavailable."),
+        "stock_events": ("Stock-event source timed out.", "Stock-event source unavailable."),
+        "insider_events": ("Insider timeline source timed out.", "Insider timeline source unavailable."),
+    }
+
+    for source_name, task in source_tasks.items():
+        timeout_detail, error_detail = source_messages[source_name]
+        events, warning = _collect_timeline_source(
+            task,
+            timeout_seconds=effective_source_timeouts.get(source_name, 6.0),
+            default=[],
+            timeout_detail=timeout_detail,
+            error_detail=error_detail,
+        )
+        if warning:
+            result["partial"] = True
+            result["warnings"].append(warning)
+        if isinstance(events, list):
+            all_events.extend(events)
 
     # Filter by categories if specified
     if categories:
@@ -589,9 +664,30 @@ def generate_entity_timeline(
     # recent filings are the ones enriched when the cap binds.
     if cik:
         try:
-            all_events = enrich_8k_items(cik, all_events)
+            enrichment_task = _start_timeline_source(
+                "8k_enrichment",
+                enrich_8k_items,
+                cik,
+                [dict(event) for event in all_events],
+            )
+            enriched_events, warning = _collect_timeline_source(
+                enrichment_task,
+                timeout_seconds=effective_source_timeouts.get("8k_enrichment", 4.0),
+                default=all_events,
+                timeout_detail="8-K enrichment source timed out.",
+                error_detail="8-K enrichment source unavailable.",
+            )
+            if warning:
+                result["partial"] = True
+                result["warnings"].append(warning)
+            if isinstance(enriched_events, list):
+                all_events = enriched_events
         except Exception as e:
             logger.warning("8-K item enrichment failed for %s: %s", ticker, e)
+            result["partial"] = True
+            result["warnings"].append(
+                _timeline_warning("8k_enrichment", "unavailable", "8-K enrichment source unavailable.")
+            )
 
     # Deduplicate similar events on same day
     seen = set()
