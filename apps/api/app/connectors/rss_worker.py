@@ -15,6 +15,7 @@ Usage:
 import os
 import logging
 import hashlib
+import re
 import time
 import json
 from datetime import datetime, timezone
@@ -116,7 +117,7 @@ CORE_FEEDS = [
 
 # ─── DB Setup ────────────────────────────────────────────────────────────────
 
-SCHEMA_SQL = """
+SCHEMA_SQL_POSTGRES = """
 CREATE TABLE IF NOT EXISTS rss_sources (
     id          SERIAL PRIMARY KEY,
     name        TEXT NOT NULL,
@@ -154,19 +155,85 @@ CREATE INDEX IF NOT EXISTS idx_rss_articles_entities ON rss_articles USING GIN(m
 CREATE INDEX IF NOT EXISTS idx_rss_articles_category ON rss_articles(category);
 """
 
+# SQLite equivalent for local dev (see apps/api/app/core/settings.py — local
+# runs default to sqlite:///./local.db). SQLite has no SERIAL/TIMESTAMPTZ/
+# TEXT[]/GIN — matched_entities is stored as a JSON-encoded TEXT column
+# instead and (de)serialized in Python (see _json_list helpers below).
+# Table/column names are identical to the Postgres schema so every query in
+# this module and in app/api/market.py works unmodified against either DB.
+SCHEMA_SQL_SQLITE = """
+CREATE TABLE IF NOT EXISTS rss_sources (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL,
+    url         TEXT NOT NULL UNIQUE,
+    category    TEXT DEFAULT 'general',
+    region      TEXT DEFAULT 'global',
+    active      BOOLEAN DEFAULT 1,
+    last_polled TIMESTAMP,
+    article_count INTEGER DEFAULT 0,
+    error_count INTEGER DEFAULT 0,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS rss_articles (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_id       INTEGER REFERENCES rss_sources(id),
+    source_name     TEXT,
+    title           TEXT NOT NULL,
+    url             TEXT NOT NULL UNIQUE,
+    summary         TEXT,
+    content         TEXT,
+    published_at    TIMESTAMP,
+    fetched_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    category        TEXT,
+    region          TEXT,
+    content_hash    TEXT,
+    matched_entities TEXT,
+    sentiment_label TEXT,
+    perspective_tags TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_rss_articles_published ON rss_articles(published_at);
+CREATE INDEX IF NOT EXISTS idx_rss_articles_source ON rss_articles(source_id);
+CREATE INDEX IF NOT EXISTS idx_rss_articles_category ON rss_articles(category);
+"""
+
+
+def _is_sqlite(engine) -> bool:
+    return engine.dialect.name == "sqlite"
+
 
 def bootstrap_schema():
-    """Create tables if not exist and seed sources."""
+    """Create tables if not exist and seed sources. Dialect-aware: uses the
+    Postgres schema (with TEXT[]/GIN) on Postgres, and a SQLite-compatible
+    schema locally — see SCHEMA_SQL_SQLITE above for why this split exists.
+
+    SQLite's DBAPI (unlike psycopg) refuses to execute multiple ';'-separated
+    statements in one call ("You can only execute one statement at a time"),
+    so on SQLite each CREATE TABLE/INDEX is run individually.
+    """
     engine = get_engine()
+    sqlite = _is_sqlite(engine)
     with engine.begin() as conn:
-        conn.execute(text(SCHEMA_SQL))
+        if sqlite:
+            for statement in filter(None, (s.strip() for s in SCHEMA_SQL_SQLITE.split(";"))):
+                conn.execute(text(statement))
+        else:
+            conn.execute(text(SCHEMA_SQL_POSTGRES))
         for feed in CORE_FEEDS:
-            conn.execute(text("""
-                INSERT INTO rss_sources (name, url, category, region)
-                VALUES (:name, :url, :category, :region)
-                ON CONFLICT (url) DO NOTHING
-            """), feed)
-    log.info("RSS schema bootstrapped with %d sources", len(CORE_FEEDS))
+            if sqlite:
+                conn.execute(text("""
+                    INSERT OR IGNORE INTO rss_sources (name, url, category, region)
+                    VALUES (:name, :url, :category, :region)
+                """), feed)
+            else:
+                conn.execute(text("""
+                    INSERT INTO rss_sources (name, url, category, region)
+                    VALUES (:name, :url, :category, :region)
+                    ON CONFLICT (url) DO NOTHING
+                """), feed)
+    log.info("RSS schema bootstrapped with %d sources (%s)", len(CORE_FEEDS),
+              "sqlite" if sqlite else "postgres")
 
 
 # ─── Article parsing ──────────────────────────────────────────────────────────
@@ -186,9 +253,23 @@ def _parse_date(entry) -> Optional[datetime]:
     return datetime.now(timezone.utc)
 
 
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_URL_RE = re.compile(r"https?://\S+")
+
+
 def _extract_entities(title: str, summary: str) -> list:
-    """Simple keyword match against common finance entities."""
-    text_lower = (title + " " + (summary or "")).lower()
+    """Simple keyword match against common finance entities.
+
+    Strips HTML tags and URLs first: several GNews-proxy feeds (see
+    CORE_FEEDS "(GNews fallback)" entries) return a summary that's just an
+    `<a href="https://news.google.com/rss/articles/...">` wrapper — matching
+    keywords against the raw HTML let the literal domain "google" (or base64
+    URL-path noise) spuriously "match" entities like Google/Meta on articles
+    that never mention them.
+    """
+    raw = f"{title} {summary or ''}"
+    cleaned = _URL_RE.sub(" ", _HTML_TAG_RE.sub(" ", raw))
+    text_lower = cleaned.lower()
     ENTITY_KEYWORDS = {
         "Apple": ["apple", "aapl", "apple inc"],
         "Microsoft": ["microsoft", "msft", "azure", "openai"],
@@ -277,10 +358,18 @@ def persist_articles(articles: list) -> int:
     if not articles:
         return 0
     engine = get_engine()
+    sqlite = _is_sqlite(engine)
     inserted = 0
     with engine.begin() as conn:
         for a in articles:
             try:
+                entities = a.get("matched_entities", [])
+                # SQLite has no array type — matched_entities travels as a
+                # JSON-encoded TEXT column there (see SCHEMA_SQL_SQLITE);
+                # readers (event_clustering.fetch_recent_articles) parse it
+                # back into a list. Postgres keeps the native TEXT[] bind.
+                if sqlite:
+                    entities = json.dumps(entities or [])
                 result = conn.execute(text("""
                     INSERT INTO rss_articles
                         (source_id, source_name, title, url, summary, published_at,
@@ -289,7 +378,7 @@ def persist_articles(articles: list) -> int:
                         (:source_id, :source_name, :title, :url, :summary, :published_at,
                          :category, :region, :content_hash, :matched_entities)
                     ON CONFLICT (url) DO NOTHING
-                """), {**a, "matched_entities": a.get("matched_entities", [])})
+                """), {**a, "matched_entities": entities})
                 if result.rowcount > 0:
                     inserted += 1
             except Exception as e:
@@ -298,7 +387,15 @@ def persist_articles(articles: list) -> int:
 
 
 def run_poll_cycle() -> dict:
-    """Poll all active sources once. Returns summary stats."""
+    """Poll all active sources once. Returns summary stats.
+
+    Bootstraps the schema first (idempotent — CREATE TABLE IF NOT EXISTS) so
+    this also works when triggered ad-hoc via POST /market/rss/poll, not just
+    from the `--loop` PM2 entrypoint that used to be the only caller of
+    bootstrap_schema(). Without this, a fresh local DB (or a fresh Postgres
+    one) 500s on the very first manual poll with "no such table: rss_sources".
+    """
+    bootstrap_schema()
     engine = get_engine()
     with engine.connect() as conn:
         sources = conn.execute(text(
@@ -307,6 +404,7 @@ def run_poll_cycle() -> dict:
         sources = [dict(s) for s in sources]
 
     stats = {"sources": len(sources), "articles_new": 0, "errors": 0}
+    now_sql = "CURRENT_TIMESTAMP" if _is_sqlite(engine) else "NOW()"
     for source in sources:
         log.info("Polling: %s", source["name"])
         try:
@@ -315,9 +413,9 @@ def run_poll_cycle() -> dict:
             stats["articles_new"] += new_count
             # Update last_polled + article_count
             with engine.begin() as conn:
-                conn.execute(text("""
+                conn.execute(text(f"""
                     UPDATE rss_sources
-                    SET last_polled = NOW(),
+                    SET last_polled = {now_sql},
                         article_count = article_count + :new_count
                     WHERE id = :id
                 """), {"id": source["id"], "new_count": new_count})

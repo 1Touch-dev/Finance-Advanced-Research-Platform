@@ -10,6 +10,7 @@ const NAV_GROUPS = [
     items: [
       { href: '/',            label: 'Dashboard',     icon: '◈' },
       { href: '/intelligence',label: 'Reports',        icon: '⬡' },
+      { href: '/news-intelligence', label: 'Event Intelligence', icon: '📡' },
       { href: '/search',      label: 'Global Search',  icon: '⌕' },
       { href: '/saved',       label: 'Saved',          icon: '⊡' },
       { href: '/timeline',    label: 'Timeline',       icon: '⊟' },

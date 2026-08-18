@@ -2,13 +2,15 @@
 API routes for financial data, news aggregation, and international registry lookups.
 All endpoints are free-tier and gracefully degrade when keys are missing.
 """
+import json
 import os
-from datetime import date
-from typing import Optional
+import uuid
+from datetime import date, datetime, timezone
+from typing import Any, Dict, Optional
 import xml.etree.ElementTree as ET
 
 import requests
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -19,7 +21,7 @@ from app.connectors.financial_news_connector import (
     fred_macro_data, aggregate_news, newsapi_search, guardian_search,
     nyt_search, gdelt_search, ukch_search, ukch_officers, icij_search, aleph_search,
 )
-from app.db.session import get_db
+from app.db.session import get_db, SessionLocal
 from app.models.base import Base
 from app.models.market_13f_schemas import (
     PositionDiffFilterStatus,
@@ -184,10 +186,25 @@ def get_rss_stats():
         with engine.connect() as conn:
             total_articles = conn.execute(text("SELECT COUNT(*) FROM rss_articles")).scalar() or 0
             active_sources = conn.execute(text("SELECT COUNT(*) FROM rss_sources WHERE active = true")).scalar() or 50
-            entities_count = conn.execute(text("""
-                SELECT COUNT(DISTINCT unnest(matched_entities)) FROM rss_articles
-                WHERE matched_entities IS NOT NULL AND array_length(matched_entities, 1) > 0
-            """)).scalar() or 15
+            if engine.dialect.name == "sqlite":
+                # SQLite has no unnest()/array type — matched_entities is a
+                # JSON-encoded TEXT column there (see rss_worker.py
+                # SCHEMA_SQL_SQLITE), so count distinct entities in Python.
+                rows = conn.execute(text(
+                    "SELECT matched_entities FROM rss_articles WHERE matched_entities IS NOT NULL"
+                )).scalars().all()
+                seen = set()
+                for raw in rows:
+                    try:
+                        seen.update(json.loads(raw) or [])
+                    except Exception:
+                        continue
+                entities_count = len(seen) or 15
+            else:
+                entities_count = conn.execute(text("""
+                    SELECT COUNT(DISTINCT unnest(matched_entities)) FROM rss_articles
+                    WHERE matched_entities IS NOT NULL AND array_length(matched_entities, 1) > 0
+                """)).scalar() or 15
         return {
             "total_articles": total_articles,
             "active_sources": active_sources,
@@ -226,38 +243,91 @@ def get_rss_articles(
     entity: Optional[str] = None,
     limit: int = Query(40, le=200),
     offset: int = 0,
+    us_finance_only: Optional[bool] = Query(
+        None,
+        description="Scope to US stock-market-relevant content (finance/macro/government + us/global sources). "
+                     "Defaults to true only when category/region/entity aren't explicitly set, so an explicit "
+                     "filter pick (e.g. category=tech or region=india) still works as an opt-in override.",
+    ),
 ):
     """
     Fetch RSS articles with optional filters.
     - category: finance | macro | news | tech | crypto | government | policy
     - region: us | global | europe | asia | india | mena | latam
     - entity: match against matched_entities array (e.g. 'Apple', 'Tesla')
+    - us_finance_only: see param description — on by default for the unfiltered "browse" view.
     """
+    from app.connectors.event_clustering import DEFAULT_FINANCE_CATEGORIES, DEFAULT_US_REGIONS, _is_finance_relevant
     from sqlalchemy import text
     engine = _get_rss_engine()
+    sqlite = engine.dialect.name == "sqlite"
+
+    apply_finance_default = us_finance_only if us_finance_only is not None else not (category or region or entity)
+
     filters = []
     params: dict = {"limit": limit, "offset": offset}
     if category:
         filters.append("category = :category")
         params["category"] = category
+    elif apply_finance_default:
+        placeholders = []
+        for i, cat in enumerate(DEFAULT_FINANCE_CATEGORIES):
+            key = f"cat{i}"
+            params[key] = cat
+            placeholders.append(f":{key}")
+        filters.append(f"category IN ({', '.join(placeholders)})")
     if region:
         filters.append("region = :region")
         params["region"] = region
+    elif apply_finance_default:
+        placeholders = []
+        for i, reg in enumerate(DEFAULT_US_REGIONS):
+            key = f"reg{i}"
+            params[key] = reg
+            placeholders.append(f":{key}")
+        filters.append(f"region IN ({', '.join(placeholders)})")
     if entity:
-        filters.append(":entity = ANY(matched_entities)")
-        params["entity"] = entity
+        # SQLite stores matched_entities as JSON-encoded TEXT (no array type
+        # — see rss_worker.py SCHEMA_SQL_SQLITE), so a LIKE on the quoted
+        # name is the equivalent of Postgres's `entity = ANY(matched_entities)`.
+        if sqlite:
+            filters.append("matched_entities LIKE :entity_like")
+            params["entity_like"] = f'%"{entity}"%'
+        else:
+            filters.append(":entity = ANY(matched_entities)")
+            params["entity"] = entity
     where = ("WHERE " + " AND ".join(filters)) if filters else ""
+    order_by = "ORDER BY published_at DESC" if sqlite else "ORDER BY published_at DESC NULLS LAST"
+    # Over-fetch a bit when the content-level keyword filter will run below,
+    # since it's applied in Python after the SQL LIMIT — see note there.
+    fetch_limit = limit * 3 if apply_finance_default and not category else limit
     with engine.connect() as conn:
         rows = conn.execute(text(f"""
             SELECT id, source_name, title, url, summary, published_at,
                    category, region, matched_entities, sentiment_label
             FROM rss_articles
             {where}
-            ORDER BY published_at DESC NULLS LAST
-            LIMIT :limit OFFSET :offset
-        """), params).mappings().all()
+            {order_by}
+            LIMIT :fetch_limit OFFSET :offset
+        """), {**params, "fetch_limit": fetch_limit}).mappings().all()
         total = conn.execute(text(f"SELECT COUNT(*) FROM rss_articles {where}"), params).scalar()
-    return {"total": total, "articles": [dict(r) for r in rows]}
+    articles = [dict(r) for r in rows]
+    if sqlite:
+        for a in articles:
+            if isinstance(a.get("matched_entities"), str):
+                try:
+                    a["matched_entities"] = json.loads(a["matched_entities"])
+                except Exception:
+                    a["matched_entities"] = []
+    if apply_finance_default and not category:
+        # Layer 2: content-level keyword/entity check (same heuristic used by
+        # the event-intelligence pipeline) — catches broad-wire noise (e.g. a
+        # geopolitics video on a "finance" category feed) that the source-level
+        # category/region filter alone can't. Only applied on the true default
+        # "browse everything" view, never when the caller picked an explicit
+        # category, so opting into finance content directly stays literal.
+        articles = [a for a in articles if _is_finance_relevant(a)]
+    return {"total": total, "articles": articles[:limit]}
 
 
 @router.get("/rss/entity-feed")
@@ -265,48 +335,92 @@ def get_entity_rss_feed(entity: str, limit: int = 20):
     """Articles that mention a specific entity by name (auto-matched on ingest)."""
     from sqlalchemy import text
     engine = _get_rss_engine()
+    sqlite = engine.dialect.name == "sqlite"
     with engine.connect() as conn:
-        rows = conn.execute(text("""
-            SELECT source_name, title, url, summary, published_at, category, region
-            FROM rss_articles
-            WHERE :entity = ANY(matched_entities)
-            ORDER BY published_at DESC NULLS LAST
-            LIMIT :limit
-        """), {"entity": entity, "limit": limit}).mappings().all()
+        if sqlite:
+            rows = conn.execute(text("""
+                SELECT source_name, title, url, summary, published_at, category, region
+                FROM rss_articles
+                WHERE matched_entities LIKE :entity_like
+                ORDER BY published_at DESC
+                LIMIT :limit
+            """), {"entity_like": f'%"{entity}"%', "limit": limit}).mappings().all()
+        else:
+            rows = conn.execute(text("""
+                SELECT source_name, title, url, summary, published_at, category, region
+                FROM rss_articles
+                WHERE :entity = ANY(matched_entities)
+                ORDER BY published_at DESC NULLS LAST
+                LIMIT :limit
+            """), {"entity": entity, "limit": limit}).mappings().all()
     return {"entity": entity, "articles": [dict(r) for r in rows]}
 
 
 @router.get("/rss/digest")
-def get_rss_digest(hours: int = 24):
+def get_rss_digest(hours: int = 24, us_finance_only: bool = Query(
+    True, description="Scope to US stock-market-relevant categories (finance/macro/government) + us/global sources. "
+                       "Set false to see the full category breakdown across all 50 sources/regions.",
+)):
     """
     Top news digest: latest unique articles per category for the last N hours.
     Grouped by category for a quick intelligence overview.
     """
+    from datetime import datetime, timedelta, timezone
     from sqlalchemy import text
+    from app.connectors.event_clustering import DEFAULT_FINANCE_CATEGORIES, DEFAULT_US_REGIONS, _is_finance_relevant
     engine = _get_rss_engine()
+    sqlite = engine.dialect.name == "sqlite"
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+    order_null = "ORDER BY published_at DESC" if sqlite else "ORDER BY published_at DESC NULLS LAST"
+    params: dict = {"cutoff": cutoff}
+    scope_filter = ""
+    if us_finance_only:
+        cat_placeholders, reg_placeholders = [], []
+        for i, cat in enumerate(DEFAULT_FINANCE_CATEGORIES):
+            params[f"cat{i}"] = cat
+            cat_placeholders.append(f":cat{i}")
+        for i, reg in enumerate(DEFAULT_US_REGIONS):
+            params[f"reg{i}"] = reg
+            reg_placeholders.append(f":reg{i}")
+        scope_filter = f" AND category IN ({', '.join(cat_placeholders)}) AND region IN ({', '.join(reg_placeholders)})"
     with engine.connect() as conn:
-        rows = conn.execute(text("""
+        rows = conn.execute(text(f"""
             SELECT category, source_name, title, url, summary, published_at, matched_entities
             FROM (
                 SELECT *,
-                    ROW_NUMBER() OVER (PARTITION BY category ORDER BY published_at DESC NULLS LAST) AS rn
+                    ROW_NUMBER() OVER (PARTITION BY category {order_null}) AS rn
                 FROM rss_articles
-                WHERE published_at > NOW() - INTERVAL '1 hour' * :hours
+                WHERE published_at > :cutoff{scope_filter}
             ) sub
-            WHERE rn <= 10
+            WHERE rn <= {20 if us_finance_only else 10}
             ORDER BY category, published_at DESC
-        """), {"hours": hours}).mappings().all()
+        """), params).mappings().all()
     digest: dict = {}
     for r in rows:
         cat = r["category"] or "general"
+        entities = r["matched_entities"] or []
+        if sqlite and isinstance(entities, str):
+            try:
+                entities = json.loads(entities)
+            except Exception:
+                entities = []
         digest.setdefault(cat, []).append({
             "source": r["source_name"],
             "title": r["title"],
             "url": r["url"],
             "summary": r["summary"],
             "published_at": str(r["published_at"]) if r["published_at"] else None,
-            "entities": r["matched_entities"] or [],
+            "entities": entities,
         })
+    if us_finance_only:
+        # Layer 2 content check (see event_clustering.py) — trims broad-wire
+        # noise the source-level category/region filter alone lets through,
+        # then caps back down to 10/category to match the non-scoped default.
+        for cat in list(digest.keys()):
+            filtered = [item for item in digest[cat]
+                        if _is_finance_relevant({"title": item["title"], "summary": item["summary"],
+                                                  "matched_entities": item["entities"]})]
+            digest[cat] = (filtered or digest[cat])[:10]
     return {"hours": hours, "digest": digest}
 
 
@@ -316,6 +430,137 @@ def trigger_rss_poll():
     from app.connectors.rss_worker import run_poll_cycle
     stats = run_poll_cycle()
     return {"status": "ok", "stats": stats}
+
+
+# ── F-08: RSS Phase 2 — Event Intelligence ────────────────────────────────────
+# Clustering + fact extraction + contradiction detection + perspective
+# labeling on top of the Phase-1 rss_articles feed. See
+# docs/features/F08_RSS_PHASE2_EVENT_INTELLIGENCE.md for the full design.
+#
+# Enrichment calls GPT-4o and (optionally) Crawl4AI per event, which can take
+# from seconds to a few minutes depending on cluster size — so this follows
+# the exact same "kick off a background job, poll for status" pattern already
+# used for the tracking digest (apps/api/app/api/tracking.py) rather than
+# holding the HTTP request open, which is what caused the "Failed to fetch"
+# digest timeout bug fixed earlier in this codebase.
+
+_EVENT_JOBS: Dict[str, Dict[str, Any]] = {}
+
+
+def _run_event_intelligence_job(job_id: str, hours: int, max_events: int, min_sources: int,
+                                 us_finance_only: bool):
+    from app.services.event_intelligence_service import run_event_intelligence_job
+    db = SessionLocal()
+    try:
+        _EVENT_JOBS[job_id]["status"] = "running"
+        result = run_event_intelligence_job(
+            db, hours=hours, max_events=max_events, min_sources_for_enrichment=min_sources,
+            us_finance_only=us_finance_only,
+        )
+        _EVENT_JOBS[job_id].update({
+            "status": "failed" if result.get("error") else "completed",
+            "result": result,
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception as exc:
+        _EVENT_JOBS[job_id].update({
+            "status": "failed",
+            "error": str(exc),
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        })
+    finally:
+        db.close()
+
+
+@router.post("/rss/events/run")
+def trigger_event_intelligence(
+    background_tasks: BackgroundTasks,
+    hours: int = Query(48, description="How far back to pull articles for clustering"),
+    max_events: int = Query(15, le=50, description="Max event clusters to build/enrich per run"),
+    min_sources: int = Query(1, description="Only run fact/contradiction/perspective enrichment on clusters with at least this many distinct sources (1 = enrich everything, including single-source stories)"),
+    us_finance_only: bool = Query(True, description="Scope to US stock-market-relevant articles only (finance/macro/government categories, US/global sources, plus a stock-keyword content filter). Set false to widen to the full global RSS feed."),
+):
+    """
+    Start the event-clustering + enrichment pipeline in the background and
+    return a job_id immediately. Poll GET /market/rss/events/job/{job_id}.
+    """
+    job_id = str(uuid.uuid4())[:8]
+    _EVENT_JOBS[job_id] = {
+        "job_id": job_id, "status": "started",
+        "hours": hours, "max_events": max_events, "min_sources": min_sources,
+        "us_finance_only": us_finance_only,
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "result": None, "error": None,
+    }
+    background_tasks.add_task(_run_event_intelligence_job, job_id, hours, max_events, min_sources, us_finance_only)
+    return {"job_id": job_id, "status": "started"}
+
+
+@router.get("/rss/events/job/{job_id}")
+def event_intelligence_job_status(job_id: str):
+    job = _EVENT_JOBS.get(job_id)
+    if not job:
+        raise HTTPException(404, "Event intelligence job not found")
+    out = {
+        "job_id": job["job_id"], "status": job["status"],
+        "started_at": job.get("started_at"), "completed_at": job.get("completed_at"),
+        "error": job.get("error"),
+    }
+    if job.get("result"):
+        out.update(job["result"])
+    return out
+
+
+@router.get("/rss/events")
+def list_rss_events(
+    limit: int = Query(30, le=100),
+    entity: Optional[str] = None,
+    min_sources: Optional[int] = None,
+    db: Session = Depends(get_db),
+):
+    """List clustered/enriched events, most recent first."""
+    from app.models.news_events import RssEvent
+    try:
+        Base.metadata.create_all(bind=db.get_bind())
+        q = db.query(RssEvent)
+        if entity:
+            q = q.filter(RssEvent.topic_entity == entity)
+        if min_sources:
+            q = q.filter(RssEvent.source_count >= min_sources)
+        rows = q.order_by(RssEvent.updated_at.desc()).limit(limit).all()
+        return {"events": [_event_to_dict(r) for r in rows], "total": len(rows)}
+    except Exception as e:
+        return {"events": [], "total": 0, "error": str(e)}
+
+
+@router.get("/rss/events/{event_id}")
+def get_rss_event(event_id: int, db: Session = Depends(get_db)):
+    from app.models.news_events import RssEvent
+    row = db.query(RssEvent).filter(RssEvent.id == event_id).first()
+    if not row:
+        raise HTTPException(404, f"Event {event_id} not found")
+    return _event_to_dict(row)
+
+
+def _event_to_dict(row) -> dict:
+    return {
+        "id": row.id,
+        "topic_entity": row.topic_entity,
+        "headline": row.headline,
+        "article_ids": row.article_ids or [],
+        "sources": row.sources or [],
+        "source_count": row.source_count,
+        "confirmed_facts": row.confirmed_facts or [],
+        "unconfirmed_claims": row.unconfirmed_claims or [],
+        "conflicts": row.conflicts or [],
+        "perspectives": row.perspectives or [],
+        "key_quotes": row.key_quotes or [],
+        "market_impact": row.market_impact,
+        "enrichment_status": row.enrichment_status,
+        "enrichment_error": row.enrichment_error,
+        "created_at": str(row.created_at) if row.created_at else None,
+        "updated_at": str(row.updated_at) if row.updated_at else None,
+    }
 
 
 # ── yfinance market data ──────────────────────────────────────────────────────
