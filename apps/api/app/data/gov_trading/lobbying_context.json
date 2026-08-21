@@ -1,0 +1,240 @@
+[
+  {
+    "unnamed:_1": "Top US Lobbying Firms by Revenue",
+    "unnamed:_2": NaN,
+    "unnamed:_3": null,
+    "unnamed:_4": null,
+    "unnamed:_5": NaN
+  },
+  {
+    "unnamed:_1": "Rank",
+    "unnamed:_2": "Firm",
+    "unnamed:_3": "2025 Revenue ($M)",
+    "unnamed:_4": "2024 Revenue ($M)",
+    "unnamed:_5": "Notes"
+  },
+  {
+    "unnamed:_1": 1,
+    "unnamed:_2": "Ballard Partners",
+    "unnamed:_3": 88.1,
+    "unnamed:_4": 33.8,
+    "unnamed:_5": "Trump-aligned, largest firm 2025 (up from #4 in 2024)"
+  },
+  {
+    "unnamed:_1": 2,
+    "unnamed:_2": "Brownstein Hyatt Farber Schreck",
+    "unnamed:_3": 73.9,
+    "unnamed:_4": 68.9,
+    "unnamed:_5": "Multi-year top firm, bipartisan"
+  },
+  {
+    "unnamed:_1": 3,
+    "unnamed:_2": "BGR Group",
+    "unnamed:_3": 71.5,
+    "unnamed:_4": 46.7,
+    "unnamed:_5": "Bipartisan strategy firm"
+  },
+  {
+    "unnamed:_1": 4,
+    "unnamed:_2": "Akin Gump",
+    "unnamed:_3": 65.4,
+    "unnamed:_4": 61.2,
+    "unnamed:_5": "Law firm lobbying practice"
+  },
+  {
+    "unnamed:_1": 5,
+    "unnamed:_2": "Cornerstone Government Affairs",
+    "unnamed:_3": 47.7,
+    "unnamed:_4": 45.4,
+    "unnamed:_5": "Bipartisan appropriations focus"
+  },
+  {
+    "unnamed:_1": 6,
+    "unnamed:_2": "Holland & Knight",
+    "unnamed:_3": 44.9,
+    "unnamed:_4": 42.1,
+    "unnamed:_5": "Law firm practice"
+  },
+  {
+    "unnamed:_1": 7,
+    "unnamed:_2": "Invariant",
+    "unnamed:_3": 41.2,
+    "unnamed:_4": 32.8,
+    "unnamed:_5": "Founded by former Sen. Heidi Heitkamp advisor"
+  },
+  {
+    "unnamed:_1": 8,
+    "unnamed:_2": "Miller Strategies",
+    "unnamed:_3": 38,
+    "unnamed:_4": 33.4,
+    "unnamed:_5": "Republican-aligned"
+  },
+  {
+    "unnamed:_1": 9,
+    "unnamed:_2": "Thorn Run Partners",
+    "unnamed:_3": 37.5,
+    "unnamed:_4": 32,
+    "unnamed:_5": "Bipartisan boutique"
+  },
+  {
+    "unnamed:_1": 10,
+    "unnamed:_2": "Cassidy & Associates",
+    "unnamed:_3": 36.5,
+    "unnamed:_4": 29.7,
+    "unnamed:_5": "One of oldest DC firms"
+  },
+  {
+    "unnamed:_1": "Top Lobbying Clients (2024 spend)",
+    "unnamed:_2": NaN,
+    "unnamed:_3": null,
+    "unnamed:_4": null,
+    "unnamed:_5": NaN
+  },
+  {
+    "unnamed:_1": "Rank",
+    "unnamed:_2": "Client",
+    "unnamed:_3": "2024 Lobbying Spend ($M)",
+    "unnamed:_4": "Sector",
+    "unnamed:_5": "Notes"
+  },
+  {
+    "unnamed:_1": 1,
+    "unnamed:_2": "National Association of Realtors",
+    "unnamed:_3": 86.4,
+    "unnamed:_4": "Real Estate",
+    "unnamed:_5": "Consistent #1 lobbying spender"
+  },
+  {
+    "unnamed:_1": 2,
+    "unnamed:_2": "US Chamber of Commerce",
+    "unnamed:_3": 76.4,
+    "unnamed:_4": "Business",
+    "unnamed:_5": "Historically largest single spender"
+  },
+  {
+    "unnamed:_1": 3,
+    "unnamed:_2": "Pharmaceutical Research & Manufacturers of America (PhRMA)",
+    "unnamed:_3": 31.7,
+    "unnamed:_4": "Pharma",
+    "unnamed:_5": "Drug pricing advocacy"
+  },
+  {
+    "unnamed:_1": 4,
+    "unnamed:_2": "American Hospital Association",
+    "unnamed:_3": 29,
+    "unnamed:_4": "Healthcare",
+    "unnamed:_5": "Medicare policy"
+  },
+  {
+    "unnamed:_1": 5,
+    "unnamed:_2": "Meta Platforms",
+    "unnamed:_3": 24.4,
+    "unnamed:_4": "Tech",
+    "unnamed:_5": "Antitrust, content moderation"
+  },
+  {
+    "unnamed:_1": 6,
+    "unnamed:_2": "Business Roundtable",
+    "unnamed:_3": 22.1,
+    "unnamed:_4": "Business",
+    "unnamed:_5": "Corporate CEO coalition"
+  },
+  {
+    "unnamed:_1": 7,
+    "unnamed:_2": "American Medical Association",
+    "unnamed:_3": 20,
+    "unnamed:_4": "Healthcare",
+    "unnamed:_5": "Physician policy"
+  },
+  {
+    "unnamed:_1": 8,
+    "unnamed:_2": "Amazon.com",
+    "unnamed:_3": 19.1,
+    "unnamed:_4": "Tech",
+    "unnamed:_5": "Antitrust, cloud, retail"
+  },
+  {
+    "unnamed:_1": 9,
+    "unnamed:_2": "Alphabet (Google)",
+    "unnamed:_3": 14.9,
+    "unnamed:_4": "Tech",
+    "unnamed:_5": "Antitrust, AI regulation"
+  },
+  {
+    "unnamed:_1": 10,
+    "unnamed:_2": "Blue Cross Blue Shield",
+    "unnamed:_3": 14.6,
+    "unnamed:_4": "Healthcare",
+    "unnamed:_5": "Insurance policy"
+  },
+  {
+    "unnamed:_1": "Revolving-Door Figures (former officials whose Congressional trades ARE disclosed)",
+    "unnamed:_2": NaN,
+    "unnamed:_3": null,
+    "unnamed:_4": null,
+    "unnamed:_5": NaN
+  },
+  {
+    "unnamed:_1": "These are former US officials with substantial disclosed trading history who have since worked in lobbying, government affairs, or advisory capacities. Their Congressional-era trades appear in the ranked leaderboards. Post-government trades are generally not disclosed.",
+    "unnamed:_2": NaN,
+    "unnamed:_3": null,
+    "unnamed:_4": null,
+    "unnamed:_5": NaN
+  },
+  {
+    "unnamed:_1": "Official",
+    "unnamed:_2": "Congressional Trades",
+    "unnamed:_3": "Volume ($M)",
+    "unnamed:_4": "Post-Government Role",
+    "unnamed:_5": "Notes"
+  },
+  {
+    "unnamed:_1": "David Perdue",
+    "unnamed:_2": "2,004 trades",
+    "unnamed:_3": 3.4,
+    "unnamed:_4": "US Ambassador to China (2025+)",
+    "unnamed:_5": "Former GA Senator, COVID trading scrutiny"
+  },
+  {
+    "unnamed:_1": "Thomas MacArthur",
+    "unnamed:_2": "2,402 trades",
+    "unnamed:_3": 42.1,
+    "unnamed:_4": "Private sector",
+    "unnamed:_5": "Former NJ Congressman"
+  },
+  {
+    "unnamed:_1": "Greg Gianforte",
+    "unnamed:_2": "1,302 trades",
+    "unnamed:_3": 56,
+    "unnamed:_4": "Governor of Montana",
+    "unnamed:_5": "Former MT Congressman"
+  },
+  {
+    "unnamed:_1": "Michael Conaway",
+    "unnamed:_2": "1,006 trades",
+    "unnamed:_3": 5.5,
+    "unnamed:_4": "Private consulting",
+    "unnamed:_5": "Former TX Congressman, House Ag Chair"
+  },
+  {
+    "unnamed:_1": "Dean Phillips",
+    "unnamed:_2": "840 trades",
+    "unnamed:_3": 1.1,
+    "unnamed:_4": "Private sector",
+    "unnamed:_5": "Former MN Congressman"
+  },
+  {
+    "unnamed:_1": "Mark Green",
+    "unnamed:_2": "610 trades",
+    "unnamed:_3": 56.2,
+    "unnamed:_4": "Resigned 2025",
+    "unnamed:_5": "Former TN Congressman, Homeland Sec Chair"
+  },
+  {
+    "unnamed:_1": "Markwayne Mullin",
+    "unnamed:_2": "323 trades",
+    "unnamed:_3": 6.9,
+    "unnamed:_4": "Sitting Senator (OK)",
+    "unnamed:_5": "Moved from House to Senate 2023"
+  }
+]

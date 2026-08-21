@@ -1,0 +1,152 @@
+[
+  {
+    "case": "COVID-19 Feb 2020",
+    "year": "2020",
+    "official": "Richard Burr",
+    "party": "R",
+    "position": "Senator (NC)",
+    "trades___amount": "33 trades, $628K\u2013$1.7M",
+    "details": "Sold stock after private Senate briefings before COVID market crash. Chaired Senate Intelligence Committee.",
+    "outcome": "DOJ investigation closed 2021 with no charges. SEC settled 2024."
+  },
+  {
+    "case": "COVID-19 Feb 2020",
+    "year": "2020",
+    "official": "Kelly Loeffler",
+    "party": "R",
+    "position": "Senator (GA)",
+    "trades___amount": "27 sales $1.275M\u2013$3.1M",
+    "details": "Sold stock and bought Citrix (remote-work stock) after Senate coronavirus briefing.",
+    "outcome": "Investigation closed with no charges."
+  },
+  {
+    "case": "COVID-19 Feb 2020",
+    "year": "2020",
+    "official": "David Perdue",
+    "party": "R",
+    "position": "Senator (GA)",
+    "trades___amount": "112 transactions, $825K sold / $1.8M bought",
+    "details": "Extensive trading around COVID briefings including Cardlytics and Pfizer.",
+    "outcome": "Investigation closed with no charges."
+  },
+  {
+    "case": "COVID-19 Feb 2020",
+    "year": "2020",
+    "official": "Dianne Feinstein",
+    "party": "D",
+    "position": "Senator (CA)",
+    "trades___amount": "$1.5M\u2013$6M Allogene",
+    "details": "Husband sold Allogene stock after COVID briefings.",
+    "outcome": "Investigation closed. Feinstein said she was not involved in trades."
+  },
+  {
+    "case": "COVID-19 Feb 2020",
+    "year": "2020",
+    "official": "Jim Inhofe",
+    "party": "R",
+    "position": "Senator (OK)",
+    "trades___amount": "~$400K sold",
+    "details": "Sold stock in late January after COVID briefings.",
+    "outcome": "Investigation closed."
+  },
+  {
+    "case": "Trump Tariff April 2025",
+    "year": "2025",
+    "official": "Donald J. Trump",
+    "party": "R",
+    "position": "President",
+    "trades___amount": "327 purchases, $12.8M",
+    "details": "Made 327 stock purchases on April 8, 2025, the day before pausing tariffs \u2014 market rallied ~9% on tariff pause news.",
+    "outcome": "No formal investigation. Widely reported by NBC News, Bloomberg."
+  },
+  {
+    "case": "Trump 2025 Trading Volume",
+    "year": "2025",
+    "official": "Donald J. Trump",
+    "party": "R",
+    "position": "President",
+    "trades___amount": "7,889+ transactions, ~$1.7B",
+    "details": "First president disclosing this scale of active trading. 82% of transactions late-filed (STOCK Act violation range).",
+    "outcome": "Paid $200 STOCK Act late fees on at least 2 filings."
+  },
+  {
+    "case": "Fed 2020 Scandal",
+    "year": "2020\u201321",
+    "official": "Robert Kaplan",
+    "party": "\u2014",
+    "position": "Dallas Fed President",
+    "trades___amount": "Millions in individual stocks",
+    "details": "Traded during Fed COVID-19 emergency interventions. Held positions >$1M in tech and energy names.",
+    "outcome": "Resigned September 2021."
+  },
+  {
+    "case": "Fed 2020 Scandal",
+    "year": "2020\u201321",
+    "official": "Eric Rosengren",
+    "party": "\u2014",
+    "position": "Boston Fed President",
+    "trades___amount": "REITs and stocks",
+    "details": "Traded REITs and other assets while Fed intervened in mortgage/credit markets.",
+    "outcome": "Resigned September 2021."
+  },
+  {
+    "case": "Fed 2020 Scandal",
+    "year": "2020\u201322",
+    "official": "Richard Clarida",
+    "party": "\u2014",
+    "position": "Fed Vice Chair",
+    "trades___amount": "Omitted trades",
+    "details": "Amended disclosures to include previously omitted trades during 2020 market intervention period.",
+    "outcome": "Term ended Jan 2022. No formal action."
+  },
+  {
+    "case": "Fed Blackout Violations",
+    "year": "2017\u201321",
+    "official": "Raphael Bostic",
+    "party": "\u2014",
+    "position": "Atlanta Fed President",
+    "trades___amount": "Multiple violations disclosed 2022",
+    "details": "Repeated violations of Fed blackout window trading rules over 5-year period.",
+    "outcome": "Fed reprimand; remained in position."
+  },
+  {
+    "case": "Pelosi NVDA Options",
+    "year": "2022\u201324",
+    "official": "Nancy Pelosi",
+    "party": "D",
+    "position": "Speaker Emerita (CA)",
+    "trades___amount": "$1M\u2013$5M NVDA calls",
+    "details": "Husband bought $1M\u2013$5M NVDA call options weeks before major moves. Reported 70.9% return in 2024.",
+    "outcome": "No investigation. 723.9% return since May 2014."
+  },
+  {
+    "case": "Tuberville Volume",
+    "year": "2020\u201325",
+    "official": "Tommy Tuberville",
+    "party": "R",
+    "position": "Senator (AL)",
+    "trades___amount": "1,000+ trades, $17.1M",
+    "details": "Highest-volume individual-stock trader in Senate. Serves on Armed Services Committee.",
+    "outcome": "No formal investigation."
+  },
+  {
+    "case": "McCaul Volume",
+    "year": "2013\u201325",
+    "official": "Michael McCaul",
+    "party": "R",
+    "position": "House (TX)",
+    "trades___amount": "16,137 trades, $461.3M",
+    "details": "Highest all-time volume in Congress; chairs Foreign Affairs. Trades primarily through diversified holdings.",
+    "outcome": "No investigation. Family holdings largely."
+  },
+  {
+    "case": "Sources: ProPublica, NBC News, Bloomberg, Wikipedia (2020 congressional insider trading scandal), Business Insider, Inman, Democracy Defenders Fund, Unusual Whales. Full URLs in Sources sheet.",
+    "year": NaN,
+    "official": NaN,
+    "party": NaN,
+    "position": NaN,
+    "trades___amount": NaN,
+    "details": NaN,
+    "outcome": NaN
+  }
+]
