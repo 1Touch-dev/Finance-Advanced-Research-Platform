@@ -80,14 +80,15 @@ def get_short_interest_by_ticker(ticker: str) -> Optional[Dict[str, Any]]:
     if cached:
         return cached
 
+    # FINRA API requires settlementDate as partition key for sorting
+    # First get without sorting, filter by ticker
     payload = {
         "quoteValues": False,
         "delimiter": "|",
-        "limit": 1,
-        "sortFields": ["-settlementDate"],
+        "limit": 10,  # Get recent records for this ticker
         "compareFilters": [
             {
-                "fieldName": "symbolCode",
+                "fieldName": "issueSymbolIdentifier",
                 "fieldValue": ticker.upper(),
                 "compareType": "EQUAL"
             }
@@ -99,6 +100,8 @@ def get_short_interest_by_ticker(ticker: str) -> Optional[Dict[str, Any]]:
         log.info("No FINRA data found for ticker: %s", ticker)
         return None
 
+    # Sort by settlement date to get most recent
+    data.sort(key=lambda x: x.get("settlementDate", ""), reverse=True)
     record = data[0]
     result = _parse_finra_record(record)
     _set_cache(cache_key, result)
@@ -124,14 +127,15 @@ def get_short_interest_history(
     if cached:
         return cached
 
+    # FINRA API requires settlementDate partition key for sorting
+    # Get more records and sort client-side
     payload = {
         "quoteValues": False,
         "delimiter": "|",
-        "limit": periods,
-        "sortFields": ["-settlementDate"],
+        "limit": periods * 2,  # Get extra in case of gaps
         "compareFilters": [
             {
-                "fieldName": "symbolCode",
+                "fieldName": "issueSymbolIdentifier",
                 "fieldValue": ticker.upper(),
                 "compareType": "EQUAL"
             }
@@ -142,7 +146,11 @@ def get_short_interest_history(
     if not data:
         return []
 
-    history = [_parse_finra_record(record) for record in data]
+    # Sort by settlement date descending
+    data.sort(key=lambda x: x.get("settlementDate", ""), reverse=True)
+
+    # Take only requested periods
+    history = [_parse_finra_record(record) for record in data[:periods]]
     history.reverse()  # Oldest first
     _set_cache(cache_key, history)
     return history
@@ -167,33 +175,15 @@ def get_most_shorted_stocks(
     if cached:
         return cached
 
-    # Get latest settlement date first
-    latest_date_payload = {
-        "quoteValues": False,
-        "limit": 1,
-        "sortFields": ["-settlementDate"],
-    }
-
-    latest = _post_finra(latest_date_payload)
-    if not latest:
-        return []
-
-    latest_settlement = latest[0].get("settlementDate")
-
-    # Now get most shorted for that date
+    # Get data without settlement date filter (FINRA API limitation)
+    # Then filter and sort client-side
     payload = {
         "quoteValues": False,
         "delimiter": "|",
-        "limit": limit,
-        "sortFields": ["-currentShortPositionQuantity"],
+        "limit": limit * 5,  # Get more to filter
         "compareFilters": [
             {
-                "fieldName": "settlementDate",
-                "fieldValue": latest_settlement,
-                "compareType": "EQUAL"
-            },
-            {
-                "fieldName": "currentShortPositionQuantity",
+                "fieldName": "currentShortShareNumber",
                 "fieldValue": str(min_short_interest),
                 "compareType": "GREATER"
             }
@@ -202,11 +192,72 @@ def get_most_shorted_stocks(
 
     data = _post_finra(payload)
     if not data:
-        return []
+        # Fallback: try yfinance for most shorted
+        return _get_most_shorted_yfinance(limit)
 
-    result = [_parse_finra_record(record) for record in data]
+    # Group by ticker, take most recent for each
+    ticker_data = {}
+    for record in data:
+        ticker = record.get("issueSymbolIdentifier", "")
+        settlement = record.get("settlementDate", "")
+        if ticker not in ticker_data or settlement > ticker_data[ticker].get("settlementDate", ""):
+            ticker_data[ticker] = record
+
+    # Sort by short interest descending
+    sorted_data = sorted(
+        ticker_data.values(),
+        key=lambda x: x.get("currentShortShareNumber", 0),
+        reverse=True
+    )
+
+    result = [_parse_finra_record(record) for record in sorted_data[:limit]]
     _set_cache(cache_key, result)
     return result
+
+
+def _get_most_shorted_yfinance(limit: int = 50) -> List[Dict[str, Any]]:
+    """Fallback to yfinance for most shorted stocks."""
+    try:
+        import yfinance as yf
+
+        # Common heavily shorted tickers to check (exclude bankrupt/delisted)
+        tickers = [
+            "GME", "AMC", "KOSS", "BB", "NOK", "PLTR", "SOFI", "HOOD",
+            "RIVN", "LCID", "CVNA", "UPST", "BYND", "SPCE",
+            "TLRY", "SNDL", "MVIS", "WKHS", "NKLA", "QS", "LAZR", "OPEN",
+            "AAPL", "TSLA", "NVDA", "AMD", "INTC", "META", "GOOGL", "MSFT"
+        ]
+
+        results = []
+        for ticker in tickers[:limit]:
+            try:
+                stock = yf.Ticker(ticker)
+                info = stock.info
+                shares_short = info.get("sharesShort", 0)
+                if shares_short and shares_short > 1_000_000:
+                    results.append({
+                        "ticker": ticker,
+                        "company_name": info.get("shortName", f"{ticker} Inc."),
+                        "short_interest": shares_short,
+                        "short_percent_float": round(info.get("shortPercentOfFloat", 0) * 100, 2),
+                        "prior_short_interest": info.get("sharesShortPriorMonth", 0),
+                        "change_percent": 0,
+                        "days_to_cover": info.get("shortRatio", 0),
+                        "avg_daily_volume": info.get("averageVolume", 0),
+                        "settlement_date": info.get("dateShortInterest", ""),
+                        "source": "Yahoo Finance (fallback)",
+                        "data_freshness": "delayed",
+                    })
+            except Exception:
+                continue
+
+        # Sort by short interest
+        results.sort(key=lambda x: x.get("short_interest", 0), reverse=True)
+        return results
+
+    except Exception as e:
+        log.warning("yfinance most shorted fallback failed: %s", e)
+        return []
 
 
 def get_short_interest_changes(
@@ -241,28 +292,32 @@ def get_short_interest_changes(
 
 def _parse_finra_record(record: Dict) -> Dict[str, Any]:
     """Parse FINRA API record into standardized format."""
-    current_short = record.get("currentShortPositionQuantity", 0)
-    prior_short = record.get("previousShortPositionQuantity", 0)
-    avg_volume = record.get("averageDailyVolumeQuantity", 1)
+    # Updated field names for current FINRA API (2024+)
+    current_short = record.get("currentShortShareNumber", 0) or record.get("currentShortPositionQuantity", 0)
+    prior_short = record.get("previousShortShareNumber", 0) or record.get("previousShortPositionQuantity", 0)
+    days_to_cover = record.get("daysToCoverNumber", 0)
+    change_percent = record.get("changePercent", 0) or record.get("percentageChangefromPreviousShort", 0)
 
-    # Calculate days to cover
-    days_to_cover = current_short / avg_volume if avg_volume > 0 else 0
+    # Avg volume might not be directly available - estimate from days to cover
+    avg_volume = record.get("averageShortShareNumber", 0) or record.get("averageDailyVolumeQuantity", 0)
+    if avg_volume == 0 and days_to_cover > 0 and current_short > 0:
+        avg_volume = int(current_short / days_to_cover) if days_to_cover < 999 else 0
 
-    # Calculate change percent
-    change_percent = 0
-    if prior_short > 0:
+    # Calculate change percent if not provided
+    if change_percent == 0 and prior_short > 0:
         change_percent = ((current_short - prior_short) / prior_short) * 100
 
     return {
-        "ticker": record.get("symbolCode", ""),
+        "ticker": record.get("issueSymbolIdentifier", "") or record.get("symbolCode", ""),
         "company_name": record.get("issueName", ""),
         "short_interest": current_short,
         "prior_short_interest": prior_short,
-        "change_percent": round(change_percent, 2),
+        "change_percent": round(change_percent, 2) if change_percent else 0,
         "avg_daily_volume": avg_volume,
-        "days_to_cover": round(days_to_cover, 2),
+        "days_to_cover": round(days_to_cover, 2) if days_to_cover and days_to_cover < 999 else 0,
         "settlement_date": record.get("settlementDate", ""),
-        "market": record.get("marketClassCode", ""),
+        "market": record.get("marketCategoryCode", "") or record.get("marketClassCode", ""),
+        "market_description": record.get("marketCategoryDescription", ""),
         "source": "FINRA",
         "data_freshness": "bi-weekly",
     }
