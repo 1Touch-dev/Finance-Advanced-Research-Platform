@@ -37,30 +37,61 @@ def _load_data() -> Dict[str, Any]:
 
 
 def _safe_float(val) -> float:
-    """Safely convert to float."""
+    """Safely convert to float, handling NaN values."""
+    import math
     if val is None:
         return 0.0
     try:
         if isinstance(val, str):
-            val = val.replace(",", "").replace("$", "").replace("%", "").replace("—", "0").replace("-", "0")
+            val = val.replace(",", "").replace("$", "").replace("%", "").replace("—", "0").strip()
+            # Handle empty strings and dash-only strings
+            if not val or val == "-" or val.lower() == "nan" or val.lower() == "n/a":
+                return 0.0
             if "M" in val:
                 val = val.replace("M", "")
-                return float(val) * 1_000_000
-            if "K" in val:
+                result = float(val) * 1_000_000
+            elif "K" in val:
                 val = val.replace("K", "")
-                return float(val) * 1_000
-        return float(val)
+                result = float(val) * 1_000
+            else:
+                result = float(val)
+        else:
+            result = float(val)
+        # Check for NaN and infinity
+        if math.isnan(result) or math.isinf(result):
+            return 0.0
+        return result
     except (ValueError, TypeError):
         return 0.0
 
 
+def _safe_str(val) -> str:
+    """Safely convert to string, handling NaN values."""
+    import math
+    if val is None:
+        return ""
+    if isinstance(val, float):
+        if math.isnan(val) or math.isinf(val):
+            return ""
+    s = str(val).strip()
+    if s.lower() in ("nan", "none", "n/a", "null"):
+        return ""
+    return s
+
+
 def _safe_int(val) -> int:
     """Safely convert to int."""
+    import math
     if val is None:
         return 0
     try:
+        if isinstance(val, float):
+            if math.isnan(val) or math.isinf(val):
+                return 0
         if isinstance(val, str):
-            val = val.replace(",", "").replace("$", "").replace("—", "0").replace("-", "0")
+            val = val.replace(",", "").replace("$", "").replace("—", "0").replace("-", "0").strip()
+            if not val or val.lower() in ("nan", "n/a"):
+                return 0
         return int(float(val))
     except (ValueError, TypeError):
         return 0
@@ -74,12 +105,12 @@ def get_leaderboard_by_trades(limit: int = 50) -> List[Dict]:
     return [
         {
             "rank": _safe_int(r.get("rank", i + 1)),
-            "name": r.get("official") or r.get("name") or "Unknown",
-            "party": r.get("party") or "",
-            "chamber": r.get("chamber_role") or r.get("chamber") or "",
-            "state": r.get("state") or "",
+            "name": _safe_str(r.get("official") or r.get("name")) or "Unknown",
+            "party": _safe_str(r.get("party")),
+            "chamber": _safe_str(r.get("chamber_role") or r.get("chamber")),
+            "state": _safe_str(r.get("state")),
             "trade_count": _safe_int(r.get("trades") or r.get("trade_count")),
-            "trade_source": r.get("trade_source") or "Capitol Trades",
+            "trade_source": _safe_str(r.get("trade_source")) or "Capitol Trades",
             "volume_usd": _safe_float(r.get("volume_m") or r.get("volume")) * (1_000_000 if "m" in str(r.get("volume_m", "")).lower() else 1),
             "return_pct": _safe_float(r.get("return_pct") or r.get("return")),
             "net_profit_usd": _safe_float(r.get("net_profit_m") or r.get("net_profit")) * 1_000_000,
@@ -96,12 +127,12 @@ def get_leaderboard_by_volume(limit: int = 50) -> List[Dict]:
     return [
         {
             "rank": _safe_int(r.get("rank", i + 1)),
-            "name": r.get("official") or r.get("name") or "Unknown",
-            "party": r.get("party") or "",
-            "chamber": r.get("chamber_role") or r.get("chamber") or "",
-            "state": r.get("state") or "",
+            "name": _safe_str(r.get("official") or r.get("name")) or "Unknown",
+            "party": _safe_str(r.get("party")),
+            "chamber": _safe_str(r.get("chamber_role") or r.get("chamber")),
+            "state": _safe_str(r.get("state")),
             "volume_usd": _safe_float(r.get("volume_m") or r.get("volume")) * 1_000_000,
-            "volume_source": r.get("volume_source") or "Capitol Trades",
+            "volume_source": _safe_str(r.get("volume_source")) or "Capitol Trades",
             "trade_count": _safe_int(r.get("trades") or r.get("trade_count")),
             "return_pct": _safe_float(r.get("return_pct") or r.get("return")),
             "net_profit_usd": _safe_float(r.get("net_profit_m") or r.get("net_profit")) * 1_000_000,
@@ -118,15 +149,15 @@ def get_leaderboard_by_returns(limit: int = 50) -> List[Dict]:
     return [
         {
             "rank": _safe_int(r.get("rank", i + 1)),
-            "name": r.get("official") or r.get("name") or "Unknown",
-            "party": r.get("party") or "",
-            "chamber": r.get("chamber_role") or r.get("chamber") or "",
-            "state": r.get("state") or "",
+            "name": _safe_str(r.get("official") or r.get("name")) or "Unknown",
+            "party": _safe_str(r.get("party")),
+            "chamber": _safe_str(r.get("chamber_role") or r.get("chamber")),
+            "state": _safe_str(r.get("state")),
             "return_pct": _safe_float(r.get("est._return_pct") or r.get("return_pct") or r.get("return")),
             "vs_sp500": _safe_float(r.get("vs._s&p_500") or r.get("vs_sp500")),
             "trade_count": _safe_int(r.get("trades") or r.get("trade_count")),
             "est_profit_usd": _safe_float(r.get("est._profit_m") or r.get("profit")) * 1_000_000,
-            "measurement_period": r.get("measurement_window") or r.get("period") or "",
+            "measurement_period": _safe_str(r.get("measurement_window") or r.get("period")),
         }
         for i, r in enumerate(records[:limit])
     ]
@@ -140,15 +171,15 @@ def get_executive_branch(limit: int = 50) -> List[Dict]:
     return [
         {
             "rank": _safe_int(r.get("rank", i + 1)),
-            "name": r.get("official") or r.get("name") or "Unknown",
-            "role": r.get("role") or r.get("position") or "",
-            "department": r.get("department") or "",
+            "name": _safe_str(r.get("official") or r.get("name")) or "Unknown",
+            "role": _safe_str(r.get("role") or r.get("position")),
+            "department": _safe_str(r.get("department")),
             "trades_2025": _safe_int(r.get("trades_2025+") or r.get("trades")),
             "sales": _safe_int(r.get("sales")),
             "purchases": _safe_int(r.get("purchases")),
             "late_filing_pct": _safe_float(r.get("late_pct") or r.get("late_filing")),
-            "filings_since": r.get("filings_since") or "",
-            "source": r.get("source") or "STOCK Act / Open Cabinet",
+            "filings_since": _safe_str(r.get("filings_since")),
+            "source": _safe_str(r.get("source")) or "STOCK Act / Open Cabinet",
         }
         for i, r in enumerate(records[:limit])
     ]
@@ -161,14 +192,14 @@ def get_notable_cases(limit: int = 20) -> List[Dict]:
 
     return [
         {
-            "case": r.get("case") or "",
-            "year": r.get("year") or "",
-            "official": r.get("official") or r.get("name") or "",
-            "party": r.get("party") or "",
-            "position": r.get("position") or "",
-            "trades_amount": r.get("trades___amount") or r.get("amount") or "",
-            "details": r.get("details") or "",
-            "outcome": r.get("outcome") or "",
+            "case": _safe_str(r.get("case")),
+            "year": _safe_str(r.get("year")),
+            "official": _safe_str(r.get("official") or r.get("name")),
+            "party": _safe_str(r.get("party")),
+            "position": _safe_str(r.get("position")),
+            "trades_amount": _safe_str(r.get("trades___amount") or r.get("amount")),
+            "details": _safe_str(r.get("details")),
+            "outcome": _safe_str(r.get("outcome")),
         }
         for r in records[:limit]
     ]
@@ -182,10 +213,10 @@ def get_all_politicians(limit: int = 100) -> List[Dict]:
     return [
         {
             "rank": _safe_int(r.get("rank", i + 1)),
-            "name": r.get("official") or r.get("name") or "Unknown",
-            "party": r.get("party") or "",
-            "chamber": r.get("chamber_role") or r.get("chamber") or "",
-            "state": r.get("state") or "",
+            "name": _safe_str(r.get("official") or r.get("name")) or "Unknown",
+            "party": _safe_str(r.get("party")),
+            "chamber": _safe_str(r.get("chamber_role") or r.get("chamber")),
+            "state": _safe_str(r.get("state")),
             "trade_count": _safe_int(r.get("best_trades") or r.get("trades")),
             "volume_usd": _safe_float(r.get("best_volume_m") or r.get("volume")) * 1_000_000,
             "return_pct": _safe_float(r.get("best_return_pct") or r.get("return")),
