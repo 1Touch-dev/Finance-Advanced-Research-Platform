@@ -359,7 +359,10 @@ class RecursionEngine:
         config: RecursionConfig,
     ) -> Dict[str, Any]:
         """
-        Explore the graph from a seed entity using BFS.
+        Explore the graph from a seed entity using bidirectional BFS.
+
+        Traverses both outgoing and incoming edges to discover the full
+        network around an entity.
 
         Returns:
             {
@@ -369,7 +372,6 @@ class RecursionEngine:
                 "depth_reached": int,
                 "nodes_explored": int,
                 "cost_spent": float,
-                "paths": List[GraphPath],  # Significant paths found
             }
         """
         seed = self.store.get_entity(seed_entity_id)
@@ -377,10 +379,10 @@ class RecursionEngine:
             return {"error": f"Seed entity {seed_entity_id} not found"}
 
         visited: Set[str] = {seed_entity_id}
+        visited_edges: Set[str] = set()
         queue: deque = deque([(seed_entity_id, 0)])  # (entity_id, depth)
         explored_nodes: List[EntityNode] = [seed]
         explored_edges: List[Edge] = []
-        paths: List[GraphPath] = []
         max_depth_reached = 0
         self._cost_tracker = 0.0
 
@@ -394,19 +396,37 @@ class RecursionEngine:
                 log.info("Cost budget exhausted at %.2f", self._cost_tracker)
                 break
 
-            # Get outgoing edges (costs 1 unit per lookup)
-            self._cost_tracker += 1.0
-            edges = self.store.get_outgoing_edges(current_id, config)
+            # Get both outgoing and incoming edges (costs 2 units per lookup)
+            self._cost_tracker += 2.0
+            outgoing = self.store.get_outgoing_edges(current_id, config)
+            incoming = self.store.get_incoming_edges(current_id, config)
 
-            for edge in edges:
+            # Process outgoing edges
+            for edge in outgoing:
+                if edge.id not in visited_edges:
+                    visited_edges.add(edge.id)
+                    explored_edges.append(edge)
+
                 if edge.dst_entity_id not in visited:
                     visited.add(edge.dst_entity_id)
-
                     dst_entity = self.store.get_entity(edge.dst_entity_id)
                     if dst_entity:
                         explored_nodes.append(dst_entity)
-                        explored_edges.append(edge)
                         queue.append((edge.dst_entity_id, depth + 1))
+                        max_depth_reached = max(max_depth_reached, depth + 1)
+
+            # Process incoming edges (reverse traversal)
+            for edge in incoming:
+                if edge.id not in visited_edges:
+                    visited_edges.add(edge.id)
+                    explored_edges.append(edge)
+
+                if edge.src_entity_id not in visited:
+                    visited.add(edge.src_entity_id)
+                    src_entity = self.store.get_entity(edge.src_entity_id)
+                    if src_entity:
+                        explored_nodes.append(src_entity)
+                        queue.append((edge.src_entity_id, depth + 1))
                         max_depth_reached = max(max_depth_reached, depth + 1)
 
         return {
@@ -450,7 +470,9 @@ class RecursionEngine:
         """
         Find all paths between two entities.
 
-        Uses BFS to find shortest paths first.
+        Uses bidirectional BFS to find shortest paths first.
+        Traverses both outgoing and incoming edges to find connections
+        through shared nodes (e.g., Thiel -> PayPal <- Chen).
         """
         src = self.store.get_entity(src_entity_id)
         dst = self.store.get_entity(dst_entity_id)
@@ -459,7 +481,33 @@ class RecursionEngine:
             return []
 
         paths: List[GraphPath] = []
+        visited_paths: Set[str] = set()  # Track unique paths
         queue: deque = deque([(src_entity_id, [src], [], 0)])  # (id, nodes, edges, depth)
+
+        confidence_order = [
+            ConfidenceTier.CONFIRMED,
+            ConfidenceTier.REPORTED,
+            ConfidenceTier.INFERRED,
+            ConfidenceTier.SPECULATIVE,
+        ]
+
+        def add_path(final_nodes: List[EntityNode], final_edges: List[Edge]):
+            path_key = "->".join(n.id for n in final_nodes)
+            if path_key in visited_paths:
+                return
+            visited_paths.add(path_key)
+
+            min_conf = min(
+                final_edges,
+                key=lambda e: confidence_order.index(e.confidence_tier)
+            ).confidence_tier
+
+            paths.append(GraphPath(
+                nodes=final_nodes,
+                edges=final_edges,
+                total_depth=len(final_edges),
+                confidence_floor=min_conf,
+            ))
 
         while queue:
             current_id, path_nodes, path_edges, depth = queue.popleft()
@@ -467,39 +515,37 @@ class RecursionEngine:
             if depth >= config.max_depth:
                 continue
 
-            edges = self.store.get_outgoing_edges(current_id, config)
+            visited_ids = {n.id for n in path_nodes}
 
-            for edge in edges:
-                if edge.dst_entity_id == dst_entity_id:
-                    # Found a path!
-                    final_nodes = path_nodes + [dst]
-                    final_edges = path_edges + [edge]
+            # Get all connected edges (both directions)
+            outgoing = self.store.get_outgoing_edges(current_id, config)
+            incoming = self.store.get_incoming_edges(current_id, config)
 
-                    # Calculate confidence floor
-                    confidence_order = [
-                        ConfidenceTier.CONFIRMED,
-                        ConfidenceTier.REPORTED,
-                        ConfidenceTier.INFERRED,
-                        ConfidenceTier.SPECULATIVE,
-                    ]
-                    min_conf = min(
-                        final_edges,
-                        key=lambda e: confidence_order.index(e.confidence_tier)
-                    ).confidence_tier
-
-                    paths.append(GraphPath(
-                        nodes=final_nodes,
-                        edges=final_edges,
-                        total_depth=len(final_edges),
-                        confidence_floor=min_conf,
-                    ))
-
-                elif edge.dst_entity_id not in [n.id for n in path_nodes]:
-                    # Continue exploring
-                    next_entity = self.store.get_entity(edge.dst_entity_id)
+            # Process outgoing edges (normal direction)
+            for edge in outgoing:
+                next_id = edge.dst_entity_id
+                if next_id == dst_entity_id:
+                    add_path(path_nodes + [dst], path_edges + [edge])
+                elif next_id not in visited_ids:
+                    next_entity = self.store.get_entity(next_id)
                     if next_entity:
                         queue.append((
-                            edge.dst_entity_id,
+                            next_id,
+                            path_nodes + [next_entity],
+                            path_edges + [edge],
+                            depth + 1,
+                        ))
+
+            # Process incoming edges (reverse direction)
+            for edge in incoming:
+                next_id = edge.src_entity_id
+                if next_id == dst_entity_id:
+                    add_path(path_nodes + [dst], path_edges + [edge])
+                elif next_id not in visited_ids:
+                    next_entity = self.store.get_entity(next_id)
+                    if next_entity:
+                        queue.append((
+                            next_id,
                             path_nodes + [next_entity],
                             path_edges + [edge],
                             depth + 1,

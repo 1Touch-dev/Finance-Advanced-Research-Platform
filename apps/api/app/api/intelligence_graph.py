@@ -19,6 +19,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.services import entity_graph_service as graph
+from app.services import paypal_mafia_loader as paypal_loader
 
 router = APIRouter(prefix="/intelligence/graph", tags=["Intelligence Graph"])
 
@@ -325,4 +326,104 @@ async def list_confidence_tiers() -> Dict[str, Any]:
                 "accuracy_target": "≥40%",
             },
         ],
+    }
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# PAYPAL MAFIA DEMONSTRATION ENDPOINTS
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+@router.post("/paypal-mafia/load", summary="Load PayPal Mafia seed data")
+async def load_paypal_mafia() -> Dict[str, Any]:
+    """
+    Load the PayPal Mafia demonstration dataset into the graph.
+
+    This seeds the graph with:
+    - 21 PayPal Mafia members (people)
+    - ~25 companies and funds
+    - 60+ relationships with evidence
+
+    Use this to demonstrate "Follow the Money" network exploration.
+    """
+    stats = paypal_loader.load_paypal_mafia_graph()
+    return {
+        "status": "loaded",
+        "entities_loaded": stats["entities_loaded"],
+        "entities_failed": stats["entities_failed"],
+        "edges_loaded": stats["edges_loaded"],
+        "edges_failed": stats["edges_failed"],
+        "errors": stats["errors"][:10] if stats["errors"] else [],
+    }
+
+
+@router.get("/paypal-mafia/stats", summary="Get PayPal Mafia dataset stats")
+async def get_paypal_mafia_stats() -> Dict[str, Any]:
+    """
+    Get statistics about the PayPal Mafia dataset and graph state.
+    """
+    return paypal_loader.get_paypal_mafia_stats()
+
+
+@router.get("/paypal-mafia/explore", summary="Explore PayPal Mafia network")
+async def explore_paypal_mafia(
+    seed: str = Query(
+        "person:peter-thiel",
+        description="Seed entity ID to explore from"
+    ),
+    max_depth: int = Query(3, ge=1, le=5, description="Maximum BFS depth"),
+    max_nodes: int = Query(500, ge=10, le=2000, description="Maximum nodes"),
+) -> Dict[str, Any]:
+    """
+    Explore the PayPal Mafia network from a seed person.
+
+    Default seed is Peter Thiel as the most connected member.
+
+    Example seeds:
+    - person:peter-thiel
+    - person:elon-musk
+    - person:reid-hoffman
+    - org:paypal
+    """
+    result = paypal_loader.explore_paypal_mafia(
+        seed_person=seed,
+        max_depth=max_depth,
+        max_nodes=max_nodes,
+    )
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+
+@router.get("/paypal-mafia/connect", summary="Find connection between two members")
+async def find_paypal_connection(
+    person_a: str = Query(..., description="First entity ID"),
+    person_b: str = Query(..., description="Second entity ID"),
+    max_depth: int = Query(4, ge=1, le=6, description="Maximum path length"),
+) -> Dict[str, Any]:
+    """
+    Find connections between two PayPal Mafia entities.
+
+    Examples:
+    - person:peter-thiel → person:steve-chen (YouTube founder)
+    - person:elon-musk → org:affirm
+    - fund:sequoia → org:palantir
+    """
+    return paypal_loader.find_paypal_connection(
+        person_a=person_a,
+        person_b=person_b,
+        max_depth=max_depth,
+    )
+
+
+@router.get("/paypal-mafia/queries", summary="Get interesting pre-defined queries")
+async def get_paypal_queries() -> Dict[str, Any]:
+    """
+    Get pre-defined interesting network queries.
+
+    These demonstrate the "Follow the Money" use case.
+    """
+    queries = paypal_loader.get_interesting_queries()
+    return {
+        "queries": queries,
+        "count": len(queries),
     }
