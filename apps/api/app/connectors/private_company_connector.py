@@ -229,10 +229,421 @@ def fetch_gleif_relationships(lei: str) -> dict:
     except Exception:
         direct = {}
 
+    # Fetch direct children (subsidiaries)
+    children = []
+    try:
+        r3 = requests.get(
+            f"{_GLEIF_BASE}/lei-records/{lei}/direct-child-relationships",
+            headers={"Accept": "application/vnd.api+json"},
+            timeout=10,
+        )
+        if r3.ok:
+            children = r3.json().get("data", [])
+    except Exception:
+        pass
+
     return {
         "ultimate_parent": ultimate,
         "direct_parent":   direct,
+        "direct_children": children,
     }
+
+
+def fetch_gleif_entity_details(lei: str) -> dict:
+    """
+    Fetch full entity details from GLEIF by LEI.
+    Returns structured entity data including legal name, address, status.
+    """
+    try:
+        r = requests.get(
+            f"{_GLEIF_BASE}/lei-records/{lei}",
+            headers={"Accept": "application/vnd.api+json"},
+            timeout=10,
+        )
+        if not r.ok:
+            return {}
+        data = r.json().get("data", {})
+        attrs = data.get("attributes", {})
+        entity = attrs.get("entity", {})
+        reg = attrs.get("registration", {})
+        addr = entity.get("legalAddress", {})
+
+        return {
+            "lei": lei,
+            "name": entity.get("legalName", {}).get("name", ""),
+            "status": reg.get("status", ""),
+            "jurisdiction": entity.get("jurisdiction", ""),
+            "legal_form": entity.get("legalForm", {}).get("id", ""),
+            "registered_address": ", ".join(filter(None, [
+                addr.get("addressLines", [""])[0] if addr.get("addressLines") else "",
+                addr.get("city", ""),
+                addr.get("country", ""),
+            ])),
+            "headquarters_address": ", ".join(filter(None, [
+                entity.get("headquartersAddress", {}).get("addressLines", [""])[0] if entity.get("headquartersAddress", {}).get("addressLines") else "",
+                entity.get("headquartersAddress", {}).get("city", ""),
+                entity.get("headquartersAddress", {}).get("country", ""),
+            ])),
+            "category": entity.get("category", ""),
+            "source": "GLEIF",
+        }
+    except Exception as exc:
+        logger.warning("GLEIF entity fetch failed for %s: %s", lei, exc)
+        return {}
+
+
+def traverse_ownership_chain(lei: str, max_depth: int = 5) -> dict:
+    """
+    Recursively traverse the ownership chain upward from an LEI to find
+    all parent entities up to the ultimate parent.
+
+    Returns {
+        "entity": {...},
+        "ownership_chain": [
+            {"level": 1, "entity": {...}, "relationship_type": "direct_parent"},
+            {"level": 2, "entity": {...}, "relationship_type": "direct_parent"},
+            ...
+        ],
+        "ultimate_parent": {...},
+        "chain_length": int,
+    }
+    """
+    entity = fetch_gleif_entity_details(lei)
+    if not entity:
+        return {"error": f"Entity not found for LEI: {lei}"}
+
+    ownership_chain = []
+    visited = {lei}
+    current_lei = lei
+
+    for level in range(1, max_depth + 1):
+        rels = fetch_gleif_relationships(current_lei)
+        direct_parent = rels.get("direct_parent", {})
+
+        if not direct_parent:
+            break
+
+        # Extract parent LEI from relationship
+        parent_lei = None
+        if isinstance(direct_parent, dict):
+            rel_data = direct_parent.get("attributes", {}).get("relationship", {})
+            if rel_data:
+                # Parent LEI is in the startNode
+                parent_lei = rel_data.get("startNode", {}).get("id")
+
+        if not parent_lei or parent_lei in visited:
+            break
+
+        visited.add(parent_lei)
+        parent_entity = fetch_gleif_entity_details(parent_lei)
+
+        if parent_entity:
+            ownership_chain.append({
+                "level": level,
+                "entity": parent_entity,
+                "relationship_type": "direct_parent",
+            })
+            current_lei = parent_lei
+        else:
+            break
+
+    ultimate_parent = ownership_chain[-1]["entity"] if ownership_chain else entity
+
+    return {
+        "entity": entity,
+        "ownership_chain": ownership_chain,
+        "ultimate_parent": ultimate_parent,
+        "chain_length": len(ownership_chain),
+    }
+
+
+def build_corporate_network_graph(lei: str, include_children: bool = True, max_depth: int = 3) -> dict:
+    """
+    Build a network graph of corporate relationships around an entity.
+
+    Returns {
+        "nodes": [
+            {"id": "LEI123", "name": "Company A", "type": "root|parent|subsidiary", ...},
+            ...
+        ],
+        "edges": [
+            {"source": "LEI123", "target": "LEI456", "relationship": "parent_of|subsidiary_of"},
+            ...
+        ],
+        "root_entity": {...},
+    }
+    """
+    nodes = []
+    edges = []
+    visited = set()
+
+    def add_node(entity_data: dict, node_type: str) -> str:
+        """Add a node if not already present."""
+        lei_id = entity_data.get("lei", "")
+        if lei_id and lei_id not in visited:
+            visited.add(lei_id)
+            nodes.append({
+                "id": lei_id,
+                "name": entity_data.get("name", ""),
+                "type": node_type,
+                "jurisdiction": entity_data.get("jurisdiction", ""),
+                "status": entity_data.get("status", ""),
+            })
+        return lei_id
+
+    def traverse_up(current_lei: str, depth: int = 0):
+        """Traverse upward to parents."""
+        if depth >= max_depth or current_lei in visited:
+            return
+
+        entity = fetch_gleif_entity_details(current_lei)
+        if not entity:
+            return
+
+        node_type = "root" if depth == 0 else "parent"
+        add_node(entity, node_type)
+
+        rels = fetch_gleif_relationships(current_lei)
+        direct_parent = rels.get("direct_parent", {})
+
+        if direct_parent:
+            rel_data = direct_parent.get("attributes", {}).get("relationship", {})
+            parent_lei = rel_data.get("startNode", {}).get("id") if rel_data else None
+            if parent_lei and parent_lei not in visited:
+                parent_entity = fetch_gleif_entity_details(parent_lei)
+                if parent_entity:
+                    add_node(parent_entity, "parent")
+                    edges.append({
+                        "source": parent_lei,
+                        "target": current_lei,
+                        "relationship": "parent_of",
+                    })
+                    traverse_up(parent_lei, depth + 1)
+
+    def traverse_down(current_lei: str, depth: int = 0):
+        """Traverse downward to subsidiaries."""
+        if depth >= max_depth:
+            return
+
+        rels = fetch_gleif_relationships(current_lei)
+        children = rels.get("direct_children", [])
+
+        for child in children[:20]:  # Limit children per level
+            child_attrs = child.get("attributes", {}).get("relationship", {})
+            child_lei = child_attrs.get("endNode", {}).get("id") if child_attrs else None
+
+            if child_lei and child_lei not in visited:
+                child_entity = fetch_gleif_entity_details(child_lei)
+                if child_entity:
+                    add_node(child_entity, "subsidiary")
+                    edges.append({
+                        "source": current_lei,
+                        "target": child_lei,
+                        "relationship": "parent_of",
+                    })
+                    traverse_down(child_lei, depth + 1)
+
+    # Start traversal
+    traverse_up(lei)
+
+    if include_children:
+        traverse_down(lei)
+
+    root_entity = next((n for n in nodes if n["type"] == "root"), None)
+
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "root_entity": root_entity,
+        "total_entities": len(nodes),
+        "total_relationships": len(edges),
+    }
+
+
+def detect_ultimate_beneficial_owners(entity_name: str, jurisdiction: str = "") -> dict:
+    """
+    Detect Ultimate Beneficial Owners (UBOs) by combining GLEIF, UK PSC, and OpenCorporates.
+
+    UBOs are natural persons who ultimately control an entity through direct or indirect
+    ownership of 25%+ or through other control mechanisms.
+
+    Returns {
+        "entity_name": str,
+        "ubos": [
+            {"name": str, "source": str, "control_type": str, "percentage": float|None},
+            ...
+        ],
+        "corporate_parents": [...],
+        "data_sources_checked": [...],
+    }
+    """
+    ubos = []
+    corporate_parents = []
+    sources_checked = []
+
+    # 1. Check GLEIF for corporate ownership chain
+    gleif_matches = search_gleif(entity_name, limit=1)
+    if gleif_matches:
+        sources_checked.append("GLEIF")
+        lei = gleif_matches[0]["lei"]
+        chain = traverse_ownership_chain(lei)
+
+        if chain.get("ultimate_parent"):
+            corporate_parents.append({
+                "name": chain["ultimate_parent"].get("name", ""),
+                "lei": chain["ultimate_parent"].get("lei", ""),
+                "jurisdiction": chain["ultimate_parent"].get("jurisdiction", ""),
+                "source": "GLEIF",
+            })
+
+    # 2. Check UK Companies House PSC for natural person UBOs
+    if jurisdiction.lower() in ("uk", "gb", "united kingdom", "") or not jurisdiction:
+        uk_matches = search_uk_companies(entity_name, limit=1)
+        if uk_matches:
+            sources_checked.append("UK Companies House PSC")
+            uk_detail = enrich_uk_company(uk_matches[0]["company_number"])
+
+            for psc in uk_detail.get("persons_with_significant_control", []):
+                # PSC with nature of control indicates beneficial ownership
+                natures = psc.get("natures_of_control", [])
+                control_types = []
+                ownership_pct = None
+
+                for nature in natures:
+                    if "ownership" in nature.lower():
+                        control_types.append("ownership")
+                        # Try to extract percentage range
+                        if "75-to-100" in nature:
+                            ownership_pct = 87.5  # midpoint
+                        elif "50-to-75" in nature:
+                            ownership_pct = 62.5
+                        elif "25-to-50" in nature:
+                            ownership_pct = 37.5
+                    elif "voting-rights" in nature.lower():
+                        control_types.append("voting_rights")
+                    elif "significant-influence" in nature.lower():
+                        control_types.append("significant_influence")
+
+                ubos.append({
+                    "name": psc.get("name", ""),
+                    "source": "UK Companies House PSC",
+                    "control_type": ", ".join(control_types) if control_types else "significant_control",
+                    "percentage": ownership_pct,
+                    "nationality": psc.get("nationality", ""),
+                    "country_of_residence": psc.get("country_of_residence", ""),
+                    "notified_on": psc.get("notified_on", ""),
+                })
+
+    # 3. Check OpenCorporates for officers/directors as potential UBOs
+    oc_matches = search_opencorporates(entity_name, jurisdiction=jurisdiction, limit=1)
+    if oc_matches:
+        sources_checked.append("OpenCorporates")
+        top = oc_matches[0]
+        if top.get("company_number") and top.get("jurisdiction"):
+            oc_detail = enrich_opencorporates(top["company_number"], top["jurisdiction"])
+
+            # Officers with significant roles might indicate UBO-like control
+            for officer in oc_detail.get("officers", []):
+                role = officer.get("role", "").lower()
+                if any(r in role for r in ["director", "secretary", "president", "ceo", "chairman"]):
+                    if officer.get("name") and not officer.get("inactive"):
+                        # Check if already in UBOs
+                        if not any(u["name"].lower() == officer["name"].lower() for u in ubos):
+                            ubos.append({
+                                "name": officer.get("name", ""),
+                                "source": "OpenCorporates (Officer)",
+                                "control_type": f"officer_{role}",
+                                "percentage": None,
+                                "start_date": officer.get("start"),
+                            })
+
+    return {
+        "entity_name": entity_name,
+        "ubos": ubos,
+        "corporate_parents": corporate_parents,
+        "data_sources_checked": sources_checked,
+        "ubo_count": len(ubos),
+        "has_natural_person_ubo": any(u["source"] == "UK Companies House PSC" for u in ubos),
+    }
+
+
+def cross_reference_ownership(entity_name: str, jurisdiction: str = "") -> dict:
+    """
+    Cross-reference ownership data across multiple registries to build
+    a comprehensive ownership picture.
+
+    Returns reconciled ownership data with confidence scores.
+    """
+    results = {
+        "entity_name": entity_name,
+        "jurisdiction": jurisdiction,
+        "ownership_data": [],
+        "confidence_score": 0,
+        "sources_matched": 0,
+        "discrepancies": [],
+    }
+
+    # Gather data from all sources
+    gleif_data = search_gleif(entity_name, limit=1)
+    oc_data = search_opencorporates(entity_name, jurisdiction, limit=1)
+    uk_data = search_uk_companies(entity_name, limit=1) if jurisdiction.lower() in ("uk", "gb", "") else []
+
+    sources_found = sum([bool(gleif_data), bool(oc_data), bool(uk_data)])
+    results["sources_matched"] = sources_found
+
+    # Cross-reference names
+    names = set()
+    if gleif_data:
+        names.add(gleif_data[0].get("name", "").upper())
+    if oc_data:
+        names.add(oc_data[0].get("name", "").upper())
+    if uk_data:
+        names.add(uk_data[0].get("name", "").upper())
+
+    # Check for name discrepancies
+    if len(names) > 1:
+        results["discrepancies"].append({
+            "field": "company_name",
+            "values": list(names),
+            "note": "Company names differ across registries",
+        })
+
+    # Cross-reference jurisdictions
+    jurisdictions = set()
+    if gleif_data:
+        jurisdictions.add(gleif_data[0].get("jurisdiction", "").upper())
+    if oc_data:
+        jurisdictions.add(oc_data[0].get("jurisdiction", "").upper())
+
+    # Build unified ownership data
+    if gleif_data:
+        lei = gleif_data[0]["lei"]
+        rels = fetch_gleif_relationships(lei)
+        results["ownership_data"].append({
+            "source": "GLEIF",
+            "lei": lei,
+            "has_parent": bool(rels.get("direct_parent")),
+            "has_ultimate_parent": bool(rels.get("ultimate_parent")),
+            "has_children": bool(rels.get("direct_children")),
+        })
+
+    if uk_data:
+        uk_detail = enrich_uk_company(uk_data[0]["company_number"])
+        psc_count = len(uk_detail.get("persons_with_significant_control", []))
+        results["ownership_data"].append({
+            "source": "UK Companies House",
+            "company_number": uk_data[0]["company_number"],
+            "psc_count": psc_count,
+            "has_psc": psc_count > 0,
+        })
+
+    # Calculate confidence score (0-100)
+    base_score = sources_found * 25
+    if not results["discrepancies"]:
+        base_score += 25
+    results["confidence_score"] = min(100, base_score)
+
+    return results
 
 
 # ── FinCEN BOI / FDIC fallback ───────────────────────────────────────────────

@@ -31,6 +31,7 @@ from app.api.experiments import router as experiments_router
 from app.api.ai_visibility import router as ai_visibility_router
 from app.api.export import router as export_router
 from app.api.honesty import router as honesty_router
+from app.api.fact_scoring import router as fact_scoring_router
 from app.core.logging import logger
 
 try:
@@ -91,6 +92,7 @@ app.include_router(experiments_router)
 app.include_router(ai_visibility_router)
 app.include_router(export_router)
 app.include_router(honesty_router)
+app.include_router(fact_scoring_router)
 if _CHAT_ROUTER:
     app.include_router(chat_router)
 
@@ -375,6 +377,12 @@ except Exception:
 try:
     from app.api.government import router as government_router
     app.include_router(government_router)
+except Exception:
+    pass
+
+try:
+    from app.api.corporate_ownership import router as corporate_ownership_router
+    app.include_router(corporate_ownership_router)
 except Exception:
     pass
 

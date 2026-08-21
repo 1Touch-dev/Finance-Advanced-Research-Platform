@@ -6,6 +6,9 @@ Provides earnings calendar data with:
 - Historical earnings dates
 - Earnings estimate and surprise data
 - Conference call schedules
+
+Data Source: Finnhub (FREE) with fallback to mock data
+API: https://finnhub.io/docs/api/earnings-calendar
 """
 
 from dataclasses import dataclass
@@ -13,6 +16,22 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from enum import Enum
 import random
+import logging
+
+# Import real data connector
+from app.connectors.finnhub_earnings_connector import (
+    get_earnings_calendar as finnhub_get_calendar,
+    get_upcoming_earnings as finnhub_get_upcoming,
+    get_ticker_earnings as finnhub_get_ticker_earnings,
+    get_earnings_surprises as finnhub_get_surprises,
+    get_earnings_calendar_week as finnhub_get_week,
+    get_finnhub_data_info,
+)
+
+log = logging.getLogger(__name__)
+
+# Feature flag: set to True to use real Finnhub data
+USE_REAL_DATA = True
 
 
 class EarningsSession(str, Enum):
@@ -135,26 +154,66 @@ def get_upcoming_earnings(
     tickers: Optional[List[str]] = None,
     importance: Optional[str] = None,
 ) -> List[EarningsEvent]:
-    """Get earnings events for the next N days."""
+    """Get earnings events for the next N days.
+
+    Uses Finnhub real data when available, falls back to mock data.
+    """
+    if USE_REAL_DATA:
+        try:
+            real_events = finnhub_get_upcoming(days_ahead=days_ahead, importance=importance)
+            if real_events:
+                events = []
+                for e in real_events:
+                    # Filter by tickers if specified
+                    if tickers and e.get("ticker") not in [t.upper() for t in tickers]:
+                        continue
+                    events.append(EarningsEvent(
+                        ticker=e.get("ticker", ""),
+                        company_name=e.get("company_name", e.get("ticker", "")),
+                        earnings_date=e.get("earnings_date", ""),
+                        session=e.get("session", "unknown"),
+                        fiscal_quarter=e.get("fiscal_quarter", ""),
+                        fiscal_year=e.get("fiscal_year", 0),
+                        eps_estimate=e.get("eps_estimate"),
+                        revenue_estimate=e.get("revenue_estimate"),
+                        eps_actual=e.get("eps_actual"),
+                        revenue_actual=e.get("revenue_actual"),
+                        surprise_percent=e.get("surprise_percent"),
+                        conference_call_time=None,
+                        importance=_get_importance_from_ticker(e.get("ticker", "")),
+                        confirmed=True,
+                    ))
+                events.sort(key=lambda x: x.earnings_date)
+                return events
+        except Exception as ex:
+            log.warning("Finnhub earnings fetch failed, using mock: %s", ex)
+
+    # Fallback to mock data
     today = datetime.utcnow().date()
     events = []
-    
+
     target_tickers = tickers if tickers else list(COMPANIES.keys())
-    
+
     for ticker in target_tickers:
         # Random date in the range
         days_offset = random.randint(0, days_ahead)
         event_date = today + timedelta(days=days_offset)
         event = _generate_mock_earnings(ticker, datetime.combine(event_date, datetime.min.time()))
-        
+
         if importance and event.importance != importance:
             continue
-            
+
         events.append(event)
-    
+
     # Sort by date
     events.sort(key=lambda e: e.earnings_date)
     return events
+
+
+def _get_importance_from_ticker(ticker: str) -> str:
+    """Determine importance from ticker."""
+    name, imp = COMPANIES.get(ticker.upper(), (ticker, "medium"))
+    return imp
 
 
 def get_earnings_by_date(date: str) -> List[EarningsEvent]:

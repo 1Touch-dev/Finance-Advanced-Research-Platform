@@ -36,7 +36,19 @@ const NAV_GROUPS = [
       { href: '/institutional', label: 'Institutional', icon: '⊞' },
       { href: '/institutional/position-diff', label: '13F Position Diff', icon: '⇄' },
       { href: '/gov-trading', label: 'Gov Trading', icon: '⚖' },
+      { href: '/gov-trading-leaderboard', label: 'Gov Leaderboard', icon: '⚑' },
+      { href: '/insider-activity', label: 'Insider Activity', icon: '⊡' },
+      { href: '/short-interest', label: 'Short Interest', icon: '▼' },
       { href: '/crypto', label: 'Crypto', icon: '◈' },
+    ],
+  },
+  {
+    label: 'Data & Calendars',
+    items: [
+      { href: '/earnings-calendar', label: 'Earnings', icon: '◈' },
+      { href: '/ipo-calendar', label: 'IPO Calendar', icon: '⊕' },
+      { href: '/ma-rumors', label: 'M&A Rumors', icon: '⇄' },
+      { href: '/private-company', label: 'Private Co', icon: '⬡' },
     ],
   },
   {
@@ -62,6 +74,8 @@ const NAV_GROUPS = [
       { href: '/tracking', label: 'Tracking', icon: '◎' },
       { href: '/tracking/alerts', label: 'Alerts', icon: '⚑' },
       { href: '/portfolios', label: 'Portfolios', icon: '⊡' },
+      { href: '/portfolio-analytics', label: 'Analytics', icon: '◈' },
+      { href: '/recursive-discovery', label: 'Entity Graph', icon: '⬡' },
       { href: '/skills', label: 'Skills', icon: '⚙' },
       { href: '/metrics', label: 'Metrics', icon: '◈' },
     ],

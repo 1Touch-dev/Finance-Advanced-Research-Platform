@@ -1,12 +1,35 @@
 """
 Insider Activity Screener Service (Band C #41)
 Screens Form 4 filings, clusters buys/sells
+
+Data Source: SEC EDGAR Form 4 (FREE) with mock fallback
 """
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 import random
+import logging
+
+log = logging.getLogger(__name__)
+
+# Import real SEC EDGAR connector
+try:
+    from app.connectors.sec_edgar_connector import (
+        get_insider_transactions as sec_get_insider_transactions,
+        ticker_to_cik,
+    )
+    from app.connectors.gov_trading_connector import (
+        get_recent_sec_form4,
+        get_insider_trades_for_ticker,
+    )
+    SEC_AVAILABLE = True
+except ImportError:
+    SEC_AVAILABLE = False
+    log.warning("SEC EDGAR connector not available for insider activity")
+
+# Feature flag: set to True to use real SEC EDGAR data
+USE_REAL_DATA = True
 
 
 @dataclass
@@ -322,9 +345,33 @@ def get_recent_transactions(
     min_value: float = 0,
     limit: int = 50,
 ) -> List[Dict[str, Any]]:
-    """Get recent insider transactions"""
-    cutoff_date = datetime.now() - timedelta(days=days)
+    """Get recent insider transactions.
 
+    Uses SEC EDGAR Form 4 data when available, falls back to mock data.
+    """
+    if USE_REAL_DATA and SEC_AVAILABLE:
+        try:
+            real_txns = get_recent_sec_form4(days=days, limit=limit * 2)
+            if real_txns:
+                transactions = []
+                for txn in real_txns:
+                    # Filter by transaction type
+                    txn_type = txn.get("transaction_code") or txn.get("transaction_type", "")
+                    if transaction_type and txn_type != transaction_type:
+                        continue
+                    # Filter by value
+                    value = txn.get("value") or txn.get("total_value") or 0
+                    if value < min_value:
+                        continue
+                    transactions.append(_normalize_sec_transaction(txn))
+
+                transactions.sort(key=lambda x: x.get("transaction_date", ""), reverse=True)
+                return transactions[:limit]
+        except Exception as e:
+            log.warning("SEC EDGAR insider fetch failed, using mock: %s", e)
+
+    # Fallback to mock data
+    cutoff_date = datetime.now() - timedelta(days=days)
     transactions = []
     for txn in MOCK_TRANSACTIONS:
         txn_date = datetime.strptime(txn.transaction_date, "%Y-%m-%d")
@@ -335,16 +382,29 @@ def get_recent_transactions(
                 continue
             transactions.append(txn.to_dict())
 
-    # Sort by date descending
     transactions.sort(key=lambda x: x["transaction_date"], reverse=True)
     return transactions[:limit]
 
 
 def get_transactions_by_ticker(ticker: str, days: int = 90) -> List[Dict[str, Any]]:
-    """Get all insider transactions for a ticker"""
-    ticker = ticker.upper()
-    cutoff_date = datetime.now() - timedelta(days=days)
+    """Get all insider transactions for a ticker.
 
+    Uses SEC EDGAR Form 4 data when available, falls back to mock data.
+    """
+    ticker = ticker.upper()
+
+    if USE_REAL_DATA and SEC_AVAILABLE:
+        try:
+            real_txns = get_insider_trades_for_ticker(ticker, days=days)
+            if real_txns:
+                transactions = [_normalize_sec_transaction(txn) for txn in real_txns]
+                transactions.sort(key=lambda x: x.get("transaction_date", ""), reverse=True)
+                return transactions
+        except Exception as e:
+            log.warning("SEC EDGAR insider fetch for %s failed, using mock: %s", ticker, e)
+
+    # Fallback to mock data
+    cutoff_date = datetime.now() - timedelta(days=days)
     transactions = []
     for txn in MOCK_TRANSACTIONS:
         if txn.ticker == ticker:
@@ -354,6 +414,27 @@ def get_transactions_by_ticker(ticker: str, days: int = 90) -> List[Dict[str, An
 
     transactions.sort(key=lambda x: x["transaction_date"], reverse=True)
     return transactions
+
+
+def _normalize_sec_transaction(txn: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize SEC EDGAR transaction to our standard format."""
+    return {
+        "transaction_id": txn.get("accession") or txn.get("id") or "",
+        "ticker": txn.get("ticker") or txn.get("symbol") or "",
+        "company_name": txn.get("company") or txn.get("issuer") or "",
+        "insider_name": txn.get("insider") or txn.get("owner_name") or "",
+        "insider_title": txn.get("title") or txn.get("relationship") or "",
+        "relationship": txn.get("relationship") or txn.get("title") or "",
+        "transaction_type": txn.get("transaction_code") or txn.get("type") or "",
+        "transaction_date": txn.get("transaction_date") or txn.get("date") or "",
+        "filing_date": txn.get("filing_date") or txn.get("filed") or "",
+        "shares": int(txn.get("shares") or txn.get("quantity") or 0),
+        "price": float(txn.get("price") or txn.get("price_per_share") or 0),
+        "value": float(txn.get("value") or txn.get("total_value") or 0),
+        "shares_owned_after": int(txn.get("shares_owned") or txn.get("post_shares") or 0),
+        "ownership_change_percent": float(txn.get("ownership_change") or 0),
+        "source": "SEC EDGAR Form 4",
+    }
 
 
 def get_cluster_buys(days: int = 14, min_insiders: int = 2) -> List[Dict[str, Any]]:

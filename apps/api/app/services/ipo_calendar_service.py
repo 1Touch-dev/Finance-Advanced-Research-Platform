@@ -1,12 +1,34 @@
 """
 IPO Calendar Service (Band C #38)
 Tracks upcoming IPOs, pricing, lockup expiry dates
+
+Data Source: FMP (FREE) with fallback to mock data
+API: https://financialmodelingprep.com/developer/docs/ipo-calendar
 """
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 import random
+import logging
+
+# Import real data connector
+from app.connectors.fmp_ipo_connector import (
+    get_upcoming_ipos as fmp_get_upcoming,
+    get_recent_ipos as fmp_get_recent,
+    get_ipo_by_ticker as fmp_get_ticker,
+    get_lockup_expirations as fmp_get_lockups,
+    get_ipo_calendar_week as fmp_get_week,
+    get_ipo_performance as fmp_get_performance,
+    get_ipo_stats as fmp_get_stats,
+    search_ipos as fmp_search,
+    get_fmp_data_info,
+)
+
+log = logging.getLogger(__name__)
+
+# Feature flag: set to True to use real FMP data
+USE_REAL_DATA = True
 
 
 @dataclass
@@ -185,7 +207,19 @@ MOCK_IPOS = [
 
 
 def get_upcoming_ipos(days: int = 30, sector: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Get upcoming IPOs within the specified number of days"""
+    """Get upcoming IPOs within the specified number of days.
+
+    Uses FMP real data when available, falls back to mock data.
+    """
+    if USE_REAL_DATA:
+        try:
+            real_ipos = fmp_get_upcoming(days_ahead=days, sector=sector)
+            if real_ipos:
+                return real_ipos
+        except Exception as e:
+            log.warning("FMP IPO fetch failed, using mock: %s", e)
+
+    # Fallback to mock data
     cutoff_date = datetime.now() + timedelta(days=days)
     today = datetime.now()
 
@@ -202,7 +236,19 @@ def get_upcoming_ipos(days: int = 30, sector: Optional[str] = None) -> List[Dict
 
 
 def get_recent_ipos(days: int = 30, limit: int = 20) -> List[Dict[str, Any]]:
-    """Get recently priced IPOs"""
+    """Get recently priced IPOs.
+
+    Uses FMP real data when available, falls back to mock data.
+    """
+    if USE_REAL_DATA:
+        try:
+            real_ipos = fmp_get_recent(days_back=days, limit=limit)
+            if real_ipos:
+                return real_ipos
+        except Exception as e:
+            log.warning("FMP recent IPOs fetch failed, using mock: %s", e)
+
+    # Fallback to mock data
     cutoff_date = datetime.now() - timedelta(days=days)
 
     recent = []
@@ -217,7 +263,19 @@ def get_recent_ipos(days: int = 30, limit: int = 20) -> List[Dict[str, Any]]:
 
 
 def get_ipo_by_ticker(ticker: str) -> Optional[Dict[str, Any]]:
-    """Get IPO details by ticker"""
+    """Get IPO details by ticker.
+
+    Uses FMP real data when available, falls back to mock data.
+    """
+    if USE_REAL_DATA:
+        try:
+            real_ipo = fmp_get_ticker(ticker)
+            if real_ipo:
+                return real_ipo
+        except Exception as e:
+            log.warning("FMP IPO ticker fetch failed, using mock: %s", e)
+
+    # Fallback to mock data
     for ipo in MOCK_IPOS:
         if ipo.ticker.upper() == ticker.upper():
             return ipo.to_dict()
@@ -225,7 +283,19 @@ def get_ipo_by_ticker(ticker: str) -> Optional[Dict[str, Any]]:
 
 
 def get_lockup_expirations(days: int = 30) -> List[Dict[str, Any]]:
-    """Get upcoming lockup expirations"""
+    """Get upcoming lockup expirations.
+
+    Uses FMP real data when available, falls back to mock data.
+    """
+    if USE_REAL_DATA:
+        try:
+            real_lockups = fmp_get_lockups(days_ahead=days)
+            if real_lockups:
+                return real_lockups
+        except Exception as e:
+            log.warning("FMP lockup expirations fetch failed, using mock: %s", e)
+
+    # Fallback to mock data
     cutoff_date = datetime.now() + timedelta(days=days)
     today = datetime.now()
 
@@ -246,7 +316,19 @@ def get_lockup_expirations(days: int = 30) -> List[Dict[str, Any]]:
 
 
 def get_ipo_calendar_week() -> Dict[str, List[Dict[str, Any]]]:
-    """Get IPO calendar for the current week"""
+    """Get IPO calendar for the current week.
+
+    Uses FMP real data when available, falls back to mock data.
+    """
+    if USE_REAL_DATA:
+        try:
+            real_week = fmp_get_week()
+            if real_week:
+                return real_week
+        except Exception as e:
+            log.warning("FMP week calendar fetch failed, using mock: %s", e)
+
+    # Fallback to mock data
     today = datetime.now()
     start_of_week = today - timedelta(days=today.weekday())
 
@@ -270,7 +352,19 @@ def get_ipo_calendar_week() -> Dict[str, List[Dict[str, Any]]]:
 
 
 def get_ipo_performance(days: int = 90) -> List[Dict[str, Any]]:
-    """Get IPO performance stats for recent IPOs"""
+    """Get IPO performance stats for recent IPOs.
+
+    Uses FMP real data when available, falls back to mock data.
+    """
+    if USE_REAL_DATA:
+        try:
+            real_perf = fmp_get_performance(days_back=days)
+            if real_perf:
+                return real_perf
+        except Exception as e:
+            log.warning("FMP IPO performance fetch failed, using mock: %s", e)
+
+    # Fallback to mock data
     cutoff_date = datetime.now() - timedelta(days=days)
 
     performance = []
@@ -291,7 +385,19 @@ def get_ipo_performance(days: int = 90) -> List[Dict[str, Any]]:
 
 
 def get_ipo_stats() -> Dict[str, Any]:
-    """Get IPO market statistics"""
+    """Get IPO market statistics.
+
+    Uses FMP real data when available, falls back to mock data.
+    """
+    if USE_REAL_DATA:
+        try:
+            real_stats = fmp_get_stats()
+            if real_stats:
+                return real_stats
+        except Exception as e:
+            log.warning("FMP IPO stats fetch failed, using mock: %s", e)
+
+    # Fallback to mock data
     upcoming = [ipo for ipo in MOCK_IPOS if ipo.status == "expected"]
     priced = [ipo for ipo in MOCK_IPOS if ipo.status == "priced"]
 
@@ -320,7 +426,19 @@ def get_ipo_stats() -> Dict[str, Any]:
 
 
 def search_ipos(query: str) -> List[Dict[str, Any]]:
-    """Search IPOs by company name or ticker"""
+    """Search IPOs by company name or ticker.
+
+    Uses FMP real data when available, falls back to mock data.
+    """
+    if USE_REAL_DATA:
+        try:
+            real_results = fmp_search(query)
+            if real_results:
+                return real_results
+        except Exception as e:
+            log.warning("FMP IPO search failed, using mock: %s", e)
+
+    # Fallback to mock data
     query = query.lower()
     results = []
 

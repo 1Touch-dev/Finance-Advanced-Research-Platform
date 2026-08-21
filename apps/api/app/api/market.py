@@ -1283,3 +1283,75 @@ def gov_politician_votes(politician_id: str, limit: int = 20):
         return {"politician": info["name"], "votes": [], "note": "Could not resolve bioguideId for this member"}
 
     return {"politician": info["name"], "bioguide_id": bioguide_id, "votes": get_member_votes(bioguide_id, limit=limit)}
+
+
+# ── Government Trading Leaderboards (from James's Excel) ─────────────────────
+
+@router.get("/gov-trading/leaderboard/trades")
+def gov_trading_leaderboard_trades(limit: int = 50):
+    """Top politicians ranked by number of trades (357 officials)."""
+    from app.services.politician_leaderboard_service import get_leaderboard_by_trades
+    return {"category": "trades", "data": get_leaderboard_by_trades(limit=limit)}
+
+
+@router.get("/gov-trading/leaderboard/volume")
+def gov_trading_leaderboard_volume(limit: int = 50):
+    """Top politicians ranked by dollar volume of trades (241 officials)."""
+    from app.services.politician_leaderboard_service import get_leaderboard_by_volume
+    return {"category": "volume", "data": get_leaderboard_by_volume(limit=limit)}
+
+
+@router.get("/gov-trading/leaderboard/returns")
+def gov_trading_leaderboard_returns(limit: int = 50):
+    """Top politicians ranked by investment returns vs S&P 500 (72 officials)."""
+    from app.services.politician_leaderboard_service import get_leaderboard_by_returns
+    return {"category": "returns", "data": get_leaderboard_by_returns(limit=limit)}
+
+
+@router.get("/gov-trading/leaderboard/executive")
+def gov_trading_leaderboard_executive(limit: int = 50):
+    """Executive Branch officials trading data (50 officials)."""
+    from app.services.politician_leaderboard_service import get_executive_branch
+    return {"category": "executive", "data": get_executive_branch(limit=limit)}
+
+
+@router.get("/gov-trading/notable-cases")
+def gov_trading_notable_cases(limit: int = 20):
+    """Notable insider trading cases (COVID trades, tariff trades, etc.)."""
+    from app.services.politician_leaderboard_service import get_notable_cases
+    return {"cases": get_notable_cases(limit=limit)}
+
+
+@router.get("/gov-trading/leaderboard/all")
+def gov_trading_leaderboard_all(limit: int = 100):
+    """All politicians combined (637 unique officials)."""
+    from app.services.politician_leaderboard_service import get_all_politicians
+    return {"total": 637, "data": get_all_politicians(limit=limit)}
+
+
+@router.get("/gov-trading/leaderboard/search")
+def gov_trading_leaderboard_search(name: str):
+    """Search for a specific politician across all rankings."""
+    from app.services.politician_leaderboard_service import search_politician
+    return search_politician(name)
+
+
+@router.get("/gov-trading/leaderboard/rank/{name}")
+def gov_trading_politician_rank(name: str):
+    """Get a specific politician's ranking across all categories."""
+    from app.services.politician_leaderboard_service import get_politician_rank
+    return get_politician_rank(name)
+
+
+@router.get("/gov-trading/leaderboard/statistics")
+def gov_trading_leaderboard_statistics():
+    """Overall statistics about the leaderboard data."""
+    from app.services.politician_leaderboard_service import get_statistics
+    return get_statistics()
+
+
+@router.get("/gov-trading/leaderboard/summary")
+def gov_trading_leaderboard_summary():
+    """Summary of top performers across all categories."""
+    from app.services.politician_leaderboard_service import get_top_performers_summary
+    return get_top_performers_summary()
