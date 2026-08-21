@@ -81,7 +81,7 @@ def ingest_sec_company(cik: str, company_name: Optional[str] = None) -> Dict[str
 
         # Get insider transactions (Form 4 filings)
         try:
-            insiders = get_insider_transactions(cik, limit=50)
+            insiders = get_insider_transactions(cik, max_filings=50)
             for txn in insiders.get("transactions", []):
                 person_name = txn.get("owner_name", "Unknown")
                 person_id = _create_person_id(person_name)
