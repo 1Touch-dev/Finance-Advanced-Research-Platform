@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 
 from app.services import entity_graph_service as graph
 from app.services import paypal_mafia_loader as paypal_loader
+from app.services import graph_ingestion_service as ingestion
 
 router = APIRouter(prefix="/intelligence/graph", tags=["Intelligence Graph"])
 
@@ -426,4 +427,117 @@ async def get_paypal_queries() -> Dict[str, Any]:
     return {
         "queries": queries,
         "count": len(queries),
+    }
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# DATA INGESTION ENDPOINTS
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class IngestEntityRequest(BaseModel):
+    """Request to ingest an entity from multiple sources."""
+    entity_name: str = Field(..., description="Company/entity name")
+    cik: Optional[str] = Field(None, description="SEC CIK (10 digits)")
+    include_sec: bool = Field(True, description="Ingest SEC EDGAR data")
+    include_fec: bool = Field(True, description="Ingest FEC political data")
+    include_contracts: bool = Field(True, description="Ingest USASpending contracts")
+
+
+@router.post("/ingest/entity", summary="Ingest entity from public data sources")
+async def ingest_entity(request: IngestEntityRequest) -> Dict[str, Any]:
+    """
+    Ingest an entity and its network from multiple public data sources.
+
+    Sources:
+    - **SEC EDGAR**: Company info, officers, directors, insider transactions
+    - **FEC**: Political contributions, PAC donations
+    - **USASpending**: Federal government contracts
+
+    This automatically expands the intelligence graph with real data.
+    """
+    stats = ingestion.ingest_entity_full(
+        entity_name=request.entity_name,
+        cik=request.cik,
+        include_sec=request.include_sec,
+        include_fec=request.include_fec,
+        include_contracts=request.include_contracts,
+    )
+    return stats
+
+
+@router.post("/ingest/sec/{cik}", summary="Ingest SEC company data")
+async def ingest_sec_company(
+    cik: str,
+    company_name: Optional[str] = Query(None, description="Company name override"),
+) -> Dict[str, Any]:
+    """
+    Ingest a single company from SEC EDGAR.
+
+    Extracts officers, directors, and insider transactions.
+    """
+    stats = ingestion.ingest_sec_company(cik, company_name)
+    return {
+        "cik": cik,
+        "source": "SEC EDGAR",
+        **stats,
+    }
+
+
+@router.post("/ingest/fec", summary="Ingest FEC political contribution data")
+async def ingest_fec_contributions(
+    entity_name: str = Query(..., description="Entity name to search"),
+    cycle: int = Query(2024, description="Election cycle year"),
+) -> Dict[str, Any]:
+    """
+    Ingest FEC political contribution data for an entity.
+
+    Includes PAC contributions and individual executive donations.
+    """
+    entity_id = f"org:{ingestion._normalize_id(entity_name)}"
+    stats = ingestion.ingest_fec_contributions(entity_name, entity_id, cycle)
+    return {
+        "entity_name": entity_name,
+        "cycle": cycle,
+        "source": "FEC",
+        **stats,
+    }
+
+
+@router.post("/ingest/contracts", summary="Ingest government contract data")
+async def ingest_government_contracts(
+    entity_name: str = Query(..., description="Entity name to search"),
+) -> Dict[str, Any]:
+    """
+    Ingest federal government contracts from USASpending.gov.
+
+    Creates agency entities and contract award relationships.
+    """
+    entity_id = f"org:{ingestion._normalize_id(entity_name)}"
+    stats = ingestion.ingest_government_contracts(entity_name, entity_id)
+    return {
+        "entity_name": entity_name,
+        "source": "USASpending.gov",
+        **stats,
+    }
+
+
+@router.post("/ingest/demo", summary="Ingest demo companies")
+async def ingest_demo_companies() -> Dict[str, Any]:
+    """
+    Ingest demonstration companies for testing.
+
+    Includes major tech companies: Tesla, NVIDIA, Apple, Microsoft, etc.
+    """
+    stats = ingestion.ingest_demo_companies()
+    return stats
+
+
+@router.get("/ingest/targets", summary="List available ingestion targets")
+async def list_ingestion_targets() -> Dict[str, Any]:
+    """
+    Get list of pre-defined companies available for ingestion.
+    """
+    return {
+        "targets": ingestion.DEMO_COMPANIES,
+        "count": len(ingestion.DEMO_COMPANIES),
     }

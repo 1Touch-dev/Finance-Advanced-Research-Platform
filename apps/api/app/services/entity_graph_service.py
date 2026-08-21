@@ -649,6 +649,20 @@ def add_edge(
     return get_graph_store().add_edge(edge)
 
 
+def get_entity(entity_id: str) -> Optional[Dict[str, Any]]:
+    """Get an entity by ID."""
+    entity = get_graph_store().get_entity(entity_id)
+    if entity:
+        return {
+            "id": entity.id,
+            "kind": entity.kind,
+            "name": entity.name,
+            "identifiers": entity.identifiers,
+            "aliases": entity.aliases,
+        }
+    return None
+
+
 def explore_network(
     seed_entity_id: str,
     max_depth: int = 3,
