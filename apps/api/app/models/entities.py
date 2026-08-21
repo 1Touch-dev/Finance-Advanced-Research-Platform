@@ -28,11 +28,39 @@ class EntityIdentifier(Base):
     __table_args__ = (UniqueConstraint('scheme','value', name='uq_scheme_value'),)
 
 class Relationship(Base):
+    """
+    Edge in the intelligence graph.
+
+    Per Verification Audit Playbook A5:
+    - Every edge MUST have an evidence_ref (enforced at service layer)
+    - Confidence tier determines trustworthiness
+    - as_of/valid_to enable point-in-time queries
+    """
     __tablename__ = 'relationships'
     id = Column(Integer, primary_key=True)
-    src_entity_id = Column(Integer, ForeignKey('entities.id'), nullable=False)
-    dst_entity_id = Column(Integer, ForeignKey('entities.id'), nullable=False)
-    kind = Column(String, nullable=False)  # owns|controls|affiliated|files|sponsors|awarded_to|donates|represented_by|...
+    src_entity_id = Column(Integer, ForeignKey('entities.id'), nullable=False, index=True)
+    dst_entity_id = Column(Integer, ForeignKey('entities.id'), nullable=False, index=True)
+    kind = Column(String, nullable=False, index=True)  # owns|controls|affiliated|files|sponsors|awarded_to|donates|represented_by|invested_in|employed_at|board_member|co_invested|lobbied_for|...
+
+    # Temporal validity (A4 - Point-in-Time compliance)
+    as_of = Column(DateTime(timezone=True), nullable=True)  # When relationship was established
+    valid_to = Column(DateTime(timezone=True), nullable=True)  # When it ended (null = still active)
+
+    # Confidence tier (A7 - Calibration)
+    # CONFIRMED: Primary source document, directly asserted (≥99% accuracy target)
+    # REPORTED: ≥2 credible secondary sources agreeing (≥90% accuracy target)
+    # INFERRED: Derived from ≥2 confirmed facts, method stated (≥70% accuracy target)
+    # SPECULATIVE: Single weak source or pattern-based (≥40% accuracy target)
+    confidence_tier = Column(String, nullable=False, default='INFERRED')
+
+    # Provenance (A1 - Source Depth)
+    source_id = Column(Integer, nullable=True)  # Which of the 48 data sources
+    source_name = Column(String, nullable=True)  # e.g., "SEC EDGAR", "FEC", "USASpending"
+    extracted_by = Column(String, nullable=True)  # Parser version for reproducibility
+
+    # Audit trail
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     meta = Column(JSON, nullable=True)
 
 class RelationshipEvidence(Base):
