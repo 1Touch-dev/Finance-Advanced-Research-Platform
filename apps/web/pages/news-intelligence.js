@@ -128,7 +128,7 @@ export default function NewsIntelligencePage() {
   const [minSourcesFilter, setMinSourcesFilter] = useState(0)
 
   const { data, mutate, isLoading } = useSWR(
-    `${API}/market/rss/events?limit=50${minSourcesFilter ? `&min_sources=${minSourcesFilter}` : ''}`,
+    `${API}/market/rss/events?limit=50${minSourcesFilter ? `&min_sources=${minSourcesFilter}` : ''}&us_finance_only=${usFinanceOnly}`,
     fetcher,
     { refreshInterval: 0 }
   )

@@ -296,6 +296,88 @@ def _as_dt(value: Any) -> datetime:
     return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
 
 
+_SAME_SOURCE_DEDUPE_JACCARD = 0.5
+
+
+def _dedupe_same_source(cluster: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Collapse near-duplicate articles from the *same* outlet within one
+    cluster — e.g. a wire story picked up by two different feed URLs (direct
+    RSS + a GNews-proxy re-syndication) lands as two rss_articles rows with
+    slightly different titles. Left uncollapsed, enrichment would double-count
+    that outlet's facts/perspective, and worse, contradiction detection would
+    compare the outlet's own two articles against each other and flag a false
+    "cross-source" conflict (e.g. a preliminary vs. final vote count from the
+    same wire, mislabeled as two sources disagreeing).
+
+    Keeps the earliest-published copy of each near-duplicate pair.
+    """
+    kept: List[Dict[str, Any]] = []
+    for a in cluster:
+        title_tokens = _tokenize(a.get("title", ""))
+        is_dup = False
+        for k in kept:
+            if k.get("source_name") != a.get("source_name"):
+                continue
+            if _jaccard(title_tokens, _tokenize(k.get("title", ""))) >= _SAME_SOURCE_DEDUPE_JACCARD:
+                is_dup = True
+                break
+        if not is_dup:
+            kept.append(a)
+    return kept
+
+
+def articles_by_ids(article_ids: List[int]) -> List[Dict[str, Any]]:
+    """Fetch specific rss_articles rows by id, normalized the same way as
+    fetch_recent_articles (matched_entities parsed to a list on SQLite).
+
+    Used to retroactively re-check whether an already-persisted rss_events
+    row still satisfies the current US-finance filter — see
+    event_is_us_finance_relevant() / api/market.py's GET /rss/events.
+    """
+    if not article_ids:
+        return []
+    from sqlalchemy import text
+    try:
+        engine = _get_rss_engine()
+        placeholders = ", ".join(f":id{i}" for i in range(len(article_ids)))
+        params = {f"id{i}": aid for i, aid in enumerate(article_ids)}
+        with engine.connect() as conn:
+            rows = conn.execute(text(f"""
+                SELECT id, category, region, title, summary, matched_entities
+                FROM rss_articles WHERE id IN ({placeholders})
+            """), params).mappings().all()
+        articles = [dict(r) for r in rows]
+        for a in articles:
+            entities = a.get("matched_entities")
+            if isinstance(entities, str):
+                try:
+                    a["matched_entities"] = json.loads(entities)
+                except Exception:
+                    a["matched_entities"] = []
+        return articles
+    except Exception as e:
+        logger.info("articles_by_ids: lookup failed (%s)", e)
+        return []
+
+
+def event_is_us_finance_relevant(article_ids: List[int]) -> bool:
+    """Retroactive US-finance check for an already-persisted rss_events row.
+
+    Events are never deleted on their own, so a row created before this
+    filter existed (or created with us_finance_only=False) would otherwise
+    linger forever in the default "US finance only" view. Returns True if
+    ANY of the event's source articles currently satisfy the finance/macro/
+    government + us/global + keyword gate, so a mixed-source event with at
+    least one qualifying article still shows.
+    """
+    for a in articles_by_ids(article_ids):
+        if (a.get("category") in DEFAULT_FINANCE_CATEGORIES and
+                a.get("region") in DEFAULT_US_REGIONS and
+                _is_finance_relevant(a)):
+            return True
+    return False
+
+
 def build_event_candidates(hours: int = 48, article_limit: int = 300,
                             max_events: int = 25,
                             categories: Optional[List[str]] = None,
@@ -322,6 +404,7 @@ def build_event_candidates(hours: int = 48, article_limit: int = 300,
 
     candidates = []
     for cluster in clusters[:max_events]:
+        cluster = _dedupe_same_source(cluster)
         cluster_sorted = sorted(cluster, key=lambda a: a.get("published_at") or "", reverse=True)
         headline = cluster_sorted[0].get("title", "")
         entities: set = set()

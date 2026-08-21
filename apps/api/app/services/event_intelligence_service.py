@@ -346,14 +346,33 @@ def run_event_intelligence_job(db, hours: int = 48, max_events: int = 15,
             else:
                 enriched = enrich_event_candidate(candidate)
 
-            existing = db.query(RssEvent).filter(
-                RssEvent.headline == enriched["headline"]
-            ).order_by(RssEvent.id.desc()).first()
+            existing = None
+            new_ids = set(enriched["article_ids"])
+            if new_ids:
+                # Match by article-id overlap rather than exact headline text:
+                # a cluster's "headline" is just its most-recent article's
+                # title, so as new articles join the same real-world story
+                # across runs, the chosen headline can shift entirely (e.g.
+                # once an outlet updates its title) — an exact-text match
+                # would then never find the prior row and create a duplicate
+                # event for the same story instead of updating it.
+                candidate_rows = db.query(RssEvent).filter(
+                    RssEvent.updated_at.isnot(None)
+                ).order_by(RssEvent.id.desc()).limit(200).all()
+                best_overlap = 0
+                for row in candidate_rows:
+                    row_ids = set(row.article_ids or [])
+                    if not row_ids:
+                        continue
+                    overlap = len(row_ids & new_ids)
+                    if overlap > best_overlap and overlap / len(row_ids | new_ids) >= 0.3:
+                        best_overlap = overlap
+                        existing = row
 
-            if existing and set(existing.article_ids or []) == set(enriched["article_ids"]):
-                for field in ("sources", "source_count", "confirmed_facts", "unconfirmed_claims",
-                              "conflicts", "perspectives", "key_quotes", "market_impact",
-                              "enrichment_status", "enrichment_error", "topic_entity"):
+            if existing:
+                for field in ("headline", "article_ids", "sources", "source_count", "confirmed_facts",
+                              "unconfirmed_claims", "conflicts", "perspectives", "key_quotes",
+                              "market_impact", "enrichment_status", "enrichment_error", "topic_entity"):
                     setattr(existing, field, enriched.get(field))
                 updated += 1
             else:

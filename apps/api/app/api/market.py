@@ -516,9 +516,17 @@ def list_rss_events(
     limit: int = Query(30, le=100),
     entity: Optional[str] = None,
     min_sources: Optional[int] = None,
+    us_finance_only: bool = Query(
+        True,
+        description="Scope to US stock-market-relevant events only. Re-checked against each event's "
+                     "source articles at read time (not just at generation time), so older events "
+                     "persisted before this filter existed (or generated with the global scope) are "
+                     "hidden from the default view instead of lingering forever. Set false to see everything.",
+    ),
     db: Session = Depends(get_db),
 ):
     """List clustered/enriched events, most recent first."""
+    from app.connectors.event_clustering import event_is_us_finance_relevant
     from app.models.news_events import RssEvent
     try:
         Base.metadata.create_all(bind=db.get_bind())
@@ -527,7 +535,12 @@ def list_rss_events(
             q = q.filter(RssEvent.topic_entity == entity)
         if min_sources:
             q = q.filter(RssEvent.source_count >= min_sources)
-        rows = q.order_by(RssEvent.updated_at.desc()).limit(limit).all()
+        # Over-fetch since the finance re-check below runs in Python — see
+        # event_is_us_finance_relevant() docstring for why this is needed.
+        rows = q.order_by(RssEvent.updated_at.desc()).limit(limit * 3 if us_finance_only else limit).all()
+        if us_finance_only:
+            rows = [r for r in rows if event_is_us_finance_relevant(r.article_ids or [])]
+        rows = rows[:limit]
         return {"events": [_event_to_dict(r) for r in rows], "total": len(rows)}
     except Exception as e:
         return {"events": [], "total": 0, "error": str(e)}
