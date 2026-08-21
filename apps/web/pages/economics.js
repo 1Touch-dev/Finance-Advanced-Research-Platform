@@ -1,112 +1,182 @@
 import { useEffect, useState } from 'react';
 import { getApiBaseUrl } from '../lib/api';
+import Head from 'next/head';
 
 export default function EconomicsPage() {
   const API = getApiBaseUrl();
-  const [records, setRecords] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [health, setHealth] = useState(null);
-  const [err, setErr] = useState('');
   const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+  const [activeTab, setActiveTab] = useState('gdp');
+
+  // Data states
+  const [gdpData, setGdpData] = useState(null);
+  const [stateIncome, setStateIncome] = useState(null);
+  const [samOpps, setSamOpps] = useState(null);
+  const [regulations, setRegulations] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setErr('');
+
     Promise.all([
-      fetch(`${API}/sources/records?kind=bea&limit=50`).then((r) => {
-        if (!r.ok) throw new Error(`records ${r.status}`);
-        return r.json();
-      }),
-      fetch(`${API}/sources/health`).then((r) => r.json()),
+      fetch(`${API}/government/bea/gdp`).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`${API}/government/bea/state-income`).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`${API}/government/sam/opportunities?limit=10`).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`${API}/government/regulations/search?limit=10`).then(r => r.ok ? r.json() : null).catch(() => null),
     ])
-      .then(([data, sh]) => {
+      .then(([gdp, state, sam, regs]) => {
         if (cancelled) return;
-        setRecords(data.records || []);
-        setTotal(data.total || 0);
-        const bea = (sh.per_source || []).find((s) => s.kind === 'bea');
-        setHealth(bea || null);
+        setGdpData(gdp);
+        setStateIncome(state);
+        setSamOpps(sam);
+        setRegulations(regs);
       })
-      .catch((e) => {
+      .catch(e => {
         if (!cancelled) setErr(e.message || String(e));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
+
+    return () => { cancelled = true; };
   }, [API]);
 
-  const tier = records[0]?.normalized?.source_tier || 'unknown';
+  const tabs = [
+    { id: 'gdp', label: 'GDP Data' },
+    { id: 'state', label: 'State Income' },
+    { id: 'contracts', label: 'Federal Contracts' },
+    { id: 'regulations', label: 'Regulations' },
+  ];
 
   return (
-    <main className="page-wrap">
-      <section className="card">
-        <h1>U.S. Economic Data (BEA)</h1>
-        <p>
-          Bureau of Economic Analysis — GDP, national accounts, and state personal income via connector #18.
-        </p>
-      </section>
+    <div className="min-h-screen bg-gray-900 text-white p-6">
+      <Head>
+        <title>Government & Economic Data | Finance Platform</title>
+      </Head>
 
-      <section className="grid-cols-2">
-        <aside className="card">
-          <h2>Connector status</h2>
-          {loading && <p style={{color:"var(--text-soft)",fontSize:"0.8rem"}}>Loading…</p>}
-          {err && <p style={{color:"var(--red)",fontWeight:700}}>{err}</p>}
-          {health && (
-            <ul style={{color:"var(--text-soft)",fontSize:"0.8rem"}}>
-              <li>Source ID: {health.id}</li>
-              <li>Last run: {health.last_status}</li>
-              <li>Records in DB: {health.records}</li>
-              <li>Data tier: <strong>{tier}</strong></li>
-              <li>Last finished: {health.last_finished || '—'}</li>
-            </ul>
-          )}
-          {tier === 'sample' && (
-            <p style={{color:"var(--red)",fontWeight:700}}>
-              Showing sample data. Activate <code>BEA_API_USER_ID</code> at{' '}
-              <a href="https://apps.bea.gov/API/signup/" target="_blank" rel="noreferrer">
-                apps.bea.gov/API/signup
-              </a>{' '}
-              (click the email activation link), then re-run the BEA connector.
-            </p>
-          )}
-        </aside>
+      <h1 className="text-3xl font-bold mb-2">Government & Economic Data</h1>
+      <p className="text-gray-400 mb-6">BEA, SAM.gov, Regulations.gov — Real-time government data feeds</p>
 
-        <section className="card">
-          <h2>Records ({total})</h2>
-          {records.length === 0 && !loading ? (
-            <p style={{color:"var(--text-soft)",fontSize:"0.8rem"}}>No BEA records yet. Run the connector from Admin or seed script.</p>
-          ) : (
-            <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ textAlign: 'left', borderBottom: '1px solid #334155' }}>
-                  <th>Geo</th>
-                  <th>Metric</th>
-                  <th>Period</th>
-                  <th>Value</th>
-                  <th>Dataset</th>
-                </tr>
-              </thead>
-              <tbody>
-                {records.map((r) => {
-                  const n = r.normalized || {};
-                  return (
-                    <tr key={r.external_id} style={{ borderBottom: '1px solid #1e293b' }}>
-                      <td>{n.geo_name || '—'}</td>
-                      <td>{n.line_description || n.description || '—'}</td>
-                      <td>{n.time_period || '—'}</td>
-                      <td>{n.data_value} {n.cl_unit || ''}</td>
-                      <td>{n.dataset}</td>
+      {loading && <div className="text-blue-400 mb-4">Loading data...</div>}
+      {err && <div className="text-red-400 mb-4">Error: {err}</div>}
+
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6 overflow-x-auto">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-2 rounded-lg whitespace-nowrap ${
+              activeTab === tab.id ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      <div className="bg-gray-800 rounded-lg p-6">
+        {activeTab === 'gdp' && (
+          <div>
+            <h2 className="text-xl font-semibold mb-4">U.S. GDP Data (BEA)</h2>
+            {gdpData?.data ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-700">
+                      <th className="text-left py-2">Year</th>
+                      <th className="text-left py-2">GDP (Billions)</th>
+                      <th className="text-left py-2">Growth</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </section>
-      </section>
-    </main>
+                  </thead>
+                  <tbody>
+                    {(gdpData.data || []).map((row, idx) => (
+                      <tr key={idx} className="border-b border-gray-700/50">
+                        <td className="py-2">{row.year || row.TimePeriod}</td>
+                        <td className="py-2">${row.value || row.DataValue}</td>
+                        <td className="py-2 text-green-400">{row.growth || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-gray-400">No GDP data available. Check BEA_API_USER_ID in .env</p>
+            )}
+            <p className="text-gray-500 text-xs mt-4">Source: Bureau of Economic Analysis (api.bea.gov)</p>
+          </div>
+        )}
+
+        {activeTab === 'state' && (
+          <div>
+            <h2 className="text-xl font-semibold mb-4">State Personal Income</h2>
+            {stateIncome?.data ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {(stateIncome.data || []).slice(0, 20).map((row, idx) => (
+                  <div key={idx} className="p-3 bg-gray-700 rounded-lg">
+                    <div className="font-semibold">{row.state || row.GeoName}</div>
+                    <div className="text-green-400">${row.income || row.DataValue}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-400">No state income data available.</p>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'contracts' && (
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Federal Contract Opportunities (SAM.gov)</h2>
+            {samOpps?.opportunities?.length > 0 ? (
+              <div className="space-y-3">
+                {samOpps.opportunities.map((opp, idx) => (
+                  <div key={idx} className="p-4 bg-gray-700 rounded-lg">
+                    <div className="font-semibold text-blue-400">{opp.title}</div>
+                    <div className="text-sm text-gray-400 mt-1">
+                      {opp.agency} | {opp.type} | Posted: {opp.postedDate}
+                    </div>
+                    {opp.responseDeadline && (
+                      <div className="text-sm text-yellow-400 mt-1">
+                        Deadline: {opp.responseDeadline}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-400">No contract opportunities found. Check SAM_GOV_API_KEY in .env</p>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'regulations' && (
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Federal Regulations (Regulations.gov)</h2>
+            {regulations?.documents?.length > 0 ? (
+              <div className="space-y-3">
+                {regulations.documents.map((doc, idx) => (
+                  <div key={idx} className="p-4 bg-gray-700 rounded-lg">
+                    <div className="font-semibold">{doc.title}</div>
+                    <div className="text-sm text-gray-400 mt-1">
+                      {doc.agency} | {doc.documentType} | {doc.postedDate}
+                    </div>
+                    {doc.commentEndDate && (
+                      <div className="text-sm text-yellow-400 mt-1">
+                        Comments due: {doc.commentEndDate}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-400">No regulations found. Check REGULATIONS_GOV_API_KEY in .env</p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

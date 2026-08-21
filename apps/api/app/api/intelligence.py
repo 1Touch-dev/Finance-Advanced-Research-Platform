@@ -67,9 +67,15 @@ except ImportError:
 try:
     from app.connectors.private_company_connector import (
         fetch_private_company_intel,
+        fetch_private_company_intel_full,
         search_opencorporates,
         search_gleif,
         search_fincen_entities,
+        search_uk_companies,
+        enrich_uk_company,
+        search_sec_form_d,
+        get_form_d_details,
+        get_startup_funding_history,
     )
     _PRIV_CO_AVAILABLE = True
 except ImportError:
@@ -431,6 +437,57 @@ def fincen_search(name: str):
     if not _PRIV_CO_AVAILABLE:
         raise HTTPException(503, "Private company connector not available")
     return search_fincen_entities(name)
+
+
+@router.get("/private-co/uk")
+def uk_companies_search(name: str, limit: int = 5):
+    """Search UK Companies House for company registrations."""
+    if not _PRIV_CO_AVAILABLE:
+        raise HTTPException(503, "Private company connector not available")
+    return search_uk_companies(name, limit=limit)
+
+
+@router.get("/private-co/uk/{company_number}")
+def uk_company_enrich(company_number: str):
+    """Get full enrichment for a UK company by company number."""
+    if not _PRIV_CO_AVAILABLE:
+        raise HTTPException(503, "Private company connector not available")
+    return enrich_uk_company(company_number)
+
+
+@router.get("/private-co/form-d")
+def form_d_search(name: str, days_back: int = 365, limit: int = 10):
+    """Search SEC Form D filings (Regulation D private placements)."""
+    if not _PRIV_CO_AVAILABLE:
+        raise HTTPException(503, "Private company connector not available")
+    return search_sec_form_d(name, days_back=days_back, limit=limit)
+
+
+@router.get("/private-co/form-d/{cik}")
+def form_d_details(cik: str):
+    """Get detailed Form D filings for a specific CIK."""
+    if not _PRIV_CO_AVAILABLE:
+        raise HTTPException(503, "Private company connector not available")
+    return get_form_d_details(cik)
+
+
+@router.get("/private-co/funding")
+def startup_funding(name: str):
+    """Get startup funding history from SEC Form D filings."""
+    if not _PRIV_CO_AVAILABLE:
+        raise HTTPException(503, "Private company connector not available")
+    return get_startup_funding_history(name)
+
+
+@router.get("/private-co/full")
+def private_co_full_search(name: str, jurisdiction: str = ""):
+    """
+    Full private company enrichment including UK Companies House and SEC Form D.
+    Combines: OpenCorporates + GLEIF + FinCEN + FDIC + UK Companies House + SEC Form D.
+    """
+    if not _PRIV_CO_AVAILABLE:
+        raise HTTPException(503, "Private company connector not available")
+    return fetch_private_company_intel_full(name, jurisdiction=jurisdiction)
 
 
 @router.get("/enhanced")

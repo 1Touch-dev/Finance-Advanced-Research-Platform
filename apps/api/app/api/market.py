@@ -16,7 +16,8 @@ from app.connectors.financial_news_connector import (
     finnhub_quote, finnhub_company_profile, finnhub_financials,
     finnhub_insider_transactions, fmp_income_statement, fmp_balance_sheet,
     fmp_cash_flow, fmp_key_metrics, compute_beneish_mscore, compute_altman_zscore,
-    fred_macro_data, aggregate_news, newsapi_search, guardian_search,
+    fred_macro_data, fred_series_info, fred_vintage_data, fred_macro_dashboard,
+    fred_search, FRED_SERIES, aggregate_news, newsapi_search, guardian_search,
     nyt_search, gdelt_search, ukch_search, ukch_officers, icij_search, aleph_search,
 )
 from app.db.session import get_db
@@ -112,7 +113,53 @@ def get_financial_summary(ticker: str):
 
 @router.get("/macro")
 def get_macro(series_id: str = "GDP", limit: int = 10):
+    """Fetch FRED series observations. Available: GDP, UNRATE, CPIAUCSL, FEDFUNDS, DGS10, etc."""
     return {"series_id": series_id, "data": fred_macro_data(series_id, limit)}
+
+
+@router.get("/macro/dashboard")
+def get_macro_dashboard():
+    """
+    Comprehensive macro dashboard with all key economic indicators.
+    Returns latest values for GDP, inflation, employment, rates, housing, consumer.
+    """
+    return fred_macro_dashboard()
+
+
+@router.get("/macro/series")
+def get_series_list():
+    """List all available FRED series with metadata."""
+    return {"series": FRED_SERIES, "count": len(FRED_SERIES)}
+
+
+@router.get("/macro/series/{series_id}")
+def get_series_info(series_id: str):
+    """Get detailed metadata about a specific FRED series."""
+    return fred_series_info(series_id)
+
+
+@router.get("/macro/vintage")
+def get_vintage_data(series_id: str, vintage_date: str, limit: int = 10):
+    """
+    ALFRED vintage data — point-in-time series as it existed on a specific date.
+    Prevents look-ahead bias in historical analysis.
+
+    Args:
+        series_id: FRED series ID (e.g., "GDP", "UNRATE")
+        vintage_date: Date to get vintage for (YYYY-MM-DD format)
+        limit: Max observations to return
+    """
+    return {
+        "series_id": series_id,
+        "vintage_date": vintage_date,
+        "data": fred_vintage_data(series_id, vintage_date, limit),
+    }
+
+
+@router.get("/macro/search")
+def search_fred_series(q: str, limit: int = 10):
+    """Search for FRED series by keyword."""
+    return {"query": q, "results": fred_search(q, limit)}
 
 
 # ── News aggregation ──────────────────────────────────────────────────────────

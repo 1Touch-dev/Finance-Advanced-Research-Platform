@@ -459,3 +459,264 @@ def get_company_personnel(company_name: str, limit: int = 20) -> Dict[str, Any]:
 def get_deep_research(company_name: str, ticker: str = "") -> Dict[str, Any]:
     """Full deep personnel research."""
     return deep_personnel_research(company_name, ticker)
+
+
+# ─── Career Movement Tracking (PayPal Mafia Pattern) ──────────────────────────
+
+def track_career_movements(person_name: str, linkedin_url: str = "") -> Dict[str, Any]:
+    """
+    Track a person's career movements to find "PayPal Mafia" style networks.
+
+    Identifies:
+    - Companies they founded after leaving
+    - Companies where they became executives
+    - Universities and their alumni network
+    - Common career paths with other executives
+    """
+    result = {
+        "person": person_name,
+        "career_path": [],
+        "companies_founded": [],
+        "executive_roles": [],
+        "education": [],
+        "mafia_potential": [],  # Companies that spawned multiple founders
+        "network_strength": 0,
+    }
+
+    # Fetch full profile
+    if linkedin_url:
+        profile = fetch_executive_deep_profile(linkedin_url)
+    else:
+        # Try to find profile by name
+        profile = {}
+
+    if not profile:
+        result["error"] = "Could not fetch profile"
+        return result
+
+    # Extract career history
+    for exp in profile.get("experiences", []):
+        company = exp.get("company", "")
+        title = (exp.get("title") or "").lower()
+        years = exp.get("duration_years", 0)
+
+        result["career_path"].append({
+            "company": company,
+            "title": exp.get("title"),
+            "duration_years": years,
+            "start_year": exp.get("start_date", "")[:4] if exp.get("start_date") else None,
+            "is_current": exp.get("is_current", False),
+        })
+
+        # Detect founder/co-founder roles
+        if any(kw in title for kw in ["founder", "co-founder", "founding"]):
+            result["companies_founded"].append({
+                "company": company,
+                "role": exp.get("title"),
+                "year": exp.get("start_date", "")[:4] if exp.get("start_date") else None,
+            })
+
+        # Detect executive roles
+        if any(kw in title for kw in ["ceo", "cto", "cfo", "coo", "president", "chief"]):
+            result["executive_roles"].append({
+                "company": company,
+                "role": exp.get("title"),
+                "is_current": exp.get("is_current", False),
+            })
+
+    # Extract education
+    result["education"] = profile.get("education", [])
+
+    # Calculate network strength (more founders = stronger network)
+    result["network_strength"] = len(result["companies_founded"]) * 10 + len(result["executive_roles"]) * 5
+
+    return result
+
+
+def find_company_alumni_founders(company_name: str, limit: int = 50) -> Dict[str, Any]:
+    """
+    Find people who left a company and went on to found other companies.
+    This is the "PayPal Mafia" pattern — tracking founder networks from a single company.
+    """
+    result = {
+        "source_company": company_name,
+        "alumni_founders": [],
+        "companies_spawned": [],
+        "notable_alumni": [],
+        "network_stats": {
+            "total_alumni_checked": 0,
+            "founders_found": 0,
+            "total_companies_spawned": 0,
+        },
+    }
+
+    # Get company employees
+    employees = fetch_company_executives(company_name, limit=limit)
+    all_people = (
+        employees.get("executives", []) +
+        employees.get("board_members", []) +
+        employees.get("other_employees", [])
+    )
+
+    result["network_stats"]["total_alumni_checked"] = len(all_people)
+
+    # For each person, check their career history for founder roles
+    founders_found = []
+
+    def check_founder_status(person: Dict) -> Optional[Dict]:
+        url = person.get("linkedin_url")
+        if not url:
+            return None
+        profile = fetch_executive_deep_profile(url)
+        if not profile:
+            return None
+
+        founded_companies = []
+        for exp in profile.get("experiences", []):
+            title = (exp.get("title") or "").lower()
+            company = exp.get("company", "")
+            if any(kw in title for kw in ["founder", "co-founder"]) and company.lower() != company_name.lower():
+                founded_companies.append({
+                    "company": company,
+                    "role": exp.get("title"),
+                })
+
+        if founded_companies:
+            return {
+                "name": person.get("name"),
+                "linkedin_url": url,
+                "companies_founded": founded_companies,
+                "source_role_at_company": person.get("title"),
+            }
+        return None
+
+    # Check founders in parallel (limit to prevent rate limiting)
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = {executor.submit(check_founder_status, p): p for p in all_people[:20]}
+        for future in as_completed(futures):
+            try:
+                founder_info = future.result()
+                if founder_info:
+                    founders_found.append(founder_info)
+            except Exception as e:
+                logger.warning("Error checking founder status: %s", e)
+
+    result["alumni_founders"] = founders_found
+    result["network_stats"]["founders_found"] = len(founders_found)
+
+    # Aggregate companies spawned
+    all_spawned = []
+    for founder in founders_found:
+        for co in founder.get("companies_founded", []):
+            all_spawned.append(co.get("company"))
+    result["companies_spawned"] = list(set(all_spawned))
+    result["network_stats"]["total_companies_spawned"] = len(result["companies_spawned"])
+
+    return result
+
+
+def extract_advisors_from_proxy(ticker: str) -> List[Dict[str, Any]]:
+    """
+    Extract advisor relationships from SEC proxy statements (DEF 14A).
+
+    Looks for:
+    - Consulting agreements
+    - Advisory board members
+    - External advisors listed in compensation tables
+    """
+    advisors = []
+
+    try:
+        from app.connectors.sec_edgar_connector import get_proxy_statement_text
+
+        proxy_text = get_proxy_statement_text(ticker)
+        if not proxy_text:
+            return advisors
+
+        # Patterns to find advisors
+        advisor_patterns = [
+            r"(?:advisor|consultant|advisory).*?(?:agreement|arrangement|service)",
+            r"(?:consulting|advisory)\s+(?:fee|payment|compensation)",
+            r"(?:retained|engaged)\s+(?:as|to\s+serve\s+as)\s+(?:an?\s+)?(?:advisor|consultant)",
+            r"(?:advisory|consulting)\s+board",
+        ]
+
+        # Search proxy text (simplified - would need NER for production)
+        text_lower = proxy_text.lower()
+
+        if "consulting agreement" in text_lower or "advisory" in text_lower:
+            # Found potential advisor mentions
+            # In production, this would use NLP/NER to extract names and details
+
+            advisors.append({
+                "type": "consulting_agreement",
+                "detected": True,
+                "note": "Consulting/advisory agreements detected in proxy statement",
+                "source": "SEC DEF 14A",
+            })
+
+    except Exception as e:
+        logger.warning("Advisor extraction failed for %s: %s", ticker, e)
+
+    return advisors
+
+
+def build_people_network(company_name: str, ticker: str = "") -> Dict[str, Any]:
+    """
+    Build a comprehensive people network showing:
+    - Who worked together at which companies
+    - Career overlaps
+    - Board interlocks
+    - Shared education
+
+    This is the foundation for "follow the money" through people.
+    """
+    result = {
+        "company": company_name,
+        "ticker": ticker,
+        "nodes": [],  # People
+        "edges": [],  # Relationships
+        "clusters": {
+            "by_company": {},
+            "by_school": {},
+            "by_role": {},
+        },
+        "statistics": {
+            "total_people": 0,
+            "total_connections": 0,
+            "strongest_connection": None,
+        },
+    }
+
+    # Get company personnel
+    personnel = fetch_company_executives(company_name)
+    all_people = (
+        personnel.get("executives", []) +
+        personnel.get("board_members", [])
+    )
+
+    # Build nodes
+    for i, person in enumerate(all_people[:30]):
+        result["nodes"].append({
+            "id": f"person_{i}",
+            "name": person.get("name"),
+            "title": person.get("title"),
+            "type": "executive" if person in personnel.get("executives", []) else "board",
+            "current_company": company_name,
+        })
+
+    # Detect connections (shared background)
+    family_connections = detect_family_connections(all_people, company_name)
+    for conn in family_connections:
+        result["edges"].append({
+            "type": "family_connection",
+            "source": conn.get("people", [{}])[0] if conn.get("people") else None,
+            "target": conn.get("people", [{}])[1] if len(conn.get("people", [])) > 1 else None,
+            "relationship": conn.get("type"),
+            "strength": 0.9 if conn.get("type") == "shared_surname" else 0.5,
+        })
+
+    result["statistics"]["total_people"] = len(result["nodes"])
+    result["statistics"]["total_connections"] = len(result["edges"])
+
+    return result

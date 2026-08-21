@@ -608,3 +608,314 @@ def format_precedent_section(library: Dict[str, Any]) -> str:
         lines.append("")
 
     return "\n".join(lines)
+
+
+# ─── BEA (Bureau of Economic Analysis) ────────────────────────────────────────
+# GDP, regional income, industry data
+# Signup: https://apps.bea.gov/API/signup/ (FREE)
+
+BEA_BASE = "https://apps.bea.gov/api/data"
+BEA_USER_ID = os.getenv("BEA_API_USER_ID", "")
+
+
+def bea_get_data(dataset: str = "NIPA", table: str = "T10101", frequency: str = "A",
+                 year: str = "2020,2021,2022,2023,2024") -> Dict[str, Any]:
+    """
+    Fetch data from BEA API.
+
+    Args:
+        dataset: BEA dataset (NIPA, Regional, etc.)
+        table: Table name (T10101 for GDP, SAINC1 for state income, etc.)
+        frequency: A=Annual, Q=Quarterly
+        year: Years to fetch (comma-separated or LAST5)
+    """
+    if not BEA_USER_ID:
+        return {"error": "BEA_API_USER_ID not set. Signup: https://apps.bea.gov/API/signup/"}
+
+    try:
+        params = {
+            "UserID": BEA_USER_ID,
+            "method": "GetData",
+            "datasetname": dataset,
+            "TableName": table,
+            "Frequency": frequency,
+            "Year": year,
+            "ResultFormat": "JSON",
+        }
+        r = requests.get(BEA_BASE, params=params, timeout=30)
+        data = r.json()
+
+        results = data.get("BEAAPI", {}).get("Results", {})
+        if "Error" in results:
+            return {"error": results["Error"]}
+
+        return {
+            "dataset": dataset,
+            "table": table,
+            "data": results.get("Data", []),
+            "statistic": results.get("Statistic", ""),
+            "source": "BEA (Bureau of Economic Analysis)",
+        }
+    except Exception as e:
+        logger.warning("BEA fetch error: %s", e)
+        return {"error": str(e)}
+
+
+def bea_gdp(years: str = "2020,2021,2022,2023,2024") -> Dict[str, Any]:
+    """Fetch GDP data from BEA."""
+    return bea_get_data("NIPA", "T10101", "A", years)
+
+
+def bea_state_income(year: str = "LAST5") -> Dict[str, Any]:
+    """Fetch state personal income from BEA."""
+    if not BEA_USER_ID:
+        return {"error": "BEA_API_USER_ID not set"}
+
+    try:
+        params = {
+            "UserID": BEA_USER_ID,
+            "method": "GetData",
+            "datasetname": "Regional",
+            "TableName": "SAINC1",
+            "LineCode": "1",
+            "GeoFips": "STATE",
+            "Year": year,
+            "ResultFormat": "JSON",
+        }
+        r = requests.get(BEA_BASE, params=params, timeout=30)
+        data = r.json()
+        results = data.get("BEAAPI", {}).get("Results", {})
+        return {
+            "table": "SAINC1",
+            "description": "State Personal Income",
+            "data": results.get("Data", []),
+            "source": "BEA",
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ─── SAM.gov (System for Award Management) ────────────────────────────────────
+# Federal contract opportunities and entity data
+# API key: https://open.gsa.gov/api/sam-entity-extracts-api/
+
+SAM_API_KEY = os.getenv("SAM_GOV_API_KEY", "") or os.getenv("SAM_API_KEY", "")
+
+
+def sam_search_opportunities(keywords: str = "", limit: int = 20,
+                              days_back: int = 30) -> Dict[str, Any]:
+    """
+    Search SAM.gov for federal contract opportunities.
+
+    Args:
+        keywords: Search keywords
+        limit: Max results
+        days_back: Look back this many days
+    """
+    if not SAM_API_KEY:
+        return {"error": "SAM_GOV_API_KEY not set"}
+
+    try:
+        from datetime import datetime, timedelta
+        end = datetime.now().date()
+        start = end - timedelta(days=days_back)
+
+        url = "https://api.sam.gov/opportunities/v2/search"
+        params = {
+            "api_key": SAM_API_KEY,
+            "limit": limit,
+            "postedFrom": start.strftime("%m/%d/%Y"),
+            "postedTo": end.strftime("%m/%d/%Y"),
+        }
+        if keywords:
+            params["keywords"] = keywords
+
+        r = requests.get(url, params=params, timeout=30)
+        data = r.json()
+
+        opportunities = data.get("opportunitiesData", [])
+        return {
+            "count": len(opportunities),
+            "opportunities": [{
+                "notice_id": o.get("noticeId"),
+                "title": o.get("title"),
+                "type": o.get("type"),
+                "posted_date": o.get("postedDate"),
+                "response_deadline": o.get("responseDeadLine"),
+                "agency": o.get("fullParentPathName"),
+                "naics_code": o.get("naicsCode"),
+                "set_aside": o.get("typeOfSetAsideDescription"),
+                "place_of_performance": o.get("placeOfPerformance", {}).get("city", {}).get("name"),
+            } for o in opportunities],
+            "source": "SAM.gov",
+        }
+    except Exception as e:
+        logger.warning("SAM.gov search error: %s", e)
+        return {"error": str(e)}
+
+
+def sam_entity_search(entity_name: str, limit: int = 10) -> Dict[str, Any]:
+    """
+    Search for registered entities in SAM.gov.
+    """
+    if not SAM_API_KEY:
+        return {"error": "SAM_GOV_API_KEY not set"}
+
+    try:
+        url = "https://api.sam.gov/entity-information/v3/entities"
+        params = {
+            "api_key": SAM_API_KEY,
+            "legalBusinessName": entity_name,
+            "includeSections": "entityRegistration",
+            "registrationStatus": "A",
+        }
+        r = requests.get(url, params=params, timeout=30)
+        data = r.json()
+
+        entities = data.get("entityData", [])[:limit]
+        return {
+            "count": len(entities),
+            "entities": [{
+                "uei": e.get("entityRegistration", {}).get("ueiSAM"),
+                "legal_name": e.get("entityRegistration", {}).get("legalBusinessName"),
+                "dba_name": e.get("entityRegistration", {}).get("dbaName"),
+                "cage_code": e.get("entityRegistration", {}).get("cageCode"),
+                "registration_status": e.get("entityRegistration", {}).get("registrationStatus"),
+                "expiration_date": e.get("entityRegistration", {}).get("registrationExpirationDate"),
+                "physical_address": e.get("entityRegistration", {}).get("physicalAddress", {}),
+            } for e in entities],
+            "source": "SAM.gov",
+        }
+    except Exception as e:
+        logger.warning("SAM.gov entity search error: %s", e)
+        return {"error": str(e)}
+
+
+# ─── Regulations.gov ──────────────────────────────────────────────────────────
+# Federal regulations, proposed rules, public comments
+# API key: https://open.gsa.gov/api/regulationsgov/
+
+REGULATIONS_GOV_KEY = os.getenv("REGULATIONS_GOV_API_KEY", "")
+
+
+def regulations_search(query: str = "", agency: str = "", limit: int = 20) -> Dict[str, Any]:
+    """
+    Search Regulations.gov for federal regulations and proposed rules.
+
+    Args:
+        query: Search keywords
+        agency: Filter by agency (e.g., "EPA", "SEC", "FDA")
+        limit: Max results
+    """
+    if not REGULATIONS_GOV_KEY:
+        return {"error": "REGULATIONS_GOV_API_KEY not set"}
+
+    try:
+        url = "https://api.regulations.gov/v4/documents"
+        headers = {"X-Api-Key": REGULATIONS_GOV_KEY}
+        params = {"page[size]": limit, "sort": "-postedDate"}
+        if query:
+            params["filter[searchTerm]"] = query
+        if agency:
+            params["filter[agencyId]"] = agency
+
+        r = requests.get(url, headers=headers, params=params, timeout=30)
+        data = r.json()
+
+        documents = data.get("data", [])
+        return {
+            "count": len(documents),
+            "documents": [{
+                "id": d.get("id"),
+                "title": d.get("attributes", {}).get("title"),
+                "document_type": d.get("attributes", {}).get("documentType"),
+                "agency_id": d.get("attributes", {}).get("agencyId"),
+                "posted_date": d.get("attributes", {}).get("postedDate"),
+                "comment_end_date": d.get("attributes", {}).get("commentEndDate"),
+                "docket_id": d.get("attributes", {}).get("docketId"),
+                "highlights": d.get("attributes", {}).get("highlightedContent"),
+            } for d in documents],
+            "source": "Regulations.gov",
+        }
+    except Exception as e:
+        logger.warning("Regulations.gov search error: %s", e)
+        return {"error": str(e)}
+
+
+def regulations_docket(docket_id: str) -> Dict[str, Any]:
+    """
+    Get details about a specific regulatory docket.
+    """
+    if not REGULATIONS_GOV_KEY:
+        return {"error": "REGULATIONS_GOV_API_KEY not set"}
+
+    try:
+        url = f"https://api.regulations.gov/v4/dockets/{docket_id}"
+        headers = {"X-Api-Key": REGULATIONS_GOV_KEY}
+
+        r = requests.get(url, headers=headers, timeout=30)
+        data = r.json()
+
+        attrs = data.get("data", {}).get("attributes", {})
+        return {
+            "docket_id": docket_id,
+            "title": attrs.get("title"),
+            "agency_id": attrs.get("agencyId"),
+            "docket_type": attrs.get("docketType"),
+            "rin": attrs.get("rin"),
+            "abstract": attrs.get("dkAbstract"),
+            "effective_date": attrs.get("effectiveDate"),
+            "source": "Regulations.gov",
+        }
+    except Exception as e:
+        logger.warning("Regulations.gov docket error: %s", e)
+        return {"error": str(e)}
+
+
+# ─── GovInfo (Government Publishing Office) ───────────────────────────────────
+# Federal government documents, bills, CFR, Federal Register
+
+GOVINFO_KEY = os.getenv("GOVINFO_API_KEY", "")
+
+
+def govinfo_search(query: str, collection: str = "FR", limit: int = 20) -> Dict[str, Any]:
+    """
+    Search GovInfo for federal government documents.
+
+    Args:
+        query: Search keywords
+        collection: Document collection (FR=Federal Register, CFR, BILLS, etc.)
+        limit: Max results
+    """
+    if not GOVINFO_KEY:
+        return {"error": "GOVINFO_API_KEY not set"}
+
+    try:
+        url = "https://api.govinfo.gov/search"
+        params = {
+            "api_key": GOVINFO_KEY,
+            "query": query,
+            "collection": collection,
+            "pageSize": limit,
+        }
+
+        r = requests.get(url, params=params, timeout=30)
+        data = r.json()
+
+        results = data.get("results", [])
+        return {
+            "count": data.get("count", len(results)),
+            "documents": [{
+                "package_id": d.get("packageId"),
+                "title": d.get("title"),
+                "date_issued": d.get("dateIssued"),
+                "collection": d.get("collectionCode"),
+                "government_author": d.get("governmentAuthor1"),
+                "doc_class": d.get("docClass"),
+                "pages": d.get("pages"),
+            } for d in results],
+            "source": "GovInfo",
+        }
+    except Exception as e:
+        logger.warning("GovInfo search error: %s", e)
+        return {"error": str(e)}

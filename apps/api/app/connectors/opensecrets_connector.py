@@ -9,8 +9,12 @@ Comprehensive political intelligence using OpenSecrets.org data:
   - Industry political giving patterns
   - Political donation recipients
 
-Uses OpenSecrets API (free tier available) + FEC data fallback.
-API Key: Get free key at https://www.opensecrets.org/api/admin/index.php?function=signup
+⚠️  DEPRECATED: OpenSecrets API was discontinued on April 15, 2025.
+    See: https://www.opensecrets.org/open-data/api
+    This connector now uses FEC data as the primary source.
+    For custom data solutions, contact: commercial@opensecrets.org
+
+Uses FEC API as primary data source (free, unlimited with key).
 """
 import os
 import re

@@ -370,7 +370,43 @@ def compute_altman_zscore(ticker: str) -> dict:
 
 # ─── FRED (Federal Reserve) ──────────────────────────────────────────────────
 
+# Key economic indicators - James requested full FRED depth
+FRED_SERIES = {
+    # GDP & Growth
+    "GDP": {"name": "Gross Domestic Product", "frequency": "Quarterly", "units": "Billions USD"},
+    "GDPC1": {"name": "Real GDP", "frequency": "Quarterly", "units": "Billions Chained 2017 USD"},
+    "A191RL1Q225SBEA": {"name": "Real GDP Growth Rate", "frequency": "Quarterly", "units": "Percent"},
+    # Inflation
+    "CPIAUCSL": {"name": "Consumer Price Index", "frequency": "Monthly", "units": "Index 1982-84=100"},
+    "CPILFESL": {"name": "Core CPI (Ex Food & Energy)", "frequency": "Monthly", "units": "Index 1982-84=100"},
+    "PCEPI": {"name": "PCE Price Index", "frequency": "Monthly", "units": "Index 2017=100"},
+    "T10YIE": {"name": "10-Year Breakeven Inflation", "frequency": "Daily", "units": "Percent"},
+    # Employment
+    "UNRATE": {"name": "Unemployment Rate", "frequency": "Monthly", "units": "Percent"},
+    "PAYEMS": {"name": "Total Nonfarm Payrolls", "frequency": "Monthly", "units": "Thousands"},
+    "ICSA": {"name": "Initial Jobless Claims", "frequency": "Weekly", "units": "Number"},
+    # Interest Rates
+    "FEDFUNDS": {"name": "Federal Funds Rate", "frequency": "Monthly", "units": "Percent"},
+    "DFF": {"name": "Fed Funds Effective Daily", "frequency": "Daily", "units": "Percent"},
+    "DGS10": {"name": "10-Year Treasury Yield", "frequency": "Daily", "units": "Percent"},
+    "DGS2": {"name": "2-Year Treasury Yield", "frequency": "Daily", "units": "Percent"},
+    "T10Y2Y": {"name": "10Y-2Y Yield Spread", "frequency": "Daily", "units": "Percent"},
+    "BAMLH0A0HYM2": {"name": "High Yield OAS Spread", "frequency": "Daily", "units": "Percent"},
+    # Money Supply
+    "M2SL": {"name": "M2 Money Stock", "frequency": "Monthly", "units": "Billions USD"},
+    "WALCL": {"name": "Fed Balance Sheet", "frequency": "Weekly", "units": "Millions USD"},
+    # Housing
+    "HOUST": {"name": "Housing Starts", "frequency": "Monthly", "units": "Thousands"},
+    "CSUSHPINSA": {"name": "Case-Shiller Home Price Index", "frequency": "Monthly", "units": "Index"},
+    # Consumer & Business
+    "UMCSENT": {"name": "Consumer Sentiment", "frequency": "Monthly", "units": "Index 1966=100"},
+    "INDPRO": {"name": "Industrial Production", "frequency": "Monthly", "units": "Index 2017=100"},
+    "RSXFS": {"name": "Retail Sales Ex Food Services", "frequency": "Monthly", "units": "Millions USD"},
+}
+
+
 def fred_macro_data(series_id: str = "GDP", limit: int = 10) -> list:
+    """Fetch FRED series observations."""
     if not FRED_KEY:
         return []
     data = _get("https://api.stlouisfed.org/fred/series/observations",
@@ -378,8 +414,151 @@ def fred_macro_data(series_id: str = "GDP", limit: int = 10) -> list:
                         "file_type": "json", "sort_order": "desc", "limit": limit})
     if not data or "observations" not in data:
         return []
-    return [{"date": o["date"], "value": o["value"], "series": series_id}
+    series_meta = FRED_SERIES.get(series_id, {"name": series_id, "units": "N/A"})
+    return [{"date": o["date"], "value": o["value"], "series": series_id,
+             "name": series_meta.get("name"), "units": series_meta.get("units")}
             for o in data["observations"] if o["value"] != "."]
+
+
+def fred_series_info(series_id: str) -> dict:
+    """Get metadata about a FRED series."""
+    if not FRED_KEY:
+        return {}
+    data = _get("https://api.stlouisfed.org/fred/series",
+                params={"series_id": series_id, "api_key": FRED_KEY, "file_type": "json"})
+    if not data or "seriess" not in data:
+        return {}
+    s = data["seriess"][0] if data["seriess"] else {}
+    return {
+        "id": s.get("id"),
+        "title": s.get("title"),
+        "frequency": s.get("frequency"),
+        "units": s.get("units"),
+        "seasonal_adjustment": s.get("seasonal_adjustment"),
+        "last_updated": s.get("last_updated"),
+        "observation_start": s.get("observation_start"),
+        "observation_end": s.get("observation_end"),
+    }
+
+
+def fred_vintage_data(series_id: str, vintage_date: str, limit: int = 10) -> list:
+    """
+    ALFRED vintage data — point-in-time series as it existed on a specific date.
+    This prevents look-ahead bias in historical analysis.
+
+    Args:
+        series_id: FRED series ID (e.g., "GDP", "UNRATE")
+        vintage_date: Date to get vintage for (YYYY-MM-DD)
+        limit: Max observations to return
+    """
+    if not FRED_KEY:
+        return []
+    # ALFRED API endpoint for vintage data
+    data = _get("https://api.stlouisfed.org/fred/series/observations",
+                params={
+                    "series_id": series_id,
+                    "api_key": FRED_KEY,
+                    "file_type": "json",
+                    "sort_order": "desc",
+                    "limit": limit,
+                    "realtime_start": vintage_date,
+                    "realtime_end": vintage_date,
+                })
+    if not data or "observations" not in data:
+        return []
+    series_meta = FRED_SERIES.get(series_id, {"name": series_id})
+    return [{
+        "date": o["date"],
+        "value": o["value"],
+        "series": series_id,
+        "vintage_date": vintage_date,
+        "name": series_meta.get("name"),
+        "realtime_start": o.get("realtime_start"),
+        "realtime_end": o.get("realtime_end"),
+    } for o in data["observations"] if o["value"] != "."]
+
+
+def fred_macro_dashboard(limit: int = 5) -> dict:
+    """
+    Comprehensive macro dashboard with all key indicators.
+    Returns latest values for GDP, inflation, employment, rates.
+    """
+    if not FRED_KEY:
+        return {"error": "FRED_API_KEY not set"}
+
+    dashboard = {
+        "gdp": {},
+        "inflation": {},
+        "employment": {},
+        "rates": {},
+        "markets": {},
+        "housing": {},
+        "consumer": {},
+    }
+
+    # GDP & Growth
+    for sid in ["GDP", "GDPC1", "A191RL1Q225SBEA"]:
+        obs = fred_macro_data(sid, 1)
+        if obs:
+            dashboard["gdp"][sid] = obs[0]
+
+    # Inflation
+    for sid in ["CPIAUCSL", "CPILFESL", "PCEPI", "T10YIE"]:
+        obs = fred_macro_data(sid, 1)
+        if obs:
+            dashboard["inflation"][sid] = obs[0]
+
+    # Employment
+    for sid in ["UNRATE", "PAYEMS", "ICSA"]:
+        obs = fred_macro_data(sid, 1)
+        if obs:
+            dashboard["employment"][sid] = obs[0]
+
+    # Interest Rates
+    for sid in ["FEDFUNDS", "DFF", "DGS10", "DGS2", "T10Y2Y", "BAMLH0A0HYM2"]:
+        obs = fred_macro_data(sid, 1)
+        if obs:
+            dashboard["rates"][sid] = obs[0]
+
+    # Money Supply / Fed
+    for sid in ["M2SL", "WALCL"]:
+        obs = fred_macro_data(sid, 1)
+        if obs:
+            dashboard["markets"][sid] = obs[0]
+
+    # Housing
+    for sid in ["HOUST", "CSUSHPINSA"]:
+        obs = fred_macro_data(sid, 1)
+        if obs:
+            dashboard["housing"][sid] = obs[0]
+
+    # Consumer & Business
+    for sid in ["UMCSENT", "INDPRO", "RSXFS"]:
+        obs = fred_macro_data(sid, 1)
+        if obs:
+            dashboard["consumer"][sid] = obs[0]
+
+    dashboard["source"] = "FRED (Federal Reserve Economic Data)"
+    dashboard["available_series"] = list(FRED_SERIES.keys())
+    return dashboard
+
+
+def fred_search(query: str, limit: int = 10) -> list:
+    """Search for FRED series by keyword."""
+    if not FRED_KEY:
+        return []
+    data = _get("https://api.stlouisfed.org/fred/series/search",
+                params={"search_text": query, "api_key": FRED_KEY,
+                        "file_type": "json", "limit": limit})
+    if not data or "seriess" not in data:
+        return []
+    return [{
+        "id": s.get("id"),
+        "title": s.get("title"),
+        "frequency": s.get("frequency"),
+        "units": s.get("units"),
+        "popularity": s.get("popularity"),
+    } for s in data["seriess"]]
 
 
 # ─── NEWS APIs ───────────────────────────────────────────────────────────────

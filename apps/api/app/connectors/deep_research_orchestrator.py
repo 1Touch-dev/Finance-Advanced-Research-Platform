@@ -281,6 +281,58 @@ except ImportError:
     SEC_API_AVAILABLE = False
     def fetch_all_sec_api_data(*args, **kwargs): return {}
 
+# ── Phase 4 Connector Imports (Government/Macro/Private Company) ─────────────
+
+try:
+    from app.connectors.financial_news_connector import (
+        fred_macro_dashboard,
+        fred_series_info,
+    )
+    FRED_MACRO_AVAILABLE = True
+except ImportError:
+    FRED_MACRO_AVAILABLE = False
+    def fred_macro_dashboard(): return {}
+    def fred_series_info(*args): return {}
+
+try:
+    from app.connectors.government_precedent_connector import (
+        bea_gdp,
+        sam_search_opportunities,
+        regulations_search,
+    )
+    GOV_DATA_AVAILABLE = True
+except ImportError:
+    GOV_DATA_AVAILABLE = False
+    def bea_gdp(*args): return {}
+    def sam_search_opportunities(*args, **kwargs): return {}
+    def regulations_search(*args, **kwargs): return {}
+
+try:
+    from app.connectors.private_company_connector import (
+        fetch_private_company_intel_full,
+        search_uk_companies,
+        search_sec_form_d,
+        get_startup_funding_history,
+    )
+    PRIVATE_CO_FULL_AVAILABLE = True
+except ImportError:
+    PRIVATE_CO_FULL_AVAILABLE = False
+    def fetch_private_company_intel_full(*args, **kwargs): return {}
+    def search_uk_companies(*args, **kwargs): return []
+    def search_sec_form_d(*args, **kwargs): return []
+    def get_startup_funding_history(*args): return {}
+
+try:
+    from app.services.recursive_entity_service import (
+        recursive_discover,
+        build_entity_graph,
+    )
+    RECURSIVE_ENTITY_AVAILABLE = True
+except ImportError:
+    RECURSIVE_ENTITY_AVAILABLE = False
+    def recursive_discover(*args, **kwargs): return {}
+    def build_entity_graph(*args, **kwargs): return {}
+
 
 def _run_with_timeout(func, args=(), kwargs=None, timeout: int = 120):
     """Run a function with timeout, return None on error."""
@@ -335,11 +387,19 @@ def run_deep_intelligence(
             "contracts": not skip_contracts and FPDS_AVAILABLE,
             "political": not skip_political and OPENSECRETS_AVAILABLE,
             "institutional_overlap": not skip_overlap and OVERLAP_AVAILABLE and bool(ticker),
+            "macro_data": FRED_MACRO_AVAILABLE,
+            "gov_data": GOV_DATA_AVAILABLE,
+            "private_company": PRIVATE_CO_FULL_AVAILABLE,
+            "recursive_entity": RECURSIVE_ENTITY_AVAILABLE and bool(ticker),
         },
         "personnel_intelligence": {},
         "contract_intelligence": {},
         "political_intelligence": {},
         "institutional_overlap": {},
+        "macro_context": {},
+        "government_data": {},
+        "private_company_intel": {},
+        "entity_network": {},
         "cross_reference_findings": [],
         "risk_flags": [],
         "data_quality": {
@@ -401,6 +461,38 @@ def run_deep_intelligence(
                 ticker,
             )
 
+        # 5. Macro Economic Context (FRED data)
+        if result["research_scope"]["macro_data"]:
+            logger.info("Fetching macro economic context")
+            futures["macro"] = executor.submit(fred_macro_dashboard)
+
+        # 6. Government Data (SAM.gov contracts related to entity)
+        if result["research_scope"]["gov_data"]:
+            logger.info("Fetching government contract data for %s", entity_name)
+            futures["gov_contracts"] = executor.submit(
+                sam_search_opportunities,
+                entity_name,
+                10,
+                365,
+            )
+
+        # 7. Private Company Intel (if not public or for subsidiaries)
+        if result["research_scope"]["private_company"]:
+            logger.info("Fetching private company intel for %s", entity_name)
+            futures["private_co"] = executor.submit(
+                fetch_private_company_intel_full,
+                entity_name,
+            )
+
+        # 8. Recursive Entity Network (follow the money)
+        if result["research_scope"]["recursive_entity"] and ticker:
+            logger.info("Building recursive entity network for %s", ticker)
+            futures["entity_network"] = executor.submit(
+                recursive_discover,
+                ticker,
+                2,  # max_depth=2 for performance
+            )
+
         # Collect results
         for key, future in futures.items():
             try:
@@ -420,6 +512,19 @@ def run_deep_intelligence(
                     elif key in ("overlap", "mega_holders"):
                         result["institutional_overlap"] = data
                         result["data_quality"]["sources_successful"] += 1
+                    elif key == "macro":
+                        result["macro_context"] = data
+                        result["data_quality"]["sources_successful"] += 1
+                    elif key == "gov_contracts":
+                        result["government_data"] = data
+                        result["data_quality"]["sources_successful"] += 1
+                    elif key == "private_co":
+                        result["private_company_intel"] = data
+                        result["data_quality"]["sources_successful"] += 1
+                    elif key == "entity_network":
+                        result["entity_network"] = data
+                        result["data_quality"]["sources_successful"] += 1
+                        result["data_quality"]["total_data_points"] += len(data.get("discovered_entities", []))
                 else:
                     result["data_quality"]["sources_failed"] += 1
             except Exception as e:
