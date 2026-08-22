@@ -196,32 +196,81 @@ class PortfolioService:
         self._price_cache: Dict[str, Dict[str, Any]] = {}
         self._cache_time: Optional[datetime] = None
 
+    def _is_cache_valid(self) -> bool:
+        """Check if price cache is still within 5-minute TTL."""
+        if not self._cache_time or not self._price_cache:
+            return False
+        return (datetime.now() - self._cache_time).total_seconds() < 300
+
     def _get_market_data(self, tickers: List[str]) -> Dict[str, Dict[str, Any]]:
-        """Get current market data for tickers (simulated for demo)."""
-        # In production, would call yfinance or market data API
-        # For now, simulate with deterministic prices based on ticker
-        import hashlib
+        """Get current market data for tickers using yfinance with 5-min cache."""
+        import yfinance as yf
 
-        result = {}
-        for ticker in tickers:
-            # Generate deterministic but realistic prices
-            seed = int(hashlib.md5(ticker.encode()).hexdigest()[:8], 16)
-            base_price = 50 + (seed % 500)
-            day_change_pct = ((seed % 100) - 50) / 100  # -0.5% to +0.5%
+        if self._is_cache_valid():
+            missing = [t for t in tickers if t not in self._price_cache]
+            if not missing:
+                return {t: self._price_cache[t] for t in tickers}
+        else:
+            missing = tickers
 
-            result[ticker] = {
-                "price": base_price,
-                "prev_close": base_price / (1 + day_change_pct),
-                "day_change": base_price * day_change_pct,
-                "day_change_pct": day_change_pct * 100,
-            }
+        try:
+            data = yf.download(
+                missing,
+                period="2d",
+                progress=False,
+                group_by="ticker" if len(missing) > 1 else "column",
+                threads=True,
+            )
 
-        return result
+            for ticker in missing:
+                try:
+                    if len(missing) == 1:
+                        ticker_data = data
+                    else:
+                        ticker_data = data[ticker]
+
+                    closes = ticker_data["Close"].dropna()
+                    if len(closes) < 1:
+                        continue
+
+                    current_price = float(closes.iloc[-1])
+                    prev_close = float(closes.iloc[-2]) if len(closes) >= 2 else current_price
+                    day_change = current_price - prev_close
+                    day_change_pct = (day_change / prev_close * 100) if prev_close else 0
+
+                    self._price_cache[ticker] = {
+                        "price": current_price,
+                        "prev_close": prev_close,
+                        "day_change": day_change,
+                        "day_change_pct": day_change_pct,
+                    }
+                except Exception as e:
+                    logger.warning(f"Failed to parse market data for {ticker}: {e}")
+                    continue
+
+            self._cache_time = datetime.now()
+
+        except Exception as e:
+            logger.error(f"yfinance download failed: {e}")
+
+        return {t: self._price_cache[t] for t in tickers if t in self._price_cache}
 
     def _get_sector_info(self, ticker: str) -> tuple:
-        """Get sector and industry for a ticker."""
+        """Get sector and industry for a ticker using yfinance, falling back to static map."""
         if ticker in _SECTOR_MAP:
             return _SECTOR_MAP[ticker]
+
+        try:
+            import yfinance as yf
+            info = yf.Ticker(ticker).info
+            sector = info.get("sector")
+            industry = info.get("industry")
+            if sector:
+                _SECTOR_MAP[ticker] = (sector, industry or "Other")
+                return (sector, industry or "Other")
+        except Exception as e:
+            logger.warning(f"Failed to fetch sector info for {ticker}: {e}")
+
         return ("Other", "Other")
 
     def calculate_holdings(
@@ -512,7 +561,6 @@ def calculate_risk_metrics(
     Includes VaR, beta, volatility, drawdown, and concentration metrics.
     """
     import math
-    import random
 
     today = datetime.now().strftime("%Y-%m-%d")
 
@@ -553,19 +601,20 @@ def calculate_risk_metrics(
     var_95_monthly = total_value * z_95 * portfolio_volatility * math.sqrt(21/252)
     var_99_monthly = total_value * z_99 * portfolio_volatility * math.sqrt(21/252)
 
-    # Risk-adjusted returns (simulated)
+    # Risk-adjusted returns
+    # TODO: compute from real historical data via yfinance
     risk_free_rate = 0.05  # 5% risk-free rate
-    expected_return = 0.10 + random.uniform(-0.05, 0.05)  # ~10% expected return
-    downside_deviation = portfolio_volatility * 0.7  # Lower than total vol
+    expected_return = None  # Needs real historical return series
+    downside_deviation = None  # Needs real downside return series
+    sharpe_ratio = 0.0
+    sortino_ratio = 0.0
 
-    sharpe_ratio = (expected_return - risk_free_rate) / portfolio_volatility if portfolio_volatility > 0 else 0
-    sortino_ratio = (expected_return - risk_free_rate) / downside_deviation if downside_deviation > 0 else 0
-
-    # Drawdown metrics (simulated)
-    max_drawdown = random.uniform(0.10, 0.25)  # 10-25% max drawdown
-    current_drawdown = random.uniform(0, max_drawdown * 0.5)  # Currently up to half of max
-    avg_drawdown = max_drawdown * 0.4
-    drawdown_duration = random.randint(0, 60) if current_drawdown > 0 else 0
+    # Drawdown metrics
+    # TODO: compute from real historical price series
+    max_drawdown = None
+    current_drawdown = None
+    avg_drawdown = None
+    drawdown_duration = 0
 
     # Concentration metrics
     sorted_holdings = sorted(holdings, key=lambda x: x.weight, reverse=True)
@@ -579,9 +628,10 @@ def calculate_risk_metrics(
         sector_weights[sector] = sector_weights.get(sector, 0) + h.weight
     max_sector_weight = max(sector_weights.values()) if sector_weights else 0
 
-    # Correlation and diversification (simulated)
+    # Correlation and diversification
+    # TODO: compute from real return correlation matrix
     n = len(holdings)
-    avg_correlation = 0.35 + random.uniform(-0.1, 0.1)  # Typical equity correlation
+    avg_correlation = None
     diversification_ratio = 1 / math.sqrt(n) if n > 0 else 1
 
     return RiskMetrics(
@@ -595,17 +645,17 @@ def calculate_risk_metrics(
         portfolio_beta=weighted_beta,
         weighted_avg_beta=weighted_beta,
         portfolio_volatility=portfolio_volatility,
-        downside_deviation=downside_deviation,
+        downside_deviation=downside_deviation or 0.0,
         sharpe_ratio=sharpe_ratio,
         sortino_ratio=sortino_ratio,
-        max_drawdown=max_drawdown,
-        current_drawdown=current_drawdown,
-        avg_drawdown=avg_drawdown,
+        max_drawdown=max_drawdown or 0.0,
+        current_drawdown=current_drawdown or 0.0,
+        avg_drawdown=avg_drawdown or 0.0,
         drawdown_duration_days=drawdown_duration,
         top_5_concentration=top_5_weight,
         herfindahl_index=hhi,
         sector_concentration=max_sector_weight,
-        avg_pairwise_correlation=avg_correlation,
+        avg_pairwise_correlation=avg_correlation or 0.0,
         diversification_ratio=diversification_ratio,
     )
 
@@ -768,14 +818,13 @@ def _get_price_history_factors(ticker: str) -> Dict[str, float]:
     """Get historical price factors for a ticker (current price / historical price)."""
     if ticker in _PRICE_HISTORY:
         return _PRICE_HISTORY[ticker]
-    # Default: small random variations
-    import random
-    random.seed(hash(ticker))
+    # TODO: needs real historical data from yfinance
+    # For now return neutral factors (no change) for unknown tickers
     return {
-        "day": random.uniform(0.97, 1.03),
-        "week": random.uniform(0.93, 1.07),
-        "month": random.uniform(0.88, 1.12),
-        "ytd": random.uniform(0.75, 1.25),
+        "day": 1.0,
+        "week": 1.0,
+        "month": 1.0,
+        "ytd": 1.0,
     }
 
 

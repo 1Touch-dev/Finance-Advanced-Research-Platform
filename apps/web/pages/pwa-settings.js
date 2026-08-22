@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
+import NoDataCard from '../src/components/NoDataCard';
+import { isNoData } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -10,6 +12,7 @@ export default function PWASettingsPage() {
   const [isInstalled, setIsInstalled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pushSupported, setPushSupported] = useState(false);
+  const [noData, setNoData] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -25,6 +28,7 @@ export default function PWASettingsPage() {
         fetch(API_BASE + '/pwa/install-prompt')
       ]);
       const prefsData = await prefsRes.json();
+      if (isNoData(prefsData)) { setNoData(prefsData); setLoading(false); return; }
       const compatData = await compatRes.json();
       const promptData = await promptRes.json();
       setPreferences(prefsData.preferences || {});
@@ -81,6 +85,8 @@ export default function PWASettingsPage() {
 
       {loading ? (
         <div className="text-center py-10">Loading...</div>
+      ) : noData ? (
+        <NoDataCard {...noData} />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Install Status */}

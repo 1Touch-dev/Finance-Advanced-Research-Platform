@@ -18,9 +18,11 @@ Endpoints:
 - GET /annotations/user - Get user's annotations
 """
 
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Depends
 from typing import Optional, List
 import logging
+
+from app.auth.security import get_current_user
 
 from app.services.comments_service import (
     # Comment functions
@@ -121,6 +123,7 @@ async def create_new_comment(
     user_name: Optional[str] = Query(None, description="Display name"),
     parent_id: Optional[int] = Query(None, description="Parent comment ID (for replies)"),
     visibility: str = Query("private", description="Visibility: private, team, public"),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Create a new comment (#47).
@@ -244,6 +247,7 @@ async def update_existing_comment(
     comment_id: int,
     user_id: str = Query(..., description="User ID (must be author)"),
     content: str = Query(..., description="New comment content"),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Update a comment (#47).
@@ -272,6 +276,7 @@ async def update_existing_comment(
 async def delete_existing_comment(
     comment_id: int,
     user_id: str = Query(..., description="User ID (must be author)"),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Delete a comment (#47).

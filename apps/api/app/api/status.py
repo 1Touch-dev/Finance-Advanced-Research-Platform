@@ -7,12 +7,16 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from app.db.session import get_db
+from app.db.session import get_db, check_db_health
+import time
+import os
 import uuid
 import asyncio
 import httpx
 
 router = APIRouter(prefix="/status", tags=["status"])
+
+_START_TIME = time.time()
 
 
 # ─── Models ─────────────────────────────────────────────────────────────────
@@ -139,6 +143,50 @@ def _get_overall_status() -> str:
     if "degraded" in statuses:
         return "degraded"
     return "operational"
+
+
+# ─── Health Check ────────────────────────────────────────────────────────────
+
+@router.get("/health")
+def health_check():
+    """Comprehensive health check for monitoring and CI."""
+    uptime = round(time.time() - _START_TIME, 1)
+
+    db_health = check_db_health()
+
+    try:
+        from app.services.scheduler import get_scheduler_status
+        sched = get_scheduler_status()
+        scheduler_info = {"running": sched.get("running", False), "jobs": len(sched.get("jobs", []))}
+    except Exception:
+        scheduler_info = {"running": False, "jobs": 0}
+
+    configured_apis = {}
+    api_env_map = {
+        "finnhub": "FINNHUB_API_KEY",
+        "fred": "FRED_API_KEY",
+        "sec_edgar": "SEC_USER_AGENT",
+        "finra": "FINRA_API_KEY",
+        "newsapi": "NEWSAPI_KEY",
+    }
+    for name, env_var in api_env_map.items():
+        configured_apis[name] = "configured" if os.getenv(env_var) else "not_configured"
+
+    return {
+        "status": "healthy",
+        "version": "1.0.0",
+        "uptime_seconds": uptime,
+        "database": {"status": db_health.get("status", "unknown"), "latency_ms": db_health.get("latency_ms")},
+        "scheduler": scheduler_info,
+        "services": {
+            "real_data": [
+                "portfolio", "earnings", "short_interest", "insider",
+                "economics", "global_equity", "ma_rumors", "gov_trading", "ipo_calendar",
+            ],
+            "unavailable": ["brokerage", "reddit", "narrative_model", "push_notifications"],
+        },
+        "external_apis": configured_apis,
+    }
 
 
 # ─── Routes ─────────────────────────────────────────────────────────────────
@@ -310,6 +358,13 @@ def get_uptime_summary(days: int = 90):
         },
         "overall_uptime": round(sum(_calculate_uptime(s["id"], days) for s in SERVICES) / len(SERVICES), 4),
     }
+
+
+@router.get("/scheduler")
+def scheduler_status():
+    """Get background data-refresh scheduler status."""
+    from app.services.scheduler import get_scheduler_status
+    return get_scheduler_status()
 
 
 @router.post("/subscribe")

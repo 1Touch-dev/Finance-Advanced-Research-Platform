@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
+import NoDataCard from '../src/components/NoDataCard';
+import { isNoData } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -10,6 +12,7 @@ export default function GlobalMarketsPage() {
   const [searchResults, setSearchResults] = useState([]);
   const [selectedStock, setSelectedStock] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [noData, setNoData] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -22,6 +25,7 @@ export default function GlobalMarketsPage() {
         fetch(API_BASE + '/global/indices')
       ]);
       const marketsData = await marketsRes.json();
+      if (isNoData(marketsData)) { setNoData(marketsData); setLoading(false); return; }
       const indicesData = await indicesRes.json();
       setMarkets(marketsData.markets || []);
       setIndices(indicesData.indices || []);
@@ -72,6 +76,8 @@ export default function GlobalMarketsPage() {
 
       {loading ? (
         <div className="text-center py-10">Loading...</div>
+      ) : noData ? (
+        <NoDataCard {...noData} />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Market Status */}

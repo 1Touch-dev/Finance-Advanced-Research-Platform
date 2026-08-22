@@ -21,12 +21,15 @@ Audit Compliance:
 - A7: Confidence tiers with accuracy targets
 """
 
+import json
 import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Set, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 from collections import deque
+
+from sqlalchemy import text
 
 log = logging.getLogger(__name__)
 
@@ -184,36 +187,238 @@ class RecursionConfig:
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# IN-MEMORY GRAPH STORE
-# (Production would use SQLAlchemy/PostgreSQL)
+# DB-BACKED GRAPH STORE WITH IN-MEMORY CACHE
+# Persists to SQLite/PostgreSQL via SQLAlchemy, caches in-memory for fast traversal.
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 class EntityGraphStore:
     """
-    In-memory graph store for development/testing.
+    DB-backed graph store with write-through in-memory cache.
 
-    In production, this would be backed by:
-    - PostgreSQL with entities/relationships tables
-    - Optional: Neo4j for graph traversal
-    - Optional: Redis for caching
+    Storage backend: SQLite (local.db) or PostgreSQL via app.db.session.
+    On init, loads all entities/edges from DB into cache.
+    Mutations write to DB first, then update cache.
     """
 
     def __init__(self):
         self._entities: Dict[str, EntityNode] = {}
         self._edges: Dict[str, Edge] = {}
-        self._adjacency: Dict[str, List[str]] = {}  # entity_id -> edge_ids
-        self._reverse_adjacency: Dict[str, List[str]] = {}  # entity_id -> incoming edge_ids
-        self._identifier_index: Dict[Tuple[str, str], str] = {}  # (scheme, value) -> entity_id
+        self._adjacency: Dict[str, List[str]] = {}
+        self._reverse_adjacency: Dict[str, List[str]] = {}
+        self._identifier_index: Dict[Tuple[str, str], str] = {}
+        # Maps graph string IDs to DB integer PKs
+        self._entity_db_pk: Dict[str, int] = {}
+        self._edge_db_pk: Dict[str, int] = {}
+        self._loaded = False
+
+    def _ensure_loaded(self):
+        """Lazy-load from DB on first access."""
+        if self._loaded:
+            return
+        self._loaded = True
+        try:
+            self._load_from_db()
+        except Exception as exc:
+            log.warning("Failed to load graph from DB, starting empty: %s", exc)
+
+    def _load_from_db(self):
+        """Hydrate in-memory cache from the database."""
+        from app.db.session import get_db_context
+
+        with get_db_context() as db:
+            # Load entities
+            rows = db.execute(text(
+                "SELECT id, kind, name, meta FROM entities"
+            )).fetchall()
+
+            for row in rows:
+                db_id, kind, name, meta_raw = row[0], row[1], row[2], row[3]
+                meta = json.loads(meta_raw) if meta_raw else {}
+                graph_id = meta.get("graph_id", str(db_id))
+
+                entity = EntityNode(
+                    id=graph_id,
+                    kind=kind,
+                    name=name,
+                    identifiers={},
+                    aliases=[],
+                    meta={k: v for k, v in meta.items() if k != "graph_id"},
+                )
+                self._entities[graph_id] = entity
+                self._entity_db_pk[graph_id] = db_id
+                if graph_id not in self._adjacency:
+                    self._adjacency[graph_id] = []
+                if graph_id not in self._reverse_adjacency:
+                    self._reverse_adjacency[graph_id] = []
+
+            # Load identifiers
+            id_rows = db.execute(text(
+                "SELECT entity_id, scheme, value FROM entity_identifiers"
+            )).fetchall()
+            for row in id_rows:
+                ent_db_id, scheme, value = row[0], row[1], row[2]
+                graph_id = self._graph_id_for_db_pk(ent_db_id)
+                if graph_id and graph_id in self._entities:
+                    self._entities[graph_id].identifiers[scheme] = value
+                    self._identifier_index[(scheme, value)] = graph_id
+
+            # Load aliases
+            alias_rows = db.execute(text(
+                "SELECT entity_id, alias FROM entity_aliases"
+            )).fetchall()
+            for row in alias_rows:
+                ent_db_id, alias = row[0], row[1]
+                graph_id = self._graph_id_for_db_pk(ent_db_id)
+                if graph_id and graph_id in self._entities:
+                    self._entities[graph_id].aliases.append(alias)
+
+            # Load relationships (edges)
+            rel_rows = db.execute(text(
+                "SELECT id, src_entity_id, dst_entity_id, kind, meta "
+                "FROM relationships"
+            )).fetchall()
+
+            for row in rel_rows:
+                db_id, src_db, dst_db, kind, meta_raw = (
+                    row[0], row[1], row[2], row[3], row[4]
+                )
+                meta = json.loads(meta_raw) if meta_raw else {}
+                edge_graph_id = meta.get("edge_graph_id", str(db_id))
+                src_graph_id = self._graph_id_for_db_pk(src_db)
+                dst_graph_id = self._graph_id_for_db_pk(dst_db)
+
+                if not src_graph_id or not dst_graph_id:
+                    continue
+
+                conf = meta.get("confidence_tier", "INFERRED")
+                try:
+                    confidence = ConfidenceTier(conf)
+                except ValueError:
+                    confidence = ConfidenceTier.INFERRED
+
+                as_of = meta.get("as_of")
+                valid_to = meta.get("valid_to")
+                source_id = meta.get("source_id")
+                source_name = meta.get("source_name")
+                extracted_by = meta.get("extracted_by")
+
+                # Load evidence for this relationship
+                ev_rows = db.execute(text(
+                    "SELECT meta FROM relationship_evidence WHERE relationship_id = :rid"
+                ), {"rid": db_id}).fetchall()
+                evidence_refs = []
+                for ev in ev_rows:
+                    ev_meta = json.loads(ev[0]) if ev[0] else {}
+                    evidence_refs.append(EvidenceRef(
+                        document_id=ev_meta.get("document_id", ""),
+                        source_name=ev_meta.get("source_name", ""),
+                        source_url=ev_meta.get("source_url"),
+                        page_start=ev_meta.get("page_start"),
+                        page_end=ev_meta.get("page_end"),
+                        char_start=ev_meta.get("char_start"),
+                        char_end=ev_meta.get("char_end"),
+                        excerpt=ev_meta.get("excerpt"),
+                        retrieved_at=None,
+                    ))
+
+                if not evidence_refs:
+                    evidence_refs = [EvidenceRef(
+                        document_id="legacy",
+                        source_name=source_name or "unknown",
+                    )]
+
+                edge = Edge(
+                    id=edge_graph_id,
+                    src_entity_id=src_graph_id,
+                    dst_entity_id=dst_graph_id,
+                    relationship_type=kind,
+                    confidence_tier=confidence,
+                    evidence_refs=evidence_refs,
+                    as_of=as_of,
+                    valid_to=valid_to,
+                    source_id=source_id,
+                    source_name=source_name,
+                    extracted_by=extracted_by,
+                    meta={k: v for k, v in meta.items()
+                          if k not in ("edge_graph_id", "confidence_tier", "as_of",
+                                       "valid_to", "source_id", "source_name", "extracted_by")},
+                )
+                self._edges[edge_graph_id] = edge
+                self._edge_db_pk[edge_graph_id] = db_id
+
+                if src_graph_id not in self._adjacency:
+                    self._adjacency[src_graph_id] = []
+                self._adjacency[src_graph_id].append(edge_graph_id)
+
+                if dst_graph_id not in self._reverse_adjacency:
+                    self._reverse_adjacency[dst_graph_id] = []
+                self._reverse_adjacency[dst_graph_id].append(edge_graph_id)
+
+        log.info(
+            "Loaded graph from DB: %d entities, %d edges",
+            len(self._entities), len(self._edges)
+        )
+
+    def _graph_id_for_db_pk(self, db_pk: int) -> Optional[str]:
+        """Reverse lookup: DB PK -> graph string ID."""
+        for gid, pk in self._entity_db_pk.items():
+            if pk == db_pk:
+                return gid
+        return None
 
     def add_entity(self, entity: EntityNode) -> EntityNode:
-        """Add or update an entity in the graph."""
-        self._entities[entity.id] = entity
+        """Add or update an entity in the graph. Persists to DB."""
+        self._ensure_loaded()
+        from app.db.session import get_db_context
 
-        # Index identifiers for resolution
+        with get_db_context() as db:
+            meta_dict = dict(entity.meta)
+            meta_dict["graph_id"] = entity.id
+
+            if entity.id in self._entity_db_pk:
+                # Update existing
+                db_pk = self._entity_db_pk[entity.id]
+                db.execute(text(
+                    "UPDATE entities SET kind = :kind, name = :name, meta = :meta "
+                    "WHERE id = :id"
+                ), {"kind": entity.kind, "name": entity.name,
+                    "meta": json.dumps(meta_dict), "id": db_pk})
+            else:
+                # Insert new
+                result = db.execute(text(
+                    "INSERT INTO entities (kind, name, canonical, meta) "
+                    "VALUES (:kind, :name, 1, :meta)"
+                ), {"kind": entity.kind, "name": entity.name,
+                    "meta": json.dumps(meta_dict)})
+                db_pk = result.lastrowid
+                self._entity_db_pk[entity.id] = db_pk
+
+            # Sync identifiers: delete old, insert current
+            db.execute(text(
+                "DELETE FROM entity_identifiers WHERE entity_id = :eid"
+            ), {"eid": db_pk})
+            for scheme, value in entity.identifiers.items():
+                db.execute(text(
+                    "INSERT OR REPLACE INTO entity_identifiers (entity_id, scheme, value) "
+                    "VALUES (:eid, :scheme, :value)"
+                ), {"eid": db_pk, "scheme": scheme, "value": value})
+
+            # Sync aliases
+            db.execute(text(
+                "DELETE FROM entity_aliases WHERE entity_id = :eid"
+            ), {"eid": db_pk})
+            for alias in entity.aliases:
+                db.execute(text(
+                    "INSERT OR REPLACE INTO entity_aliases (entity_id, alias) "
+                    "VALUES (:eid, :alias)"
+                ), {"eid": db_pk, "alias": alias})
+
+            db.commit()
+
+        # Update in-memory cache
+        self._entities[entity.id] = entity
         for scheme, value in entity.identifiers.items():
             self._identifier_index[(scheme, value)] = entity.id
-
-        # Initialize adjacency
         if entity.id not in self._adjacency:
             self._adjacency[entity.id] = []
         if entity.id not in self._reverse_adjacency:
@@ -223,33 +428,98 @@ class EntityGraphStore:
 
     def add_edge(self, edge: Edge) -> Edge:
         """
-        Add an edge to the graph.
+        Add an edge to the graph. Persists to DB.
 
         Raises ValueError if:
         - relationship_type not in closed vocabulary
         - evidence_refs is empty (A5 compliance)
         """
-        # A5 Compliance: Every edge MUST have evidence
+        self._ensure_loaded()
+
         if not edge.evidence_refs:
             raise ValueError(
                 f"Edge {edge.src_entity_id} -> {edge.dst_entity_id} "
                 "has no evidence_refs. Every edge must cite a document (A5)."
             )
 
-        # Closed vocabulary check
         if edge.relationship_type not in VALID_RELATIONSHIP_TYPES:
             raise ValueError(
                 f"Relationship type '{edge.relationship_type}' not in closed vocabulary. "
                 f"Valid types: {VALID_RELATIONSHIP_TYPES}"
             )
 
-        self._edges[edge.id] = edge
+        from app.db.session import get_db_context
 
-        # Update adjacency
+        src_db_pk = self._entity_db_pk.get(edge.src_entity_id)
+        dst_db_pk = self._entity_db_pk.get(edge.dst_entity_id)
+        if not src_db_pk or not dst_db_pk:
+            raise ValueError(
+                f"Source or destination entity not found in DB. "
+                f"src={edge.src_entity_id} dst={edge.dst_entity_id}"
+            )
+
+        with get_db_context() as db:
+            meta_dict = dict(edge.meta)
+            meta_dict["edge_graph_id"] = edge.id
+            meta_dict["confidence_tier"] = edge.confidence_tier.value
+            meta_dict["source_id"] = edge.source_id
+            meta_dict["source_name"] = edge.source_name
+            meta_dict["extracted_by"] = edge.extracted_by
+            if edge.as_of:
+                meta_dict["as_of"] = edge.as_of.isoformat() if isinstance(edge.as_of, datetime) else str(edge.as_of)
+            if edge.valid_to:
+                meta_dict["valid_to"] = edge.valid_to.isoformat() if isinstance(edge.valid_to, datetime) else str(edge.valid_to)
+
+            if edge.id in self._edge_db_pk:
+                db_pk = self._edge_db_pk[edge.id]
+                db.execute(text(
+                    "UPDATE relationships SET src_entity_id = :src, dst_entity_id = :dst, "
+                    "kind = :kind, meta = :meta WHERE id = :id"
+                ), {
+                    "src": src_db_pk, "dst": dst_db_pk,
+                    "kind": edge.relationship_type,
+                    "meta": json.dumps(meta_dict), "id": db_pk,
+                })
+            else:
+                result = db.execute(text(
+                    "INSERT INTO relationships "
+                    "(src_entity_id, dst_entity_id, kind, meta) "
+                    "VALUES (:src, :dst, :kind, :meta)"
+                ), {
+                    "src": src_db_pk, "dst": dst_db_pk,
+                    "kind": edge.relationship_type,
+                    "meta": json.dumps(meta_dict),
+                })
+                db_pk = result.lastrowid
+                self._edge_db_pk[edge.id] = db_pk
+
+            # Persist evidence refs
+            db.execute(text(
+                "DELETE FROM relationship_evidence WHERE relationship_id = :rid"
+            ), {"rid": db_pk})
+            for ref in edge.evidence_refs:
+                ev_meta = {
+                    "document_id": ref.document_id,
+                    "source_name": ref.source_name,
+                    "source_url": ref.source_url,
+                    "page_start": ref.page_start,
+                    "page_end": ref.page_end,
+                    "char_start": ref.char_start,
+                    "char_end": ref.char_end,
+                    "excerpt": ref.excerpt,
+                }
+                db.execute(text(
+                    "INSERT INTO relationship_evidence (relationship_id, meta) "
+                    "VALUES (:rid, :meta)"
+                ), {"rid": db_pk, "meta": json.dumps(ev_meta)})
+
+            db.commit()
+
+        # Update in-memory cache
+        self._edges[edge.id] = edge
         if edge.src_entity_id not in self._adjacency:
             self._adjacency[edge.src_entity_id] = []
         self._adjacency[edge.src_entity_id].append(edge.id)
-
         if edge.dst_entity_id not in self._reverse_adjacency:
             self._reverse_adjacency[edge.dst_entity_id] = []
         self._reverse_adjacency[edge.dst_entity_id].append(edge.id)
@@ -258,6 +528,7 @@ class EntityGraphStore:
 
     def get_entity(self, entity_id: str) -> Optional[EntityNode]:
         """Get entity by ID."""
+        self._ensure_loaded()
         return self._entities.get(entity_id)
 
     def resolve_entity(self, scheme: str, value: str) -> Optional[EntityNode]:
@@ -266,6 +537,7 @@ class EntityGraphStore:
 
         Priority: deterministic ID match > fuzzy name match
         """
+        self._ensure_loaded()
         entity_id = self._identifier_index.get((scheme, value))
         if entity_id:
             return self._entities.get(entity_id)
@@ -277,6 +549,7 @@ class EntityGraphStore:
         config: Optional[RecursionConfig] = None,
     ) -> List[Edge]:
         """Get edges originating from an entity."""
+        self._ensure_loaded()
         edge_ids = self._adjacency.get(entity_id, [])
         edges = [self._edges[eid] for eid in edge_ids if eid in self._edges]
 
@@ -291,6 +564,7 @@ class EntityGraphStore:
         config: Optional[RecursionConfig] = None,
     ) -> List[Edge]:
         """Get edges pointing to an entity."""
+        self._ensure_loaded()
         edge_ids = self._reverse_adjacency.get(entity_id, [])
         edges = [self._edges[eid] for eid in edge_ids if eid in self._edges]
 
@@ -315,22 +589,19 @@ class EntityGraphStore:
         min_idx = confidence_order.index(config.min_confidence)
 
         for edge in edges:
-            # Filter by confidence
             edge_idx = confidence_order.index(edge.confidence_tier)
             if edge_idx > min_idx:
                 continue
 
-            # Filter by relationship type
             if config.relationship_types:
                 if edge.relationship_type not in config.relationship_types:
                     continue
 
-            # Filter by point-in-time (A4)
             if config.as_of_date:
                 if edge.as_of and edge.as_of > config.as_of_date:
-                    continue  # Relationship didn't exist yet
+                    continue
                 if edge.valid_to and edge.valid_to < config.as_of_date:
-                    continue  # Relationship had ended
+                    continue
 
             result.append(edge)
 
@@ -726,6 +997,7 @@ def resolve_entity(scheme: str, value: str) -> Optional[Dict[str, Any]]:
 def get_graph_stats() -> Dict[str, Any]:
     """Get statistics about the graph."""
     store = get_graph_store()
+    store._ensure_loaded()
     return {
         "total_entities": len(store._entities),
         "total_edges": len(store._edges),

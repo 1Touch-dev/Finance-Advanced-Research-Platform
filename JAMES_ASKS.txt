@@ -1,0 +1,1058 @@
+JAMES ASKS FINANCE
+
+- [ ] 3rd PARTY APIs
+
+[18/08/26, 6:26:41 AM] James Deller: Cool.
+[18/08/26, 6:27:38 AM] James Deller: This should complete other data remaining and shorts etc
+[18/08/26, 6:27:53 AM] Anshuman: okay I have cloned it will integrate it
+[18/08/26, 6:29:00 AM] James Deller: Amazing!
+[18/08/26, 6:29:12 AM] James Deller: Also really makes this awesome platform.
+[18/08/26, 6:30:01 AM] Anshuman: sure, do you think UI needs to be changed too? 
+
+Current one is a little off according to a finance platform
+[18/08/26, 6:30:07 AM] Anshuman: What do you think?
+[18/08/26, 6:30:23 AM] James Deller: Agree really should be as simple clean as possible
+[18/08/26, 6:30:53 AM] Anshuman: Sure, will work on that. Any particular color theme in your mind?
+[18/08/26, 6:32:59 AM] Anshuman: or else we will go with current, but a little warmer blue
+[18/08/26, 6:35:58 AM] James Deller: Dark blue would be more finance. But whatever u want
+[18/08/26, 6:36:37 AM] Anshuman: Okay
+[18/08/26, 6:36:46 AM] Anshuman: Analysed this one:
+[18/08/26, 6:37:21 AM] Anshuman: The bloomberg-terminal-free project won't fill our data gaps, but we can still leverage it:                                                                         
+                                                                                       
+What We CAN Use:                                                                      
+                                                                                       
+  1. TUI patterns - If you want a CLI/terminal version of the platform                 
+  2. yfinance patterns - We already have this                                          
+  3. CoinGecko integration - Already in our crypto_connector
+[18/08/26, 7:07:30 AM] James Deller: 1.⁠ ⁠Would expand potential user audience base 
+2.⁠ ⁠⁠ok so no need. But maybe validator or fall back
+3.⁠ ⁠⁠ok, but not focused on crypto at all; it is the least of my priorities
+[18/08/26, 7:08:15 AM] James Deller: Fred api and all of the ones we have integrated you are using
+[18/08/26, 7:08:19 AM] James Deller: There is a lot of data there
+[18/08/26, 7:08:26 AM] James Deller: You really need to research each source
+[18/08/26, 7:18:44 AM] Anshuman: Sure thing, added on my master task status document. Will focus on that this week + the model training
+
+[18/08/26, 7:51:19 AM] James Deller: Please maintain the idea of following the money. Attached is a list of all top us officials with most quantity / value/ or roi. Per trade
+[18/08/26, 7:54:30 AM] Anshuman: Cool, will add this
+
+- [ ] PAYPAL MAFIA
+
+[04/08/26, 7:42:07 PM] James Deller: paypal mafia, needs to expand to research across all ivnestments, recent investments, board members, advisors, employees they continously hire, etc.
+[04/08/26, 7:42:20 PM] James Deller: not nvidia focused
+[04/08/26, 7:44:43 PM] Anshuman: so paypal mafia you need all the investments they have done recently by the core members they have:
+
+Peter Thiel
+Elon Musk
+Max Levchin
+Luke Nosek
+Reid Hoffman
+David Sacks
+Ken Howery
+Roelof Botha
+Keith Rabois
+Steve Chen
+Chad Hurley
+Jawed Karim
+Jeremy Stoppelman
+Russel Simmons
+Premal Shah
+Dave McClure
+Andrew McCormack
+Jason Portnoy
+Jack Selby
+Eric Jackson
+Yu Pan
+Rod Martin
+Scott Banister
+[04/08/26, 7:44:59 PM] James Deller: yeah
+[04/08/26, 7:45:02 PM] James Deller: all investment done by them
+[04/08/26, 7:45:09 PM] James Deller: and even go to find associates of each of these people
+[04/08/26, 7:45:16 PM] James Deller: people related to each one of them.
+
+[04/08/26, 7:45:36 PM] Anshuman: this is financial report for any ticker or stock and in this case we are only finding for NVIDIA 
+
+so this is an investment decision kind of report to whether to invest in NVIDIA or not
+[04/08/26, 7:46:01 PM] James Deller: Point is not wether to invest or not
+[04/08/26, 7:46:04 PM] James Deller: point is deep inteligence
+[04/08/26, 7:46:28 PM] James Deller: use this, go further into related individuals that have relationships with these people, investments, employees, et.c other correlations.
+[04/08/26, 7:47:01 PM] Anshuman: yes this is a deep intelligence report but for only NVIDIA 
+
+Will give you a deep intelligence report for paypal mafia people shortly
+[04/08/26, 7:47:06 PM] Anshuman: okay
+[04/08/26, 7:47:37 PM] James Deller: awesome thank you!
+[04/08/26, 7:48:11 PM] Anshuman: My pleasure
+[04/08/26, 9:12:59 PM] Anshuman: This is the deep intelligence you asked for - people, money, relationships, lobbying, contracts, correlations, multiple perspectives, all cross-referenced.
+[04/08/26, 9:13:28 PM] Anshuman: Structure:
+
+Part 1 - People Network Intelligence (p.1–16)
+
+Executive Summary & educational overlaps
+6 visualizations (board seats, investments, timeline, heatmap, etc.)
+12 investment overlaps found
+18 co-occurrence pairs
+Full SEC profiles for all 18 members
+Form D investments with entity names
+News coverage per person
+Deep correlations & patterns
+
+[04/08/26, 9:13:40 PM] Anshuman: Part 2 - Palantir Technologies Deep Intelligence (p.17–86) This is the full company intelligence report (same 70-page format as NVIDIA) but for Palantir, with TSLA, AFRM, YELP, SQ as peer comparisons:
+
+Financial Performance (annual, quarterly, TTM)
+Peer Comparison against Tesla, Affirm, Yelp, Square
+Valuation (DCF, scenarios, reverse-DCF)
+Key Personnel & Board (all directors profiled)
+Network Co-occurrence — traces Palantir people across other companies
+Founder & Executive Correlations — PayPal Mafia links auto-detected
+Co-Investment Network — institutional overlap with peers
+Family, Trusts & Investment Vehicles
+Insider Activity & transactions
+Federal Contracting (government awards)
+Lobbying & Political Activity
+Legal & Regulatory Exposure
+Multi-Perspective Investment Analysis
+Deep Comparative Analysis (PLTR vs TSLA vs AFRM vs YELP vs SQ)
+Charts throughout (1000+ embedded)
+[04/08/26, 9:53:06 PM] James Deller: Amazing this is awesome
+
+- [ ] UI Not working
+
+[05/08/26, 4:26:26 AM] James Deller: Anshuman nothing on link is working at all
+[05/08/26, 4:26:29 AM] James Deller: I didn’t look great
+[05/08/26, 6:49:13 AM] James Deller: Can you please send me a list of all APIs integrated
+[05/08/26, 8:31:17 AM] James Deller: Hey Anshuman how are you
+[05/08/26, 8:31:31 AM] James Deller: This is great, wanted to ask can you send me a list of all the APIs am that are integrated?
+[05/08/26, 10:27:27 AM] Anshuman: I have updated the server at night by 5 am, will look at it rn
+[05/08/26, 10:27:37 AM] Anshuman: Yes give me a min
+[05/08/26, 10:46:41 AM] Anshuman: 1.⁠ ⁠Anthropic Claude - AI analysis and report generation                               
+  2. OpenAI GPT - AI processing and embeddings                                          
+  3. Stripe - Payment processing                                                        
+  4. Mercado Pago - Payment processing (Latin America)                                  
+  5. SendGrid - Email delivery                                                          
+  6. Twilio - SMS notifications                                                         
+  7. Didit Identity - KYC/Identity verification                                         
+  8. Twenty CRM - Customer relationship management                                      
+  9. Apify - Web scraping (LinkedIn, PitchBook, Google News)                            
+  10. Apollo.io - Contact and company enrichment                                        
+  11. Finnhub - Real-time market data and company news                                  
+  12. Financial Modeling Prep (FMP) - Financial statements and valuations               
+  13. Alpha Vantage - Stock and forex data                                              
+  14. FRED (Federal Reserve) - Economic indicators and data                             
+  15. NewsAPI - News aggregation                                                        
+  16. Guardian API - News content                                                       
+  17. New York Times API - Article search                                               
+  18. Google News RSS - News feeds                                                      
+  19. Reddit - Social sentiment analysis                                                
+  20. CoinGecko - Cryptocurrency prices and data                                        
+  21. CoinCap - Crypto market data                                                      
+  22. Etherscan - Ethereum blockchain data                                              
+  23. Blockchain.info - Bitcoin blockchain data                                         
+  24. SEC EDGAR - Company filings (10-K, 10-Q, 8-K)                                     
+  25. SEC-API.io - Form D, 13F, insider trading data                                    
+  26. OpenSecrets - Political contribution data                                         
+  27. Congress.gov - Congressional member data                                          
+  28. FEC (Federal Election Commission) - Campaign finance data                         
+  29. Regulations.gov - Federal regulations tracking                                    
+  30. USASpending - Federal contracts and spending                                      
+  31. FPDS (Federal Procurement) - Government procurement data                          
+  32. Senate LDA (Lobbying) - Lobbying disclosure records                               
+  33. CourtListener - Federal court cases                                               
+  34. OFAC (Sanctions) - Sanctions list screening                                       
+  35. SAM.gov - Federal award management                                                
+  36. GovInfo - Federal government documents                                            
+  37. BEA (Bureau of Economic Analysis) - Economic statistics                           
+  38. California SOS / Cobalt API - State business registry                             
+  39. OpenCorporates - Global company data                                              
+  40. UK Companies House - UK company registry                                          
+  41. Aleph (OCCRP) - Investigative/OSINT data                                          
+  42. GLEIF - Legal entity identifiers                                                  
+  43. OpenSearch - Full-text search engine                                              
+  44. S3 / MinIO - Document storage vault                                               
+  45. Google Workspace OIDC - Authentication/SSO                                        
+  46. NFe.io - Brazilian invoice generation                                             
+  47. Focus NFe - Brazilian fiscal documents                                            
+  48. CoinTelegraph RSS - Crypto news feeds
+[05/08/26, 10:46:52 AM] Anshuman: List of all APIs integrated
+[05/08/26, 10:51:12 AM] Anshuman: Working
+[05/08/26, 7:38:45 PM] James Deller: Claude Araripe	Arqia	Auto-resposta de ausência até 03/08, indicou Rodion Nabuco como substituto
+
+- [ ] FEATURES TO ADD IN REPORTS
+
+[02/08/26, 1:46:59 AM] James Deller: But also for examples with nvidia we also need to look at all the actual factors that could effect  them
+
+Demand increasing
+Competitors
+Scaling of infrastructure 
+Churn of clientele with new competitors
+[02/08/26, 1:47:08 AM] Anshuman: And about investors, trusts and family relations
+[02/08/26, 1:47:39 AM] James Deller: Yeah saw that! Thank you. But I assure you if you than analyze each lf those investors it will find you more coinvestments
+
+[02/08/26, 1:44:07 AM] James Deller: Please try and focus on PayPal Mafia
+[02/08/26, 1:44:24 AM] James Deller: Because that will help you find correlations
+[02/08/26, 1:44:54 AM] James Deller: And like the story of them meeting in university etc
+[02/08/26, 1:44:57 AM] Anshuman: Yes i have added that section in the report itself coorelations and linkages of the founders
+[02/08/26, 1:45:09 AM] Anshuman: Okay adding more
+[02/08/26, 1:45:48 AM] James Deller: We should be able to identify people that studied together, or investors.
+[02/08/26, 1:46:05 AM] James Deller: Like read or watch YouTube about it and you’ll get what I mean
+
+Alternative to api. Using open data to provide similar. But I would want you to look at it to analyze this to see what of this we can add on. And understand more the work concepts
+
+Also for Private investors/cap table, we need to have a subscription of PitchBook/CrunchBase ($6-20K/yr)
+
+[02/08/26, 12:08:47 AM] James Deller: Look for an alternative if possible…
+[02/08/26, 12:14:04 AM] James Deller: Cheap paid APIs
+•⁠  ⁠Fundable — funding rounds plus 135k investor profiles, self-serve API and MCP, $20–100/mo at ~$0.05/credit: https://www.tryfundable.ai/
+•⁠  ⁠FlyByAPIs — Crunchbase-shaped JSON, live-scraped, $19.99 per 10k requests with a 50/mo free tier: https://flybyapis.com/
+•⁠  ⁠PrivCo — US private company financials, revenue, EBITDA and valuation estimates, $99–167/mo: https://www.privco.com/pricing
+•⁠  ⁠Coresignal — firmographics, funding and headcount history across 75M companies, $49–499/mo: https://coresignal.com/pricing/
+•⁠  ⁠People Data Labs — person-to-company linkage, ~$98/mo with 100 free lookups: https://www.peopledatalabs.com/pricing
+•⁠  ⁠Crustdata — real-time headcount and growth signals: https://crustdata.com/
+•⁠  ⁠StartupHub.ai — AI and deep-tech discovery, REST + MCP with x402 pay-per-call, free tier: https://www.startuphub.ai/
+•⁠  ⁠Apify — you already have this; use it for VC portfolio pages and company page extraction: https://apify.com/store
+Cap table and valuation specialists
+•⁠  ⁠Caplight — closest match to what you need: round-by-round amounts and valuations with citations, investor participation, COI filings, stock splits, fund marks pulled from SEC filings, secondary pricing, plus an MCP server. Quote-based but priced as a data API, not enterprise seats: https://www.caplight.com/products/api
+•⁠  ⁠Aumni (J.P. Morgan) — deal terms and preference stacks extracted from actual signed documents: https://www.aumni.fund/
+•⁠  ⁠Carta — true cap tables, but only accessible if you are the company, its counsel, or an investor granted access: https://docs.carta.com/api-platform/docs/introduction
+•⁠  ⁠Forge Global — secondary marks and pre-IPO pricing: https://forgeglobal.com/
+•⁠  ⁠Hiive — live bid/ask on private names: https://www.hiive.com/
+•⁠  ⁠EquityZen — secondary transaction pricing: https://equityzen.com/
+•⁠  ⁠Zanbato / ZX Data — institutional private-market order flow: https://zanbato.com/
+•⁠  ⁠Notice.co — Form D-driven raise alerts: https://notice.co/
+Recommended combination
+•⁠  ⁠For cap structure: UK Companies House (free, literal), Delaware COI purchased per target (~$50), N-PORT for implied price per share (free), and Caplight if you need it programmatically.
+•⁠  ⁠For rounds and investors at scale: Fundable or Coresignal, roughly $50–200/mo.
+•⁠  ⁠Total realistic spend: $150–400/mo plus per-document fees
+
+[31/07/26, 10:16:36 PM] James Deller: paupal mafia analysis, is so you understand the the correlations
+[31/07/26, 10:17:00 PM] James Deller: https://rolodexmedia.substack.com/p/the-paypal-mafia
+[31/07/26, 10:17:08 PM] James Deller: https://www.scribd.com/document/1007712001/The-PayPal-Mafia-a-Diaspora-of-Disruptio
+[31/07/26, 10:18:17 PM] James Deller: https://medium.com/@kanishks772/inside-the-paypal-mafia-the-billion-dollar-brotherhood-that-rewired-the-tech-world-102351abc473
+[31/07/26, 10:18:21 PM] James Deller: https://fleximize.com/media/005256/meet-paypal-mafia
+[31/07/26, 10:18:36 PM] James Deller: https://www.leoniewharton.com/bubble-chart
+[31/07/26, 10:18:57 PM] James Deller: https://venturebeat.com/business/a-look-at-the-paypal-mafias-continued-impact-on-silicon-valley
+[31/07/26, 10:19:01 PM] James Deller: https://qz.com/1522980/all-the-investments-by-the-paypal-mafia-since-1995
+[31/07/26, 10:20:10 PM] James Deller: family members, might not be on payroll. 
+They might be, other shareholders or investors, with other companies or financial investment vehicles, 
+They might be, advisors, or similar. 
+Analyze what positions familiy, vs other members have. 
+
+Analyze employees deeply
+Analyze board members
+Analyze advisors
+
+[21/07/26, 9:02:31 AM] James Deller: Lobbying activity needs all details
+Investors and cap table need all details
+Market share and similar for publically tested need all data
+
+Employee news
+
+Employee, personal, and company news
+[21/07/26, 9:02:54 AM] James Deller: Analyze founder articles books interview etc. 
+same for team
+[21/07/26, 9:03:01 AM] James Deller: Analyze; history track record of founder
+[21/07/26, 9:03:14 AM] James Deller: Analyze, contracts they have; probability of delivery
+[21/07/26, 9:03:16 AM] James Deller: etc
+[21/07/26, 9:03:33 AM] James Deller: Rumours of potential next steps
+
+[30/07/26, 11:36:06 AM] James Deller: Research competitors size impact, there infrastructure and compare businesses .
+
+Compare all key insights. 
+Go further 
+This needs to be ridiculously well researched and insightful. 
+
+Than we need to find correlations
+[30/07/26, 11:38:33 AM] James Deller: https://www.wsj.com/politics/trump-family-business-visualized-6d132c71
+
+[30/07/26, 9:11:02 PM] James Deller: we need this to have all info,
+[30/07/26, 9:11:07 PM] James Deller: and do all this research internally
+[30/07/26, 9:11:13 PM] James Deller: its an example of a complete intelligence repor
+[30/07/26, 9:11:14 PM] James Deller: report
+[30/07/26, 9:11:18 PM] James Deller: going further and further in always
+
+[30/07/26, 9:22:58 PM] James Deller: but please try and expand it, understand that big investors, especially the top. Normally work or invest in similar companies, they bring in similar employees, board members, advisors, etc. Understand that families use there wifes, kids, etc to create other corporate entities or investments. As well as holding companies and similar
+[30/07/26, 9:23:06 PM] James Deller: Go as deep research as possible
+[30/07/26, 9:23:36 PM] James Deller: potentially try kimi swarm, for every entity that is discovered, and to find related entities,
+Analyze all employees that have worked at multiple top firms, etc
+[30/07/26, 9:23:39 PM] James Deller: get me?
+[30/07/26, 9:23:53 PM] James Deller: Also maybe a timeline would be great on news, valuations, etc. Adding tables graghs visualization
+[30/07/26, 9:24:18 PM] James Deller: than getting to deep comparisons, to understand relationships, find trends, analyze companies, analyze people, groups, etc
+
+    - [ ] CLAUDE SKILLS
+[06/08/26, 8:55:15 AM] James Deller: Here's the expanded list — additional Claude Skills, more multi-agent trading frameworks (different architectures/concepts), and AI stock-analysis tools.
+
+## Additional Claude Skills for Finance
+
+•⁠  ⁠K-Dense AI Scientific Skills (140 skills: statistical modeling, time-series, data analysis; 8,241 stars) — [github.com/K-Dense-AI/claude-scientific-skills](https://github.com/K-Dense-AI/claude-scientific-skills) 
+•⁠  ⁠Anthropic Financial Modeling Suite (DCF, Monte Carlo, sensitivity/scenario analysis; 32,682 stars, official Anthropic) — [github.com/anthropics/claude-cookbooks](https://github.com/anthropics/claude-cookbooks) 
+•⁠  ⁠Claude Equity Research (institutional-grade valuation and risk assessment) — [github.com/quant-sentiment-ai/claude-equity-research](https://github.com/quant-sentiment-ai/claude-equity-research) 
+•⁠  ⁠Claude Code Plugins Plus (backtesting strategies, crypto analysis; 1,312 stars) — [github.com/jeremylongshore/claude-code-plugins-plus-skills](https://github.com/jeremylongshore/claude-code-plugins-plus-skills) 
+•⁠  ⁠Claude Office Skills — Stock Analysis (US/China/Hong Kong markets, fundamental + technical framework, bull/bear cases) — [claudemarketplaces.com/skills/claude-office-skills/skills/stock-analysis](https://claudemarketplaces.com/skills/claude-office-skills/skills/stock-analysis) [claudemarketplaces](https://claudemarketplaces.com/skills/claude-office-skills/skills/stock-analysis)
+•⁠  ⁠Claude Office Skills, full repo (Excel-based financial models, formula-driven spreadsheets) — [github.com/tfriedel/claude-office-skills](https://github.com/tfriedel/claude-office-skills) 
+•⁠  ⁠Claude Data Analysis Assistant (statistical analysis, visualization, hypothesis testing) — [github.com/liangdabiao/claude-data-analysis](https://github.com/liangdabiao/claude-data-analysis) 
+•⁠  ⁠CSV Data Summarizer (automated CSV analysis, pattern recognition — useful for your data enrichment work) — [github.com/coffeefuelbump/csv-data-summarizer-claude-skill](https://github.com/coffeefuelbump/csv-data-summarizer-claude-skill) 
+•⁠  ⁠Awesome Agent Skills (comprehensive catalog incl. a dedicated quant analyst agent; 6,532 stars) — [github.com/VoltAgent/awesome-agent-skills](https://github.com/VoltAgent/awesome-agent-skills) 
+•⁠  ⁠DevAIg123/claude-skills (Data and Finance plugins accessible via Customize > Plugins in Claude) — [github.com/DevAIg123/claude-skills](https://github.com/DevAIg123/claude-skills) [reddit](https://www.reddit.com/r/ClaudeAI/comments/1sg1kjz/claude_skills_for_stock_analysis_and_trading/)
+
+## More Multi-Agent Trading Frameworks (Different Concepts)
+
+•⁠  ⁠TradingAgents (Columbia/NYU research framework; 7 specialized roles — fundamentals, sentiment, news, technical analysts, researcher, trader, risk manager; agents hold structured bull/bear debates before deciding; ~80K stars) — [github.com/TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) and [tradingagents-ai.github.io](https://tradingagents-ai.github.io/) [pinggy](https://pinggy.io/blog/best_ai_trading_agents/)
+•⁠  ⁠FinRL (deep reinforcement learning framework for trading, 15K+ stars — different paradigm from LLM-agent debate, uses RL policy training instead) — [github.com/AI4Finance-Foundation/FinRL](https://github.com/AI4Finance-Foundation/FinRL) [pinggy](https://pinggy.io/blog/best_ai_trading_agents/)
+•⁠  ⁠FinRL-Trading (production deployment layer for FinRL with live Alpaca broker integration) — referenced alongside FinRL, same org [pinggy](https://pinggy.io/blog/best_ai_trading_agents/)
+•⁠  ⁠FinRobot (LLM agent platform focused on automated equity research report generation rather than trade execution) — [github.com/AI4Finance-Foundation/FinRobot](https://github.com/AI4Finance-Foundation/FinRobot) [pinggy](https://pinggy.io/blog/best_ai_trading_agents/)
+•⁠  ⁠PrimoAgent (LangGraph-orchestrated 4-agent system: data collection, technical analysis, news/NLP sentiment, portfolio manager synthesis — lightweight alternative to TradingAgents) — [github.com/botun/PrimoAgent](https://github.com/botun/PrimoAgent) [reddit](https://www.reddit.com/r/algotrading/comments/1nf6ghg/i_just_released_my_new_opensource_trading_system/)
+•⁠  ⁠OpenClaw applied as an AI hedge fund (not finance-specific software itself, but a self-hosted multi-agent orchestration platform with per-agent tool isolation and parallel subagent execution; blog shows mapping Claude Opus/Sonnet/Haiku to different agent roles by cost/complexity — directly relevant since you already use Claude) — architecture detailed at [saulius.io/blog/openclaw-multi-agent-ai-hedge-fund-quantitative-trading](https://saulius.io/blog/openclaw-multi-agent-ai-hedge-fund-quantitative-trading) [saulius](https://saulius.io/blog/openclaw-multi-agent-ai-hedge-fund-quantitative-trading)
+•⁠  ⁠Original TradingAgents research paper (for understanding the underlying methodology before adopting the framework) — [arxiv.org/pdf/2412.20138.pdf](https://arxiv.org/pdf/2412.20138.pdf) [snyk](https://snyk.io/articles/top-claude-skills-finance-quantitative-developers/)
+
+## AI Stock Analysis Tools
+
+•⁠  ⁠Open-source stock analysis tool with 55+ data dimensions (proprietary "Nipun Score" A–F grading across technicals/fundamentals/sentiment/risk/insider activity, plus DCF, Benjamin Graham Number, and Peter Lynch Fair Value models, with bull/base/bear scenario pricing) — detailed at [dev.to/raviteja_nekkalapu_/i-built-a-open-source-free-stock-analysis-tool-with-55-data-dimensions-2mkp](https://dev.to/raviteja_nekkalapu_/i-built-a-open-source-free-stock-analysis-tool-with-55-data-dimensions-2mkp) [arxiv](https://arxiv.org/pdf/2412.20138.pdf)
+•⁠  ⁠AI technical analysis tool for TradingView-style charting (community-built, Reddit-documented) — discussed at [reddit.com/r/TradingView/comments/1jm6s3h](https://www.reddit.com/r/TradingView/comments/1jm6s3h/i_made_a_tool_that_uses_ai_to_conduct_technical/) [dev](https://dev.to/raviteja_nekkalapu_/i-built-a-open-source-free-stock-analysis-tool-with-55-data-dimensions-2mkp)
+[06/08/26, 10:55:38 AM] Anshuman: Hey James, are these claude skills for the Project management software?
+[06/08/26, 6:40:06 PM] James Deller: No finance
+[06/08/26, 6:40:08 PM] James Deller: Intelligence
+
+- [ ] The 72 Missing Features — Gap Register
+
+**Revision 2, 5 August 2026.** Previously 64. The recount is explained in section 0.1 — the headline number changed because eight net-new items were added, not because the earlier arithmetic was wrong.
+
+Companion to `Phase-2-Plan-The-Conclusion-Layer.md`, `Competitive-Feature-Requirements.md` (43 requirements) and `Competitor-Functionality-Teardown.md` (204 competitor functions).
+
+---
+
+## 0. Where the number 64 comes from
+
+Two registers, reconciled and de-duplicated.
+
+**Register one — our own requirements.** 56 requirements across five families: C1–C8 correctness, D1–D10 differentiators, R1–R8 company RAG, T1–T8 parity, X1–X9 trust, S1–S13 SEO engine. Phase 2 as now specified delivers **34**. That leaves **22**.
+
+**Register two — competitor functions.** 204 functions in the teardown. Phase 2 covers roughly **130** as consequences of the four planks. **13** are deliberately declined for licensing or moat reasons — nine of the eleven options-and-flow rows plus expert-call transcripts, licensed voice-of-customer, investor podcasts and group chat. Of the remaining **61**, nineteen are already represented by one of the 22 requirement IDs above and are not counted twice. That leaves **42** distinct competitor functions.
+
+**Register three — net-new requirements identified after Revision 1.** The L-series, eight items, covering litigation and enforcement exposure as an input to corporate financials. These appear in neither register above: they are not among our 56 requirements, and no competitor function corresponds to them because no product in the teardown joins docket data to filings.
+
+\[ 22 + 42 + 8 = 72 \]
+
+| Source register | Total | Covered by Phase 2 | Declined | Double-counted | **Remaining** |
+|---|---|---|---|---|---|
+| Our requirements (C/D/R/T/X/S) | 56 | 34 | 0 | 0 | **22** |
+| Competitor functions | 204 | 130 | 13 | 19 | **42** |
+| L-series, net-new | 8 | 0 | 0 | 0 | **8** |
+| **Combined** | | | | | **72** |
+
+**A caveat worth stating plainly.** The 130 figure is an estimate of substantive coverage, not a row-by-row audit of the 204-row matrix. If that audit is run and coverage lands at 120, this register grows by ten. The 22 requirement IDs are exact; the 42 are approximately right and precisely categorised.
+
+---
+
+## 0.1 The recount from 64 to 72
+
+**Nothing in Revision 1 was withdrawn.** All 64 items remain, in the same bands, with the same reasoning. The number moved because the register grew.
+
+| | Rev 1 | Rev 2 | Change |
+|---|---|---|---|
+| A — Conversion and retention blockers | 14 | 14 | — |
+| B — Differentiation multipliers | 16 | 17 | +1 (L2) |
+| C — Table stakes | 18 | 25 | +7 (L1, L3–L8) |
+| D — Segment unlocks | 11 | 11 | — |
+| E — Low value | 5 | 5 | — |
+| **Total** | **64** | **72** | **+8** |
+
+**Why these eight were missing from Revision 1.** The 64 was derived mechanically from two existing registers — our requirement list and the competitor teardown. That method can only surface gaps someone had already written down. It is structurally blind to capabilities that no competitor offers and that we had not yet thought to require, which is precisely the category a differentiated product should be richest in. The L-series was found by asking what the 48 integrations make possible rather than by asking what is missing from a list.
+
+**Expect this to happen again.** Any register built by subtracting coverage from two catalogues will undercount by exactly the number of original ideas nobody has had yet. Treat 72 as the current count, not the final one, and treat upward revisions from this cause as a good sign rather than a planning failure.
+
+**Three constraints that were considered and dissolved.** An earlier version of this work scoped litigation data as a customer-facing legal-research product. That framing carried unauthorized-practice-of-law exposure, a criminal prohibition on judge analytics in France under Article 33 of the 2019 Justice Reform Act with a five-year maximum sentence ([ABA Journal](https://www.abajournal.com/news/article/france-bans-and-creates-criminal-penalty-for-judicial-analytics)), and a state-trial-court coverage gap that CourtListener's RECAP archive does not fill, since it is [federal only](https://guides.law.stanford.edu/dockets/freeresources). Narrowing the scope to corporate financial exposure removes all three: no judge analytics, no output indexed to a customer's own matter, and federal coverage is sufficient because public issuers are sued federally for the matters that move financials. The eight items below are what survived that narrowing, which is why they are cheap.
+
+---
+
+## 1. Value bands, and what they mean
+
+Ordered by return per unit of engineering cost, not by how impressive the feature sounds.
+
+| Band | Name | Count | Why it is ranked here |
+|---|---|---|---|
+| **A** | Conversion and retention blockers | 14 | Cheap. Each one is a documented competitor failure that causes churn or blocks a signup. Highest return per hour of work in the whole register. |
+| **B** | Differentiation multipliers | 17 | Expensive, but each makes the correctness thesis visible in a place a buyer actually looks. This is where the pricing power is. |
+| **C** | Table stakes and cheap enablers | 25 | Mostly not differentiating; their absence loses deals in the first ten minutes of an evaluation. Seven L-series items sit here on effort profile rather than on the strict table-stakes test — see section 4.1. |
+| **D** | Segment unlocks | 11 | Value is conditional on selling to advisors or teams. Zero value otherwise. Do not build speculatively. |
+| **E** | Low value | 5 | Build only when something else forces it. |
+
+---
+
+## 2. Band A — Conversion and retention blockers (14)
+
+Fourteen items, almost all low effort. Collectively they are the difference between a product people trust and one they cancel. The evidence for every one of them is a competitor's documented failure.
+
+| # | Feature | ID | Effort | Why it is worth this much |
+|---|---|---|---|---|
+| 1 | Published pricing, every tier and every limit | X1 | Low | Index-data pricing varies up to **13×** between peers, and "lack of public pricing information is a key contributor" ([Substantive Research](https://substantiveresearch.com/insights-and-press/index-ratings-and-terminals-pricing-inflation-slows-for-the-first-time-in-5-years-new-research-finds/)). Hidden pricing is a conversion tax you pay on every self-serve visitor. |
+| 2 | Renewal notice 14 days ahead, one-click cancel, no trial-to-annual | X2 | Low | Seeking Alpha's \$4.95 trial converting to \$239–\$539 with refunds issued as store credit ([BBB](https://www.bbb.org/us/ny/new-york/profile/market-research/seeking-alpha-inc-0121-167700/complaints)). Dark-pattern billing buys one year of revenue and permanent reputational damage. The maths is bad even ignoring ethics. |
+| 3 | Reachable humans, published escalation path, public SLA | X4 | Low | Stockopedia sits at **0% of logged issues resolved** ([PissedConsumer](https://www.pissedconsumer.com/company/stockopedia/customer-service.html)); AlphaSense draws "lack of customer support except for collecting fees" ([G2](https://www.g2.com/products/alphasense/reviews)). An AI wall is the cheapest possible way to lose an enterprise renewal. |
+| 4 | Honest status page with incident history and post-mortems | X6 | Low | A Polygon teardown alleges the site "seems hardcoded to say 100% uptime" ([r/quant](https://www.reddit.com/r/quant/comments/1fjbzlv/polygon_io_intrinio_alpaca_or_xignite/)). For a product sold on correctness, a dishonest status page is a category error. |
+| 5 | Internal linking and hierarchy across generated pages | S6 | Low | Without it, programmatic pages are orphans. The Nico Digital study found **11 of 162 pages produced 75% of clicks** while the rest levied a **34% crawl tax** ([Nico Digital](https://www.nicodigital.com/technical-seo/programmatic-seo-experiment-162-pages/)). Linking is what moves authority to the eleven. |
+| 6 | Sitemaps and crawl management | S7 | Low | Same study. Unmanaged crawl budget is how a page engine actively harms the domain that hosts it. |
+| 7 | Freshness engine | S10 | Medium | A stale generated page on financial data is worse than no page: it is a wrong answer with your name on it, indexed. |
+| 8 | Editorial workflow | S11 | Low | The human approval gate required by G16. Without it, agent-generated pages publish unreviewed, and one bad page is a compliance event. |
+| 9 | Compliance guardrails on generated content | S12 | Low | No forward projection, no second-person recommendation, disclaimer present. FINRA Rule 2210(d)(1)(F) is not optional and an automated page engine breaches it at scale by default. |
+| 10 | Experiment framework for templates | S13 | Medium | Without it you cannot tell which templates are the eleven and which are the 151. You will prune the wrong ones. |
+| 11 | AI-answer visibility tracking | S9 | Low | The programmatic study measured **2 AI citations versus 31** for the two page types ([Nico Digital](https://www.nicodigital.com/technical-seo/programmatic-seo-experiment-162-pages/)), and BrightEdge finds YMYL "what is" queries trigger AI Overviews **91%** of the time against **7%** for ticker and price queries ([BrightEdge](https://www.brightedge.com/resources/weekly-ai-search-insights/google-ymyl-finance-ai-overviews)). You are being cited or not cited right now and cannot see which. The Apify Google Search actor covers six AI surfaces at roughly \$0.0275 per prompt — about \$24/mo against Otterly's \$489. |
+| 12 | Browser extension | D7 | Low | Zero competitors have one. It puts provenance on top of every filing page and news article the user already reads, which is the cheapest possible daily-active-use mechanic. |
+| 13 | Portable corpora — export, API, MCP | R7 | Low | Zero competitors. Lock-in through data hostage is the single most common complaint pattern in the retail research. Selling the opposite is a positioning asset, not a leak. |
+| 14 | 13F honesty layer | D4 | Low | Zero competitors, low effort, and it is the most quotable feature in the register. Every 13F product on the market shows a 45-day-stale long-only snapshot as if it were a portfolio. Saying so, in-product, is free differentiation. M4's Kalman filter later turns the honesty layer into an actual estimate. |
+
+**Read this band as one decision.** Twelve of the fourteen are low effort. Doing all fourteen is plausibly six to eight weeks of one engineer plus a policy decision, and it addresses the majority of the churn drivers documented across every complaint source in the research corpus.
+
+---
+
+## 3. Band B — Differentiation multipliers (17)
+
+Expensive, and each one puts the correctness thesis somewhere a buyer looks. Accuracy is the **#1 selection criterion at 87%** and outranks cost as a switching driver **88% versus roughly 33%** ([Dedale](https://www.dedale.com/reports/financial-and-market-data-survey-2026), [Coalition Greenwich](https://www.fi-desk.com/market-data-spending-on-the-up-coalition-greenwich-study-finds/)). This band is how that claim becomes visible.
+
+| # | Feature | ID | Effort | Why it is worth this much |
+|---|---|---|---|---|
+| 15 | Filing redline, table-to-Excel, full-text search | D8 | Medium | The one place a competitor is genuinely better today. BamSEC owns it at \$69/mo annual. EDGAR full-text search is free from the SEC; the redline is the work. Losing this row loses filings-first buyers outright. |
+| 16 | Company-specific ontology and KPI schema | R3 | High | A per-company RAG that does not know what that company's KPIs are is a document search box. This is what makes R1 worth paying for rather than a wrapper. |
+| 17 | Private and proprietary document ingestion | R5 | Medium | Three competitors have it, and it is the feature that converts a research tool into a workflow tool. Public and private must stay split so provenance rules survive. |
+| 18 | Multi-entity and thematic corpora | R8 | Medium | Hebbia Matrix has a partial version. This is where the RAG layer stops being per-company and starts answering supply-chain and sector questions, which is where institutional pricing lives. |
+| 19 | Point-in-time rolling consensus | T7 | High | Licensed consensus is Koyfin's moat and we concede it. Point-in-time consensus built from primary sources is the version nobody sells, and it is the only version that is honest — consensus vintages revise materially ([Harvard Business School](https://www.hbs.edu/faculty/Pages/item.aspx?num=34321)). This is C2 applied to estimates. |
+| 20 | Consensus revision history and momentum | — | Medium | Falls out of 19 almost free once bitemporal storage holds estimates. Revision direction is more predictive than level, and no retail product exposes the series. |
+| 21 | Estimate dispersion | — | Low | Also falls out of 19. Dispersion is a cheap uncertainty signal and feeds V3's uncertainty rendering directly. |
+| 22 | Guidance versus actual tracking | — | Medium | Management credibility scored over time. This is M15 calibration applied to a company's own forecasts, and it is a genuinely new primitive. |
+| 23 | Earnings surprise history | — | Low | Table stakes elsewhere, but with C2 behind it we can show the surprise against the consensus as it stood, not as later revised — which is a materially different and more honest number. |
+| 24 | Per-analyst accuracy scoring | — | Medium | Sell-side ratings are consumed with no accountability layer anywhere. M15 already gives us information coefficient and Brier scoring. Applying our own calibration machinery to analysts is high-visibility and cheap once M15 exists. |
+| 25 | Whisper and buy-side versus sell-side split | — | High | Hard, and mostly a data-acquisition problem. Ranked here because the dispersion between the two is where most earnings-reaction information sits. |
+| 26 | Custom formula and expression charting | — | Medium | The single most-requested power-user capability in the charting category. With the F7 metric registry behind it, every custom expression inherits provenance — which no competitor's formula engine can do. |
+| 27 | Implied-volatility surface from delayed EOD chains | — | Medium | We decline live options flow for OPRA licensing reasons. Delayed end-of-day chains are cheap, and an IV surface plus term structure covers most of the analytical value without the licence. |
+| 28 | Unusual-volume screening on delayed options data | — | Medium | Same logic. Cboe's own research documents that live retail flow proxies misclassify behaviour — OPRA feeds **exclude multi-leg orders**, complex orders were **58–76% of retail open positions by notional**, and **18% of retail trades printed at the mid-quote** where classification is impossible ([Cboe](https://cdn.cboe.com/resources/government_relations/Understanding-Retail-Investors-Dynamic-Trading-Behavior-in-the-US-Options-Market_2024.pdf)). A delayed-but-honest screen beats a live-but-wrong one, and we can say why. |
+| 29 | Public analyst and contributor profile pages | — | Low | Only worth building because X3's non-deletable track record and M15's calibration make the profiles meaningful. Everywhere else these are vanity pages. Here they are receipts. |
+| 30 | Model and idea leaderboards with calibration | — | Medium | Same reasoning. A leaderboard ranked by Brier score rather than by claimed returns is a different product from every community leaderboard in the cohort. |
+| 31 | **Docket-to-disclosure reconciliation** | L2 | Medium | The docket shows N pending matters with amounts sought; the 10-K says "no material adverse effect". **That divergence is the single most valuable thing in the L-series and possibly in this register.** No finance platform reads dockets; no litigation platform reads filings. Scored as a `C4` cross-source disagreement, which means it ships as a flagged discrepancy with both sources attached — never as an accusation. |
+
+**The pattern in this band.** Twelve of the sixteen are cheap only because Phase 2 built something underneath them — the metric registry, bitemporal storage, or the M15 calibration machinery. Built before Phase 2, most would be twice the work and half as defensible.
+
+---
+
+## 4. Band C — Table stakes and cheap enablers (25)
+
+Nothing here wins a deal. All of it loses one. An evaluator checks these in the first session and leaves if they are absent.
+
+| # | Feature | ID | Effort | Note |
+|---|---|---|---|---|
+| 32 | Portfolio tracking | T3 | Medium | Koyfin has it. Expected at every tier above free. |
+| 33 | Mobile PWA with alerts that work | T5 | Medium | Alerts are the real mobile use case. Quiver's native app **cannot search tickers at all** and drops the year from trade dates ([App Store](https://apps.apple.com/us/app/quiver-quantitative/id1568546369?see-all=reviews)) — the bar is low, so a PWA clears it. |
+| 34 | Global equity coverage | T6 | High | The most universal complaint across every product in the cohort. [EODHD at \$99.99/mo](https://eodhd.com/pricing) plus Brazil CVM is the cheap path. |
+| 35 | Forward multiples on consensus | — | Low | Expected on every company page. Trivial once T7 exists. |
+| 36 | Analyst rating changes and price-target history | — | Low | Expected. Our version carries the as-of date, which theirs mostly do not. |
+| 37 | Estimate revision screener | — | Medium | Standard screener dimension. Fits straight into T2. |
+| 38 | Multi-security overlay with normalisation | — | Low | Basic comparison charting. Absence is conspicuous. |
+| 39 | Drawing tools with persistence | — | Medium | Low analytical value, high perceived-completeness value. |
+| 40 | Chart templates with one-click apply | — | Low | Retention mechanic. Users who configure a template stay. |
+| 41 | Position-level profit and loss | — | Low | Baseline of any portfolio feature. |
+| 42 | Cost basis and tax lots | — | Medium | The line between a watchlist and a portfolio. |
+| 43 | Brokerage sync | — | Medium | Third-party aggregator; buy rather than build. |
+| 44 | Benchmark attribution | — | Medium | First question any portfolio user asks. |
+| 45 | Risk metrics — VaR, beta, maximum drawdown | — | Low | Nearly free once M8's volatility models are in the library. |
+| 46 | Shared watchlists and dashboards | — | Low | The cheapest team-seat justification that exists. Directly expands account value. |
+| 47 | Comments and annotations on charts and filings | — | Medium | Collaboration entry point. Annotations anchored to `EvidenceRef` spans are a genuinely better version than anyone else's. |
+| 48 | Shared workspaces | — | Medium | Required before team pricing is credible. |
+| 49 | Team permission roles | — | Medium | Hard requirement for any organisation above about ten seats. |
+| 50 | Legal proceedings and contingency-note extraction | L1 | Medium | Item 103 and the commitments-and-contingencies note into structured facts with character spans into `EvidenceRef`. Prerequisite for everything else in the L-series. |
+| 51 | Litigation reserve tracking — accrual build against settlement outflow | L3 | Medium | Reserve manipulation is a classic accruals channel, so this feeds `M11`'s Sloan accruals and the Beneish TATA term rather than standing alone as a legal metric. |
+| 52 | Enforcement-action event studies | L4 | Low | `M2` with a new event type across SEC, DOJ, OFAC and state AG actions. OFAC and SAM.gov are already integrated, so this is mostly wiring. |
+| 53 | Docket velocity as a leading indicator | L5 | Low | New filings land before the disclosure does. This is the timing edge in the series and it is nearly free once L1 exists. |
+| 54 | Exposure normalised against revenue, equity and cash | L6 | Low | An unnormalised dollar figure is useless cross-sectionally. Normalisation is what makes litigation exposure screenable. |
+| 55 | Point-in-time litigation exposure panel | L7 | Low | Falls out of `C2` — what was knowable on a date, with no look-ahead. This is the version Lex Machina and Trellis structurally cannot build, because they are built for lawyers asking about now. Feeds `A1`. |
+| 56 | Litigation fields in the screener and alerts | L8 | Low | Where the whole series actually gets used daily. |
+
+---
+
+## 4.1 A note on the seven L-series items in Band C
+
+They sit here on effort profile, and the band definition strains to hold them. **These are not table stakes in the usual sense** — no competitor has them, so their absence loses no deal today. They are in Band C because they are cheap, and because six of the seven exist only to make item 31 work.
+
+Read items 50 to 56 as the cost of item 31 rather than as seven independent features. That is the honest framing: one differentiator with a six-item dependency tail, priced at roughly two low-effort items plus one medium.
+
+**Two design rules for the whole series.**
+
+Time-to-resolution needs `M10` Cox hazard, not an average. Docket data is heavily censored because most pending matters have no outcome yet, so a mean duration computed on closed matters is biased short and will systematically understate when cash leaves the business.
+
+Report exposure, never liability. "Pending matters, amounts sought where stated, reserve disclosed, discrepancy flagged" is a financial fact pattern. "This company will lose" is a legal conclusion and an unfalsifiable one. The `G0` numeral rule and the `S12` prohibition on second-person recommendations already cover this; no new policy is needed.
+
+**One caveat carried forward.** Litigation outcome data is severely survivorship-biased: the overwhelming majority of civil matters settle, and settlements are largely unobservable in outcome terms, so any figure computed from decided cases is drawn from a small self-selected tail. This is `C8` territory. The specific trial-rate statistic commonly cited for federal civil cases was not verified in the research behind this document and should be checked before it appears in any customer-facing output.
+
+---
+
+## 5. Band D — Segment unlocks (11)
+
+Value is entirely conditional on deciding to sell to advisors or to research teams. If that decision is not made, this band is worth zero and should not be built. If it is made, it is worth a large multiple of the individual subscription price — and that is exactly why it must be a deliberate decision rather than a drift.
+
+| # | Feature | Effort | Conditional on |
+|---|---|---|---|
+| 57 | Factor exposure decomposition | Medium | Advisor and institutional. M13's hierarchical models make this defensible on thin data, which is unusual. |
+| 58 | Rebalancing engine | High | Advisor only. Substantial compliance surface attached. |
+| 59 | Model portfolios | Medium | Advisor only. |
+| 60 | Client reporting | Medium | Advisor only. Reuses V6's report builder, so cheaper than it looks. |
+| 61 | Multi-account households | High | Advisor only. Deep data-model change; decide before Phase 3 architecture is fixed, not after. |
+| 62 | Branded proposal export | Medium | Advisor only. No product in the matrix scores a clear Yes on this row. |
+| 63 | Notebook and memo co-authoring | High | Research teams. Overlaps the finding object in V4 — build as an extension of it or not at all. |
+| 64 | Team activity audit log | Low | Compliance-regulated buyers. Cheap, and G13's replay log supplies most of the plumbing. |
+| 65 | Curated newsletters | Low | Only if content marketing becomes a channel. Distribution asset, not a product feature. |
+| 66 | Education and tutorials library | Medium | Reduces support load, which X4 makes expensive. Pays for itself only at scale. |
+| 67 | Earnings-day live blog | Medium | Engagement play. Ongoing editorial cost, which is a recurring liability rather than an asset. |
+
+---
+
+## 6. Band E — Low value (5)
+
+Build when something else forces it.
+
+| # | Feature | Why it is ranked last |
+|---|---|---|
+| 68 | Native push delivery | The PWA in T5 covers alerts adequately. Native push means shipping a native app, which is a whole maintenance track for a marginal delivery improvement. |
+| 69 | Offline caching | Financial data users are online. This solves a problem almost nobody has. |
+| 70 | Biometric login | Nice, not load-bearing. SSO matters far more for the segments in Band D. |
+| 71 | Home-screen widgets | Requires a native app to exist first. Ranked below the thing it depends on. |
+| 72 | User-generated screen sharing | Moderation cost, quality-control cost, and it is in direct tension with the X4 support commitment. Band B's calibrated leaderboards serve the same social need without the liability. |
+
+---
+
+## 7. The 13 deliberately declined — not counted in the 72
+
+Recorded so nobody re-adds them by accident.
+
+Nine of the eleven options-and-flow rows — real-time flow, premium and exchange tagging, multi-leg tagging, flow sentiment, Greeks filters, gamma-exposure aggregates, dark-pool attribution and related — are licence-gated at OPRA and methodologically contested. Plus expert-call and channel-check networks, broker-research aggregation, licensed voice-of-customer transcripts, and group chat.
+
+Items 27 and 28 in Band B are the deliberate public-data substitutes for the options rows.
+
+---
+
+## 8. Summary
+
+| Band | Count | Aggregate effort | Business case |
+|---|---|---|---|
+| A — Conversion and retention blockers | 14 | Mostly low | Highest return per hour in the register. Twelve of fourteen are low effort. |
+| B — Differentiation multipliers | 17 | Medium to high | Where pricing power comes from. Cheap only because Phase 2 built the foundations. |
+| C — Table stakes and cheap enablers | 25 | Mostly low to medium | Loses deals when absent, wins none when present. Seven L-series items are here on cost, not on the table-stakes test. |
+| D — Segment unlocks | 11 | Medium to high | Worth zero unless the advisor or team segment is a deliberate decision. |
+| E — Low value | 5 | Low to medium | Defer. |
+| **Total** | **72** | | |
+
+**Three decisions, not seventy-two.**
+
+**Band A is one decision.** Do all fourteen, first. Twelve are low effort, none is engineering-hard, and together they address most of the churn drivers documented across the entire complaint corpus.
+
+**The L-series is one decision.** Item 31 plus its six-item dependency tail. Roughly three medium items and four low ones, and it produces the only capability in this register that neither a finance platform nor a litigation platform can currently build.
+
+**Band D is one decision, and it is not a product decision.** Eleven features worth either a large multiple of individual subscription revenue or exactly zero, depending on whether advisors and teams are a target segment. Make that call before Phase 3 architecture is fixed — item 61 in particular is a data-model change that gets expensive once the schema sets.
+
+Bands C and E can wait, and Band B should be sequenced behind Band A regardless of how much more interesting it is to build.
+Can you like summarize all of this information into a project management type of dashboard or camera or canvas like distinguishing between priorities and task and everything and verifications and audits that we have to do and all of the information organizing in a proper manner so that I can send it to the CEO based on what he have discussed and what are the priorities about all of these things
+
+And arrange it in a manner so that I can visualize what I what are the things that are remaining and what I must work on right now
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Yes. I’ve consolidated James’s messages, the API list, PayPal Mafia requirements, report requirements, Claude/finance research, the 72-feature register, and the verification concerns into a project-management structure.
+
+The core conclusion
+
+James is not primarily asking for more features. The underlying requirement is:
+
+Turn the platform into a deep financial intelligence system that can follow money, people, companies and relationships — and prove where every important fact came from.
+
+So I would organize the project into 6 workstreams, rather than treating every WhatsApp message as an individual task.
+
+⸻
+
+Finance Intelligence Platform — Current Command Center
+
+🔴 P0 — Work on these NOW
+
+Priority	Workstream	What you’re actually building
+🔴 P0	3rd-party API audit	Understand exactly what every existing source provides and where the gaps are
+🔴 P0	Following the Money	Officials → trades → investors → companies → boards → advisors → employees → family → vehicles
+🔴 P0	PayPal Mafia Intelligence	Recursive people/company/investment relationship graph
+🔴 P0	Deep Intelligence Reports	Expand reports far beyond financial statements
+🔴 P0	Verification / Provenance	Every important claim needs evidence, timestamp, source and confidence
+🔴 P0	UI / UX	Fix broken flows and move toward clean dark-blue finance UI
+
+🟠 P1 — Next
+
+* Cheap/open alternatives to PitchBook / Crunchbase
+* Claude finance skills
+* Band A — 14 conversion/retention features
+* Litigation → financial exposure intelligence
+* Network visualizations
+* More advanced report automation
+
+🔵 P2 — Planned
+
+* Selected Band B differentiators
+* Portfolio/team features
+* Advanced consensus analytics
+* Options analytics using permitted public/delayed data
+* Collaboration
+
+🟢 P3 — Backlog
+
+* Native app
+* Offline mode
+* Biometrics
+* Widgets
+* Low-value social features
+
+⸻
+
+What I think you should work on today
+
+If you’re sitting down to code/research right now, don’t randomly pick from the 72 features.
+
+Use this order:
+
+1. API/Data Audit 🔴
+
+This is the highest-leverage task.
+
+James specifically said:
+
+“You really need to research each source.”
+
+The existing list of 48 integrations should become a real data-source registry.
+
+For every API/source, determine:
+
+SOURCE
+ ├── What data does it provide?
+ ├── Which endpoints are actually being used?
+ ├── Which reports use it?
+ ├── Historical coverage?
+ ├── Real-time / delayed?
+ ├── Rate limits?
+ ├── Cost?
+ ├── Licensing / ToS?
+ ├── Data quality?
+ ├── Entity identifiers?
+ ├── Missing fields?
+ ├── Failure behaviour?
+ └── Fallback source?
+
+The crucial distinction:
+
+“Integrated” ≠ “usable for our intelligence system.”
+
+For example:
+
+SEC EDGAR
+    ↓
+10-K / 10-Q / 8-K
+    ↓
+Financial statements
+    ↓
+Management commentary
+    ↓
+Contracts / risks / litigation
+    ↓
+Company intelligence
+
+versus merely:
+
+SEC API → fetch filing → display filing
+
+James wants the first.
+
+⸻
+
+2. Build the “Following the Money” Engine 🔴
+
+This is probably the most important conceptual feature hidden inside James’s messages.
+
+Don’t think:
+
+“Find government officials who traded stocks.”
+
+Think:
+
+PERSON
+   │
+   ├── Trades
+   ├── Investments
+   ├── Companies
+   ├── Board seats
+   ├── Advisors
+   ├── Employees
+   ├── Universities
+   ├── Previous employers
+   ├── Family
+   ├── Trusts
+   ├── Holding companies
+   └── Investment vehicles
+          │
+          ↓
+       COMPANIES
+          │
+          ├── Investors
+          ├── Executives
+          ├── Boards
+          ├── Suppliers
+          ├── Contracts
+          └── Other investments
+
+That’s the actual intelligence graph James keeps describing.
+
+And this is why the PayPal Mafia example matters so much.
+
+⸻
+
+3. PayPal Mafia = Prototype for the Intelligence Graph 🔴
+
+Don’t treat PayPal Mafia as simply a report.
+
+Use it as a test case for the platform’s core intelligence engine.
+
+Start:
+
+Peter Thiel
+Elon Musk
+Max Levchin
+Reid Hoffman
+David Sacks
+Keith Rabois
+...
+
+Then recursively expand:
+
+Person
+ ↓
+Companies
+ ↓
+Investments
+ ↓
+Other investors
+ ↓
+Boards
+ ↓
+Advisors
+ ↓
+Employees
+ ↓
+Previous employers
+ ↓
+University
+ ↓
+Family / vehicles
+ ↓
+Other companies
+
+Then ask:
+
+What patterns emerge that aren’t obvious from any single database?
+
+That’s the product moat.
+
+⸻
+
+4. Upgrade the Report Generator 🔴
+
+The report should evolve from:
+
+“Financial report about NVIDIA”
+
+to:
+
+“Intelligence report about NVIDIA and its surrounding ecosystem.”
+
+The new report structure should be approximately:
+
+1. Executive Intelligence Summary
+2. Financial Fundamentals
+3. Demand & Growth
+4. Competitors
+5. Infrastructure & Scaling
+6. Customer Concentration / Churn
+7. Founder Intelligence
+8. Executive Intelligence
+9. Employee Intelligence
+10. Board Intelligence
+11. Advisor Intelligence
+12. Investor / Cap Table Intelligence
+13. Family / Related Entities
+14. Investment Network
+15. Government Contracts
+16. Lobbying
+17. Political Connections
+18. Legal / Regulatory Exposure
+19. News Timeline
+20. People Network
+21. Company Network
+22. Cross-Company Correlations
+23. Historical Timeline
+24. Potential Future Developments
+25. Verification & Evidence Appendix
+
+And importantly:
+
+Every conclusion should have a classification.
+
+For example:
+
+CONFIRMED
+██████████
+REPORTED
+████████░░
+INFERRED
+██████░░░░
+SPECULATIVE
+███░░░░░░░
+
+That prevents the system from turning OSINT inference into “fact.”
+
+⸻
+
+5. Verification becomes a first-class workstream 🔴
+
+This is the part I’d emphasize most to James.
+
+You need a Quality Gate between research and report generation.
+
+             DATA SOURCES
+                  ↓
+          Data Collection
+                  ↓
+          Entity Resolution
+                  ↓
+          Evidence Storage
+                  ↓
+          Cross Verification
+                  ↓
+        Intelligence Analysis
+                  ↓
+          Confidence Scoring
+                  ↓
+        ┌──────────────────┐
+        │   QUALITY GATE   │
+        └────────┬─────────┘
+                 ↓
+             FINAL REPORT
+
+The audit should answer:
+
+Data audit
+
+* Is the source actually working?
+* Is the data current?
+* Is historical data available?
+* Are there missing records?
+* Are there rate limits?
+
+Entity audit
+
+* Is Peter Thiel actually Peter Thiel?
+* Are two companies actually the same entity?
+* Did an employee really work there during that period?
+
+Temporal audit
+
+* Did this information exist at that point in time?
+* Are we accidentally using information that became available later?
+
+Relationship audit
+
+If we say:
+
+A → invested in → B
+
+we need:
+
+A
+ ↓
+Relationship
+ ↓
+B
+Evidence:
+Source
+Date
+Document
+Confidence
+
+Correlation audit
+
+Especially important:
+
+Correlation ≠ causation.
+
+The system should never convert:
+
+A worked with B
++
+B invested in C
+
+into:
+
+A influenced C
+
+without evidence.
+
+⸻
+
+6. The 72-feature list should NOT become 72 simultaneous tasks
+
+This is where I’d change the way you manage the project.
+
+James’s 72 features are a roadmap, not a daily task list.
+
+Use:
+
+BAND A
+14 features
+       ↓
+DO FIRST
+BAND B
+17 features
+       ↓
+Build after foundations
+BAND C
+25 features
+       ↓
+Table stakes / selective
+BAND D
+11 features
+       ↓
+Only if advisor/team market is approved
+BAND E
+5 features
+       ↓
+Ignore for now
+
+The most important instruction from the document is essentially:
+
+Don’t let feature development distract from the intelligence/data foundation.
+
+⸻
+
+The project hierarchy I’d use
+
+FINANCE INTELLIGENCE PLATFORM
+│
+├── 01. DATA FOUNDATION 🔴
+│   ├── API audit
+│   ├── Data coverage
+│   ├── Freshness
+│   ├── Rate limits
+│   ├── Licensing
+│   └── Fallbacks
+│
+├── 02. INTELLIGENCE GRAPH 🔴
+│   ├── People
+│   ├── Companies
+│   ├── Investors
+│   ├── Boards
+│   ├── Advisors
+│   ├── Employees
+│   ├── Family
+│   ├── Vehicles
+│   └── Relationships
+│
+├── 03. FOLLOW THE MONEY 🔴
+│   ├── Officials
+│   ├── Trades
+│   ├── Investments
+│   ├── Lobbying
+│   ├── Contracts
+│   └── Political money
+│
+├── 04. DEEP REPORTS 🔴
+│   ├── Financials
+│   ├── Competition
+│   ├── Demand
+│   ├── Infrastructure
+│   ├── People
+│   ├── Investors
+│   ├── Contracts
+│   ├── Legal
+│   ├── News
+│   └── Correlations
+│
+├── 05. VERIFICATION 🔴
+│   ├── Provenance
+│   ├── Point-in-time
+│   ├── Entity resolution
+│   ├── Confidence
+│   ├── Cross-source validation
+│   └── Red-team testing
+│
+├── 06. PRODUCT / UI 🔴
+│   ├── Broken routes
+│   ├── Finance UI
+│   ├── Dark blue theme
+│   ├── Graphs
+│   ├── Timelines
+│   └── Report UX
+│
+├── 07. DATA EXPANSION 🟠
+│   ├── Fundable
+│   ├── Coresignal
+│   ├── PDL
+│   ├── Caplight
+│   ├── PrivCo
+│   └── Apify
+│
+└── 08. FEATURE ROADMAP
+    ├── Band A
+    ├── Band B
+    ├── Band C
+    ├── Band D
+    └── Band E
+
+And the dependency chain is:
+
+API audit → data model → intelligence graph → verification → reports → UI → advanced features
+
+That’s the sequence I’d follow.
+
+⸻
+
+I also created the actual project-management workbook
+
+It has separate sheets for:
+
+* CEO Dashboard
+* Master Backlog
+* 3rd-Party API Audit
+* Verification & Audits
+* Deep Intelligence Report Blueprint
+* 72 Feature Roadmap
+* CEO One-Page Summary
+
+You can send the CEO-facing sheet directly, while keeping the detailed sheets for your own execution.
+
+Download the Finance Intelligence CEO Project Dashboard⁠￼
+
+One important strategic observation
+
+James’s messages look like a huge collection of unrelated requests — APIs, PayPal Mafia, UI, reports, Claude skills, litigation, competitors, investors, employees, government contracts, etc.
+
+But they’re actually pointing toward one product architecture:
+
+A financial intelligence knowledge graph with evidence-backed research agents sitting on top of it.
+
+The APIs are the eyes.
+The entity/relationship graph is the memory.
+The research agents are the brain.
+The verification layer is the skeptic.
+The report/UI is the interface.
+
+If you build that underlying architecture correctly, a lot of James’s seemingly separate requests become different queries against the same intelligence system, rather than separate features you have to hand-build one by one.

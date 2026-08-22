@@ -22,6 +22,7 @@ from typing import Optional, List
 from datetime import datetime
 
 from app.db.session import get_db
+from app.auth.security import get_current_user
 from app.models.monitor import (
     Watchlist,
     WatchlistItem,
@@ -105,6 +106,7 @@ async def create_dashboard(
     name: str = Query("My Dashboard", description="Dashboard name"),
     is_default: bool = Query(False, description="Set as default"),
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Create a new dashboard.
@@ -177,6 +179,7 @@ async def update_dashboard(
     is_default: Optional[bool] = Query(None),
     layout: Optional[dict] = None,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Update dashboard settings.
@@ -212,6 +215,7 @@ async def update_dashboard(
 async def delete_dashboard(
     dashboard_id: int,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Delete a dashboard and all its widgets.
@@ -244,6 +248,7 @@ async def add_widget(
     height: int = Query(1, description="Height in grid units"),
     config: Optional[dict] = None,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Add a widget to a dashboard.
@@ -286,6 +291,7 @@ async def update_widget(
     height: Optional[int] = Query(None),
     config: Optional[dict] = None,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Update a widget's configuration or position.
@@ -322,6 +328,7 @@ async def delete_widget(
     dashboard_id: int,
     widget_id: int,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Remove a widget from a dashboard.

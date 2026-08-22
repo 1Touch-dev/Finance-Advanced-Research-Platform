@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
+import NoDataCard from '../src/components/NoDataCard';
+import { isNoData } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -7,6 +9,7 @@ export default function PortfolioAnalyticsPage() {
   const [activeTab, setActiveTab] = useState('factors');
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState({});
+  const [noData, setNoData] = useState(null);
   const userId = 'demo_user';
 
   const tabs = [
@@ -30,11 +33,13 @@ export default function PortfolioAnalyticsPage() {
     const tab = tabs.find(t => t.id === tabId);
     if (!tab) return;
     setLoading(true);
+    setNoData(null);
     try {
       const needsUser = !['models', 'factor-timing'].includes(tabId);
       const url = `${API_BASE}/portfolio-analytics/${tab.endpoint}${needsUser ? `?user_id=${userId}` : ''}`;
       const res = await fetch(url, { method: tab.method || 'GET' });
       const result = await res.json();
+      if (isNoData(result)) { setNoData(result); setLoading(false); return; }
       setData(prev => ({ ...prev, [tabId]: result }));
     } catch (err) {
       console.error('Error:', err);
@@ -71,6 +76,8 @@ export default function PortfolioAnalyticsPage() {
       <div className="bg-gray-800 rounded-lg p-6">
         {loading ? (
           <div className="text-center py-10">Loading...</div>
+        ) : noData ? (
+          <NoDataCard {...noData} />
         ) : !currentData ? (
           <div className="text-center py-10 text-gray-400">Select a tab to view analytics</div>
         ) : (

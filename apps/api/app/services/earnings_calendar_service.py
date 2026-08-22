@@ -7,7 +7,7 @@ Provides earnings calendar data with:
 - Earnings estimate and surprise data
 - Conference call schedules
 
-Data Source: Finnhub (FREE) with fallback to mock data
+Data Source: Finnhub (FREE)
 API: https://finnhub.io/docs/api/earnings-calendar
 """
 
@@ -15,7 +15,6 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from enum import Enum
-import random
 import logging
 
 # Import real data connector
@@ -29,9 +28,6 @@ from app.connectors.finnhub_earnings_connector import (
 )
 
 log = logging.getLogger(__name__)
-
-# Feature flag: set to True to use real Finnhub data
-USE_REAL_DATA = True
 
 
 class EarningsSession(str, Enum):
@@ -83,8 +79,7 @@ class EarningsEvent:
         }
 
 
-# ── Mock Data ─────────────────────────────────────────────────────────────────
-
+# Ticker importance lookup for classification
 COMPANIES = {
     "AAPL": ("Apple Inc.", "high"),
     "MSFT": ("Microsoft Corp.", "high"),
@@ -109,40 +104,24 @@ COMPANIES = {
 }
 
 
-def _generate_mock_earnings(ticker: str, date: datetime, reported: bool = False) -> EarningsEvent:
-    """Generate mock earnings data for testing."""
-    company_name, importance = COMPANIES.get(ticker, (f"{ticker} Corp.", "low"))
-    
-    eps_estimate = round(random.uniform(0.5, 5.0), 2)
-    revenue_estimate = round(random.uniform(10, 100), 2)  # In billions
-    
-    eps_actual = None
-    revenue_actual = None
-    surprise = None
-    
-    if reported:
-        surprise_pct = random.uniform(-0.15, 0.20)
-        eps_actual = round(eps_estimate * (1 + surprise_pct), 2)
-        revenue_actual = round(revenue_estimate * (1 + random.uniform(-0.05, 0.10)), 2)
-        surprise = round(surprise_pct * 100, 1)
-    
-    quarter = ((date.month - 1) // 3) + 1
-    
+def _dict_to_event(e: Dict[str, Any]) -> EarningsEvent:
+    """Convert a connector dict to an EarningsEvent dataclass."""
+    ticker = e.get("ticker", "")
     return EarningsEvent(
         ticker=ticker,
-        company_name=company_name,
-        earnings_date=date.strftime("%Y-%m-%d"),
-        session=random.choice(["pre_market", "after_hours"]),
-        fiscal_quarter=f"Q{quarter}",
-        fiscal_year=date.year,
-        eps_estimate=eps_estimate,
-        revenue_estimate=revenue_estimate,
-        eps_actual=eps_actual,
-        revenue_actual=revenue_actual,
-        surprise_percent=surprise,
-        conference_call_time=f"{random.randint(8, 17):02d}:00 ET",
-        importance=importance,
-        confirmed=random.random() > 0.2,
+        company_name=e.get("company_name", ticker),
+        earnings_date=e.get("earnings_date", ""),
+        session=e.get("session", "unknown"),
+        fiscal_quarter=e.get("fiscal_quarter", ""),
+        fiscal_year=e.get("fiscal_year", 0),
+        eps_estimate=e.get("eps_estimate"),
+        revenue_estimate=e.get("revenue_estimate"),
+        eps_actual=e.get("eps_actual"),
+        revenue_actual=e.get("revenue_actual"),
+        surprise_percent=e.get("surprise_percent"),
+        conference_call_time=None,
+        importance=_get_importance_from_ticker(ticker),
+        confirmed=True,
     )
 
 
@@ -154,80 +133,41 @@ def get_upcoming_earnings(
     tickers: Optional[List[str]] = None,
     importance: Optional[str] = None,
 ) -> List[EarningsEvent]:
-    """Get earnings events for the next N days.
+    """Get earnings events for the next N days."""
+    try:
+        real_events = finnhub_get_upcoming(days_ahead=days_ahead, importance=importance)
+        if not real_events:
+            return []
 
-    Uses Finnhub real data when available, falls back to mock data.
-    """
-    if USE_REAL_DATA:
-        try:
-            real_events = finnhub_get_upcoming(days_ahead=days_ahead, importance=importance)
-            if real_events:
-                events = []
-                for e in real_events:
-                    # Filter by tickers if specified
-                    if tickers and e.get("ticker") not in [t.upper() for t in tickers]:
-                        continue
-                    events.append(EarningsEvent(
-                        ticker=e.get("ticker", ""),
-                        company_name=e.get("company_name", e.get("ticker", "")),
-                        earnings_date=e.get("earnings_date", ""),
-                        session=e.get("session", "unknown"),
-                        fiscal_quarter=e.get("fiscal_quarter", ""),
-                        fiscal_year=e.get("fiscal_year", 0),
-                        eps_estimate=e.get("eps_estimate"),
-                        revenue_estimate=e.get("revenue_estimate"),
-                        eps_actual=e.get("eps_actual"),
-                        revenue_actual=e.get("revenue_actual"),
-                        surprise_percent=e.get("surprise_percent"),
-                        conference_call_time=None,
-                        importance=_get_importance_from_ticker(e.get("ticker", "")),
-                        confirmed=True,
-                    ))
-                events.sort(key=lambda x: x.earnings_date)
-                return events
-        except Exception as ex:
-            log.warning("Finnhub earnings fetch failed, using mock: %s", ex)
+        events = []
+        for e in real_events:
+            if tickers and e.get("ticker") not in [t.upper() for t in tickers]:
+                continue
+            events.append(_dict_to_event(e))
 
-    # Fallback to mock data
-    today = datetime.utcnow().date()
-    events = []
-
-    target_tickers = tickers if tickers else list(COMPANIES.keys())
-
-    for ticker in target_tickers:
-        # Random date in the range
-        days_offset = random.randint(0, days_ahead)
-        event_date = today + timedelta(days=days_offset)
-        event = _generate_mock_earnings(ticker, datetime.combine(event_date, datetime.min.time()))
-
-        if importance and event.importance != importance:
-            continue
-
-        events.append(event)
-
-    # Sort by date
-    events.sort(key=lambda e: e.earnings_date)
-    return events
+        events.sort(key=lambda x: x.earnings_date)
+        return events
+    except Exception as ex:
+        log.warning("Finnhub earnings fetch failed: %s", ex)
+        return []
 
 
 def _get_importance_from_ticker(ticker: str) -> str:
     """Determine importance from ticker."""
-    name, imp = COMPANIES.get(ticker.upper(), (ticker, "medium"))
+    _, imp = COMPANIES.get(ticker.upper(), (ticker, "medium"))
     return imp
 
 
 def get_earnings_by_date(date: str) -> List[EarningsEvent]:
     """Get all earnings events for a specific date."""
-    target_date = datetime.strptime(date, "%Y-%m-%d")
-    events = []
-    
-    # Generate 3-8 random earnings for the date
-    sample_tickers = random.sample(list(COMPANIES.keys()), random.randint(3, 8))
-    
-    for ticker in sample_tickers:
-        events.append(_generate_mock_earnings(ticker, target_date))
-    
-    return events
+    try:
+        real_events = finnhub_get_calendar(from_date=date, to_date=date)
+        if not real_events:
+            return []
+        return [_dict_to_event(e) for e in real_events]
+    except Exception as ex:
+        log.warning("Finnhub earnings by date failed: %s", ex)
+        return []
 
 
 def get_ticker_earnings_history(
@@ -235,37 +175,34 @@ def get_ticker_earnings_history(
     quarters: int = 8,
 ) -> List[EarningsEvent]:
     """Get historical earnings for a ticker."""
-    events = []
-    today = datetime.utcnow()
-    
-    for i in range(quarters):
-        # Go back i quarters
-        quarter_date = today - timedelta(days=90 * (i + 1))
-        event = _generate_mock_earnings(ticker, quarter_date, reported=True)
-        events.append(event)
-    
-    events.reverse()  # Oldest first
-    return events
+    try:
+        result = finnhub_get_ticker_earnings(ticker, include_historical=True)
+        if not result:
+            return []
+
+        historical = result.get("historical", [])
+        events = [_dict_to_event(e) for e in historical]
+        events.sort(key=lambda x: x.earnings_date)
+        return events[-quarters:]
+    except Exception as ex:
+        log.warning("Finnhub ticker earnings history failed: %s", ex)
+        return []
 
 
 def get_earnings_calendar_week(start_date: Optional[str] = None) -> Dict[str, List[EarningsEvent]]:
     """Get earnings calendar for a week, grouped by date."""
-    if start_date:
-        week_start = datetime.strptime(start_date, "%Y-%m-%d")
-    else:
-        week_start = datetime.utcnow()
-        # Adjust to Monday
-        week_start = week_start - timedelta(days=week_start.weekday())
-    
-    calendar = {}
-    
-    for day_offset in range(5):  # Mon-Fri
-        day = week_start + timedelta(days=day_offset)
-        date_str = day.strftime("%Y-%m-%d")
-        events = get_earnings_by_date(date_str)
-        calendar[date_str] = events
-    
-    return calendar
+    try:
+        week_data = finnhub_get_week(start_date=start_date)
+        if not week_data:
+            return {}
+
+        calendar = {}
+        for date_str, events_list in week_data.items():
+            calendar[date_str] = [_dict_to_event(e) for e in events_list]
+        return calendar
+    except Exception as ex:
+        log.warning("Finnhub earnings week failed: %s", ex)
+        return {}
 
 
 def get_earnings_surprises(
@@ -273,20 +210,20 @@ def get_earnings_surprises(
     days_back: int = 30,
 ) -> List[EarningsEvent]:
     """Get recent earnings surprises above a threshold."""
-    events = []
-    today = datetime.utcnow()
-    
-    for ticker in COMPANIES.keys():
-        days_ago = random.randint(1, days_back)
-        event_date = today - timedelta(days=days_ago)
-        event = _generate_mock_earnings(ticker, event_date, reported=True)
-        
-        if event.surprise_percent and abs(event.surprise_percent) >= min_surprise:
-            events.append(event)
-    
-    # Sort by surprise magnitude (descending)
-    events.sort(key=lambda e: abs(e.surprise_percent or 0), reverse=True)
-    return events
+    try:
+        real_surprises = finnhub_get_surprises(
+            min_surprise_percent=min_surprise,
+            days_back=days_back,
+        )
+        if not real_surprises:
+            return []
+
+        events = [_dict_to_event(e) for e in real_surprises]
+        events.sort(key=lambda e: abs(e.surprise_percent or 0), reverse=True)
+        return events
+    except Exception as ex:
+        log.warning("Finnhub earnings surprises failed: %s", ex)
+        return []
 
 
 def search_earnings(
@@ -297,49 +234,105 @@ def search_earnings(
     limit: int = 50,
 ) -> Dict[str, Any]:
     """Search earnings calendar with filters."""
-    all_events = []
-    
-    start = datetime.strptime(start_date, "%Y-%m-%d") if start_date else datetime.utcnow() - timedelta(days=30)
-    end = datetime.strptime(end_date, "%Y-%m-%d") if end_date else datetime.utcnow() + timedelta(days=30)
-    
-    for ticker, (name, imp) in COMPANIES.items():
-        if query and query.upper() not in ticker and query.lower() not in name.lower():
-            continue
-        if importance and imp != importance:
-            continue
-        
-        # Generate a random event in the date range
-        days_range = (end - start).days
-        if days_range > 0:
-            event_date = start + timedelta(days=random.randint(0, days_range))
-            reported = event_date < datetime.utcnow()
-            all_events.append(_generate_mock_earnings(ticker, event_date, reported))
-    
-    all_events.sort(key=lambda e: e.earnings_date)
-    
-    return {
-        "events": [e.to_dict() for e in all_events[:limit]],
-        "total": len(all_events),
-        "filters": {
-            "query": query,
-            "start_date": start_date,
-            "end_date": end_date,
-            "importance": importance,
-        },
-    }
+    try:
+        from_d = start_date or (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%d")
+        to_d = end_date or (datetime.utcnow() + timedelta(days=30)).strftime("%Y-%m-%d")
+
+        # If query looks like a ticker, pass as symbol filter
+        symbol = query.upper() if query and len(query) <= 5 and query.isalpha() else None
+        real_events = finnhub_get_calendar(from_date=from_d, to_date=to_d, symbol=symbol)
+        if not real_events:
+            return {
+                "events": [],
+                "total": 0,
+                "filters": {"query": query, "start_date": start_date, "end_date": end_date, "importance": importance},
+            }
+
+        all_events = []
+        for e in real_events:
+            ticker = e.get("ticker", "")
+            name = e.get("company_name", "")
+            imp = _get_importance_from_ticker(ticker)
+
+            if query and not symbol:
+                if query.upper() not in ticker and query.lower() not in name.lower():
+                    continue
+            if importance and imp != importance:
+                continue
+
+            all_events.append(_dict_to_event(e))
+
+        all_events.sort(key=lambda ev: ev.earnings_date)
+
+        return {
+            "events": [ev.to_dict() for ev in all_events[:limit]],
+            "total": len(all_events),
+            "filters": {
+                "query": query,
+                "start_date": start_date,
+                "end_date": end_date,
+                "importance": importance,
+            },
+        }
+    except Exception as ex:
+        log.warning("Finnhub search_earnings failed: %s", ex)
+        return {
+            "events": [],
+            "total": 0,
+            "filters": {"query": query, "start_date": start_date, "end_date": end_date, "importance": importance},
+        }
 
 
 def get_earnings_stats() -> Dict[str, Any]:
-    """Get earnings calendar statistics."""
-    today = datetime.utcnow()
-    
-    return {
-        "this_week": random.randint(80, 150),
-        "next_week": random.randint(50, 100),
-        "reported_today": random.randint(5, 20),
-        "beats_this_week": random.randint(60, 80),
-        "misses_this_week": random.randint(10, 30),
-        "avg_surprise_percent": round(random.uniform(2, 8), 1),
-        "high_importance_upcoming": random.randint(10, 25),
-        "last_updated": today.isoformat(),
-    }
+    """Get earnings calendar statistics from real data."""
+    try:
+        today = datetime.utcnow()
+        week_start = today - timedelta(days=today.weekday())
+        week_end = week_start + timedelta(days=4)
+        next_week_start = week_end + timedelta(days=3)
+        next_week_end = next_week_start + timedelta(days=4)
+
+        this_week = finnhub_get_calendar(
+            from_date=week_start.strftime("%Y-%m-%d"),
+            to_date=week_end.strftime("%Y-%m-%d"),
+        ) or []
+
+        next_week = finnhub_get_calendar(
+            from_date=next_week_start.strftime("%Y-%m-%d"),
+            to_date=next_week_end.strftime("%Y-%m-%d"),
+        ) or []
+
+        today_events = finnhub_get_calendar(
+            from_date=today.strftime("%Y-%m-%d"),
+            to_date=today.strftime("%Y-%m-%d"),
+        ) or []
+
+        beats = [e for e in this_week if (e.get("surprise_percent") or 0) > 0]
+        misses = [e for e in this_week if (e.get("surprise_percent") or 0) < 0]
+        surprises = [e.get("surprise_percent", 0) for e in this_week if e.get("surprise_percent") is not None]
+        avg_surprise = round(sum(surprises) / len(surprises), 1) if surprises else 0.0
+
+        high_upcoming = [e for e in this_week if _get_importance_from_ticker(e.get("ticker", "")) == "high"]
+
+        return {
+            "this_week": len(this_week),
+            "next_week": len(next_week),
+            "reported_today": len([e for e in today_events if e.get("eps_actual") is not None]),
+            "beats_this_week": len(beats),
+            "misses_this_week": len(misses),
+            "avg_surprise_percent": avg_surprise,
+            "high_importance_upcoming": len(high_upcoming),
+            "last_updated": today.isoformat(),
+        }
+    except Exception as ex:
+        log.warning("Finnhub earnings stats failed: %s", ex)
+        return {
+            "this_week": 0,
+            "next_week": 0,
+            "reported_today": 0,
+            "beats_this_week": 0,
+            "misses_this_week": 0,
+            "avg_surprise_percent": 0.0,
+            "high_importance_upcoming": 0,
+            "last_updated": datetime.utcnow().isoformat(),
+        }

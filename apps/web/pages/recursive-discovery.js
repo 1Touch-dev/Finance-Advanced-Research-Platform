@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import Head from 'next/head';
+import NoDataCard from '../src/components/NoDataCard';
+import { isNoData } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -13,10 +15,12 @@ export default function RecursiveDiscoveryPage() {
   const [chain, setChain] = useState(null);
   const [comparison, setComparison] = useState(null);
   const [activeTab, setActiveTab] = useState('graph');
+  const [noData, setNoData] = useState(null);
 
   async function runDiscovery() {
     if (!ticker) return;
     setLoading(true);
+    setNoData(null);
     const t = ticker.toUpperCase();
     try {
       const [graphRes, clustersRes, circularRes, chainRes] = await Promise.all([
@@ -25,7 +29,9 @@ export default function RecursiveDiscoveryPage() {
         fetch(`${API_BASE}/recursive/circular/${t}`),
         fetch(`${API_BASE}/recursive/chain/${t}`)
       ]);
-      setGraph(await graphRes.json());
+      const graphData = await graphRes.json();
+      if (isNoData(graphData)) { setNoData(graphData); setLoading(false); return; }
+      setGraph(graphData);
       setClusters(await clustersRes.json());
       setCircular(await circularRes.json());
       setChain(await chainRes.json());
@@ -100,6 +106,8 @@ export default function RecursiveDiscoveryPage() {
           </button>
         </div>
       </div>
+
+      {noData && <div className="mb-6"><NoDataCard {...noData} /></div>}
 
       {graph && (
         <>

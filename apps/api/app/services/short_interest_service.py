@@ -15,7 +15,6 @@ API: https://api.finra.org/data/group/otcMarket/name/EquityShortInterest
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
-import random
 import logging
 
 # Import real data connector
@@ -28,9 +27,6 @@ from app.connectors.finra_short_interest_connector import (
 )
 
 log = logging.getLogger(__name__)
-
-# Feature flag: set to True to use real FINRA data
-USE_REAL_DATA = True
 
 
 @dataclass
@@ -85,50 +81,20 @@ class ShortSqueezeIndicator:
         }
 
 
-# ── Mock Data ─────────────────────────────────────────────────────────────────
-
-COMPANIES = {
-    "GME": ("GameStop Corp.", 25.0, 8.5),
-    "AMC": ("AMC Entertainment", 22.0, 5.2),
-    "TSLA": ("Tesla Inc.", 3.2, 1.8),
-    "AAPL": ("Apple Inc.", 0.8, 0.5),
-    "MSFT": ("Microsoft Corp.", 0.6, 0.4),
-    "NVDA": ("NVIDIA Corp.", 1.5, 1.2),
-    "BBBY": ("Bed Bath & Beyond", 35.0, 12.0),
-    "KOSS": ("Koss Corporation", 40.0, 15.0),
-    "BB": ("BlackBerry Limited", 8.5, 4.2),
-    "NOK": ("Nokia Corporation", 2.1, 1.5),
-    "PLTR": ("Palantir Technologies", 4.5, 2.8),
-    "RIVN": ("Rivian Automotive", 12.0, 5.5),
-    "LCID": ("Lucid Group Inc.", 15.0, 6.2),
-    "SOFI": ("SoFi Technologies", 9.0, 4.0),
-    "HOOD": ("Robinhood Markets", 7.5, 3.8),
-}
-
-
-def _generate_short_data(ticker: str) -> ShortInterestData:
-    """Generate mock short interest data."""
-    name, base_short_pct, base_dtc = COMPANIES.get(ticker, (f"{ticker} Inc.", 5.0, 2.0))
-    
-    short_pct = base_short_pct * random.uniform(0.8, 1.2)
-    dtc = base_dtc * random.uniform(0.8, 1.2)
-    
-    avg_volume = random.randint(5_000_000, 50_000_000)
-    short_interest = int(avg_volume * dtc * random.uniform(0.8, 1.2))
-    prior_short = int(short_interest * random.uniform(0.85, 1.15))
-    change_pct = (short_interest - prior_short) / prior_short * 100 if prior_short else 0
-    
+def _connector_dict_to_data(item: Dict[str, Any]) -> ShortInterestData:
+    """Convert a connector dict into a ShortInterestData dataclass."""
+    si_pct = item.get("short_percent_float", 0) or 0
     return ShortInterestData(
-        ticker=ticker,
-        company_name=name,
-        short_interest=short_interest,
-        short_percent_float=round(short_pct, 2),
-        short_percent_outstanding=round(short_pct * 0.7, 2),
-        days_to_cover=round(dtc, 1),
-        short_change_percent=round(change_pct, 1),
-        avg_daily_volume=avg_volume,
-        settlement_date=(datetime.utcnow() - timedelta(days=random.randint(1, 15))).strftime("%Y-%m-%d"),
-        prior_short_interest=prior_short,
+        ticker=item.get("ticker", ""),
+        company_name=item.get("company_name", ""),
+        short_interest=item.get("short_interest", 0),
+        short_percent_float=round(si_pct, 2),
+        short_percent_outstanding=round(si_pct * 0.7, 2),
+        days_to_cover=item.get("days_to_cover", 0),
+        short_change_percent=item.get("change_percent", 0),
+        avg_daily_volume=item.get("avg_daily_volume", 0),
+        settlement_date=item.get("settlement_date", ""),
+        prior_short_interest=item.get("prior_short_interest", 0),
     )
 
 
@@ -136,165 +102,110 @@ def _generate_short_data(ticker: str) -> ShortInterestData:
 
 
 def get_short_interest(ticker: str) -> Optional[ShortInterestData]:
-    """Get current short interest for a ticker.
-
-    Uses FINRA real data when available, falls back to mock data.
-    """
-    if USE_REAL_DATA:
-        try:
-            real_data = finra_get_short_interest(ticker)
-            if real_data:
-                return ShortInterestData(
-                    ticker=real_data.get("ticker", ticker.upper()),
-                    company_name=real_data.get("company_name", f"{ticker} Inc."),
-                    short_interest=real_data.get("short_interest", 0),
-                    short_percent_float=real_data.get("short_percent_float", 0),
-                    short_percent_outstanding=real_data.get("short_percent_float", 0) * 0.7,
-                    days_to_cover=real_data.get("days_to_cover", 0),
-                    short_change_percent=real_data.get("change_percent", 0),
-                    avg_daily_volume=real_data.get("avg_daily_volume", 0),
-                    settlement_date=real_data.get("settlement_date", ""),
-                    prior_short_interest=real_data.get("prior_short_interest", 0),
-                )
-        except Exception as e:
-            log.warning("FINRA data fetch failed for %s, using mock: %s", ticker, e)
-
-    # Fallback to mock data
-    if ticker.upper() not in COMPANIES:
-        return ShortInterestData(
-            ticker=ticker.upper(),
-            company_name=f"{ticker.upper()} Corp.",
-            short_interest=random.randint(1_000_000, 10_000_000),
-            short_percent_float=round(random.uniform(1, 10), 2),
-            short_percent_outstanding=round(random.uniform(0.5, 7), 2),
-            days_to_cover=round(random.uniform(1, 5), 1),
-            short_change_percent=round(random.uniform(-20, 30), 1),
-            avg_daily_volume=random.randint(1_000_000, 20_000_000),
-            settlement_date=(datetime.utcnow() - timedelta(days=random.randint(1, 15))).strftime("%Y-%m-%d"),
-            prior_short_interest=random.randint(1_000_000, 10_000_000),
-        )
-
-    return _generate_short_data(ticker.upper())
+    """Get current short interest for a ticker from FINRA/yfinance."""
+    try:
+        real_data = finra_get_short_interest(ticker)
+        if not real_data:
+            return None
+        return _connector_dict_to_data(real_data)
+    except Exception as e:
+        log.warning("FINRA data fetch failed for %s: %s", ticker, e)
+        return None
 
 
 def get_short_interest_history(
     ticker: str,
     periods: int = 12,
 ) -> List[Dict[str, Any]]:
-    """Get historical short interest data."""
-    history = []
-    base_data = get_short_interest(ticker)
-    if not base_data:
+    """Get historical short interest data from FINRA."""
+    try:
+        history = finra_get_history(ticker, periods=periods)
+        if not history:
+            return []
+
+        results = []
+        for record in history:
+            results.append({
+                "settlement_date": record.get("settlement_date", ""),
+                "short_interest": record.get("short_interest", 0),
+                "short_percent_float": record.get("short_percent_float", 0),
+                "days_to_cover": record.get("days_to_cover", 0),
+            })
+        return results
+    except Exception as e:
+        log.warning("FINRA history fetch failed for %s: %s", ticker, e)
         return []
-    
-    current_short = base_data.short_interest
-    
-    for i in range(periods):
-        # Go back i bi-weekly periods (short interest is reported bi-weekly)
-        period_date = datetime.utcnow() - timedelta(days=14 * i)
-        
-        # Simulate historical values with some variance
-        historical_short = int(current_short * random.uniform(0.7, 1.3))
-        
-        history.append({
-            "settlement_date": period_date.strftime("%Y-%m-%d"),
-            "short_interest": historical_short,
-            "short_percent_float": round(base_data.short_percent_float * random.uniform(0.8, 1.2), 2),
-            "days_to_cover": round(base_data.days_to_cover * random.uniform(0.8, 1.2), 1),
-        })
-    
-    history.reverse()
-    return history
 
 
 def get_most_shorted(
     min_short_percent: float = 10.0,
     limit: int = 20,
 ) -> List[ShortInterestData]:
-    """Get most heavily shorted stocks.
+    """Get most heavily shorted stocks from FINRA."""
+    try:
+        real_data = finra_get_most_shorted(min_short_interest=1_000_000, limit=limit * 3)
+        if not real_data:
+            return []
 
-    Uses FINRA real data when available, falls back to mock data.
-    """
-    if USE_REAL_DATA:
-        try:
-            real_data = finra_get_most_shorted(min_short_interest=1_000_000, limit=limit)
-            if real_data:
-                results = []
-                for item in real_data:
-                    si_pct = item.get("short_percent_float", 0)
-                    if si_pct is None:
-                        # Calculate approximate short % from short interest and volume
-                        si = item.get("short_interest", 0)
-                        vol = item.get("avg_daily_volume", 1)
-                        si_pct = (si / (vol * 20)) * 100 if vol > 0 else 5.0  # Rough estimate
-                    if si_pct >= min_short_percent:
-                        results.append(ShortInterestData(
-                            ticker=item.get("ticker", ""),
-                            company_name=item.get("company_name", ""),
-                            short_interest=item.get("short_interest", 0),
-                            short_percent_float=round(si_pct, 2),
-                            short_percent_outstanding=round(si_pct * 0.7, 2),
-                            days_to_cover=item.get("days_to_cover", 0),
-                            short_change_percent=item.get("change_percent", 0),
-                            avg_daily_volume=item.get("avg_daily_volume", 0),
-                            settlement_date=item.get("settlement_date", ""),
-                            prior_short_interest=item.get("prior_short_interest", 0),
-                        ))
-                if results:
-                    results.sort(key=lambda x: x.short_percent_float, reverse=True)
-                    return results[:limit]
-        except Exception as e:
-            log.warning("FINRA most shorted fetch failed, using mock: %s", e)
+        results = []
+        for item in real_data:
+            si_pct = item.get("short_percent_float", 0) or 0
+            if si_pct == 0:
+                si = item.get("short_interest", 0)
+                vol = item.get("avg_daily_volume", 1)
+                si_pct = (si / (vol * 20)) * 100 if vol > 0 else 0
+            if si_pct >= min_short_percent:
+                results.append(_connector_dict_to_data(item))
 
-    # Fallback to mock data
-    results = []
-    for ticker in COMPANIES.keys():
-        data = _generate_short_data(ticker)
-        if data.short_percent_float >= min_short_percent:
-            results.append(data)
-
-    results.sort(key=lambda x: x.short_percent_float, reverse=True)
-    return results[:limit]
+        results.sort(key=lambda x: x.short_percent_float, reverse=True)
+        return results[:limit]
+    except Exception as e:
+        log.warning("FINRA most shorted fetch failed: %s", e)
+        return []
 
 
 def get_short_squeeze_candidates(
     min_squeeze_score: float = 50.0,
     limit: int = 20,
 ) -> List[ShortSqueezeIndicator]:
-    """Get potential short squeeze candidates."""
-    candidates = []
-    
-    for ticker in COMPANIES.keys():
-        data = _generate_short_data(ticker)
-        
-        # Calculate squeeze score based on multiple factors
-        score = 0.0
-        score += min(data.short_percent_float * 2, 40)  # Max 40 from short %
-        score += min(data.days_to_cover * 5, 30)  # Max 30 from days to cover
-        
-        borrow_rate = random.uniform(1, 50)  # Mock borrow rate
-        score += min(borrow_rate, 20)  # Max 20 from borrow rate
-        
-        momentum = random.uniform(-10, 15)
-        if momentum > 0:
-            score += min(momentum, 10)  # Max 10 from momentum
-        
-        if score >= min_squeeze_score:
-            risk_level = "low" if score < 60 else ("medium" if score < 75 else "high")
-            
-            candidates.append(ShortSqueezeIndicator(
-                ticker=ticker,
-                squeeze_score=round(score, 1),
-                short_percent_float=data.short_percent_float,
-                days_to_cover=data.days_to_cover,
-                borrow_rate=round(borrow_rate, 2),
-                price_momentum_5d=round(momentum, 2),
-                volume_vs_avg=round(random.uniform(0.5, 3.0), 2),
-                risk_level=risk_level,
-            ))
-    
-    candidates.sort(key=lambda x: x.squeeze_score, reverse=True)
-    return candidates[:limit]
+    """Get potential short squeeze candidates based on FINRA data.
+
+    Squeeze score is computed from short % of float and days to cover.
+    Borrow rate, momentum, and volume_vs_avg are not available from FINRA;
+    they are set to 0 to indicate no data.
+    """
+    try:
+        real_data = finra_get_most_shorted(min_short_interest=1_000_000, limit=100)
+        if not real_data:
+            return []
+
+        candidates = []
+        for item in real_data:
+            si_pct = item.get("short_percent_float", 0) or 0
+            dtc = item.get("days_to_cover", 0) or 0
+
+            score = 0.0
+            score += min(si_pct * 2, 40)
+            score += min(dtc * 5, 30)
+
+            if score >= min_squeeze_score:
+                risk_level = "low" if score < 60 else ("medium" if score < 75 else "high")
+                candidates.append(ShortSqueezeIndicator(
+                    ticker=item.get("ticker", ""),
+                    squeeze_score=round(score, 1),
+                    short_percent_float=round(si_pct, 2),
+                    days_to_cover=round(dtc, 1),
+                    borrow_rate=0.0,
+                    price_momentum_5d=0.0,
+                    volume_vs_avg=0.0,
+                    risk_level=risk_level,
+                ))
+
+        candidates.sort(key=lambda x: x.squeeze_score, reverse=True)
+        return candidates[:limit]
+    except Exception as e:
+        log.warning("FINRA squeeze candidates fetch failed: %s", e)
+        return []
 
 
 def get_short_changes(
@@ -302,42 +213,58 @@ def get_short_changes(
     direction: str = "both",  # "up", "down", or "both"
     limit: int = 20,
 ) -> List[ShortInterestData]:
-    """Get stocks with significant short interest changes."""
-    results = []
-    
-    for ticker in COMPANIES.keys():
-        data = _generate_short_data(ticker)
-        
-        if abs(data.short_change_percent) >= min_change_percent:
-            if direction == "up" and data.short_change_percent < 0:
+    """Get stocks with significant short interest changes from FINRA."""
+    try:
+        real_changes = finra_get_changes(min_change_percent=min_change_percent, limit=limit * 3)
+        if not real_changes:
+            return []
+
+        results = []
+        for item in real_changes:
+            change_pct = item.get("change_percent", 0)
+            if direction == "up" and change_pct < 0:
                 continue
-            if direction == "down" and data.short_change_percent > 0:
+            if direction == "down" and change_pct > 0:
                 continue
-            results.append(data)
-    
-    results.sort(key=lambda x: abs(x.short_change_percent), reverse=True)
-    return results[:limit]
+            results.append(_connector_dict_to_data(item))
+
+        results.sort(key=lambda x: abs(x.short_change_percent), reverse=True)
+        return results[:limit]
+    except Exception as e:
+        log.warning("FINRA short changes fetch failed: %s", e)
+        return []
 
 
 def get_sector_short_summary() -> List[Dict[str, Any]]:
-    """Get short interest summary by sector."""
+    """Get short interest summary by sector.
+
+    Fetches real data for representative tickers in each sector.
+    """
     sectors = {
         "Technology": ["AAPL", "MSFT", "NVDA", "PLTR"],
-        "Consumer Discretionary": ["TSLA", "GME", "AMC", "BBBY"],
+        "Consumer Discretionary": ["TSLA", "GME", "AMC"],
         "Financials": ["HOOD", "SOFI"],
         "Automotive": ["RIVN", "LCID"],
         "Communications": ["BB", "NOK"],
     }
-    
+
     summary = []
     for sector, tickers in sectors.items():
-        sector_data = [_generate_short_data(t) for t in tickers if t in COMPANIES]
+        sector_data: List[ShortInterestData] = []
+        for t in tickers:
+            try:
+                data = finra_get_short_interest(t)
+                if data:
+                    sector_data.append(_connector_dict_to_data(data))
+            except Exception:
+                continue
+
         if not sector_data:
             continue
-        
+
         avg_short_pct = sum(d.short_percent_float for d in sector_data) / len(sector_data)
         avg_dtc = sum(d.days_to_cover for d in sector_data) / len(sector_data)
-        
+
         summary.append({
             "sector": sector,
             "stock_count": len(sector_data),
@@ -345,23 +272,51 @@ def get_sector_short_summary() -> List[Dict[str, Any]]:
             "avg_days_to_cover": round(avg_dtc, 1),
             "most_shorted": max(sector_data, key=lambda x: x.short_percent_float).ticker,
         })
-    
+
     summary.sort(key=lambda x: x["avg_short_percent_float"], reverse=True)
     return summary
 
 
 def get_short_stats() -> Dict[str, Any]:
-    """Get overall short interest statistics."""
-    all_data = [_generate_short_data(t) for t in COMPANIES.keys()]
-    
-    return {
-        "total_tracked": len(all_data),
-        "highly_shorted_count": len([d for d in all_data if d.short_percent_float >= 20]),
-        "avg_short_percent": round(sum(d.short_percent_float for d in all_data) / len(all_data), 2),
-        "avg_days_to_cover": round(sum(d.days_to_cover for d in all_data) / len(all_data), 1),
-        "net_short_change": round(sum(d.short_change_percent for d in all_data) / len(all_data), 2),
-        "most_shorted": max(all_data, key=lambda x: x.short_percent_float).ticker,
-        "biggest_increase": max(all_data, key=lambda x: x.short_change_percent).ticker,
-        "biggest_decrease": min(all_data, key=lambda x: x.short_change_percent).ticker,
-        "last_updated": datetime.utcnow().isoformat(),
-    }
+    """Get overall short interest statistics from real data."""
+    try:
+        all_data_raw = finra_get_most_shorted(min_short_interest=1_000_000, limit=50)
+        if not all_data_raw:
+            return {
+                "total_tracked": 0,
+                "highly_shorted_count": 0,
+                "avg_short_percent": 0.0,
+                "avg_days_to_cover": 0.0,
+                "net_short_change": 0.0,
+                "most_shorted": "",
+                "biggest_increase": "",
+                "biggest_decrease": "",
+                "last_updated": datetime.utcnow().isoformat(),
+            }
+
+        all_data = [_connector_dict_to_data(item) for item in all_data_raw]
+
+        return {
+            "total_tracked": len(all_data),
+            "highly_shorted_count": len([d for d in all_data if d.short_percent_float >= 20]),
+            "avg_short_percent": round(sum(d.short_percent_float for d in all_data) / len(all_data), 2),
+            "avg_days_to_cover": round(sum(d.days_to_cover for d in all_data) / len(all_data), 1),
+            "net_short_change": round(sum(d.short_change_percent for d in all_data) / len(all_data), 2),
+            "most_shorted": max(all_data, key=lambda x: x.short_percent_float).ticker,
+            "biggest_increase": max(all_data, key=lambda x: x.short_change_percent).ticker,
+            "biggest_decrease": min(all_data, key=lambda x: x.short_change_percent).ticker,
+            "last_updated": datetime.utcnow().isoformat(),
+        }
+    except Exception as e:
+        log.warning("FINRA short stats fetch failed: %s", e)
+        return {
+            "total_tracked": 0,
+            "highly_shorted_count": 0,
+            "avg_short_percent": 0.0,
+            "avg_days_to_cover": 0.0,
+            "net_short_change": 0.0,
+            "most_shorted": "",
+            "biggest_increase": "",
+            "biggest_decrease": "",
+            "last_updated": datetime.utcnow().isoformat(),
+        }

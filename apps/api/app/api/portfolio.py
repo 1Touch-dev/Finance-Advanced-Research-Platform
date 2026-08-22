@@ -25,6 +25,7 @@ import io
 
 from app.db.session import get_db
 from app.models.monitor import Portfolio, Position
+from app.auth.security import get_current_user
 from app.services.portfolio_service import (
     get_portfolio_service,
     calculate_risk_metrics,
@@ -88,6 +89,7 @@ async def create_portfolio(
     base_currency: str = Query("USD", description="Base currency"),
     thesis: Optional[str] = Query(None, description="Investment thesis"),
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Create a new portfolio.
@@ -206,6 +208,7 @@ async def update_portfolio(
     base_currency: Optional[str] = Query(None),
     thesis: Optional[str] = Query(None),
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Update portfolio metadata.
@@ -237,6 +240,7 @@ async def update_portfolio(
 async def delete_portfolio(
     portfolio_id: int,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Delete a portfolio and all its positions.
@@ -266,6 +270,7 @@ async def add_position(
     cost_basis: float = Query(..., description="Cost per share"),
     notes: Optional[str] = Query(None, description="Position notes"),
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Add a position to the portfolio.
@@ -305,6 +310,7 @@ async def update_position(
     cost_basis: Optional[float] = Query(None),
     notes: Optional[str] = Query(None),
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Update an existing position.
@@ -338,6 +344,7 @@ async def delete_position(
     portfolio_id: int,
     position_id: int,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Delete a position from the portfolio.
@@ -540,6 +547,7 @@ async def import_positions(
     portfolio_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Import positions from CSV file.

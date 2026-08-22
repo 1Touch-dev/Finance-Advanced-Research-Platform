@@ -111,7 +111,7 @@ def get_leaderboard_by_trades(limit: int = 50) -> List[Dict]:
             "state": _safe_str(r.get("state")),
             "trade_count": _safe_int(r.get("trades") or r.get("trade_count")),
             "trade_source": _safe_str(r.get("trade_source")) or "Capitol Trades",
-            "volume_usd": _safe_float(r.get("volume_m") or r.get("volume")) * (1_000_000 if "m" in str(r.get("volume_m", "")).lower() else 1),
+            "volume_usd": _safe_float(r.get("volume_m")) * 1_000_000 if r.get("volume_m") else _safe_float(r.get("volume")),
             "return_pct": _safe_float(r.get("return_pct") or r.get("return")),
             "net_profit_usd": _safe_float(r.get("net_profit_m") or r.get("net_profit")) * 1_000_000,
         }

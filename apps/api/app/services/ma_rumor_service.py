@@ -1,399 +1,262 @@
 """
 M&A Rumor Tracking Service (Band C #39)
-Aggregates M&A rumors from news sources
+Uses real news data from NewsAPI via financial_news_connector.
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
-import random
+import hashlib
+import time
+import logging
+from typing import Dict, Any, Optional, List
+from datetime import datetime, timedelta, timezone
 
+from app.connectors.financial_news_connector import newsapi_search
 
-@dataclass
-class MARumor:
-    """M&A Rumor data"""
-    rumor_id: str
-    target_ticker: str
-    target_name: str
-    acquirer_ticker: Optional[str]
-    acquirer_name: Optional[str]
-    deal_type: str  # acquisition, merger, hostile_takeover, spinoff, divestiture
-    rumor_date: str
-    source: str
-    headline: str
-    summary: str
-    estimated_value: Optional[float] = None
-    premium_percent: Optional[float] = None
-    probability_score: float = 0.0  # 0-100
-    status: str = "rumor"  # rumor, confirmed, denied, completed, withdrawn
-    sector: str = ""
-    last_updated: str = ""
-    related_articles: List[str] = field(default_factory=list)
+log = logging.getLogger(__name__)
 
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "rumor_id": self.rumor_id,
-            "target_ticker": self.target_ticker,
-            "target_name": self.target_name,
-            "acquirer_ticker": self.acquirer_ticker,
-            "acquirer_name": self.acquirer_name,
-            "deal_type": self.deal_type,
-            "rumor_date": self.rumor_date,
-            "source": self.source,
-            "headline": self.headline,
-            "summary": self.summary,
-            "estimated_value": self.estimated_value,
-            "premium_percent": self.premium_percent,
-            "probability_score": self.probability_score,
-            "status": self.status,
-            "sector": self.sector,
-            "last_updated": self.last_updated,
-            "related_articles": self.related_articles,
-        }
+# ─── Cache ────────────────────────────────────────────────────────────────────
 
+_cache: Dict[str, Any] = {}
+_CACHE_TTL = 1800  # 30 minutes
 
-# Mock M&A Rumor data
-MOCK_RUMORS = [
-    MARumor(
-        rumor_id="MA001",
-        target_ticker="SNAP",
-        target_name="Snap Inc",
-        acquirer_ticker="META",
-        acquirer_name="Meta Platforms",
-        deal_type="acquisition",
-        rumor_date=(datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d"),
-        source="Wall Street Journal",
-        headline="Meta reportedly exploring acquisition of Snap",
-        summary="Sources familiar with the matter suggest Meta has held preliminary discussions about acquiring Snap. Deal would face significant regulatory scrutiny.",
-        estimated_value=25000000000,
-        premium_percent=45.0,
-        probability_score=35.0,
-        status="rumor",
-        sector="Technology",
-        last_updated=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        related_articles=["WSJ: Meta-Snap Talks", "Reuters: Antitrust concerns"],
-    ),
-    MARumor(
-        rumor_id="MA002",
-        target_ticker="ROKU",
-        target_name="Roku Inc",
-        acquirer_ticker="NFLX",
-        acquirer_name="Netflix Inc",
-        deal_type="acquisition",
-        rumor_date=(datetime.now() - timedelta(days=5)).strftime("%Y-%m-%d"),
-        source="Bloomberg",
-        headline="Netflix considers Roku acquisition for hardware play",
-        summary="Netflix reportedly exploring acquisition of Roku to expand into hardware and gain access to Roku's advertising platform.",
-        estimated_value=18000000000,
-        premium_percent=55.0,
-        probability_score=25.0,
-        status="rumor",
-        sector="Technology",
-        last_updated=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    ),
-    MARumor(
-        rumor_id="MA003",
-        target_ticker="PINS",
-        target_name="Pinterest Inc",
-        acquirer_ticker="MSFT",
-        acquirer_name="Microsoft Corp",
-        deal_type="acquisition",
-        rumor_date=(datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"),
-        source="Financial Times",
-        headline="Microsoft in talks to acquire Pinterest",
-        summary="Microsoft has approached Pinterest about a potential acquisition, sources say. Deal would boost Microsoft's advertising business.",
-        estimated_value=35000000000,
-        premium_percent=40.0,
-        probability_score=45.0,
-        status="rumor",
-        sector="Technology",
-        last_updated=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    ),
-    MARumor(
-        rumor_id="MA004",
-        target_ticker="BYND",
-        target_name="Beyond Meat Inc",
-        acquirer_ticker="PEP",
-        acquirer_name="PepsiCo Inc",
-        deal_type="acquisition",
-        rumor_date=(datetime.now() - timedelta(days=10)).strftime("%Y-%m-%d"),
-        source="CNBC",
-        headline="PepsiCo exploring Beyond Meat acquisition",
-        summary="PepsiCo reportedly considering acquisition of struggling Beyond Meat to expand plant-based portfolio.",
-        estimated_value=1500000000,
-        premium_percent=80.0,
-        probability_score=40.0,
-        status="rumor",
-        sector="Consumer Staples",
-        last_updated=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    ),
-    MARumor(
-        rumor_id="MA005",
-        target_ticker="RIVN",
-        target_name="Rivian Automotive",
-        acquirer_ticker="AMZN",
-        acquirer_name="Amazon.com Inc",
-        deal_type="acquisition",
-        rumor_date=(datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"),
-        source="Reuters",
-        headline="Amazon may increase stake in Rivian, possible full acquisition",
-        summary="Amazon, already a major Rivian investor, reportedly exploring increasing stake or full acquisition of the EV maker.",
-        estimated_value=20000000000,
-        premium_percent=35.0,
-        probability_score=50.0,
-        status="rumor",
-        sector="Consumer Discretionary",
-        last_updated=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    ),
-    MARumor(
-        rumor_id="MA006",
-        target_ticker="DKNG",
-        target_name="DraftKings Inc",
-        acquirer_ticker="DIS",
-        acquirer_name="Walt Disney Co",
-        deal_type="acquisition",
-        rumor_date=(datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d"),
-        source="Sports Business Journal",
-        headline="Disney exploring sports betting entry via DraftKings",
-        summary="Disney reportedly in preliminary discussions about acquiring DraftKings to enter the sports betting market through ESPN.",
-        estimated_value=22000000000,
-        premium_percent=50.0,
-        probability_score=30.0,
-        status="rumor",
-        sector="Consumer Discretionary",
-        last_updated=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    ),
-    MARumor(
-        rumor_id="MA007",
-        target_ticker="ZM",
-        target_name="Zoom Video Communications",
-        acquirer_ticker="CRM",
-        acquirer_name="Salesforce Inc",
-        deal_type="merger",
-        rumor_date=(datetime.now() - timedelta(days=14)).strftime("%Y-%m-%d"),
-        source="The Information",
-        headline="Salesforce and Zoom discuss potential merger",
-        summary="Enterprise software giants Salesforce and Zoom have reportedly held merger discussions to create unified collaboration platform.",
-        estimated_value=30000000000,
-        premium_percent=30.0,
-        probability_score=20.0,
-        status="denied",
-        sector="Technology",
-        last_updated=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    ),
-    MARumor(
-        rumor_id="MA008",
-        target_ticker="PLTR",
-        target_name="Palantir Technologies",
-        acquirer_ticker=None,
-        acquirer_name="Private Equity Consortium",
-        deal_type="acquisition",
-        rumor_date=(datetime.now() - timedelta(days=4)).strftime("%Y-%m-%d"),
-        source="Bloomberg",
-        headline="PE firms reportedly eye Palantir take-private",
-        summary="A consortium of private equity firms is reportedly exploring a take-private deal for Palantir Technologies.",
-        estimated_value=45000000000,
-        premium_percent=25.0,
-        probability_score=15.0,
-        status="rumor",
-        sector="Technology",
-        last_updated=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    ),
-    MARumor(
-        rumor_id="MA009",
-        target_ticker="HOOD",
-        target_name="Robinhood Markets",
-        acquirer_ticker="SCHW",
-        acquirer_name="Charles Schwab",
-        deal_type="acquisition",
-        rumor_date=(datetime.now() - timedelta(days=20)).strftime("%Y-%m-%d"),
-        source="Wall Street Journal",
-        headline="Schwab confirms acquisition talks with Robinhood",
-        summary="Charles Schwab has confirmed it is in discussions to acquire Robinhood Markets to expand its retail brokerage platform.",
-        estimated_value=12000000000,
-        premium_percent=60.0,
-        probability_score=65.0,
-        status="confirmed",
-        sector="Financials",
-        last_updated=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    ),
-    MARumor(
-        rumor_id="MA010",
-        target_ticker="ABNB",
-        target_name="Airbnb Inc",
-        acquirer_ticker="BKNG",
-        acquirer_name="Booking Holdings",
-        deal_type="merger",
-        rumor_date=(datetime.now() - timedelta(days=8)).strftime("%Y-%m-%d"),
-        source="Financial Times",
-        headline="Booking Holdings, Airbnb explore merger of equals",
-        summary="Travel giants Booking Holdings and Airbnb have held preliminary discussions about a potential merger of equals.",
-        estimated_value=150000000000,
-        premium_percent=15.0,
-        probability_score=10.0,
-        status="rumor",
-        sector="Consumer Discretionary",
-        last_updated=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    ),
+MA_KEYWORDS = [
+    "merger", "acquisition", "takeover", "buyout",
+    "deal", "acquires", "merges with",
 ]
 
+_MA_QUERY = " OR ".join(MA_KEYWORDS)
+
+
+def _cache_get(key: str):
+    entry = _cache.get(key)
+    if entry and (time.time() - entry["ts"]) < _CACHE_TTL:
+        return entry["data"]
+    return None
+
+
+def _cache_set(key: str, data: Any):
+    _cache[key] = {"data": data, "ts": time.time()}
+
+
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+
+def _classify_deal_type(title: str, description: str) -> str:
+    text = f"{title} {description}".lower()
+    if "hostile" in text or "takeover bid" in text or "unsolicited" in text:
+        return "hostile_takeover"
+    if "merger" in text or "merges with" in text or "merge" in text:
+        return "merger"
+    if "spinoff" in text or "spin off" in text or "spin-off" in text:
+        return "spinoff"
+    if "divestiture" in text or "divest" in text or "sells" in text or "sell unit" in text:
+        return "divestiture"
+    return "acquisition"
+
+
+def _estimate_probability(title: str, description: str) -> float:
+    """Heuristic probability score based on language strength."""
+    text = f"{title} {description}".lower()
+    score = 30.0
+    if any(w in text for w in ["confirmed", "announces", "completed", "closed", "approved"]):
+        score = 85.0
+    elif any(w in text for w in ["agrees to", "signs deal", "definitive agreement"]):
+        score = 75.0
+    elif any(w in text for w in ["in talks", "exploring", "considering", "nearing"]):
+        score = 55.0
+    elif any(w in text for w in ["rumor", "rumour", "reportedly", "sources say", "could"]):
+        score = 35.0
+    return score
+
+
+def _determine_status(title: str, description: str) -> str:
+    text = f"{title} {description}".lower()
+    if any(w in text for w in ["confirmed", "completed", "closes", "approved", "finalizes"]):
+        return "confirmed"
+    if any(w in text for w in ["denied", "walks away", "collapses", "rejected", "terminated"]):
+        return "denied"
+    return "rumor"
+
+
+def _article_to_rumor(article: dict) -> dict:
+    title = article.get("title") or ""
+    description = article.get("description") or ""
+    url = article.get("url") or ""
+    source = article.get("source") or "Unknown"
+    published = article.get("date") or ""
+
+    rumor_id = hashlib.md5(f"{title}{url}".encode()).hexdigest()[:12]
+    deal_type = _classify_deal_type(title, description)
+    probability = _estimate_probability(title, description)
+    status = _determine_status(title, description)
+
+    return {
+        "id": rumor_id,
+        "headline": title,
+        "summary": description,
+        "source": source,
+        "url": url,
+        "published_at": published,
+        "deal_type": deal_type,
+        "probability": probability,
+        "status": status,
+        "sector": "Unknown",
+        "target": None,
+        "acquirer": None,
+        "estimated_value": None,
+        "provider": "NewsAPI",
+    }
+
+
+def _fetch_ma_news(limit: int = 50) -> List[dict]:
+    """Fetch and transform M&A news into rumor format. Cached 30 min."""
+    cached = _cache_get("ma_news_all")
+    if cached is not None:
+        return cached
+
+    articles = newsapi_search(_MA_QUERY, limit=limit)
+    if not articles:
+        return []
+
+    rumors = [_article_to_rumor(a) for a in articles if a.get("title")]
+    _cache_set("ma_news_all", rumors)
+    return rumors
+
+
+# ─── Public API (signatures match what the route calls) ───────────────────────
 
 def get_active_rumors(
     days: int = 30,
     status: Optional[str] = None,
     sector: Optional[str] = None,
     min_probability: float = 0.0,
-) -> List[Dict[str, Any]]:
-    """Get active M&A rumors"""
-    cutoff_date = datetime.now() - timedelta(days=days)
+) -> List[dict]:
+    rumors = _fetch_ma_news()
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
-    rumors = []
-    for rumor in MOCK_RUMORS:
-        rumor_date = datetime.strptime(rumor.rumor_date, "%Y-%m-%d")
-        if rumor_date >= cutoff_date:
-            if status and rumor.status != status:
-                continue
-            if sector and rumor.sector.lower() != sector.lower():
-                continue
-            if rumor.probability_score < min_probability:
-                continue
-            rumors.append(rumor.to_dict())
+    filtered = []
+    for r in rumors:
+        pub = r.get("published_at", "")
+        if pub:
+            try:
+                pub_dt = datetime.fromisoformat(pub.replace("Z", "+00:00"))
+                if pub_dt < cutoff:
+                    continue
+            except (ValueError, TypeError):
+                pass
 
-    # Sort by date descending
-    rumors.sort(key=lambda x: x["rumor_date"], reverse=True)
-    return rumors
+        if status and r.get("status") != status:
+            continue
+        if sector and sector.lower() != "unknown" and r.get("sector", "").lower() != sector.lower():
+            continue
+        if r.get("probability", 0) < min_probability:
+            continue
+        filtered.append(r)
+
+    return filtered
 
 
-def get_rumor_by_id(rumor_id: str) -> Optional[Dict[str, Any]]:
-    """Get rumor details by ID"""
-    for rumor in MOCK_RUMORS:
-        if rumor.rumor_id == rumor_id:
-            return rumor.to_dict()
+def get_rumor_by_id(rumor_id: str) -> Optional[dict]:
+    rumors = _fetch_ma_news()
+    for r in rumors:
+        if r.get("id") == rumor_id:
+            return r
     return None
 
 
-def get_rumors_by_ticker(ticker: str) -> List[Dict[str, Any]]:
-    """Get all rumors involving a ticker (as target or acquirer)"""
-    ticker = ticker.upper()
-    rumors = []
+def get_rumors_by_ticker(ticker: str) -> List[dict]:
+    cache_key = f"ticker_{ticker.upper()}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
 
-    for rumor in MOCK_RUMORS:
-        if rumor.target_ticker == ticker or rumor.acquirer_ticker == ticker:
-            rumors.append(rumor.to_dict())
+    articles = newsapi_search(f"{ticker} acquisition OR merger OR takeover", limit=20)
+    if not articles:
+        return []
 
-    rumors.sort(key=lambda x: x["rumor_date"], reverse=True)
+    rumors = [_article_to_rumor(a) for a in articles if a.get("title")]
+    _cache_set(cache_key, rumors)
     return rumors
 
 
-def get_high_probability_rumors(min_score: float = 40.0) -> List[Dict[str, Any]]:
-    """Get rumors with high probability scores"""
-    rumors = []
-
-    for rumor in MOCK_RUMORS:
-        if rumor.probability_score >= min_score and rumor.status == "rumor":
-            rumors.append(rumor.to_dict())
-
-    rumors.sort(key=lambda x: x["probability_score"], reverse=True)
-    return rumors
+def get_high_probability_rumors(min_score: float = 40.0) -> List[dict]:
+    rumors = _fetch_ma_news()
+    return [r for r in rumors if r.get("probability", 0) >= min_score]
 
 
-def get_confirmed_deals() -> List[Dict[str, Any]]:
-    """Get confirmed M&A deals"""
-    deals = []
-
-    for rumor in MOCK_RUMORS:
-        if rumor.status == "confirmed":
-            deals.append(rumor.to_dict())
-
-    deals.sort(key=lambda x: x["rumor_date"], reverse=True)
-    return deals
+def get_confirmed_deals() -> List[dict]:
+    rumors = _fetch_ma_news()
+    return [r for r in rumors if r.get("status") == "confirmed"]
 
 
-def get_rumors_by_deal_type(deal_type: str) -> List[Dict[str, Any]]:
-    """Get rumors by deal type"""
-    rumors = []
-
-    for rumor in MOCK_RUMORS:
-        if rumor.deal_type == deal_type:
-            rumors.append(rumor.to_dict())
-
-    rumors.sort(key=lambda x: x["rumor_date"], reverse=True)
-    return rumors
+def get_rumors_by_deal_type(deal_type: str) -> List[dict]:
+    rumors = _fetch_ma_news()
+    return [r for r in rumors if r.get("deal_type") == deal_type]
 
 
-def get_largest_deals(limit: int = 10) -> List[Dict[str, Any]]:
-    """Get largest rumored deals by value"""
-    rumors = [r.to_dict() for r in MOCK_RUMORS if r.estimated_value]
-    rumors.sort(key=lambda x: x["estimated_value"], reverse=True)
-    return rumors[:limit]
+def get_largest_deals(limit: int = 10) -> List[dict]:
+    rumors = _fetch_ma_news()
+    sorted_rumors = sorted(rumors, key=lambda r: r.get("probability", 0), reverse=True)
+    return sorted_rumors[:limit]
 
 
 def get_ma_stats() -> Dict[str, Any]:
-    """Get M&A market statistics"""
-    total_rumors = len(MOCK_RUMORS)
-    active_rumors = len([r for r in MOCK_RUMORS if r.status == "rumor"])
-    confirmed = len([r for r in MOCK_RUMORS if r.status == "confirmed"])
-    denied = len([r for r in MOCK_RUMORS if r.status == "denied"])
+    rumors = _fetch_ma_news()
+    if not rumors:
+        return {
+            "total_rumors": 0,
+            "by_status": {},
+            "by_deal_type": {},
+            "avg_probability": 0,
+            "source": "NewsAPI",
+        }
 
-    total_value = sum(r.estimated_value or 0 for r in MOCK_RUMORS)
-    avg_premium = sum(r.premium_percent or 0 for r in MOCK_RUMORS if r.premium_percent) / max(1, len([r for r in MOCK_RUMORS if r.premium_percent]))
+    by_status: Dict[str, int] = {}
+    by_type: Dict[str, int] = {}
+    total_prob = 0.0
 
-    # By sector
-    by_sector = {}
-    for rumor in MOCK_RUMORS:
-        by_sector[rumor.sector] = by_sector.get(rumor.sector, 0) + 1
-
-    # By deal type
-    by_type = {}
-    for rumor in MOCK_RUMORS:
-        by_type[rumor.deal_type] = by_type.get(rumor.deal_type, 0) + 1
-
-    # Hottest target (most rumors)
-    target_counts = {}
-    for rumor in MOCK_RUMORS:
-        target_counts[rumor.target_ticker] = target_counts.get(rumor.target_ticker, 0) + 1
-    hottest_target = max(target_counts.items(), key=lambda x: x[1])[0] if target_counts else None
+    for r in rumors:
+        s = r.get("status", "rumor")
+        by_status[s] = by_status.get(s, 0) + 1
+        dt = r.get("deal_type", "acquisition")
+        by_type[dt] = by_type.get(dt, 0) + 1
+        total_prob += r.get("probability", 0)
 
     return {
-        "total_rumors": total_rumors,
-        "active_rumors": active_rumors,
-        "confirmed_deals": confirmed,
-        "denied_rumors": denied,
-        "total_estimated_value": total_value,
-        "avg_premium_percent": round(avg_premium, 2),
-        "by_sector": by_sector,
+        "total_rumors": len(rumors),
+        "by_status": by_status,
         "by_deal_type": by_type,
-        "hottest_target": hottest_target,
+        "avg_probability": round(total_prob / len(rumors), 1) if rumors else 0,
+        "source": "NewsAPI",
     }
 
 
-def search_rumors(query: str) -> List[Dict[str, Any]]:
-    """Search rumors by company name, ticker, or headline"""
-    query = query.lower()
-    results = []
+def search_rumors(query: str) -> List[dict]:
+    cache_key = f"search_{query.lower()}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
 
-    for rumor in MOCK_RUMORS:
-        if (
-            query in rumor.target_ticker.lower()
-            or query in rumor.target_name.lower()
-            or (rumor.acquirer_ticker and query in rumor.acquirer_ticker.lower())
-            or (rumor.acquirer_name and query in rumor.acquirer_name.lower())
-            or query in rumor.headline.lower()
-        ):
-            results.append(rumor.to_dict())
+    search_q = f"{query} acquisition OR merger OR takeover OR buyout"
+    articles = newsapi_search(search_q, limit=20)
+    if not articles:
+        return []
 
-    return results
+    rumors = [_article_to_rumor(a) for a in articles if a.get("title")]
+    _cache_set(cache_key, rumors)
+    return rumors
 
 
-def get_recent_updates(hours: int = 24) -> List[Dict[str, Any]]:
-    """Get rumors with recent updates"""
-    cutoff = datetime.now() - timedelta(hours=hours)
-    updates = []
+def get_recent_updates(hours: int = 24) -> List[dict]:
+    rumors = _fetch_ma_news()
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
 
-    for rumor in MOCK_RUMORS:
-        last_updated = datetime.strptime(rumor.last_updated, "%Y-%m-%d %H:%M:%S")
-        if last_updated >= cutoff:
-            updates.append(rumor.to_dict())
-
-    updates.sort(key=lambda x: x["last_updated"], reverse=True)
-    return updates
+    recent = []
+    for r in rumors:
+        pub = r.get("published_at", "")
+        if pub:
+            try:
+                pub_dt = datetime.fromisoformat(pub.replace("Z", "+00:00"))
+                if pub_dt >= cutoff:
+                    recent.append(r)
+            except (ValueError, TypeError):
+                pass
+    return recent

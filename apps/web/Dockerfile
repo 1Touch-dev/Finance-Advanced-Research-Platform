@@ -2,15 +2,13 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-COPY package.json ./
+COPY package.json package-lock.json* ./
 RUN npm install
 
-COPY pages ./pages
-COPY src ./src
-COPY lib ./lib
-COPY tailwind.config.js postcss.config.js ./
+COPY . .
+RUN npm run build
 
-ENV NEXT_PUBLIC_API_URL=http://localhost:3001
+ENV NEXT_PUBLIC_API_URL=http://api:8000
 EXPOSE 3000
 
-CMD ["npm", "run", "start", "--", "-H", "0.0.0.0", "-p", "3000"]
+CMD ["npm", "start"]

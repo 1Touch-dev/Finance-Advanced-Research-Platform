@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
+import NoDataCard from '../src/components/NoDataCard';
+import { isNoData } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -9,6 +11,7 @@ export default function TaxLotsPage() {
   const [approaching, setApproaching] = useState([]);
   const [methodComparison, setMethodComparison] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [noData, setNoData] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -23,6 +26,7 @@ export default function TaxLotsPage() {
         fetch(`${API_BASE}/tax-lots/approaching-long-term`)
       ]);
       const lotsData = await lotsRes.json();
+      if (isNoData(lotsData)) { setNoData(lotsData); setLoading(false); return; }
       const harvestData = await harvestRes.json();
       const approachData = await approachRes.json();
       setLots(lotsData.lots || []);
@@ -57,6 +61,8 @@ export default function TaxLotsPage() {
 
       {loading ? (
         <div className="text-center py-10">Loading...</div>
+      ) : noData ? (
+        <NoDataCard {...noData} />
       ) : (
         <>
           {/* Tax Loss Harvesting Opportunities */}

@@ -1,0 +1,83 @@
+{
+  "timestamp": "2026-08-22T14:39:15.639502",
+  "summary": {
+    "total": 12,
+    "passed": 12,
+    "failed": 0,
+    "no_data": 0
+  },
+  "results": [
+    {
+      "name": "politician_leaderboard",
+      "status": "PASS",
+      "elapsed_ms": 2,
+      "sample": "{'total_politicians': 633, 'top_by_trades_count': 352, 'top_by_volume_count': 236, 'top_by_returns_c"
+    },
+    {
+      "name": "earnings_calendar",
+      "status": "PASS",
+      "elapsed_ms": 1383,
+      "sample": "{'count': 151}"
+    },
+    {
+      "name": "short_interest",
+      "status": "PASS",
+      "elapsed_ms": 6577,
+      "sample": "{'ticker': 'AAPL', 'short_pct': 0.97}"
+    },
+    {
+      "name": "ipo_calendar",
+      "status": "PASS",
+      "elapsed_ms": 646,
+      "sample": "{'count': 1}"
+    },
+    {
+      "name": "gov_trading_connector",
+      "status": "PASS",
+      "elapsed_ms": 15818,
+      "sample": "{'count': 5}"
+    },
+    {
+      "name": "leaderboard_by_trades",
+      "status": "PASS",
+      "elapsed_ms": 2,
+      "sample": "{'count': 5, 'first': 'Ro Khanna'}"
+    },
+    {
+      "name": "leaderboard_by_volume",
+      "status": "PASS",
+      "elapsed_ms": 1,
+      "sample": "{'count': 5}"
+    },
+    {
+      "name": "notable_cases",
+      "status": "PASS",
+      "elapsed_ms": 1,
+      "sample": "{'count': 5}"
+    },
+    {
+      "name": "sec_edgar_connector",
+      "status": "PASS",
+      "elapsed_ms": 2538,
+      "sample": "{'cik': '0000320193', 'has_cik_function': True}"
+    },
+    {
+      "name": "finnhub_quote",
+      "status": "PASS",
+      "elapsed_ms": 686,
+      "sample": "{'ticker': 'AAPL', 'price': 309.35, 'change': -1.95, 'change_pct': -0.6264, 'high': 312.38, 'low': 3"
+    },
+    {
+      "name": "quality_classifier",
+      "status": "PASS",
+      "elapsed_ms": 1993,
+      "sample": "{'loaded': True}"
+    },
+    {
+      "name": "rag_retriever",
+      "status": "PASS",
+      "elapsed_ms": 27,
+      "sample": "{'retrieve_function': True}"
+    }
+  ]
+}

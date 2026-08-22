@@ -152,6 +152,44 @@ def finnhub_news(entity_name: str, limit: int = 20) -> list:
     return articles
 
 
+def finnhub_ipo_calendar(from_date: str, to_date: str) -> list:
+    """
+    Get IPO calendar from Finnhub.
+
+    Args:
+        from_date: Start date (YYYY-MM-DD)
+        to_date: End date (YYYY-MM-DD)
+
+    Returns:
+        List of IPO events
+    """
+    if not FINNHUB_KEY:
+        return []
+    data = _get("https://finnhub.io/api/v1/calendar/ipo",
+                params={"from": from_date, "to": to_date, "token": FINNHUB_KEY})
+    if not data or "ipoCalendar" not in data:
+        return []
+
+    ipos = []
+    for ipo in data.get("ipoCalendar", []):
+        # Parse price range
+        price_range = ipo.get("priceRangeLow"), ipo.get("priceRangeHigh")
+
+        ipos.append({
+            "ticker": ipo.get("symbol", ""),
+            "company_name": ipo.get("name", ""),
+            "exchange": ipo.get("exchange", ""),
+            "ipo_date": ipo.get("date", ""),
+            "price_range_low": ipo.get("priceRangeLow"),
+            "price_range_high": ipo.get("priceRangeHigh"),
+            "shares_offered": ipo.get("numberOfShares", 0),
+            "deal_size": ipo.get("totalSharesValue", 0),
+            "status": ipo.get("status", "expected"),
+            "source": "Finnhub",
+        })
+    return ipos
+
+
 # ─── FMP (Financial Modeling Prep) ───────────────────────────────────────────
 
 def fmp_income_statement(ticker: str, limit: int = 20) -> list:

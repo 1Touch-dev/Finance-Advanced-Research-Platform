@@ -91,3 +91,4 @@ embedding-model-fine-tuning/*.tar.gz
 
 # User uploads (runtime data - not source code)
 apps/api/uploads/
+bloomberg-terminal-free

@@ -2,35 +2,47 @@
 Insider Activity Screener Service (Band C #41)
 Screens Form 4 filings, clusters buys/sells
 
-Data Source: SEC EDGAR Form 4 (FREE) with mock fallback
+Data Source: SEC EDGAR Form 4 (FREE, real data via sec_edgar_connector)
 """
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
-import random
 import logging
+import time
+import hashlib
 
 log = logging.getLogger(__name__)
 
-# Import real SEC EDGAR connector
-try:
-    from app.connectors.sec_edgar_connector import (
-        get_insider_transactions as sec_get_insider_transactions,
-        ticker_to_cik,
-    )
-    from app.connectors.gov_trading_connector import (
-        get_recent_sec_form4,
-        get_insider_trades_for_ticker,
-    )
-    SEC_AVAILABLE = True
-except ImportError:
-    SEC_AVAILABLE = False
-    log.warning("SEC EDGAR connector not available for insider activity")
+from app.connectors.sec_edgar_connector import (
+    get_insider_transactions as sec_get_insider_transactions,
+    get_cik_from_ticker,
+    get_company_submissions,
+)
 
-# Feature flag: set to True to use real SEC EDGAR data
-USE_REAL_DATA = True
+# ── In-memory cache with TTL ─────────────────────────────────────────────────
+_cache: Dict[str, Dict[str, Any]] = {}
+CACHE_TTL_SECONDS = 1800  # 30 minutes
 
+
+def _cache_key(*parts) -> str:
+    return hashlib.md5(":".join(str(p) for p in parts).encode()).hexdigest()
+
+
+def _get_cached(key: str) -> Optional[Any]:
+    entry = _cache.get(key)
+    if entry and time.time() - entry["ts"] < CACHE_TTL_SECONDS:
+        return entry["data"]
+    if entry:
+        del _cache[key]
+    return None
+
+
+def _set_cached(key: str, data: Any) -> None:
+    _cache[key] = {"data": data, "ts": time.time()}
+
+
+# ── Dataclasses (preserved for API compatibility) ─────────────────────────────
 
 @dataclass
 class InsiderTransaction:
@@ -40,7 +52,7 @@ class InsiderTransaction:
     company_name: str
     insider_name: str
     insider_title: str
-    relationship: str  # CEO, CFO, Director, 10% Owner, etc.
+    relationship: str
     transaction_type: str  # P (Purchase), S (Sale), A (Award), M (Exercise), G (Gift)
     transaction_date: str
     filing_date: str
@@ -102,242 +114,114 @@ class InsiderCluster:
         }
 
 
-# Mock insider transactions
-MOCK_TRANSACTIONS = [
-    # NVDA - Multiple insider buys
-    InsiderTransaction(
-        transaction_id="INS001",
-        ticker="NVDA",
-        company_name="NVIDIA Corp",
-        insider_name="Jensen Huang",
-        insider_title="CEO",
-        relationship="CEO",
-        transaction_type="P",
-        transaction_date=(datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d"),
-        filing_date=(datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"),
-        shares=50000,
-        price=125.50,
-        value=6275000,
-        shares_owned_after=5000000,
-        ownership_change_percent=1.01,
-    ),
-    InsiderTransaction(
-        transaction_id="INS002",
-        ticker="NVDA",
-        company_name="NVIDIA Corp",
-        insider_name="Colette Kress",
-        insider_title="CFO",
-        relationship="CFO",
-        transaction_type="P",
-        transaction_date=(datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d"),
-        filing_date=(datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d"),
-        shares=25000,
-        price=124.80,
-        value=3120000,
-        shares_owned_after=500000,
-        ownership_change_percent=5.26,
-    ),
-    InsiderTransaction(
-        transaction_id="INS003",
-        ticker="NVDA",
-        company_name="NVIDIA Corp",
-        insider_name="Mark Stevens",
-        insider_title="Director",
-        relationship="Director",
-        transaction_type="P",
-        transaction_date=(datetime.now() - timedelta(days=5)).strftime("%Y-%m-%d"),
-        filing_date=(datetime.now() - timedelta(days=4)).strftime("%Y-%m-%d"),
-        shares=10000,
-        price=122.30,
-        value=1223000,
-        shares_owned_after=150000,
-        ownership_change_percent=7.14,
-    ),
-    # TSLA - Mixed signals
-    InsiderTransaction(
-        transaction_id="INS004",
-        ticker="TSLA",
-        company_name="Tesla Inc",
-        insider_name="Robyn Denholm",
-        insider_title="Chairman",
-        relationship="Director",
-        transaction_type="S",
-        transaction_date=(datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"),
-        filing_date=datetime.now().strftime("%Y-%m-%d"),
-        shares=100000,
-        price=245.30,
-        value=24530000,
-        shares_owned_after=400000,
-        ownership_change_percent=-20.0,
-    ),
-    InsiderTransaction(
-        transaction_id="INS005",
-        ticker="TSLA",
-        company_name="Tesla Inc",
-        insider_name="Zachary Kirkhorn",
-        insider_title="CFO",
-        relationship="CFO",
-        transaction_type="P",
-        transaction_date=(datetime.now() - timedelta(days=4)).strftime("%Y-%m-%d"),
-        filing_date=(datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d"),
-        shares=5000,
-        price=238.50,
-        value=1192500,
-        shares_owned_after=55000,
-        ownership_change_percent=10.0,
-    ),
-    # AAPL - CEO selling (routine)
-    InsiderTransaction(
-        transaction_id="INS006",
-        ticker="AAPL",
-        company_name="Apple Inc",
-        insider_name="Tim Cook",
-        insider_title="CEO",
-        relationship="CEO",
-        transaction_type="S",
-        transaction_date=(datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"),
-        filing_date=(datetime.now() - timedelta(days=6)).strftime("%Y-%m-%d"),
-        shares=200000,
-        price=178.50,
-        value=35700000,
-        shares_owned_after=3500000,
-        ownership_change_percent=-5.41,
-    ),
-    # META - Zuckerberg routine sale
-    InsiderTransaction(
-        transaction_id="INS007",
-        ticker="META",
-        company_name="Meta Platforms Inc",
-        insider_name="Mark Zuckerberg",
-        insider_title="CEO",
-        relationship="CEO",
-        transaction_type="S",
-        transaction_date=(datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d"),
-        filing_date=(datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d"),
-        shares=150000,
-        price=505.20,
-        value=75780000,
-        shares_owned_after=350000000,
-        ownership_change_percent=-0.04,
-    ),
-    # AMD - Multiple buys (cluster)
-    InsiderTransaction(
-        transaction_id="INS008",
-        ticker="AMD",
-        company_name="Advanced Micro Devices",
-        insider_name="Lisa Su",
-        insider_title="CEO",
-        relationship="CEO",
-        transaction_type="P",
-        transaction_date=(datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d"),
-        filing_date=(datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"),
-        shares=75000,
-        price=158.40,
-        value=11880000,
-        shares_owned_after=2500000,
-        ownership_change_percent=3.09,
-    ),
-    InsiderTransaction(
-        transaction_id="INS009",
-        ticker="AMD",
-        company_name="Advanced Micro Devices",
-        insider_name="Victor Peng",
-        insider_title="President",
-        relationship="Officer",
-        transaction_type="P",
-        transaction_date=(datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d"),
-        filing_date=(datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d"),
-        shares=30000,
-        price=156.80,
-        value=4704000,
-        shares_owned_after=200000,
-        ownership_change_percent=17.65,
-    ),
-    InsiderTransaction(
-        transaction_id="INS010",
-        ticker="AMD",
-        company_name="Advanced Micro Devices",
-        insider_name="Phil Guido",
-        insider_title="Director",
-        relationship="Director",
-        transaction_type="P",
-        transaction_date=(datetime.now() - timedelta(days=4)).strftime("%Y-%m-%d"),
-        filing_date=(datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d"),
-        shares=15000,
-        price=155.20,
-        value=2328000,
-        shares_owned_after=75000,
-        ownership_change_percent=25.0,
-    ),
-    # GOOGL - Director buy
-    InsiderTransaction(
-        transaction_id="INS011",
-        ticker="GOOGL",
-        company_name="Alphabet Inc",
-        insider_name="John Hennessy",
-        insider_title="Chairman",
-        relationship="Director",
-        transaction_type="P",
-        transaction_date=(datetime.now() - timedelta(days=6)).strftime("%Y-%m-%d"),
-        filing_date=(datetime.now() - timedelta(days=5)).strftime("%Y-%m-%d"),
-        shares=20000,
-        price=175.30,
-        value=3506000,
-        shares_owned_after=180000,
-        ownership_change_percent=12.5,
-    ),
-    # MSFT - Executive sale
-    InsiderTransaction(
-        transaction_id="INS012",
-        ticker="MSFT",
-        company_name="Microsoft Corp",
-        insider_name="Satya Nadella",
-        insider_title="CEO",
-        relationship="CEO",
-        transaction_type="S",
-        transaction_date=(datetime.now() - timedelta(days=10)).strftime("%Y-%m-%d"),
-        filing_date=(datetime.now() - timedelta(days=9)).strftime("%Y-%m-%d"),
-        shares=50000,
-        price=420.50,
-        value=21025000,
-        shares_owned_after=800000,
-        ownership_change_percent=-5.88,
-    ),
-    # Small cap with big insider buy
-    InsiderTransaction(
-        transaction_id="INS013",
-        ticker="IONQ",
-        company_name="IonQ Inc",
-        insider_name="Peter Chapman",
-        insider_title="CEO",
-        relationship="CEO",
-        transaction_type="P",
-        transaction_date=(datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"),
-        filing_date=datetime.now().strftime("%Y-%m-%d"),
-        shares=500000,
-        price=12.50,
-        value=6250000,
-        shares_owned_after=2500000,
-        ownership_change_percent=25.0,
-    ),
-    InsiderTransaction(
-        transaction_id="INS014",
-        ticker="IONQ",
-        company_name="IonQ Inc",
-        insider_name="Thomas Kramer",
-        insider_title="CFO",
-        relationship="CFO",
-        transaction_type="P",
-        transaction_date=(datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d"),
-        filing_date=(datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"),
-        shares=200000,
-        price=12.30,
-        value=2460000,
-        shares_owned_after=500000,
-        ownership_change_percent=66.67,
-    ),
-]
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
+def _fetch_insider_data_for_ticker(ticker: str, days: int = 90) -> List[Dict[str, Any]]:
+    """
+    Fetch Form 4 transactions for a single ticker via SEC EDGAR.
+    Returns normalized transaction dicts or empty list on failure.
+    """
+    cache_k = _cache_key("ticker_txns", ticker, days)
+    cached = _get_cached(cache_k)
+    if cached is not None:
+        return cached
+
+    cik = get_cik_from_ticker(ticker)
+    if not cik:
+        log.debug("Could not resolve CIK for ticker %s", ticker)
+        _set_cached(cache_k, [])
+        return []
+
+    start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    try:
+        result = sec_get_insider_transactions(
+            cik,
+            start_date=start_date,
+            max_filings=100,
+            max_elapsed_seconds=30,
+        )
+    except Exception as e:
+        log.warning("SEC EDGAR insider fetch for %s failed: %s", ticker, e)
+        _set_cached(cache_k, [])
+        return []
+
+    if result.get("error"):
+        log.debug("SEC EDGAR error for %s: %s", ticker, result["error"])
+        _set_cached(cache_k, [])
+        return []
+
+    # Get company name from submissions
+    company_name = ""
+    try:
+        subs = get_company_submissions(cik, limit=1)
+        company_name = subs.get("name", "")
+    except Exception:
+        pass
+
+    transactions = []
+    for txn in result.get("transactions", []):
+        code = txn.get("code", "")
+        # Map acquired/disposed to P/S style code for API compatibility
+        if code in ("P", "S"):
+            txn_type = code
+        elif txn.get("acquired_disposed") == "D":
+            txn_type = "S"
+        else:
+            txn_type = code or "P"
+
+        shares_after = int(txn.get("shares_owned_after", 0))
+        shares = int(txn.get("shares", 0))
+        ownership_change = 0.0
+        if shares_after > 0 and shares > 0:
+            if txn.get("acquired_disposed") == "D":
+                ownership_change = round(-shares / (shares_after + shares) * 100, 2)
+            else:
+                ownership_change = round(shares / shares_after * 100, 2)
+
+        roles = txn.get("roles", [])
+        relationship = roles[0] if roles else txn.get("title", "")
+
+        transactions.append({
+            "transaction_id": txn.get("source_url", ""),
+            "ticker": ticker,
+            "company_name": company_name,
+            "insider_name": txn.get("insider", ""),
+            "insider_title": txn.get("title", ""),
+            "relationship": relationship,
+            "transaction_type": txn_type,
+            "transaction_date": txn.get("date", ""),
+            "filing_date": txn.get("filing_date", ""),
+            "shares": shares,
+            "price": float(txn.get("price", 0)),
+            "value": float(txn.get("value", 0)),
+            "shares_owned_after": shares_after,
+            "ownership_change_percent": ownership_change,
+            "open_market": txn.get("open_market", False),
+            "is_10b5_1": txn.get("is_10b5_1", False),
+            "code": code,
+            "code_meaning": txn.get("code_meaning", ""),
+            "source": "SEC EDGAR Form 4",
+        })
+
+    _set_cached(cache_k, transactions)
+    return transactions
+
+
+def _determine_signal(buy_count: int, sell_count: int,
+                      buy_value: float, sell_value: float) -> str:
+    """Determine insider sentiment signal from buy/sell counts and values."""
+    if buy_count >= 3 and buy_value > sell_value * 2:
+        return "strong_buy"
+    elif buy_count >= 2 and buy_value > sell_value:
+        return "buy"
+    elif sell_count >= 3 and sell_value > buy_value * 2:
+        return "strong_sell"
+    elif sell_count >= 2 and sell_value > buy_value:
+        return "sell"
+    return "neutral"
+
+
+# ── Public API (signatures preserved) ────────────────────────────────────────
 
 def get_recent_transactions(
     days: int = 7,
@@ -345,74 +229,54 @@ def get_recent_transactions(
     min_value: float = 0,
     limit: int = 50,
 ) -> List[Dict[str, Any]]:
-    """Get recent insider transactions.
+    """Get recent insider transactions across the market.
 
-    Uses SEC EDGAR Form 4 data when available, falls back to mock data.
+    NOTE: SEC EDGAR does not offer a cross-market "latest Form 4" feed.
+    This function queries a curated set of high-activity tickers.
+    For comprehensive cross-market screening, an additional data source
+    (e.g., SEC full-text search RSS feed) would be needed.
     """
-    if USE_REAL_DATA and SEC_AVAILABLE:
-        try:
-            real_txns = get_recent_sec_form4(days=days, limit=limit * 2)
-            if real_txns:
-                transactions = []
-                for txn in real_txns:
-                    # Filter by transaction type
-                    txn_type = txn.get("transaction_code") or txn.get("transaction_type", "")
-                    if transaction_type and txn_type != transaction_type:
-                        continue
-                    # Filter by value
-                    value = txn.get("value") or txn.get("total_value") or 0
-                    if value < min_value:
-                        continue
-                    transactions.append(_normalize_sec_transaction(txn))
+    cache_k = _cache_key("recent_txns", days, transaction_type, min_value, limit)
+    cached = _get_cached(cache_k)
+    if cached is not None:
+        return cached
 
-                transactions.sort(key=lambda x: x.get("transaction_date", ""), reverse=True)
-                return transactions[:limit]
-        except Exception as e:
-            log.warning("SEC EDGAR insider fetch failed, using mock: %s", e)
+    # Query a set of high-volume tickers for recent activity
+    # SEC EDGAR doesn't have a single "all recent Form 4" endpoint,
+    # so we sample from well-known large-caps
+    sample_tickers = [
+        "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA",
+        "AMD", "INTC", "CRM", "NFLX", "JPM", "BAC", "GS",
+    ]
 
-    # Fallback to mock data
-    cutoff_date = datetime.now() - timedelta(days=days)
-    transactions = []
-    for txn in MOCK_TRANSACTIONS:
-        txn_date = datetime.strptime(txn.transaction_date, "%Y-%m-%d")
-        if txn_date >= cutoff_date:
-            if transaction_type and txn.transaction_type != transaction_type:
-                continue
-            if txn.value < min_value:
-                continue
-            transactions.append(txn.to_dict())
+    all_transactions = []
+    for ticker in sample_tickers:
+        txns = _fetch_insider_data_for_ticker(ticker, days=days)
+        all_transactions.extend(txns)
 
-    transactions.sort(key=lambda x: x["transaction_date"], reverse=True)
-    return transactions[:limit]
+    # Filter
+    cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    filtered = []
+    for txn in all_transactions:
+        if txn.get("transaction_date", "") < cutoff:
+            continue
+        if transaction_type and txn.get("transaction_type") != transaction_type:
+            continue
+        if txn.get("value", 0) < min_value:
+            continue
+        filtered.append(txn)
+
+    filtered.sort(key=lambda x: x.get("transaction_date", ""), reverse=True)
+    result = filtered[:limit]
+    _set_cached(cache_k, result)
+    return result
 
 
 def get_transactions_by_ticker(ticker: str, days: int = 90) -> List[Dict[str, Any]]:
-    """Get all insider transactions for a ticker.
-
-    Uses SEC EDGAR Form 4 data when available, falls back to mock data.
-    """
+    """Get all insider transactions for a specific ticker."""
     ticker = ticker.upper()
-
-    if USE_REAL_DATA and SEC_AVAILABLE:
-        try:
-            real_txns = get_insider_trades_for_ticker(ticker, days=days)
-            if real_txns:
-                transactions = [_normalize_sec_transaction(txn) for txn in real_txns]
-                transactions.sort(key=lambda x: x.get("transaction_date", ""), reverse=True)
-                return transactions
-        except Exception as e:
-            log.warning("SEC EDGAR insider fetch for %s failed, using mock: %s", ticker, e)
-
-    # Fallback to mock data
-    cutoff_date = datetime.now() - timedelta(days=days)
-    transactions = []
-    for txn in MOCK_TRANSACTIONS:
-        if txn.ticker == ticker:
-            txn_date = datetime.strptime(txn.transaction_date, "%Y-%m-%d")
-            if txn_date >= cutoff_date:
-                transactions.append(txn.to_dict())
-
-    transactions.sort(key=lambda x: x["transaction_date"], reverse=True)
+    transactions = _fetch_insider_data_for_ticker(ticker, days=days)
+    transactions.sort(key=lambda x: x.get("transaction_date", ""), reverse=True)
     return transactions
 
 
@@ -438,30 +302,51 @@ def _normalize_sec_transaction(txn: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def get_cluster_buys(days: int = 14, min_insiders: int = 2) -> List[Dict[str, Any]]:
-    """Get stocks with cluster buying (multiple insiders buying)"""
-    cutoff_date = datetime.now() - timedelta(days=days)
+    """Get stocks with cluster buying (multiple insiders buying).
 
-    # Group by ticker
-    ticker_buys = {}
-    for txn in MOCK_TRANSACTIONS:
-        if txn.transaction_type == "P":
-            txn_date = datetime.strptime(txn.transaction_date, "%Y-%m-%d")
-            if txn_date >= cutoff_date:
-                if txn.ticker not in ticker_buys:
-                    ticker_buys[txn.ticker] = {
-                        "ticker": txn.ticker,
-                        "company_name": txn.company_name,
-                        "insiders": set(),
-                        "total_value": 0,
-                        "total_shares": 0,
-                        "transactions": [],
-                    }
-                ticker_buys[txn.ticker]["insiders"].add(txn.insider_name)
-                ticker_buys[txn.ticker]["total_value"] += txn.value
-                ticker_buys[txn.ticker]["total_shares"] += txn.shares
-                ticker_buys[txn.ticker]["transactions"].append(txn.to_dict())
+    NOTE: True cross-market cluster detection requires scanning all Form 4
+    filings from the SEC EDGAR full-text search RSS feed, which would need
+    an additional scheduled ingestion pipeline. This implementation checks
+    a sample of actively-traded tickers for cluster activity.
+    """
+    cache_k = _cache_key("cluster_buys", days, min_insiders)
+    cached = _get_cached(cache_k)
+    if cached is not None:
+        return cached
 
-    # Filter by min insiders
+    sample_tickers = [
+        "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA",
+        "AMD", "INTC", "CRM", "NFLX", "JPM", "BAC", "GS",
+        "IONQ", "PLTR", "SOFI", "RKLB", "SNOW", "NET",
+    ]
+
+    cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    ticker_buys: Dict[str, Dict[str, Any]] = {}
+
+    for ticker in sample_tickers:
+        txns = _fetch_insider_data_for_ticker(ticker, days=days)
+        for txn in txns:
+            if txn.get("transaction_type") != "P":
+                continue
+            if not txn.get("open_market", False):
+                continue
+            if txn.get("transaction_date", "") < cutoff:
+                continue
+
+            if ticker not in ticker_buys:
+                ticker_buys[ticker] = {
+                    "ticker": ticker,
+                    "company_name": txn.get("company_name", ""),
+                    "insiders": set(),
+                    "total_value": 0,
+                    "total_shares": 0,
+                    "transactions": [],
+                }
+            ticker_buys[ticker]["insiders"].add(txn.get("insider_name", ""))
+            ticker_buys[ticker]["total_value"] += txn.get("value", 0)
+            ticker_buys[ticker]["total_shares"] += txn.get("shares", 0)
+            ticker_buys[ticker]["transactions"].append(txn)
+
     clusters = []
     for ticker, data in ticker_buys.items():
         if len(data["insiders"]) >= min_insiders:
@@ -475,34 +360,53 @@ def get_cluster_buys(days: int = 14, min_insiders: int = 2) -> List[Dict[str, An
             })
 
     clusters.sort(key=lambda x: x["insider_count"], reverse=True)
+    _set_cached(cache_k, clusters)
     return clusters
 
 
 def get_cluster_sells(days: int = 14, min_insiders: int = 2) -> List[Dict[str, Any]]:
-    """Get stocks with cluster selling (multiple insiders selling)"""
-    cutoff_date = datetime.now() - timedelta(days=days)
+    """Get stocks with cluster selling (multiple insiders selling).
 
-    # Group by ticker
-    ticker_sells = {}
-    for txn in MOCK_TRANSACTIONS:
-        if txn.transaction_type == "S":
-            txn_date = datetime.strptime(txn.transaction_date, "%Y-%m-%d")
-            if txn_date >= cutoff_date:
-                if txn.ticker not in ticker_sells:
-                    ticker_sells[txn.ticker] = {
-                        "ticker": txn.ticker,
-                        "company_name": txn.company_name,
-                        "insiders": set(),
-                        "total_value": 0,
-                        "total_shares": 0,
-                        "transactions": [],
-                    }
-                ticker_sells[txn.ticker]["insiders"].add(txn.insider_name)
-                ticker_sells[txn.ticker]["total_value"] += txn.value
-                ticker_sells[txn.ticker]["total_shares"] += txn.shares
-                ticker_sells[txn.ticker]["transactions"].append(txn.to_dict())
+    Same limitation as get_cluster_buys — scans a sample set of tickers.
+    """
+    cache_k = _cache_key("cluster_sells", days, min_insiders)
+    cached = _get_cached(cache_k)
+    if cached is not None:
+        return cached
 
-    # Filter by min insiders
+    sample_tickers = [
+        "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA",
+        "AMD", "INTC", "CRM", "NFLX", "JPM", "BAC", "GS",
+        "IONQ", "PLTR", "SOFI", "RKLB", "SNOW", "NET",
+    ]
+
+    cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    ticker_sells: Dict[str, Dict[str, Any]] = {}
+
+    for ticker in sample_tickers:
+        txns = _fetch_insider_data_for_ticker(ticker, days=days)
+        for txn in txns:
+            if txn.get("transaction_type") != "S":
+                continue
+            if not txn.get("open_market", False):
+                continue
+            if txn.get("transaction_date", "") < cutoff:
+                continue
+
+            if ticker not in ticker_sells:
+                ticker_sells[ticker] = {
+                    "ticker": ticker,
+                    "company_name": txn.get("company_name", ""),
+                    "insiders": set(),
+                    "total_value": 0,
+                    "total_shares": 0,
+                    "transactions": [],
+                }
+            ticker_sells[ticker]["insiders"].add(txn.get("insider_name", ""))
+            ticker_sells[ticker]["total_value"] += txn.get("value", 0)
+            ticker_sells[ticker]["total_shares"] += txn.get("shares", 0)
+            ticker_sells[ticker]["transactions"].append(txn)
+
     clusters = []
     for ticker, data in ticker_sells.items():
         if len(data["insiders"]) >= min_insiders:
@@ -516,6 +420,7 @@ def get_cluster_sells(days: int = 14, min_insiders: int = 2) -> List[Dict[str, A
             })
 
     clusters.sort(key=lambda x: x["insider_count"], reverse=True)
+    _set_cached(cache_k, clusters)
     return clusters
 
 
@@ -524,55 +429,96 @@ def get_largest_transactions(
     transaction_type: Optional[str] = None,
     limit: int = 10,
 ) -> List[Dict[str, Any]]:
-    """Get largest insider transactions by value"""
-    cutoff_date = datetime.now() - timedelta(days=days)
+    """Get largest insider transactions by value from sampled tickers."""
+    cache_k = _cache_key("largest_txns", days, transaction_type, limit)
+    cached = _get_cached(cache_k)
+    if cached is not None:
+        return cached
 
+    sample_tickers = [
+        "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA",
+        "AMD", "INTC", "CRM", "NFLX", "JPM", "BAC", "GS",
+    ]
+
+    cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
     transactions = []
-    for txn in MOCK_TRANSACTIONS:
-        txn_date = datetime.strptime(txn.transaction_date, "%Y-%m-%d")
-        if txn_date >= cutoff_date:
-            if transaction_type and txn.transaction_type != transaction_type:
-                continue
-            transactions.append(txn.to_dict())
 
-    transactions.sort(key=lambda x: x["value"], reverse=True)
-    return transactions[:limit]
+    for ticker in sample_tickers:
+        txns = _fetch_insider_data_for_ticker(ticker, days=days)
+        for txn in txns:
+            if txn.get("transaction_date", "") < cutoff:
+                continue
+            if transaction_type and txn.get("transaction_type") != transaction_type:
+                continue
+            transactions.append(txn)
+
+    transactions.sort(key=lambda x: x.get("value", 0), reverse=True)
+    result = transactions[:limit]
+    _set_cached(cache_k, result)
+    return result
 
 
 def get_ceo_transactions(days: int = 30) -> List[Dict[str, Any]]:
-    """Get CEO/CFO transactions only"""
-    cutoff_date = datetime.now() - timedelta(days=days)
+    """Get CEO/CFO transactions from sampled tickers."""
+    cache_k = _cache_key("ceo_txns", days)
+    cached = _get_cached(cache_k)
+    if cached is not None:
+        return cached
 
+    sample_tickers = [
+        "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA",
+        "AMD", "INTC", "CRM", "NFLX", "JPM", "BAC", "GS",
+    ]
+
+    cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
     transactions = []
-    for txn in MOCK_TRANSACTIONS:
-        if txn.relationship in ["CEO", "CFO"]:
-            txn_date = datetime.strptime(txn.transaction_date, "%Y-%m-%d")
-            if txn_date >= cutoff_date:
-                transactions.append(txn.to_dict())
 
-    transactions.sort(key=lambda x: x["transaction_date"], reverse=True)
+    for ticker in sample_tickers:
+        txns = _fetch_insider_data_for_ticker(ticker, days=days)
+        for txn in txns:
+            if txn.get("transaction_date", "") < cutoff:
+                continue
+            title = (txn.get("insider_title") or "").upper()
+            rel = (txn.get("relationship") or "").upper()
+            if "CEO" in title or "CFO" in title or "CEO" in rel or "CFO" in rel or "CHIEF" in title:
+                transactions.append(txn)
+
+    transactions.sort(key=lambda x: x.get("transaction_date", ""), reverse=True)
+    _set_cached(cache_k, transactions)
     return transactions
 
 
 def get_insider_stats() -> Dict[str, Any]:
-    """Get insider trading statistics"""
-    total_buys = len([t for t in MOCK_TRANSACTIONS if t.transaction_type == "P"])
-    total_sells = len([t for t in MOCK_TRANSACTIONS if t.transaction_type == "S"])
+    """Get insider trading statistics from sampled tickers."""
+    cache_k = _cache_key("insider_stats")
+    cached = _get_cached(cache_k)
+    if cached is not None:
+        return cached
 
-    buy_value = sum(t.value for t in MOCK_TRANSACTIONS if t.transaction_type == "P")
-    sell_value = sum(t.value for t in MOCK_TRANSACTIONS if t.transaction_type == "S")
+    sample_tickers = [
+        "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA",
+        "AMD", "INTC", "CRM", "NFLX", "JPM", "BAC", "GS",
+    ]
 
-    # Unique tickers with buying
-    buy_tickers = set(t.ticker for t in MOCK_TRANSACTIONS if t.transaction_type == "P")
-    sell_tickers = set(t.ticker for t in MOCK_TRANSACTIONS if t.transaction_type == "S")
+    all_txns = []
+    for ticker in sample_tickers:
+        txns = _fetch_insider_data_for_ticker(ticker, days=30)
+        all_txns.extend(txns)
 
-    # By relationship
-    by_relationship = {}
-    for txn in MOCK_TRANSACTIONS:
-        by_relationship[txn.relationship] = by_relationship.get(txn.relationship, 0) + 1
+    total_buys = len([t for t in all_txns if t.get("transaction_type") == "P"])
+    total_sells = len([t for t in all_txns if t.get("transaction_type") == "S"])
+    buy_value = sum(t.get("value", 0) for t in all_txns if t.get("transaction_type") == "P")
+    sell_value = sum(t.get("value", 0) for t in all_txns if t.get("transaction_type") == "S")
+    buy_tickers = set(t.get("ticker") for t in all_txns if t.get("transaction_type") == "P")
+    sell_tickers = set(t.get("ticker") for t in all_txns if t.get("transaction_type") == "S")
 
-    return {
-        "total_transactions": len(MOCK_TRANSACTIONS),
+    by_relationship: Dict[str, int] = {}
+    for txn in all_txns:
+        rel = txn.get("relationship", "Other") or "Other"
+        by_relationship[rel] = by_relationship.get(rel, 0) + 1
+
+    result = {
+        "total_transactions": len(all_txns),
         "total_buys": total_buys,
         "total_sells": total_sells,
         "buy_value": buy_value,
@@ -582,43 +528,33 @@ def get_insider_stats() -> Dict[str, Any]:
         "tickers_with_buying": len(buy_tickers),
         "tickers_with_selling": len(sell_tickers),
         "by_relationship": by_relationship,
+        "source": "SEC EDGAR Form 4",
+        "tickers_sampled": len(sample_tickers),
     }
+    _set_cached(cache_k, result)
+    return result
 
 
 def get_insider_sentiment(ticker: str, days: int = 90) -> Dict[str, Any]:
-    """Get insider sentiment for a specific ticker"""
+    """Get insider sentiment for a specific ticker using real Form 4 data."""
     ticker = ticker.upper()
-    cutoff_date = datetime.now() - timedelta(days=days)
+    cache_k = _cache_key("sentiment", ticker, days)
+    cached = _get_cached(cache_k)
+    if cached is not None:
+        return cached
 
-    buys = []
-    sells = []
+    transactions = _fetch_insider_data_for_ticker(ticker, days=days)
 
-    for txn in MOCK_TRANSACTIONS:
-        if txn.ticker == ticker:
-            txn_date = datetime.strptime(txn.transaction_date, "%Y-%m-%d")
-            if txn_date >= cutoff_date:
-                if txn.transaction_type == "P":
-                    buys.append(txn.to_dict())
-                elif txn.transaction_type == "S":
-                    sells.append(txn.to_dict())
+    buys = [t for t in transactions if t.get("transaction_type") == "P" and t.get("open_market")]
+    sells = [t for t in transactions if t.get("transaction_type") == "S" and t.get("open_market")]
 
-    buy_value = sum(t["value"] for t in buys)
-    sell_value = sum(t["value"] for t in sells)
+    buy_value = sum(t.get("value", 0) for t in buys)
+    sell_value = sum(t.get("value", 0) for t in sells)
     net_value = buy_value - sell_value
 
-    # Determine signal
-    if len(buys) >= 3 and buy_value > sell_value * 2:
-        signal = "strong_buy"
-    elif len(buys) >= 2 and buy_value > sell_value:
-        signal = "buy"
-    elif len(sells) >= 3 and sell_value > buy_value * 2:
-        signal = "strong_sell"
-    elif len(sells) >= 2 and sell_value > buy_value:
-        signal = "sell"
-    else:
-        signal = "neutral"
+    signal = _determine_signal(len(buys), len(sells), buy_value, sell_value)
 
-    return {
+    result = {
         "ticker": ticker,
         "total_buys": len(buys),
         "total_sells": len(sells),
@@ -628,7 +564,10 @@ def get_insider_sentiment(ticker: str, days: int = 90) -> Dict[str, Any]:
         "signal": signal,
         "recent_buys": buys[:5],
         "recent_sells": sells[:5],
+        "source": "SEC EDGAR Form 4",
     }
+    _set_cached(cache_k, result)
+    return result
 
 
 def screen_insiders(
@@ -637,38 +576,52 @@ def screen_insiders(
     days: int = 14,
     signal_filter: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """Screen stocks by insider activity"""
-    cutoff_date = datetime.now() - timedelta(days=days)
+    """Screen stocks by insider activity using real SEC EDGAR data."""
+    cache_k = _cache_key("screen", min_buy_value, min_insiders, days, signal_filter)
+    cached = _get_cached(cache_k)
+    if cached is not None:
+        return cached
 
-    # Group by ticker
-    ticker_data = {}
-    for txn in MOCK_TRANSACTIONS:
-        txn_date = datetime.strptime(txn.transaction_date, "%Y-%m-%d")
-        if txn_date >= cutoff_date:
-            if txn.ticker not in ticker_data:
-                ticker_data[txn.ticker] = {
-                    "ticker": txn.ticker,
-                    "company_name": txn.company_name,
+    sample_tickers = [
+        "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA",
+        "AMD", "INTC", "CRM", "NFLX", "JPM", "BAC", "GS",
+        "IONQ", "PLTR", "SOFI", "RKLB", "SNOW", "NET",
+    ]
+
+    cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    ticker_data: Dict[str, Dict[str, Any]] = {}
+
+    for ticker in sample_tickers:
+        txns = _fetch_insider_data_for_ticker(ticker, days=days)
+        for txn in txns:
+            if txn.get("transaction_date", "") < cutoff:
+                continue
+            if not txn.get("open_market", False):
+                continue
+
+            if ticker not in ticker_data:
+                ticker_data[ticker] = {
+                    "ticker": ticker,
+                    "company_name": txn.get("company_name", ""),
                     "buy_value": 0,
                     "sell_value": 0,
                     "buy_count": 0,
                     "sell_count": 0,
                     "insiders": set(),
-                    "latest_date": txn.transaction_date,
+                    "latest_date": txn.get("transaction_date", ""),
                 }
-            data = ticker_data[txn.ticker]
-            data["insiders"].add(txn.insider_name)
-            if txn.transaction_date > data["latest_date"]:
-                data["latest_date"] = txn.transaction_date
+            data = ticker_data[ticker]
+            data["insiders"].add(txn.get("insider_name", ""))
+            if txn.get("transaction_date", "") > data["latest_date"]:
+                data["latest_date"] = txn.get("transaction_date", "")
 
-            if txn.transaction_type == "P":
-                data["buy_value"] += txn.value
+            if txn.get("transaction_type") == "P":
+                data["buy_value"] += txn.get("value", 0)
                 data["buy_count"] += 1
-            elif txn.transaction_type == "S":
-                data["sell_value"] += txn.value
+            elif txn.get("transaction_type") == "S":
+                data["sell_value"] += txn.get("value", 0)
                 data["sell_count"] += 1
 
-    # Calculate signals and filter
     results = []
     for ticker, data in ticker_data.items():
         insider_count = len(data["insiders"])
@@ -679,21 +632,10 @@ def screen_insiders(
         sell_value = data["sell_value"]
         net_value = buy_value - sell_value
 
-        # Determine signal
-        if data["buy_count"] >= 3 and buy_value > sell_value * 2:
-            signal = "strong_buy"
-        elif data["buy_count"] >= 2 and buy_value > sell_value:
-            signal = "buy"
-        elif data["sell_count"] >= 3 and sell_value > buy_value * 2:
-            signal = "strong_sell"
-        elif data["sell_count"] >= 2 and sell_value > buy_value:
-            signal = "sell"
-        else:
-            signal = "neutral"
+        signal = _determine_signal(data["buy_count"], data["sell_count"], buy_value, sell_value)
 
         if signal_filter and signal != signal_filter:
             continue
-
         if buy_value < min_buy_value and signal in ["buy", "strong_buy"]:
             continue
 
@@ -708,8 +650,9 @@ def screen_insiders(
             "insider_count": insider_count,
             "signal": signal,
             "latest_transaction": data["latest_date"],
+            "source": "SEC EDGAR Form 4",
         })
 
-    # Sort by net value
     results.sort(key=lambda x: x["net_value"], reverse=True)
+    _set_cached(cache_k, results)
     return results

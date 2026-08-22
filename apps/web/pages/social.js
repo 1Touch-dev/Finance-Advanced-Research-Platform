@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
+import NoDataCard from '../src/components/NoDataCard';
+import { isNoData } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -10,6 +12,7 @@ export default function SocialPage() {
   const [whales, setWhales] = useState(null);
   const [momentum, setMomentum] = useState(null);
   const [institutional, setInstitutional] = useState(null);
+  const [noData, setNoData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -20,6 +23,11 @@ export default function SocialPage() {
     try {
       const res = await fetch(`${API_BASE}/social/reddit/trending`);
       const data = await res.json();
+      if (isNoData(data)) {
+        setNoData(data);
+        setLoading(false);
+        return;
+      }
       setTrending(data.trending || []);
       if (data.trending?.length > 0) {
         selectTicker(data.trending[0].ticker);
@@ -74,6 +82,9 @@ export default function SocialPage() {
 
       <h1 className="text-3xl font-bold mb-6">Social Sentiment & Whale Tracking</h1>
 
+      {noData ? (
+        <NoDataCard {...noData} dataType="whale_flow" />
+      ) : (
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Trending Tickers */}
         <div className="lg:col-span-1">
@@ -240,6 +251,7 @@ export default function SocialPage() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

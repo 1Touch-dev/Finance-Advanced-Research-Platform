@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
+import NoDataCard from '../src/components/NoDataCard';
+import { isNoData } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -8,6 +10,7 @@ export default function NarrativeModelPage() {
   const [datasets, setDatasets] = useState([]);
   const [performance, setPerformance] = useState(null);
   const [activeTab, setActiveTab] = useState('models');
+  const [noData, setNoData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Training state
@@ -33,6 +36,11 @@ export default function NarrativeModelPage() {
         fetch(`${API_BASE}/narrative-model/performance`)
       ]);
       const modelsData = await modelsRes.json();
+      if (isNoData(modelsData)) {
+        setNoData(modelsData);
+        setLoading(false);
+        return;
+      }
       const datasetsData = await datasetsRes.json();
       const perfData = await perfRes.json();
       setModels(modelsData.models || []);
@@ -89,7 +97,9 @@ export default function NarrativeModelPage() {
 
       <h1 className="text-3xl font-bold mb-6">Narrative Model Training & Deployment</h1>
 
-      {loading ? (
+      {noData ? (
+        <NoDataCard {...noData} dataType="narrative_model" />
+      ) : loading ? (
         <div className="text-center py-10">Loading...</div>
       ) : (
         <>

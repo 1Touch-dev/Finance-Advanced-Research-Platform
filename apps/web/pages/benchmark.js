@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
+import NoDataCard from '../src/components/NoDataCard';
+import { isNoData } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -8,6 +10,7 @@ export default function BenchmarkPage() {
   const [comparison, setComparison] = useState(null);
   const [attribution, setAttribution] = useState(null);
   const [selectedBenchmark, setSelectedBenchmark] = useState('SPY');
+  const [noData, setNoData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,6 +27,11 @@ export default function BenchmarkPage() {
     try {
       const res = await fetch(`${API_BASE}/benchmark/available`);
       const data = await res.json();
+      if (isNoData(data)) {
+        setNoData(data);
+        setLoading(false);
+        return;
+      }
       setBenchmarks(data.benchmarks || []);
     } catch (err) {
       console.error('Error fetching benchmarks:', err);
@@ -69,7 +77,9 @@ export default function BenchmarkPage() {
         </select>
       </div>
 
-      {loading ? (
+      {noData ? (
+        <NoDataCard {...noData} dataType="benchmark" />
+      ) : loading ? (
         <div className="text-center py-10">Loading...</div>
       ) : (
         <>

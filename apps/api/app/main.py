@@ -33,6 +33,7 @@ from app.api.export import router as export_router
 from app.api.honesty import router as honesty_router
 from app.api.fact_scoring import router as fact_scoring_router
 from app.api.intelligence_graph import router as intelligence_graph_router
+from app.api.auth import router as auth_router
 from app.core.logging import logger
 
 try:
@@ -66,7 +67,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+from app.core.rate_limit import RateLimitMiddleware
+app.add_middleware(RateLimitMiddleware, requests_per_minute=100)
+
 app.include_router(core_router)
+app.include_router(auth_router)
 app.include_router(sources_router)
 app.include_router(evidence_router)
 app.include_router(entities_router)
@@ -98,295 +104,66 @@ app.include_router(intelligence_graph_router)
 if _CHAT_ROUTER:
     app.include_router(chat_router)
 
-try:
-    from app.api.tracking import router as tracking_router
-    app.include_router(tracking_router)
-except Exception:
-    pass
+def _safe_include(module_path: str, attr: str = "router", extra_attrs: list = None):
+    """Import and include a router, logging failures instead of silently swallowing."""
+    try:
+        mod = __import__(module_path, fromlist=[attr])
+        app.include_router(getattr(mod, attr))
+        if extra_attrs:
+            for a in extra_attrs:
+                app.include_router(getattr(mod, a))
+    except Exception as exc:
+        logger.warning({"event": "router_load_failed", "module": module_path, "error": str(exc)})
 
-try:
-    from app.api.market import router as market_router
-    app.include_router(market_router)
-except Exception:
-    pass
-
-try:
-    from app.api.filings import router as filings_router
-    app.include_router(filings_router)
-except Exception:
-    pass
-
-try:
-    from app.api.documents import router as documents_router
-    app.include_router(documents_router)
-except Exception:
-    pass
-
-try:
-    from app.api.entities_multi import router as entities_multi_router
-    app.include_router(entities_multi_router)
-except Exception:
-    pass
-
-try:
-    from app.api.consensus import router as consensus_router
-    app.include_router(consensus_router)
-except Exception:
-    pass
-
-try:
-    from app.api.guidance import router as guidance_router
-    app.include_router(guidance_router)
-except Exception:
-    pass
-
-try:
-    from app.api.analysts import router as analysts_router
-    app.include_router(analysts_router)
-except Exception:
-    pass
-
-try:
-    from app.api.volume import router as volume_router
-    app.include_router(volume_router)
-except Exception:
-    pass
-
-try:
-    from app.api.formula import router as formula_router
-    app.include_router(formula_router)
-except Exception:
-    pass
-
-try:
-    from app.api.volatility import router as volatility_router
-    app.include_router(volatility_router)
-except Exception:
-    pass
-
-try:
-    from app.api.leaderboard import router as leaderboard_router
-    app.include_router(leaderboard_router)
-except Exception:
-    pass
-
-try:
-    from app.api.ontology import router as ontology_router
-    app.include_router(ontology_router)
-except Exception:
-    pass
-
-try:
-    from app.api.health_rag import router as health_rag_router
-    app.include_router(health_rag_router)
-except Exception:
-    pass
-
-try:
-    from app.api.docket import router as docket_router
-    app.include_router(docket_router)
-except Exception:
-    pass
-
-try:
-    from app.api.whisper import router as whisper_router
-    app.include_router(whisper_router)
-except Exception:
-    pass
-
-try:
-    from app.api.portfolio import router as portfolio_router
-    app.include_router(portfolio_router)
-except Exception:
-    pass
-
-try:
-    from app.api.dashboard import router as dashboard_router, watchlist_router
-    app.include_router(dashboard_router)
-    app.include_router(watchlist_router)
-except Exception:
-    pass
-
-try:
-    from app.api.litigation import router as litigation_router
-    app.include_router(litigation_router)
-except Exception:
-    pass
-
-try:
-    from app.api.legal_proceedings import router as legal_proceedings_router
-    app.include_router(legal_proceedings_router)
-except Exception:
-    pass
-
-try:
-    from app.api.revision_screener import router as revision_screener_router
-    app.include_router(revision_screener_router)
-except Exception:
-    pass
-
-try:
-    from app.api.comments import router as comments_router, annotations_router
-    app.include_router(comments_router)
-    app.include_router(annotations_router)
-except Exception:
-    pass
-
-try:
-    from app.api.earnings_calendar import router as earnings_router
-    app.include_router(earnings_router)
-except Exception:
-    pass
-
-try:
-    from app.api.price_alerts import router as price_alerts_router
-    app.include_router(price_alerts_router)
-except Exception:
-    pass
-
-try:
-    from app.api.short_interest import router as short_interest_router
-    app.include_router(short_interest_router)
-except Exception:
-    pass
-
-try:
-    from app.api.ipo_calendar import router as ipo_router
-    app.include_router(ipo_router)
-except Exception:
-    pass
-
-try:
-    from app.api.ma_rumors import router as ma_rumors_router
-    app.include_router(ma_rumors_router)
-except Exception:
-    pass
-
-try:
-    from app.api.insider_activity import router as insider_activity_router
-    app.include_router(insider_activity_router)
-except Exception:
-    pass
-
-try:
-    from app.api.cost_basis import router as cost_basis_router
-    app.include_router(cost_basis_router)
-except Exception:
-    pass
-
-try:
-    from app.api.benchmark import router as benchmark_router
-    app.include_router(benchmark_router)
-except Exception:
-    pass
-
-try:
-    from app.api.tax_lots import router as tax_lots_router
-    app.include_router(tax_lots_router)
-except Exception:
-    pass
-
-try:
-    from app.api.workspaces import router as workspaces_router
-    app.include_router(workspaces_router)
-except Exception:
-    pass
-
-try:
-    from app.api.team_permissions import router as team_permissions_router
-    app.include_router(team_permissions_router)
-except Exception:
-    pass
-
-try:
-    from app.api.person_timeline import router as person_timeline_router
-    app.include_router(person_timeline_router)
-except Exception:
-    pass
-
-try:
-    from app.api.valuation_timeline import router as valuation_timeline_router
-    app.include_router(valuation_timeline_router)
-except Exception:
-    pass
-
-try:
-    from app.api.data_visualizations import router as data_viz_router
-    app.include_router(data_viz_router)
-except Exception:
-    pass
-
-try:
-    from app.api.reddit_whale import router as reddit_whale_router
-    app.include_router(reddit_whale_router)
-except Exception:
-    pass
-
-try:
-    from app.api.bubble_charts import router as bubble_charts_router
-    app.include_router(bubble_charts_router)
-except Exception:
-    pass
-
-try:
-    from app.api.mobile_pwa import router as mobile_pwa_router
-    app.include_router(mobile_pwa_router)
-except Exception:
-    pass
-
-try:
-    from app.api.global_equity import router as global_equity_router
-    app.include_router(global_equity_router)
-except Exception:
-    pass
-
-try:
-    from app.api.brokerage_sync import router as brokerage_sync_router
-    app.include_router(brokerage_sync_router)
-except Exception:
-    pass
-
-try:
-    from app.api.autonomous_agent import router as autonomous_agent_router
-    app.include_router(autonomous_agent_router)
-except Exception:
-    pass
-
-try:
-    from app.api.recursive_entity import router as recursive_entity_router
-    app.include_router(recursive_entity_router)
-except Exception:
-    pass
-
-try:
-    from app.api.narrative_model import router as narrative_model_router
-    app.include_router(narrative_model_router)
-except Exception:
-    pass
-
-try:
-    from app.api.portfolio_analytics import router as portfolio_analytics_router
-    app.include_router(portfolio_analytics_router)
-except Exception:
-    pass
-
-try:
-    from app.api.pwa_advanced import router as pwa_advanced_router
-    app.include_router(pwa_advanced_router)
-except Exception:
-    pass
-
-try:
-    from app.api.government import router as government_router
-    app.include_router(government_router)
-except Exception:
-    pass
-
-try:
-    from app.api.corporate_ownership import router as corporate_ownership_router
-    app.include_router(corporate_ownership_router)
-except Exception:
-    pass
+# Core feature routers
+_safe_include("app.api.tracking")
+_safe_include("app.api.market")
+_safe_include("app.api.filings")
+_safe_include("app.api.documents")
+_safe_include("app.api.entities_multi")
+_safe_include("app.api.consensus")
+_safe_include("app.api.guidance")
+_safe_include("app.api.analysts")
+_safe_include("app.api.volume")
+_safe_include("app.api.formula")
+_safe_include("app.api.volatility")
+_safe_include("app.api.leaderboard")
+_safe_include("app.api.ontology")
+_safe_include("app.api.health_rag")
+_safe_include("app.api.docket")
+_safe_include("app.api.whisper")
+_safe_include("app.api.portfolio")
+_safe_include("app.api.dashboard", extra_attrs=["watchlist_router"])
+_safe_include("app.api.litigation")
+_safe_include("app.api.legal_proceedings")
+_safe_include("app.api.revision_screener")
+_safe_include("app.api.comments", extra_attrs=["annotations_router"])
+_safe_include("app.api.earnings_calendar", attr="router")
+_safe_include("app.api.price_alerts")
+_safe_include("app.api.short_interest")
+_safe_include("app.api.ipo_calendar")
+_safe_include("app.api.ma_rumors")
+_safe_include("app.api.insider_activity")
+_safe_include("app.api.cost_basis")
+_safe_include("app.api.benchmark")
+_safe_include("app.api.tax_lots")
+_safe_include("app.api.workspaces")
+_safe_include("app.api.team_permissions")
+_safe_include("app.api.person_timeline")
+_safe_include("app.api.valuation_timeline")
+_safe_include("app.api.data_visualizations", attr="router")
+_safe_include("app.api.reddit_whale")
+_safe_include("app.api.bubble_charts")
+_safe_include("app.api.mobile_pwa")
+_safe_include("app.api.global_equity")
+_safe_include("app.api.brokerage_sync")
+_safe_include("app.api.autonomous_agent")
+_safe_include("app.api.recursive_entity")
+_safe_include("app.api.narrative_model")
+_safe_include("app.api.portfolio_analytics")
+_safe_include("app.api.pwa_advanced")
+_safe_include("app.api.government")
+_safe_include("app.api.corporate_ownership")
 
 try:
     from prometheus_client import make_asgi_app as _make_prom_app
@@ -413,3 +190,11 @@ async def on_startup():
                 logger.info({"event": "rag_preload_skipped", "error": str(exc)})
 
         threading.Thread(target=_warm, name="rag-preload", daemon=True).start()
+
+    # Start background data-refresh scheduler
+    try:
+        from app.services.scheduler import start_scheduler
+        start_scheduler()
+        logger.info({"event": "scheduler_started"})
+    except Exception as exc:
+        logger.warning({"event": "scheduler_start_failed", "error": str(exc)})

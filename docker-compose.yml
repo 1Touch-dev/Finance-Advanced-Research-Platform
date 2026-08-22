@@ -2,23 +2,23 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:13
+    image: postgres:15
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: mydb
+      POSTGRES_DB: finance_platform
+      POSTGRES_USER: finance
+      POSTGRES_PASSWORD: finance_dev_123
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d mydb"]
+      test: ["CMD-SHELL", "pg_isready -U finance -d finance_platform"]
       interval: 5s
       timeout: 5s
       retries: 10
 
   redis:
-    image: redis:6
+    image: redis:7
     ports:
       - "6379:6379"
     healthcheck:
@@ -27,56 +27,24 @@ services:
       timeout: 3s
       retries: 10
 
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    environment:
-      MINIO_ROOT_USER: minio
-      MINIO_ROOT_PASSWORD: minio123
-    volumes:
-      - minio_data:/data
-
-  opensearch:
-    image: opensearchproject/opensearch:2.11.0
-    environment:
-      discovery.type: single-node
-      plugins.security.disabled: "true"
-      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
-    ports:
-      - "9200:9200"
-    volumes:
-      - opensearch_data:/usr/share/opensearch/data
-
   api:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
     ports:
-      - "3001:3001"
-    # .env supplies API keys (OPENAI, APOLLO, APIFY, etc.). The explicit
-    # `environment` block below overrides .env values (e.g. DATABASE_URL) so
-    # the API talks to the compose Postgres, not the local sqlite fallback.
+      - "8000:8000"
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+psycopg://user:password@postgres:5432/mydb
+      DATABASE_URL: postgresql+psycopg://finance:finance_dev_123@postgres:5432/finance_platform
+      REDIS_URL: redis://redis:6379
       JWT_SECRET: dev-secret-change
       ENV: local
-      OPENSEARCH_URL: http://opensearch:9200
-      S3_ENDPOINT: http://minio:9000
-      S3_BUCKET: enterprise-evidence
-      S3_ACCESS_KEY: minio
-      S3_SECRET_KEY: minio123
     depends_on:
       postgres:
         condition: service_healthy
-      opensearch:
-        condition: service_started
-      minio:
-        condition: service_started
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   web:
@@ -84,29 +52,10 @@ services:
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3001
+      NEXT_PUBLIC_API_URL: http://api:8000
     depends_on:
       - api
-    restart: unless-stopped
-
-  admin:
-    build: ./apps/admin
-    ports:
-      - "3002:3002"
-    depends_on:
-      - api
-    restart: unless-stopped
-
-  worker:
-    build: ./apps/worker
-    environment:
-      REDIS_URL: redis://redis:6379
-    depends_on:
-      redis:
-        condition: service_healthy
     restart: unless-stopped
 
 volumes:
   postgres_data:
-  minio_data:
-  opensearch_data:

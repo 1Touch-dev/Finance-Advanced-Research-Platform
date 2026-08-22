@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
+import NoDataCard from '../src/components/NoDataCard';
+import { isNoData } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -9,6 +11,7 @@ export default function CostBasisPage() {
   const [selectedTicker, setSelectedTicker] = useState('');
   const [loading, setLoading] = useState(true);
   const [taxComparison, setTaxComparison] = useState(null);
+  const [noData, setNoData] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -22,6 +25,7 @@ export default function CostBasisPage() {
         fetch(`${API_BASE}/cost-basis/summary`)
       ]);
       const posData = await posRes.json();
+      if (isNoData(posData)) { setNoData(posData); setLoading(false); return; }
       const sumData = await sumRes.json();
       setPositions(posData.positions || []);
       setSummary(sumData);
@@ -54,6 +58,8 @@ export default function CostBasisPage() {
 
       {loading ? (
         <div className="text-center py-10">Loading...</div>
+      ) : noData ? (
+        <NoDataCard {...noData} />
       ) : (
         <>
           {/* Summary Section */}

@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
+import NoDataCard from '../src/components/NoDataCard';
+import { isNoData } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function PWAAdvancedPage() {
   const [activeTab, setActiveTab] = useState('offline');
   const [loading, setLoading] = useState(false);
+  const [noData, setNoData] = useState(null);
   const userId = 'demo_user';
 
   // E2: Offline Caching State
@@ -40,7 +43,9 @@ export default function PWAAdvancedPage() {
         fetch(`${API_BASE}/pwa-advanced/offline/sw-config`),
         fetch(`${API_BASE}/pwa-advanced/offline/cached?user_id=${userId}`)
       ]);
-      setOfflineConfig(await configRes.json());
+      const configData = await configRes.json();
+      if (isNoData(configData)) { setNoData(configData); return; }
+      setOfflineConfig(configData);
       setSwConfig(await swRes.json());
       const routesData = await routesRes.json();
       setCachedRoutes(routesData.cached_routes || []);
@@ -257,6 +262,10 @@ export default function PWAAdvancedPage() {
 
       <h1 className="text-3xl font-bold mb-6">PWA Advanced Features</h1>
 
+      {noData ? (
+        <NoDataCard {...noData} />
+      ) : (
+      <>
       {/* Tabs */}
       <div className="flex gap-4 mb-6 border-b border-gray-700 pb-4">
         <button
@@ -620,6 +629,8 @@ export default function PWAAdvancedPage() {
             )}
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

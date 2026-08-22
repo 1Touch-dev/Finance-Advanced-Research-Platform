@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import Head from 'next/head';
+import NoDataCard from '../src/components/NoDataCard';
+import { isNoData } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -14,15 +16,17 @@ export default function EntityDiscoveryPage() {
   const [investments, setInvestments] = useState(null);
   const [boardConnections, setBoardConnections] = useState(null);
   const [activeTab, setActiveTab] = useState('entities');
+  const [noData, setNoData] = useState(null);
 
   async function startDiscovery() {
     if (!ticker) return;
     setLoading(true);
+    setNoData(null);
     try {
       const res = await fetch(`${API_BASE}/agent/discover?ticker=${ticker}&depth=2`, { method: 'POST' });
       const data = await res.json();
+      if (isNoData(data)) { setNoData(data); setLoading(false); return; }
       setActiveJob(data);
-      // Fetch all data in parallel
       await fetchAllData();
     } catch (err) {
       console.error('Error:', err);
@@ -117,6 +121,8 @@ export default function EntityDiscoveryPage() {
           </div>
         )}
       </div>
+
+      {noData && <div className="mb-6"><NoDataCard {...noData} /></div>}
 
       {entities && (
         <>

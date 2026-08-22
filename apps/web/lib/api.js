@@ -9,6 +9,10 @@ export function getApiBaseUrl() {
   return 'http://localhost:8000';
 }
 
+export function isNoData(data) {
+  return data && data.no_data === true;
+}
+
 export function getAdminBaseUrl() {
   const configured = process.env.NEXT_PUBLIC_ADMIN_URL;
   if (configured) {

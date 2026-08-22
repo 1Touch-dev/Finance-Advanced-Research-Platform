@@ -109,21 +109,41 @@ def get_financial_summary(ticker: str):
     }
 
 
-# ── FRED macro data ───────────────────────────────────────────────────────────
+# ── FRED macro data (via economics_service with 1h cache) ─────────────────────
 
 @router.get("/macro")
 def get_macro(series_id: str = "GDP", limit: int = 10):
-    """Fetch FRED series observations. Available: GDP, UNRATE, CPIAUCSL, FEDFUNDS, DGS10, etc."""
-    return {"series_id": series_id, "data": fred_macro_data(series_id, limit)}
+    """Fetch FRED series observations. Available: GDP, UNRATE, CPIAUCSL, FEDFUNDS, DGS10, SP500, M2SL, UMCSENT, etc."""
+    from app.services.economics_service import get_series
+    return get_series(series_id, limit)
+
+
+@router.get("/macro/indicators")
+def get_macro_indicators(limit: int = 5):
+    """
+    Key macro indicators (GDP, Unemployment, CPI, Fed Funds, 10Y, S&P 500, M2, Consumer Sentiment).
+    Cached for 1 hour.
+    """
+    from app.services.economics_service import get_macro_indicators as _get_indicators
+    return _get_indicators(limit)
 
 
 @router.get("/macro/dashboard")
 def get_macro_dashboard():
     """
-    Comprehensive macro dashboard with all key economic indicators.
+    Comprehensive macro dashboard with all 23 key economic indicators.
     Returns latest values for GDP, inflation, employment, rates, housing, consumer.
+    Cached for 1 hour.
     """
-    return fred_macro_dashboard()
+    from app.services.economics_service import get_full_dashboard
+    return get_full_dashboard()
+
+
+@router.get("/macro/calendar")
+def get_economic_calendar():
+    """Economic release calendar: last-updated dates and upcoming releases from FRED."""
+    from app.services.economics_service import get_economic_calendar as _get_calendar
+    return _get_calendar()
 
 
 @router.get("/macro/series")
@@ -143,23 +163,23 @@ def get_vintage_data(series_id: str, vintage_date: str, limit: int = 10):
     """
     ALFRED vintage data — point-in-time series as it existed on a specific date.
     Prevents look-ahead bias in historical analysis.
-
-    Args:
-        series_id: FRED series ID (e.g., "GDP", "UNRATE")
-        vintage_date: Date to get vintage for (YYYY-MM-DD format)
-        limit: Max observations to return
     """
-    return {
-        "series_id": series_id,
-        "vintage_date": vintage_date,
-        "data": fred_vintage_data(series_id, vintage_date, limit),
-    }
+    from app.services.economics_service import get_vintage
+    return get_vintage(series_id, vintage_date, limit)
 
 
 @router.get("/macro/search")
 def search_fred_series(q: str, limit: int = 10):
     """Search for FRED series by keyword."""
-    return {"query": q, "results": fred_search(q, limit)}
+    from app.services.economics_service import search_series
+    return search_series(q, limit)
+
+
+@router.get("/fred/search")
+def search_fred_series_alias(query: str, limit: int = 10):
+    """Alias for /macro/search — frontend uses this path."""
+    from app.services.economics_service import search_series
+    return search_series(query, limit)
 
 
 # ── News aggregation ──────────────────────────────────────────────────────────
