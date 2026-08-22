@@ -10,10 +10,10 @@ class OpenAIClient:
     def is_configured(self) -> bool:
         return bool(self.api_key)
 
-    def analyze_text(self, prompt: str, system_instruction: str = "You are an expert financial and intelligence research analyst.") -> str:
+    def analyze_text(self, prompt: str, system_instruction: str = "You are an expert financial and intelligence research analyst.") -> str | None:
         """Call OpenAI completions to analyze a structured prompt."""
         if not self.is_configured():
-            return "[OpenAI Client Error: OPENAI_API_KEY not configured. Simulated completion returned.]"
+            return None
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",

@@ -29,6 +29,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.db.session import get_db
+from app.auth.security import get_current_user
 
 try:
     from app.services.tracking_service import (
@@ -85,21 +86,21 @@ def get_watchlist(db: Session = Depends(get_db)):
 
 
 @router.post("/watchlist")
-def add_watch(payload: WatchRequest, db: Session = Depends(get_db)):
+def add_watch(payload: WatchRequest, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     if not _TRACKING_OK:
         raise HTTPException(503, "Tracking service not available")
     return add_to_watchlist(db, payload.entity_name, payload.entity_type, payload.added_by, payload.notes)
 
 
 @router.delete("/watchlist/{entity_name:path}")
-def remove_watch(entity_name: str, db: Session = Depends(get_db)):
+def remove_watch(entity_name: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     if not _TRACKING_OK:
         raise HTTPException(503, "Tracking service not available")
     return remove_from_watchlist(db, entity_name)
 
 
 @router.post("/digest/run")
-def trigger_digest(dry_run: bool = False, background_tasks: BackgroundTasks = None, db: Session = Depends(get_db)):
+def trigger_digest(dry_run: bool = False, background_tasks: BackgroundTasks = None, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     if not _TRACKING_OK:
         raise HTTPException(503, "Tracking service not available")
     return run_daily_digest(db, dry_run=dry_run)
@@ -180,7 +181,7 @@ def get_alerts(status: Optional[str] = None, severity: Optional[str] = None,
 
 
 @router.post("/alerts/{alert_id}/acknowledge")
-def acknowledge_alert(alert_id: int, db: Session = Depends(get_db)):
+def acknowledge_alert(alert_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     try:
         db.execute(text("""
             UPDATE entity_alerts SET status='acknowledged', acknowledged_at=NOW()
@@ -193,7 +194,7 @@ def acknowledge_alert(alert_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/alerts/{alert_id}/snooze")
-def snooze_alert(alert_id: int, hours: int = 24, db: Session = Depends(get_db)):
+def snooze_alert(alert_id: int, hours: int = 24, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     try:
         db.execute(text("""
             UPDATE entity_alerts
@@ -235,7 +236,7 @@ def list_alert_rules(db: Session = Depends(get_db)):
 
 
 @router.post("/alert-rules", status_code=201)
-def create_alert_rule(payload: AlertRuleCreate, db: Session = Depends(get_db)):
+def create_alert_rule(payload: AlertRuleCreate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """Create a new insider_trade alert rule with custom threshold + optional watchlist scope (F-03)."""
     from app.models.monitor import AlertRule, Watchlist
     if not payload.name or len(payload.name.strip()) == 0:
@@ -272,7 +273,7 @@ def get_alert_rule(rule_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/alert-rules/{rule_id}")
-def update_alert_rule(rule_id: int, payload: AlertRulePatch, db: Session = Depends(get_db)):
+def update_alert_rule(rule_id: int, payload: AlertRulePatch, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """Partial update: threshold, name, watchlist_id, enabled (F-03)."""
     from app.models.monitor import AlertRule, Watchlist
     rule = db.query(AlertRule).filter(
@@ -302,7 +303,7 @@ def update_alert_rule(rule_id: int, payload: AlertRulePatch, db: Session = Depen
 
 
 @router.delete("/alert-rules/{rule_id}", status_code=204)
-def delete_alert_rule(rule_id: int, db: Session = Depends(get_db)):
+def delete_alert_rule(rule_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """Permanently delete an alert rule. Historical alert_events are kept (F-03)."""
     from app.models.monitor import AlertRule
     rule = db.query(AlertRule).filter(
@@ -323,6 +324,7 @@ def scan_insider_trades(
     threshold: float = 500_000,
     dry_run: bool = False,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Manually trigger the F-03 big-trade scan.
@@ -378,7 +380,7 @@ def get_threshold(ticker: str, db: Session = Depends(get_db)):
 
 
 @router.patch("/watchlist/{ticker}/threshold")
-def set_threshold(ticker: str, payload: ThresholdSettings, db: Session = Depends(get_db)):
+def set_threshold(ticker: str, payload: ThresholdSettings, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """
     Save or update investment alert threshold + contact info for a watchlisted ticker (F-04).
     At least one of notify_email or notify_phone must be provided.
@@ -425,6 +427,7 @@ def scan_investments(
     ticker: Optional[str] = None,
     dry_run: bool = False,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Manually trigger the F-04 investment alert scan.

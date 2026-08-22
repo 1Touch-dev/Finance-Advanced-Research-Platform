@@ -537,17 +537,17 @@ class RiskMetrics:
         }
 
 
-# Simulated beta values for common stocks
-_BETA_MAP = {
-    "AAPL": 1.28, "MSFT": 1.05, "GOOGL": 1.15, "AMZN": 1.22,
-    "META": 1.35, "NVDA": 1.68, "TSLA": 2.05, "AMD": 1.75,
-    "JPM": 1.12, "BAC": 1.35, "GS": 1.28, "V": 0.98,
-    "MA": 1.05, "JNJ": 0.62, "PFE": 0.68, "UNH": 0.78,
-    "XOM": 1.02, "CVX": 1.08, "PG": 0.45, "KO": 0.58,
-    "PEP": 0.52, "WMT": 0.48, "HD": 1.12, "DIS": 1.22,
-    "NFLX": 1.45, "INTC": 0.95, "CRM": 1.18, "ORCL": 0.92,
-    "IBM": 0.78, "SPY": 1.00, "QQQ": 1.10, "IWM": 1.25,
-}
+def _get_real_beta(ticker: str) -> float:
+    """Get beta from yfinance info or return market-neutral default."""
+    import yfinance as yf
+    try:
+        info = yf.Ticker(ticker).info
+        beta = info.get("beta")
+        if beta is not None:
+            return float(beta)
+    except Exception:
+        pass
+    return 1.0
 
 
 def calculate_risk_metrics(
@@ -581,7 +581,7 @@ def calculate_risk_metrics(
     # Calculate weighted average beta
     total_weight = sum(h.weight for h in holdings)
     weighted_beta = sum(
-        h.weight * _BETA_MAP.get(h.ticker, 1.0) for h in holdings
+        h.weight * _get_real_beta(h.ticker) for h in holdings
     ) / total_weight if total_weight > 0 else 1.0
 
     # Simulate portfolio volatility based on holdings
@@ -798,34 +798,27 @@ class PortfolioPnLSummary:
         }
 
 
-# Simulated price history for period returns
-_PRICE_HISTORY = {
-    # ticker: {day_ago, week_ago, month_ago, ytd_start}
-    "AAPL": {"day": 0.98, "week": 0.95, "month": 0.92, "ytd": 0.85},
-    "MSFT": {"day": 0.99, "week": 0.97, "month": 0.94, "ytd": 0.88},
-    "GOOGL": {"day": 1.01, "week": 0.98, "month": 0.96, "ytd": 0.90},
-    "NVDA": {"day": 0.97, "week": 0.92, "month": 0.85, "ytd": 0.65},
-    "TSLA": {"day": 1.02, "week": 1.05, "month": 0.90, "ytd": 0.75},
-    "AMD": {"day": 0.98, "week": 0.94, "month": 0.88, "ytd": 0.70},
-    "META": {"day": 0.99, "week": 0.96, "month": 0.93, "ytd": 0.82},
-    "AMZN": {"day": 1.00, "week": 0.98, "month": 0.95, "ytd": 0.87},
-    "JPM": {"day": 1.01, "week": 1.00, "month": 0.98, "ytd": 0.92},
-    "BAC": {"day": 1.00, "week": 0.99, "month": 0.97, "ytd": 0.90},
-}
-
-
 def _get_price_history_factors(ticker: str) -> Dict[str, float]:
-    """Get historical price factors for a ticker (current price / historical price)."""
-    if ticker in _PRICE_HISTORY:
-        return _PRICE_HISTORY[ticker]
-    # TODO: needs real historical data from yfinance
-    # For now return neutral factors (no change) for unknown tickers
-    return {
-        "day": 1.0,
-        "week": 1.0,
-        "month": 1.0,
-        "ytd": 1.0,
-    }
+    """Get actual price change factors from yfinance."""
+    import yfinance as yf
+    try:
+        hist = yf.Ticker(ticker).history(period="1y")
+        if hist.empty:
+            return {"day": 1.0, "week": 1.0, "month": 1.0, "ytd": 1.0}
+        current = float(hist['Close'].iloc[-1])
+        factors = {"day": 1.0, "week": 1.0, "month": 1.0, "ytd": 1.0}
+        if len(hist) > 1:
+            factors["day"] = float(hist['Close'].iloc[-2]) / current
+        if len(hist) > 5:
+            factors["week"] = float(hist['Close'].iloc[-5]) / current
+        if len(hist) > 21:
+            factors["month"] = float(hist['Close'].iloc[-21]) / current
+        ytd_hist = hist[hist.index >= f"{datetime.now().year}-01-01"]
+        if not ytd_hist.empty:
+            factors["ytd"] = float(ytd_hist['Close'].iloc[0]) / current
+        return factors
+    except Exception:
+        return {"day": 1.0, "week": 1.0, "month": 1.0, "ytd": 1.0}
 
 
 def calculate_position_pnl(

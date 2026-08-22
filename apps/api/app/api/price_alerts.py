@@ -2,8 +2,10 @@
 Price Alerts API (Band C #35)
 """
 
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Depends
 from typing import Optional, List
+
+from app.auth.security import get_current_user
 
 from app.services.price_alert_service import (
     create_alert,
@@ -31,6 +33,7 @@ async def create_price_alert(
     note: Optional[str] = Query(None, description="Note"),
     expires_in_days: Optional[int] = Query(None, description="Days until expiration"),
     recurring: bool = Query(False, description="Recurring alert"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Create a new price alert."""
     channel_list = [c.strip() for c in channels.split(",")] if channels else None
@@ -100,6 +103,7 @@ async def list_notifications(
 async def mark_read(
     notification_id: str,
     user_id: str = Query(..., description="User ID"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Mark a notification as read."""
     success = mark_notification_read(notification_id, user_id)
@@ -128,6 +132,7 @@ async def update_price_alert(
     channels: Optional[str] = Query(None),
     note: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
 ):
     """Update an alert."""
     channel_list = [c.strip() for c in channels.split(",")] if channels else None
@@ -154,6 +159,7 @@ async def update_price_alert(
 async def delete_price_alert(
     alert_id: str,
     user_id: str = Query(..., description="User ID"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Delete an alert."""
     success = delete_alert(alert_id, user_id)
@@ -166,6 +172,7 @@ async def delete_price_alert(
 async def check_ticker_alerts(
     ticker: str,
     current_price: float = Query(..., description="Current price"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Check if any alerts should trigger for a ticker (internal use)."""
     triggered = check_alerts(ticker, current_price)

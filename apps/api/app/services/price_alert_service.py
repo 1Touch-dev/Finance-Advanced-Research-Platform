@@ -10,9 +10,11 @@ Provides price alert functionality:
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 from enum import Enum
 import uuid
+
+import yfinance as yf
 
 
 class AlertType(str, Enum):
@@ -101,17 +103,29 @@ class AlertNotification:
 _alerts: Dict[str, PriceAlert] = {}
 _notifications: Dict[str, AlertNotification] = {}
 
-# Mock current prices
-_mock_prices: Dict[str, float] = {
-    "AAPL": 185.50,
-    "MSFT": 378.25,
-    "GOOGL": 142.80,
-    "AMZN": 178.90,
-    "NVDA": 875.40,
-    "META": 495.20,
-    "TSLA": 245.60,
-    "JPM": 195.30,
-}
+_price_cache: Dict[str, Tuple[float, datetime]] = {}  # ticker -> (price, timestamp)
+CACHE_TTL = 300  # 5 minutes
+
+
+def _get_real_price(ticker: str) -> float:
+    """Get real current price from yfinance with 5-min cache."""
+    now = datetime.utcnow()
+    if ticker in _price_cache:
+        price, cached_at = _price_cache[ticker]
+        if (now - cached_at).total_seconds() < CACHE_TTL:
+            return price
+    try:
+        t = yf.Ticker(ticker)
+        hist = t.history(period="1d")
+        if not hist.empty:
+            price = float(hist['Close'].iloc[-1])
+            _price_cache[ticker] = (price, now)
+            return price
+    except Exception:
+        pass
+    if ticker in _price_cache:
+        return _price_cache[ticker][0]
+    return 0.0
 
 
 # ── Service Functions ─────────────────────────────────────────────────────────
@@ -135,7 +149,7 @@ def create_alert(
     if expires_in_days:
         expires_at = (now + timedelta(days=expires_in_days)).isoformat()
     
-    current_price = _mock_prices.get(ticker.upper(), 100.0)
+    current_price = _get_real_price(ticker.upper())
     
     alert = PriceAlert(
         alert_id=alert_id,
@@ -172,7 +186,7 @@ def get_user_alerts(
     
     # Update current values
     for alert in alerts:
-        alert.current_value = _mock_prices.get(alert.ticker, 100.0)
+        alert.current_value = _get_real_price(alert.ticker)
     
     return sorted(alerts, key=lambda a: a.created_at, reverse=True)
 
@@ -181,7 +195,7 @@ def get_alert(alert_id: str, user_id: str) -> Optional[PriceAlert]:
     """Get a specific alert."""
     alert = _alerts.get(alert_id)
     if alert and alert.user_id == user_id:
-        alert.current_value = _mock_prices.get(alert.ticker, 100.0)
+        alert.current_value = _get_real_price(alert.ticker)
         return alert
     return None
 

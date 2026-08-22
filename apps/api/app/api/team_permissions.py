@@ -2,8 +2,10 @@
 Team Permission Roles API (#49)
 """
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
 from typing import Optional
+
+from app.auth.security import get_current_user
 
 router = APIRouter(prefix="/teams", tags=["Teams"])
 
@@ -59,6 +61,7 @@ def api_get_user_teams(
 def api_create_team(
     name: str,
     user_id: str = Query(default="demo_user"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Create a new team"""
     if not SERVICE_AVAILABLE:
@@ -82,6 +85,7 @@ def api_add_member(
     email: str,
     name: str,
     role: str = Query(default="viewer"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Add member to team"""
     if not SERVICE_AVAILABLE:
@@ -93,6 +97,7 @@ def api_add_member(
 def api_remove_member(
     team_id: str,
     user_id: str,
+    current_user: dict = Depends(get_current_user),
 ):
     """Remove member from team"""
     if not SERVICE_AVAILABLE:
@@ -105,6 +110,7 @@ def api_update_role(
     team_id: str,
     user_id: str,
     role: str,
+    current_user: dict = Depends(get_current_user),
 ):
     """Update member's role"""
     if not SERVICE_AVAILABLE:
@@ -117,6 +123,7 @@ def api_add_permission(
     team_id: str,
     user_id: str,
     permission: str,
+    current_user: dict = Depends(get_current_user),
 ):
     """Add custom permission to member"""
     if not SERVICE_AVAILABLE:
@@ -133,6 +140,7 @@ def api_remove_permission(
     team_id: str,
     user_id: str,
     permission: str,
+    current_user: dict = Depends(get_current_user),
 ):
     """Remove custom permission from member"""
     if not SERVICE_AVAILABLE:
@@ -176,6 +184,7 @@ def api_transfer_ownership(
     team_id: str,
     new_owner_id: str,
     current_owner_id: str = Query(default="demo_user"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Transfer team ownership"""
     if not SERVICE_AVAILABLE:

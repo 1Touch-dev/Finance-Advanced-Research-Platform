@@ -2,8 +2,10 @@
 Brokerage Sync API (#43)
 Plaid/OAuth integration with brokers
 """
-from fastapi import APIRouter, Query, HTTPException, Body
+from fastapi import APIRouter, Query, HTTPException, Body, Depends
 from typing import Optional, Dict, Any
+
+from app.auth.security import get_current_user
 
 from app.services.brokerage_sync_service import (
     get_supported_brokers,
@@ -29,7 +31,8 @@ async def list_brokers():
 @router.post("/link/initiate")
 async def start_link(
     user_id: str = Query(..., description="User ID"),
-    broker_id: str = Query(..., description="Broker ID")
+    broker_id: str = Query(..., description="Broker ID"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Initiate broker linking process."""
     return initiate_link(user_id, broker_id)
@@ -39,7 +42,8 @@ async def start_link(
 async def finish_link(
     user_id: str = Query(..., description="User ID"),
     link_token: str = Query(..., description="Link token from initiate"),
-    access_token: str = Query(..., description="Access token from OAuth")
+    access_token: str = Query(..., description="Access token from OAuth"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Complete broker linking after OAuth."""
     return complete_link(user_id, link_token, access_token)
@@ -56,7 +60,8 @@ async def list_accounts(
 @router.post("/accounts/{account_id}/sync")
 async def trigger_sync(
     account_id: str,
-    user_id: str = Query(..., description="User ID")
+    user_id: str = Query(..., description="User ID"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Sync account data from broker."""
     return sync_account(user_id, account_id)
@@ -84,7 +89,8 @@ async def get_transactions(
 @router.delete("/accounts/{account_id}")
 async def remove_account(
     account_id: str,
-    user_id: str = Query(..., description="User ID")
+    user_id: str = Query(..., description="User ID"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Unlink a brokerage account."""
     return unlink_account(user_id, account_id)

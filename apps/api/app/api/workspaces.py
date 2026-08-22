@@ -2,8 +2,10 @@
 Shared Workspaces API (#48)
 """
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
 from typing import Optional
+
+from app.auth.security import get_current_user
 
 router = APIRouter(prefix="/workspaces", tags=["Workspaces"])
 
@@ -42,6 +44,7 @@ def api_create_workspace(
     name: str,
     description: str = "",
     user_id: str = Query(default="demo_user"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Create a new workspace"""
     if not SERVICE_AVAILABLE:
@@ -63,6 +66,7 @@ def api_update_workspace(
     workspace_id: str,
     name: Optional[str] = None,
     description: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
 ):
     """Update workspace details"""
     if not SERVICE_AVAILABLE:
@@ -71,7 +75,10 @@ def api_update_workspace(
 
 
 @router.delete("/{workspace_id}")
-def api_delete_workspace(workspace_id: str):
+def api_delete_workspace(
+    workspace_id: str,
+    current_user: dict = Depends(get_current_user),
+):
     """Delete a workspace"""
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
@@ -86,6 +93,7 @@ def api_add_member(
     name: str,
     role: str = Query(default="viewer"),
     invited_by: str = Query(default="demo_user"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Add member to workspace"""
     if not SERVICE_AVAILABLE:
@@ -101,6 +109,7 @@ def api_add_member(
 def api_remove_member(
     workspace_id: str,
     user_id: str,
+    current_user: dict = Depends(get_current_user),
 ):
     """Remove member from workspace"""
     if not SERVICE_AVAILABLE:
@@ -113,6 +122,7 @@ def api_update_member_role(
     workspace_id: str,
     user_id: str,
     role: str,
+    current_user: dict = Depends(get_current_user),
 ):
     """Update member's role"""
     if not SERVICE_AVAILABLE:
@@ -129,6 +139,7 @@ def api_add_resource(
     workspace_id: str,
     resource_type: str,
     resource_id: str,
+    current_user: dict = Depends(get_current_user),
 ):
     """Add resource to workspace"""
     if not SERVICE_AVAILABLE:
@@ -141,6 +152,7 @@ def api_remove_resource(
     workspace_id: str,
     resource_type: str,
     resource_id: str,
+    current_user: dict = Depends(get_current_user),
 ):
     """Remove resource from workspace"""
     if not SERVICE_AVAILABLE:

@@ -20,9 +20,9 @@ class AnthropicClient:
     def is_configured(self) -> bool:
         return bool(self.api_key)
 
-    def analyze_text(self, prompt: str, system: str = "", max_tokens: int = 4096) -> Dict[str, Any]:
+    def analyze_text(self, prompt: str, system: str = "", max_tokens: int = 4096) -> Optional[Dict[str, Any]]:
         if not self.is_configured():
-            return {"text": f"Simulated Claude response (ANTHROPIC_API_KEY not set): {prompt[:200]}", "tokens": 0}
+            return None
         headers = {
             "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
