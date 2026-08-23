@@ -267,7 +267,8 @@ class VolatilityService:
                     iv_60d = atm_iv
                 elif 80 <= dte <= 100 and iv_90d == 0:
                     iv_90d = atm_iv
-            except Exception:
+            except Exception as exc:
+                log.debug("term structure parse failed for expiry %s: %s", exp_str, exc)
                 continue
 
         if term_structure and iv_30d == 0:
@@ -309,7 +310,8 @@ class VolatilityService:
         try:
             data = yf.download(ticker, period="3mo", progress=False)
             prices = data["Close"].dropna().values.flatten() if not data.empty else np.array([])
-        except Exception:
+        except Exception as exc:
+            log.debug("historical price download failed for %s: %s", ticker, exc)
             prices = np.array([])
 
         hv_30d = _compute_hv(prices, 21)
@@ -386,7 +388,8 @@ class VolatilityService:
 
             prices = data["Close"].dropna().values.flatten()
             dates = [str(d.date()) for d in data["Close"].dropna().index]
-        except Exception:
+        except Exception as exc:
+            log.debug("volatility history download failed for %s: %s", ticker, exc)
             return VolatilityHistory(ticker=ticker.upper(), days=days)
 
         # Rolling HV

@@ -26,6 +26,7 @@ try:
     APIFY_AVAILABLE = bool(os.getenv("APIFY_API_TOKEN", ""))
 except ImportError:
     APIFY_AVAILABLE = False
+    logger.warning({"event": "connector_unavailable", "connector": "apify", "impact": "social footprint, LinkedIn, news data will be empty"})
     def fetch_social_footprint(name, **kw): return {}
     def fetch_key_people(name, **kw): return []
     def fetch_linkedin_by_name(n, c=""): return {"education": [], "experience": [], "source": "unavailable"}
@@ -42,6 +43,7 @@ try:
     BROWSER_AGENT_AVAILABLE = True
 except ImportError:
     BROWSER_AGENT_AVAILABLE = False
+    logger.warning({"event": "connector_unavailable", "connector": "browser_research_agent", "impact": "browser-based entity research will be unavailable"})
     def research_entity_browser(n, **kw): return {"findings": [], "summary": "", "jurisdiction": "unknown", "source": "unavailable"}
     def detect_jurisdiction(n, c=""): return "default"
     def is_us_entity(n, t="org"): return True
@@ -56,6 +58,7 @@ try:
     APOLLO_AVAILABLE = True
 except ImportError:
     APOLLO_AVAILABLE = False
+    logger.warning({"event": "connector_unavailable", "connector": "apollo", "impact": "org chart, organization enrichment will be empty"})
     def apollo_search_org(name): return {}
     def apollo_org_chart(org): return []
     def apollo_enrich_org(domain="", name=""): return {}
@@ -66,6 +69,7 @@ try:
     PRIVATE_CO_AVAILABLE = True
 except ImportError:
     PRIVATE_CO_AVAILABLE = False
+    logger.warning({"event": "connector_unavailable", "connector": "private_company", "impact": "private company intelligence will be empty"})
     def fetch_private_company_intel(name, **kw): return {}
 
 # Financial connectors for enhanced reports
@@ -74,6 +78,7 @@ try:
     YFINANCE_AVAILABLE = True
 except ImportError:
     YFINANCE_AVAILABLE = False
+    logger.warning({"event": "connector_unavailable", "connector": "yfinance", "impact": "market snapshots, fundamentals, company info will be empty"})
     def yf_snapshot(ticker): return {}
     def yf_fundamentals(ticker): return {}
     def yf_company_info(ticker): return {}
@@ -83,6 +88,7 @@ try:
     VALUATION_AVAILABLE = True
 except ImportError:
     VALUATION_AVAILABLE = False
+    logger.warning({"event": "connector_unavailable", "connector": "valuation", "impact": "DCF valuation and valuation reports will be empty"})
     def full_valuation_report(ticker): return {}
     def build_dcf_valuation(ticker): return {}
 
@@ -91,6 +97,7 @@ try:
     TECHNICALS_AVAILABLE = True
 except ImportError:
     TECHNICALS_AVAILABLE = False
+    logger.warning({"event": "connector_unavailable", "connector": "technicals", "impact": "technical analysis indicators will be empty"})
     def compute_technicals(ticker, period="1y"): return {}
 
 # Enhanced narrative service
@@ -102,6 +109,7 @@ try:
     ENHANCED_NARRATIVE_AVAILABLE = True
 except ImportError:
     ENHANCED_NARRATIVE_AVAILABLE = False
+    logger.warning({"event": "connector_unavailable", "connector": "enhanced_narrative", "impact": "AI-enhanced report narratives will be unavailable"})
     def generate_enhanced_sections(*args, **kwargs): return []
     def convert_enhanced_to_report_sections(*args, **kwargs): return []
 
@@ -111,6 +119,7 @@ try:
     MULTI_AGENT_AVAILABLE = True
 except ImportError:
     MULTI_AGENT_AVAILABLE = False
+    logger.warning({"event": "connector_unavailable", "connector": "multi_agent_intelligence", "impact": "multi-agent investment intelligence will be empty"})
     def run_investment_intelligence(ticker, company_name=""): return {}
 
 # Deep Research Orchestrator (Phase 1: LinkedIn, FPDS, Political, 13F Overlap)
@@ -123,6 +132,7 @@ try:
     DEEP_RESEARCH_AVAILABLE = True
 except ImportError:
     DEEP_RESEARCH_AVAILABLE = False
+    logger.warning({"event": "connector_unavailable", "connector": "deep_research_orchestrator", "impact": "LinkedIn, FPDS, political, 13F overlap data will be empty"})
     def run_deep_intelligence(*args, **kwargs): return {}
     def get_deep_intelligence_summary(data): return {}
     def check_connector_availability(): return {}

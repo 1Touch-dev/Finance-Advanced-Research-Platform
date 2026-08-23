@@ -52,9 +52,12 @@ class ConsensusSnapshot:
     estimate_type: str
     fiscal_year: int
     fiscal_period: str
-    mean: float
-    high: float
-    low: float
+    # None, never 0.0, when the provider withheld estimates. A literal 0.0 sitting
+    # beside num_analysts=54 reads as "54 analysts forecast zero EPS", which is a
+    # fabrication; None plus estimates_source="unavailable" is checkable.
+    mean: Optional[float]
+    high: Optional[float]
+    low: Optional[float]
     num_analysts: int
     buy: int = 0
     hold: int = 0
@@ -66,6 +69,7 @@ class ConsensusSnapshot:
     price_target_high: float = 0.0
     price_target_low: float = 0.0
     source: str = "Finnhub"
+    estimates_source: str = "finnhub"
 
 
 @dataclass
@@ -99,11 +103,13 @@ class Dispersion:
     ticker: str
     estimate_type: str
     fiscal_year: int
-    spread: float = 0.0
-    std_dev: float = 0.0
-    cv: float = 0.0
+    # None when estimates are unavailable; "unknown" level rather than a
+    # reassuring-looking "low" computed from nothing.
+    spread: Optional[float] = 0.0
+    std_dev: Optional[float] = 0.0
+    cv: Optional[float] = 0.0
     dispersion_level: str = "low"
-    uncertainty_score: float = 0.0
+    uncertainty_score: Optional[float] = 0.0
 
 
 @dataclass
@@ -203,6 +209,47 @@ def _fetch_eps_estimates(ticker: str) -> list:
     return result
 
 
+def _fetch_eps_estimates_yf(ticker: str) -> list:
+    """EPS estimates from yfinance, used when Finnhub answers 403.
+
+    Finnhub gates /stock/eps-estimate behind a paid plan, so on the free tier the
+    endpoint returns 403 and the caller previously reported mean=0.0. yfinance
+    surfaces the same consensus in `Ticker.earnings_estimate`, normalised here to
+    Finnhub's field names so the caller needs no special case.
+    """
+    cache_key = f"eps_est_yf_{ticker}"
+    cached = _get_cached(cache_key)
+    if cached is not None:
+        return cached
+
+    rows = []
+    try:
+        import yfinance as yf
+        t = yf.Ticker(ticker.upper())
+        est = getattr(t, "earnings_estimate", None)
+        if est is not None and not est.empty:
+            year = date.today().year
+            for period, row in est.iterrows():
+                avg = row.get("avg")
+                if avg is None or (isinstance(avg, float) and avg != avg):
+                    continue
+                # yfinance periods are relative ("0y" current, "+1y" next)
+                offset = 1 if str(period).startswith("+1") else 0
+                rows.append({
+                    "year": year + offset,
+                    "period": str(period),
+                    "epsAvg": float(avg),
+                    "epsHigh": float(row.get("high")) if row.get("high") == row.get("high") else None,
+                    "epsLow": float(row.get("low")) if row.get("low") == row.get("low") else None,
+                    "numberAnalysts": int(row.get("numberOfAnalysts") or 0),
+                })
+    except Exception as exc:
+        logger.debug("yfinance EPS estimate fallback failed for %s: %s", ticker, exc)
+
+    _set_cache(cache_key, rows)
+    return rows
+
+
 def _fetch_revenue_estimates(ticker: str) -> list:
     """Fetch revenue estimates from Finnhub."""
     cache_key = f"rev_est_{ticker}"
@@ -256,29 +303,28 @@ def get_consensus_snapshot(
     pt_low = pt.get("targetLow", 0) or 0
 
     # EPS / Revenue estimates
-    if est_type == "eps":
-        estimates = _fetch_eps_estimates(ticker)
-    elif est_type == "revenue":
+    estimates_source = "finnhub"
+    if est_type == "revenue":
         estimates = _fetch_revenue_estimates(ticker)
     else:
         estimates = _fetch_eps_estimates(ticker)
+        if not estimates:
+            estimates = _fetch_eps_estimates_yf(ticker)
+            estimates_source = "yfinance" if estimates else "unavailable"
+    if not estimates:
+        estimates_source = "unavailable"
 
-    mean_est = 0.0
-    high_est = 0.0
-    low_est = 0.0
+    mean_est = None
+    high_est = None
+    low_est = None
     if estimates:
         matched = [e for e in estimates if str(e.get("year", "")) == str(fy)]
+        entry = matched[0] if matched else estimates[0]
+        mean_est = entry.get("epsAvg") or entry.get("revenueAvg")
+        high_est = entry.get("epsHigh") or entry.get("revenueHigh")
+        low_est = entry.get("epsLow") or entry.get("revenueLow")
         if matched:
-            entry = matched[0]
-            mean_est = entry.get("epsAvg", 0) or entry.get("revenueAvg", 0) or 0
-            high_est = entry.get("epsHigh", 0) or entry.get("revenueHigh", 0) or 0
-            low_est = entry.get("epsLow", 0) or entry.get("revenueLow", 0) or 0
-            total_analysts = max(total_analysts, entry.get("numberAnalysts", 0))
-        elif estimates:
-            entry = estimates[0]
-            mean_est = entry.get("epsAvg", 0) or entry.get("revenueAvg", 0) or 0
-            high_est = entry.get("epsHigh", 0) or entry.get("revenueHigh", 0) or 0
-            low_est = entry.get("epsLow", 0) or entry.get("revenueLow", 0) or 0
+            total_analysts = max(total_analysts, entry.get("numberAnalysts", 0) or 0)
 
     return ConsensusSnapshot(
         ticker=ticker.upper(),
@@ -298,6 +344,7 @@ def get_consensus_snapshot(
         price_target_mean=pt_mean,
         price_target_high=pt_high,
         price_target_low=pt_low,
+        estimates_source=estimates_source,
     )
 
 
@@ -320,9 +367,9 @@ def get_rolling_consensus(
             estimate_type=estimate_type.value if hasattr(estimate_type, "value") else estimate_type,
             fiscal_year=fiscal_year or date.today().year,
             fiscal_period=fiscal_period.value if hasattr(fiscal_period, "value") else fiscal_period,
-            mean=0,
-            high=0,
-            low=0,
+            mean=None,
+            high=None,
+            low=None,
             num_analysts=rec.get("buy", 0) + rec.get("hold", 0) + rec.get("sell", 0) + rec.get("strongBuy", 0) + rec.get("strongSell", 0),
             buy=rec.get("buy", 0),
             hold=rec.get("hold", 0),
@@ -330,6 +377,7 @@ def get_rolling_consensus(
             strong_buy=rec.get("strongBuy", 0),
             strong_sell=rec.get("strongSell", 0),
             as_of_date=rec.get("period", ""),
+            estimates_source="unavailable",  # timeline carries ratings, not estimates
         )
         snapshots.append(snap)
     return snapshots
@@ -420,6 +468,21 @@ def get_estimate_dispersion(
     """Calculate estimate dispersion from high/low spread."""
     fy = fiscal_year or date.today().year
     snapshot = get_consensus_snapshot(ticker, estimate_type, fy, fiscal_period)
+
+    # No estimates means no dispersion. Previously mean=0.0 was coerced to 1 and the
+    # result was reported as spread 0 / "low" uncertainty — a confident-looking answer
+    # derived from absent data.
+    if snapshot.mean is None or snapshot.high is None or snapshot.low is None:
+        return Dispersion(
+            ticker=ticker.upper(),
+            estimate_type=estimate_type.value if hasattr(estimate_type, "value") else estimate_type,
+            fiscal_year=fy,
+            spread=None,
+            std_dev=None,
+            cv=None,
+            dispersion_level="unknown",
+            uncertainty_score=None,
+        )
 
     spread = snapshot.high - snapshot.low
     mean = snapshot.mean if snapshot.mean != 0 else 1

@@ -1,40 +1,30 @@
 import Head from 'next/head'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
-import { getApiBaseUrl, apiFetch } from '../lib/api';
+import { getApiBaseUrl, apiFetch, isNoData } from '../lib/api';
 
 const API = typeof window !== 'undefined' ? getApiBaseUrl() : ''
-
-const BILLING_HISTORY = [
-  { id: 'inv_2026_07_08', date: '2026-07-08', desc: 'Professional - Monthly', amount: 49, status: 'paid' },
-  { id: 'inv_2026_06_08', date: '2026-06-08', desc: 'Professional - Monthly', amount: 49, status: 'paid' },
-  { id: 'inv_2026_05_08', date: '2026-05-08', desc: 'Professional - Monthly', amount: 49, status: 'paid' },
-]
 
 export default function Billing() {
   const [subscription, setSubscription] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [cancelling, setCancelling] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
 
   useEffect(() => {
-    // Fetch current subscription - mock for now
-    setSubscription({
-      plan: 'Professional',
-      status: 'active',
-      price: 49,
-      interval: 'month',
-      currentPeriodStart: '2026-07-08',
-      currentPeriodEnd: '2026-08-08',
-      nextBillingDate: '2026-08-08',
-      usage: {
-        reports: { used: 42, limit: 100 },
-        alerts: { used: 18, limit: 50 },
-        apiCalls: { used: 2340, limit: 5000 },
-      },
-    })
-    setLoading(false)
+    apiFetch('/billing/subscription')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && !isNoData(data)) {
+          setSubscription(data)
+        } else {
+          setError('no_billing')
+        }
+      })
+      .catch(() => setError('no_billing'))
+      .finally(() => setLoading(false))
   }, [])
 
   const handleCancel = async () => {
@@ -60,6 +50,29 @@ export default function Billing() {
       <div className="page-wrap" style={{ textAlign: 'center', paddingTop: '4rem' }}>
         <div style={{ color: 'var(--text-muted)' }}>Loading billing information...</div>
       </div>
+    )
+  }
+
+  if (error || !subscription) {
+    return (
+      <>
+        <Head><title>Billing | Enterprise Intelligence</title></Head>
+        <div className="page-wrap" style={{ maxWidth: 600, textAlign: 'center', paddingTop: '3rem' }}>
+          <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>💳</div>
+          <h1 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#f1f5f9', marginBottom: '0.75rem' }}>
+            Billing Not Configured
+          </h1>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem', lineHeight: 1.6 }}>
+            Payment processing is not yet active. Stripe integration is required to enable subscriptions, invoices, and payment management.
+          </p>
+          <div style={{ background: 'var(--bg-elev-1)', border: '1px solid var(--line)', borderRadius: 'var(--radius-md)', padding: '1rem', fontSize: '0.78rem', color: 'var(--text-muted)', textAlign: 'left' }}>
+            <strong style={{ color: 'var(--text)' }}>Required:</strong> Set STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET in environment variables to enable billing.
+          </div>
+          <Link href="/" legacyBehavior>
+            <a className="btn btn-primary" style={{ marginTop: '1.5rem', fontSize: '0.8rem', padding: '10px 20px' }}>Back to Dashboard</a>
+          </Link>
+        </div>
+      </>
     )
   }
 

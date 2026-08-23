@@ -37,6 +37,7 @@ try:
     BOARD_INTERLOCK_AVAILABLE = True
 except ImportError:
     BOARD_INTERLOCK_AVAILABLE = False
+    logger.warning({"event": "connector_unavailable", "connector": "board_interlock", "impact": "board interlock data will be empty"})
 
     def get_board_interlocks(*args, **kwargs):
         return {}
@@ -46,6 +47,7 @@ try:
     FAMILY_NETWORK_AVAILABLE = True
 except ImportError:
     FAMILY_NETWORK_AVAILABLE = False
+    logger.warning({"event": "connector_unavailable", "connector": "family_network", "impact": "family network research will be empty"})
 
     def research_family_network(*args, **kwargs):
         return {}
@@ -55,6 +57,7 @@ try:
     CONTRACTS_AVAILABLE = True
 except ImportError:
     CONTRACTS_AVAILABLE = False
+    logger.warning({"event": "connector_unavailable", "connector": "fpds", "impact": "contract portfolio data will be empty"})
 
     def get_full_contract_portfolio(*args, **kwargs):
         return {}
@@ -64,6 +67,7 @@ try:
     INSTITUTIONAL_HOLDINGS_AVAILABLE = True
 except ImportError:
     INSTITUTIONAL_HOLDINGS_AVAILABLE = False
+    logger.warning({"event": "connector_unavailable", "connector": "institutional_holdings", "impact": "institutional holder data will be empty"})
 
     def get_institutional_holders(*args, **kwargs):
         return {}
@@ -73,6 +77,7 @@ try:
     INSTITUTIONAL_OVERLAP_AVAILABLE = True
 except ImportError:
     INSTITUTIONAL_OVERLAP_AVAILABLE = False
+    logger.warning({"event": "connector_unavailable", "connector": "institutional_overlap", "impact": "competitor ownership comparison will be empty"})
 
     def compare_competitor_ownership(*args, **kwargs):
         return {}
@@ -82,6 +87,7 @@ try:
     MARKET_DATA_AVAILABLE = True
 except ImportError:
     MARKET_DATA_AVAILABLE = False
+    logger.warning({"event": "connector_unavailable", "connector": "market_data", "impact": "price history and quotes will be empty"})
 
     def get_price_history(*args, **kwargs):
         return {}
@@ -94,6 +100,7 @@ try:
     POLITICAL_AVAILABLE = True
 except ImportError:
     POLITICAL_AVAILABLE = False
+    logger.warning({"event": "connector_unavailable", "connector": "opensecrets", "impact": "political intelligence data will be empty"})
 
     def get_political_intelligence(*args, **kwargs):
         return {}
@@ -103,6 +110,7 @@ try:
     PROXY_AVAILABLE = True
 except ImportError:
     PROXY_AVAILABLE = False
+    logger.warning({"event": "connector_unavailable", "connector": "proxy_statement", "impact": "proxy intelligence data will be empty"})
 
     def get_proxy_intelligence(*args, **kwargs):
         return {}
@@ -112,6 +120,7 @@ try:
     SEC_EDGAR_AVAILABLE = True
 except ImportError:
     SEC_EDGAR_AVAILABLE = False
+    logger.warning({"event": "connector_unavailable", "connector": "sec_edgar", "impact": "CIK resolution and insider transactions will be empty"})
 
     def get_cik_from_ticker(*args, **kwargs):
         return None
@@ -127,6 +136,7 @@ try:
     TIMELINE_AVAILABLE = True
 except ImportError:
     TIMELINE_AVAILABLE = False
+    logger.warning({"event": "connector_unavailable", "connector": "timeline", "impact": "entity timeline generation will be empty"})
 
     def generate_entity_timeline(*args, **kwargs):
         return {}
@@ -136,6 +146,7 @@ try:
     DEEP_COMPARATIVE_AVAILABLE = True
 except ImportError:
     DEEP_COMPARATIVE_AVAILABLE = False
+    logger.warning({"event": "connector_unavailable", "connector": "deep_comparative", "impact": "deep comparative analysis will be empty"})
 
     def run_deep_comparative_analysis(*args, **kwargs):
         return {}

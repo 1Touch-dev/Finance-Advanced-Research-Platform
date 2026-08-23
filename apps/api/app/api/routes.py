@@ -13,7 +13,7 @@ from app.auth.security import (
 )
 from app.auth.oidc import oidc_provider
 import secrets
-from app.rbac.permissions import require_permission, Current
+from app.rbac.permissions import require_permission, Current, get_current_user
 
 router = APIRouter()
 
@@ -39,9 +39,15 @@ def bootstrap(db: Session = Depends(get_db)):
 # MFA, refresh, logout, and OIDC remain here for backwards compatibility.
 
 @router.post('/auth/mfa/enroll')
-def mfa_enroll(user_id: int, db: Session = Depends(get_db)):
+def mfa_enroll(curr: Current = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Enrol the *authenticated* user in TOTP.
+
+    Previously took ``user_id`` as an unauthenticated query param, so anyone could
+    POST /auth/mfa/enroll?user_id=1 and overwrite that account's MFA secret —
+    handing the caller a valid second factor for an account they don't own.
+    """
     from app.auth.mfa import generate_totp_secret
-    u = db.query(User).filter_by(id=user_id).first()
+    u = db.query(User).filter_by(id=curr.user_id).first()
     if not u:
         raise HTTPException(404, 'user not found')
     data = generate_totp_secret(u.email)
@@ -50,9 +56,11 @@ def mfa_enroll(user_id: int, db: Session = Depends(get_db)):
     return {"qr_png_base64": data["qr_png_base64"], "provisioning_uri": data["provisioning_uri"]}
 
 @router.post('/auth/mfa/verify')
-def mfa_verify(user_id: int, code: str, enable: bool = True, db: Session = Depends(get_db)):
+def mfa_verify(code: str, enable: bool = True,
+               curr: Current = Depends(get_current_user),
+               db: Session = Depends(get_db)):
     from app.auth.mfa import verify_totp
-    u = db.query(User).filter_by(id=user_id).first()
+    u = db.query(User).filter_by(id=curr.user_id).first()
     if not u or not u.mfa_secret:
         raise HTTPException(400, 'enroll first')
     if not verify_totp(u.mfa_secret, code):
@@ -63,8 +71,10 @@ def mfa_verify(user_id: int, code: str, enable: bool = True, db: Session = Depen
     return {"ok": True, "mfa_enabled": u.mfa_enabled}
 
 @router.post('/auth/mfa/require')
-def mfa_require(user_id: int, required: bool = True, db: Session = Depends(get_db)):
-    u = db.query(User).filter_by(id=user_id).first()
+def mfa_require(required: bool = True,
+                curr: Current = Depends(get_current_user),
+                db: Session = Depends(get_db)):
+    u = db.query(User).filter_by(id=curr.user_id).first()
     if not u:
         raise HTTPException(404, 'user not found')
     u.mfa_required = required

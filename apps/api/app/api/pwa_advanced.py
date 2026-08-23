@@ -58,8 +58,11 @@ def cache_route(
 
 
 @router.get("/offline/cached")
-def cached_routes(user_id: str = Query(...)):
+def cached_routes(user_id: str = Query(...),
+    current_user: dict = Depends(get_current_user),
+):
     """E2: Get all cached routes for a user."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return get_cached_routes(user_id)
 
 
@@ -119,8 +122,11 @@ def biometric_login_verify(
 
 
 @router.get("/biometric/status")
-def biometric_status(user_id: str = Query(...)):
+def biometric_status(user_id: str = Query(...),
+    current_user: dict = Depends(get_current_user),
+):
     """E3: Get biometric authentication status."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return get_biometric_status(user_id)
 
 
@@ -165,8 +171,11 @@ def screen_end(session_id: str, user_id: str = Query(...),
 
 
 @router.get("/screen/active")
-def screen_active(user_id: str = Query(...)):
+def screen_active(user_id: str = Query(...),
+    current_user: dict = Depends(get_current_user),
+):
     """E5: Get all active screen sharing sessions."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return get_active_sessions(user_id)
 
 

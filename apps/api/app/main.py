@@ -180,6 +180,26 @@ except Exception:
 @app.on_event("startup")
 async def on_startup():
     logger.info({"event": "startup"})
+
+    # Ensure the schema exists. Individual routers call Base.metadata.create_all()
+    # ad hoc, so whether a table existed depended on which endpoint happened to be
+    # hit first: /auth/register 500'd on a fresh database because nothing had run
+    # create_all yet. Alembic owns the schema in deployment (`alembic upgrade head`);
+    # this is the safety net for fresh SQLite databases and test runs.
+    if os.getenv("DB_AUTO_CREATE", "on") != "off":
+        try:
+            import importlib
+
+            from app.db.session import engine
+            from app.models.base import Base
+
+            # importlib rather than `import app.models.models`, which would rebind
+            # the local name `app` and shadow the FastAPI instance.
+            importlib.import_module("app.models.models")
+
+            Base.metadata.create_all(bind=engine)
+        except Exception as exc:
+            logger.warning({"event": "db_auto_create_failed", "error": str(exc)})
     # Preload RAG models in a background thread so first-request latency (cold
     # HF download / model init) doesn't hit a user, and so the model is a warmed
     # thread-safe singleton before any concurrent request constructs it.

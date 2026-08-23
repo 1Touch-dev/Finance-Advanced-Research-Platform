@@ -32,8 +32,10 @@ except ImportError:
 @router.get("/")
 def api_get_user_workspaces(
     user_id: str = Query(default="demo_user"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get all workspaces for user"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     return {"workspaces": get_user_workspaces(user_id)}

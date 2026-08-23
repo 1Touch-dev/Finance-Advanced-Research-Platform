@@ -133,12 +133,14 @@ def search_documents(
     mode: str = Query("hybrid", description="Retrieval mode: vector | keyword | hybrid"),
     debug: bool = Query(False, description="Attach per-stage RAG retrieval trace"),
     user_id: Optional[str] = Query(None, description="Tenant scope — only this user's docs"),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Search across document chunks (vector / keyword / hybrid + rerank).
     Falls back to keyword automatically when embeddings are unavailable.
     Rate-limited and tenant-scoped (user_id) to prevent abuse / cross-tenant leakage.
     """
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     service = get_ingestion_service()
 
     doc_id_list = None
@@ -180,10 +182,12 @@ def list_documents(
     entity_id: Optional[str] = Query(None, description="Filter by entity ID"),
     user_id: Optional[str] = Query(None, description="Filter by user ID"),
     status: Optional[str] = Query(None, description="Filter by processing status"),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     List all uploaded documents with optional filters.
     """
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     service = get_ingestion_service()
 
     # Parse status

@@ -545,8 +545,8 @@ def _get_real_beta(ticker: str) -> float:
         beta = info.get("beta")
         if beta is not None:
             return float(beta)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("beta fetch failed for %s: %s", ticker, exc)
     return 1.0
 
 

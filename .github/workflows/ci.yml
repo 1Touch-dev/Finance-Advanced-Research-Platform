@@ -33,7 +33,29 @@ jobs:
         run: |
           pip install pytest pytest-timeout
           set -o pipefail
-          python -m pytest tests/ -q --timeout=60 --continue-on-collection-errors -x --ignore=tests/test_deep_research_connectors.py 2>&1 | tail -30
+          # -m 'not network' keeps CI hermetic: without keys or outbound access the
+          # provider-backed tests fail for environmental reasons and drown out real
+          # regressions. Run the full suite separately where credentials exist.
+          python -m pytest tests/ -q --timeout=60 -m 'not network' \
+            --continue-on-collection-errors 2>&1 | tail -30
+      - name: Verify migrations apply to an empty database
+        working-directory: apps/api
+        env:
+          DATABASE_URL: sqlite:///./migration_check.db
+          RAG_PRELOAD: 'off'
+        run: |
+          # Catches drift between models and migrations: a model added without a
+          # matching revision would otherwise only surface on a production deploy.
+          alembic upgrade head
+          python -c "
+          import sqlite3
+          tables = [r[0] for r in sqlite3.connect('migration_check.db').execute(
+              \"select name from sqlite_master where type='table'\")]
+          assert 'alembic_version' in tables, 'migrations did not run'
+          assert len(tables) > 40, f'only {len(tables)} tables created'
+          print(f'{len(tables)} tables created from migrations')
+          "
+
       - name: Check no random imports in app code
         run: |
           # Recursive on purpose: the previous non-recursive glob missed app/api/status.py.

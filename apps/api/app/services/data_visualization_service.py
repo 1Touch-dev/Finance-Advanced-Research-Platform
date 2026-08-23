@@ -266,8 +266,8 @@ def get_scatter_plot(
                     "y": y_val,
                     "sector": info.get("sector"),
                 })
-        except Exception:
-            pass
+        except Exception as exc:
+            log.debug("scatter data fetch failed for ticker %s: %s", t, exc)
 
     return {
         "chart_type": "scatter",
@@ -310,8 +310,8 @@ def get_area_chart(tickers: List[str], stacked: bool = True, period: str = "1Y")
             series[t] = normalized.tolist()
             if dates is None:
                 dates = [str(d.date()) if hasattr(d, "date") else str(d)[:10] for d in hist.index]
-        except Exception:
-            pass
+        except Exception as exc:
+            log.debug("area chart fetch failed for ticker %s: %s", t, exc)
 
     if not series:
         return {}
@@ -387,8 +387,8 @@ def get_histogram(metric: str = "returns", period: str = "1Y") -> Dict[str, Any]
                 dy = info.get("dividendYield")
                 if dy:
                     values.append({"ticker": t, "value": round(float(dy) * 100, 2)})
-        except Exception:
-            pass
+        except Exception as exc:
+            log.debug("histogram metric fetch failed for ticker %s: %s", t, exc)
 
     if not values:
         return {}

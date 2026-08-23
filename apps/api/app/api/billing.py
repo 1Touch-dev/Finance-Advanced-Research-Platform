@@ -19,8 +19,11 @@ _NOT_CONFIGURED = {
 # ─── Routes ─────────────────────────────────────────────────────────────────
 
 @router.get("/subscription")
-def get_subscription(user_id: str = "demo"):
+def get_subscription(user_id: str = "demo",
+    current_user: dict = Depends(get_current_user),
+):
     """Get current subscription details."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return _NOT_CONFIGURED
 
 
@@ -41,14 +44,20 @@ def resubscribe(plan_id: str = "pro_monthly", user_id: str = "demo",
 
 
 @router.get("/usage")
-def get_usage(user_id: str = "demo"):
+def get_usage(user_id: str = "demo",
+    current_user: dict = Depends(get_current_user),
+):
     """Get current usage for the billing period."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return _NOT_CONFIGURED
 
 
 @router.get("/invoices")
-def list_invoices(user_id: str = "demo", limit: int = 10):
+def list_invoices(user_id: str = "demo", limit: int = 10,
+    current_user: dict = Depends(get_current_user),
+):
     """List past invoices."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return _NOT_CONFIGURED
 
 

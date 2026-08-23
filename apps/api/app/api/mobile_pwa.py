@@ -69,9 +69,11 @@ def unsubscribe_push(
 
 @router.get("/notifications/preferences")
 def get_preferences(
-    user_id: Optional[str] = Query(None, description="User ID")
+    user_id: Optional[str] = Query(None, description="User ID"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get user notification preferences."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return get_notification_preferences(user_id)
 
 

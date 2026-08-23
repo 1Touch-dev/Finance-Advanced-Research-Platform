@@ -53,9 +53,11 @@ def finish_link(
 
 @router.get("/accounts")
 def list_accounts(
-    user_id: Optional[str] = Query(None, description="User ID")
+    user_id: Optional[str] = Query(None, description="User ID"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get all linked brokerage accounts."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return get_linked_accounts(user_id)
 
 
@@ -73,9 +75,11 @@ def trigger_sync(
 @router.get("/accounts/{account_id}/positions")
 def get_positions(
     account_id: str,
-    user_id: Optional[str] = Query(None, description="User ID")
+    user_id: Optional[str] = Query(None, description="User ID"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get positions from linked account."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return get_account_positions(user_id, account_id)
 
 
@@ -83,9 +87,11 @@ def get_positions(
 def get_transactions(
     account_id: str,
     user_id: Optional[str] = Query(None, description="User ID"),
-    limit: int = Query(50, description="Max transactions to return")
+    limit: int = Query(50, description="Max transactions to return"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get recent transactions from linked account."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return get_account_transactions(user_id, account_id, limit)
 
 
@@ -102,7 +108,9 @@ def remove_account(
 
 @router.get("/sync-status")
 def check_sync_status(
-    user_id: Optional[str] = Query(None, description="User ID")
+    user_id: Optional[str] = Query(None, description="User ID"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get sync status for all accounts."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return get_sync_status(user_id)

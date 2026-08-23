@@ -180,3 +180,37 @@ class Annotation(Base):
     # Metadata
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+# ── Price Alerts (#35) ────────────────────────────────────────────────────────
+
+
+class PriceAlertModel(Base):
+    __tablename__ = 'price_alerts'
+    id = Column(Integer, primary_key=True)
+    alert_id = Column(String, unique=True, nullable=False, index=True)
+    user_id = Column(String, nullable=False, index=True)
+    ticker = Column(String, nullable=False)
+    alert_type = Column(String, nullable=False)
+    target_value = Column(Float, nullable=False)
+    current_value = Column(Float, nullable=True)
+    status = Column(String, nullable=False, default='active')
+    created_at = Column(String, nullable=False)
+    triggered_at = Column(String, nullable=True)
+    expires_at = Column(String, nullable=True)
+    notification_channels = Column(JSON, nullable=True)
+    note = Column(Text, nullable=True)
+    recurring = Column(Boolean, default=False)
+
+
+class AlertNotificationModel(Base):
+    __tablename__ = 'alert_notifications'
+    id = Column(Integer, primary_key=True)
+    notification_id = Column(String, unique=True, nullable=False, index=True)
+    alert_id = Column(String, nullable=False)
+    user_id = Column(String, nullable=False, index=True)
+    ticker = Column(String, nullable=False)
+    message = Column(Text, nullable=False)
+    sent_at = Column(String, nullable=False)
+    channel = Column(String, nullable=False)
+    read = Column(Boolean, default=False)

@@ -169,12 +169,14 @@ def get_entity_comments(
     include_replies: bool = Query(True, description="Include reply threads"),
     limit: int = Query(50, ge=1, le=200, description="Maximum comments"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Get all comments for an entity (#47).
 
     Returns threaded comments with replies.
     """
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     # Parse entity type
     try:
         etype = EntityType(entity_type.lower())
@@ -429,12 +431,14 @@ def get_document_annotations(
     document_type: str,
     document_id: str,
     user_id: Optional[str] = Query(None, description="User ID for visibility filtering"),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Get all annotations for a document (#47).
 
     Returns annotations sorted by position in document.
     """
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     # Parse document type
     try:
         dtype = DocumentType(document_type.lower())
@@ -465,10 +469,12 @@ def get_user_annotation_list(
     user_id: Optional[str] = Query(None, description="User ID"),
     document_type: Optional[str] = Query(None, description="Filter by document type"),
     limit: int = Query(50, ge=1, le=200, description="Maximum annotations"),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Get all annotations by a user (#47).
     """
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     # Parse document type if provided
     dtype = None
     if document_type:

@@ -17,6 +17,31 @@ DEFAULT_PORTFOLIO = {
     "JPM": 0.1, "XOM": 0.1, "JNJ": 0.1, "SPY": 0.1
 }
 
+
+def _get_user_portfolio(user_id: str) -> Dict[str, float]:
+    """Get user's portfolio weights from DB, or DEFAULT_PORTFOLIO if none."""
+    try:
+        from app.db.session import get_db_context
+        from app.models.monitor import Portfolio, Position
+        from sqlalchemy import text
+        with get_db_context() as db:
+            portfolio = db.query(Portfolio).first()  # TODO: filter by user_id when auth is wired
+            if not portfolio:
+                return DEFAULT_PORTFOLIO
+            positions = db.execute(
+                text("SELECT ticker, qty, cost_basis FROM positions WHERE portfolio_id = :pid"),
+                {"pid": portfolio.id}
+            ).fetchall()
+            if not positions:
+                return DEFAULT_PORTFOLIO
+            total = sum(r[1] * r[2] for r in positions)
+            if total <= 0:
+                return DEFAULT_PORTFOLIO
+            return {r[0]: (r[1] * r[2]) / total for r in positions if r[0]}
+    except Exception as exc:
+        logger.debug("Failed to load user portfolio, using default: %s", exc)
+        return DEFAULT_PORTFOLIO
+
 SECTOR_ETFS = {
     "XLK": "Technology", "XLF": "Financials", "XLE": "Energy",
     "XLV": "Healthcare", "XLI": "Industrials", "XLY": "Consumer Discretionary",
@@ -104,7 +129,7 @@ def get_factor_decomposition(user_id: str) -> Dict[str, Any]:
     if cached:
         return cached
 
-    portfolio = DEFAULT_PORTFOLIO
+    portfolio = _get_user_portfolio(user_id)
     factor_tickers = ["SPY", "IWM", "IWD", "IWG"]
     all_tickers = list(set(list(portfolio.keys()) + factor_tickers))
 
@@ -180,7 +205,7 @@ def get_factor_decomposition(user_id: str) -> Dict[str, Any]:
 
 def get_correlation_matrix(user_id: str, tickers: List[str] = None) -> Dict[str, Any]:
     """D7: Pairwise correlation matrix from historical prices."""
-    portfolio = DEFAULT_PORTFOLIO
+    portfolio = _get_user_portfolio(user_id)
     ticker_list = tickers if tickers else list(portfolio.keys())
 
     cache_key = f"corr_{'_'.join(sorted(ticker_list))}"
@@ -257,7 +282,7 @@ def get_drawdown_analytics(user_id: str) -> Dict[str, Any]:
     if cached:
         return cached
 
-    portfolio = DEFAULT_PORTFOLIO
+    portfolio = _get_user_portfolio(user_id)
     tickers = list(portfolio.keys())
     prices = _download_prices(tickers, period="2y")
 
@@ -347,7 +372,7 @@ def get_performance_attribution(user_id: str) -> Dict[str, Any]:
     if cached:
         return cached
 
-    portfolio = DEFAULT_PORTFOLIO
+    portfolio = _get_user_portfolio(user_id)
     tickers = list(portfolio.keys())
     prices = _download_prices(tickers + ["SPY"], period="6mo")
 
@@ -423,7 +448,7 @@ def run_scenario_analysis(user_id: str, scenarios: List[str] = None) -> Dict[str
     }
 
     selected = scenarios or ["2008_financial_crisis", "covid_crash", "2022_rate_hike"]
-    portfolio = DEFAULT_PORTFOLIO
+    portfolio = _get_user_portfolio(user_id)
     tickers = list(portfolio.keys())
 
     results = {}
@@ -485,7 +510,7 @@ def get_risk_parity_allocation(user_id: str) -> Dict[str, Any]:
     if cached:
         return cached
 
-    portfolio = DEFAULT_PORTFOLIO
+    portfolio = _get_user_portfolio(user_id)
     tickers = list(portfolio.keys())
     prices = _download_prices(tickers, period="1y")
 
@@ -549,7 +574,7 @@ def get_rebalancing_suggestions(user_id: str, target_allocation: Dict[str, float
     if cached and target_allocation is None:
         return cached
 
-    portfolio = DEFAULT_PORTFOLIO
+    portfolio = _get_user_portfolio(user_id)
     target = target_allocation or portfolio  # if no target, use equal weight
     if target_allocation is None:
         n = len(portfolio)

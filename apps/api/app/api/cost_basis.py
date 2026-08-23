@@ -28,8 +28,10 @@ except ImportError:
 def api_get_positions(
     user_id: str = Query(default="demo_user"),
     ticker: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
 ):
     """Get all positions for a user"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     return {"positions": get_user_positions(user_id, ticker)}
@@ -39,8 +41,10 @@ def api_get_positions(
 def api_get_position_detail(
     ticker: str,
     user_id: str = Query(default="demo_user"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get detailed position for a ticker"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     return get_ticker_cost_basis(user_id, ticker)
@@ -65,8 +69,10 @@ def api_add_position(
 @router.get("/summary")
 def api_get_portfolio_summary(
     user_id: str = Query(default="demo_user"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get portfolio summary with gains/losses"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     return get_portfolio_summary(user_id)
@@ -76,8 +82,10 @@ def api_get_portfolio_summary(
 def api_get_realized_gains(
     user_id: str = Query(default="demo_user"),
     year: Optional[int] = None,
+    current_user: dict = Depends(get_current_user),
 ):
     """Get realized gains by holding period"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     return get_gains_by_holding_period(user_id)
@@ -107,8 +115,10 @@ def api_get_tax_lot_comparison(
     ticker: str,
     shares: float = Query(default=10),
     user_id: str = Query(default="demo_user"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Compare tax lot methods for a sale"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     return get_tax_lot_comparison(user_id, ticker, shares)
@@ -118,8 +128,10 @@ def api_get_tax_lot_comparison(
 def api_get_cost_basis_history(
     ticker: str,
     user_id: str = Query(default="demo_user"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get cost basis details for a ticker"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     return get_ticker_cost_basis(user_id, ticker)

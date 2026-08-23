@@ -260,19 +260,25 @@ _next_share_id = 1
 _next_dashboard_id = 1
 _next_widget_id = 1
 
-# Mock watchlist data
-_mock_watchlists: Dict[int, Dict[str, Any]] = {
-    1: {"id": 1, "name": "Tech Giants", "owner": "user1", "items": [
-        {"ticker": "AAPL", "name": "Apple Inc."},
-        {"ticker": "MSFT", "name": "Microsoft Corp."},
-        {"ticker": "GOOGL", "name": "Alphabet Inc."},
-    ]},
-    2: {"id": 2, "name": "Dividend Plays", "owner": "user1", "items": [
-        {"ticker": "JNJ", "name": "Johnson & Johnson"},
-        {"ticker": "PG", "name": "Procter & Gamble"},
-    ]},
-    3: {"id": 3, "name": "Small Caps", "owner": "user2", "items": []},
-}
+def _get_watchlist_from_db(watchlist_id: int) -> Optional[Dict[str, Any]]:
+    """Get watchlist from database instead of mock data."""
+    from app.db.session import get_db_context
+    from app.models.monitor import Watchlist, WatchlistItem
+    try:
+        with get_db_context() as db:
+            wl = db.query(Watchlist).filter(Watchlist.id == watchlist_id).first()
+            if not wl:
+                return None
+            items = db.query(WatchlistItem).filter(WatchlistItem.watchlist_id == wl.id).all()
+            return {
+                "id": wl.id,
+                "name": wl.name,
+                "owner": wl.meta.get("owner", "unknown") if wl.meta else "unknown",
+                "items": [{"ticker": i.ticker, "name": i.notes or i.ticker} for i in items if i.ticker],
+            }
+    except Exception as e:
+        logger.error("Failed to fetch watchlist %d from DB: %s", watchlist_id, e)
+        return None
 
 
 # ── Watchlist Sharing Functions ───────────────────────────────────────────────
@@ -287,10 +293,10 @@ def share_watchlist(
     """Share a watchlist with another user."""
     global _next_share_id
 
-    if watchlist_id not in _mock_watchlists:
+    watchlist = _get_watchlist_from_db(watchlist_id)
+    if not watchlist:
         raise ValueError(f"Watchlist {watchlist_id} not found")
 
-    watchlist = _mock_watchlists[watchlist_id]
     if watchlist["owner"] != shared_by:
         raise PermissionError("Only the owner can share a watchlist")
 
@@ -323,7 +329,7 @@ def get_shared_with_me(user_id: str) -> List[SharedWatchlist]:
     result = []
     for share in _watchlist_shares.values():
         if share.shared_with == user_id:
-            wl = _mock_watchlists.get(share.watchlist_id)
+            wl = _get_watchlist_from_db(share.watchlist_id)
             if wl:
                 result.append(SharedWatchlist(
                     watchlist_id=share.watchlist_id,

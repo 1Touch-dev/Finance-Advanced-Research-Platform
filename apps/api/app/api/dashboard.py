@@ -52,7 +52,9 @@ def list_dashboards(
     """
     Get all dashboards for the authenticated user.
     """
-    user_id = str(current_user["sub"])
+    # get_current_user() returns {"user_id", "email", "payload"}; "sub" lives inside
+    # payload, so current_user["sub"] raised KeyError and 500'd every request here.
+    user_id = str(current_user["user_id"])
     try:
         dashboards = db.query(Dashboard).filter_by(user_id=user_id).all()
     except Exception:
@@ -470,10 +472,12 @@ def get_watchlist_shares(
 def get_shared_watchlists(
     user_id: Optional[str] = Query(None, description="User ID to get shared watchlists for"),
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Get all watchlists shared with a user.
     """
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     try:
         shares = db.query(WatchlistShare).filter_by(shared_with=user_id).all()
     except Exception:

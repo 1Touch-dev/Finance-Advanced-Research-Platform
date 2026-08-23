@@ -319,7 +319,8 @@ def get_portfolio_bubble_chart(user_id: str) -> Dict[str, Any]:
     try:
         from app.services.cost_basis_service import get_user_positions
         positions = get_user_positions(user_id)
-    except Exception:
+    except Exception as exc:
+        log.debug("portfolio positions fetch failed for user %s: %s", user_id, exc)
         positions = []
 
     if not positions:

@@ -61,8 +61,10 @@ def list_alerts(
     user_id: Optional[str] = Query(None, description="User ID"),
     status: Optional[str] = Query(None, description="Filter by status"),
     ticker: Optional[str] = Query(None, description="Filter by ticker"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get all alerts for a user."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     alerts = get_user_alerts(user_id, status, ticker)
     return {
         "alerts": [a.to_dict() for a in alerts],
@@ -81,8 +83,10 @@ def list_alert_types():
 @router.get("/stats")
 def alert_stats(
     user_id: Optional[str] = Query(None, description="User ID"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get alert statistics for a user."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return get_alert_stats(user_id)
 
 
@@ -91,8 +95,10 @@ def list_notifications(
     user_id: Optional[str] = Query(None, description="User ID"),
     unread_only: bool = Query(False, description="Only unread"),
     limit: int = Query(50, ge=1, le=200),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get notifications for a user."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     notifications = get_user_notifications(user_id, unread_only, limit)
     return {
         "notifications": [n.to_dict() for n in notifications],
@@ -118,8 +124,10 @@ def mark_read(
 def get_single_alert(
     alert_id: str,
     user_id: Optional[str] = Query(None, description="User ID"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get a specific alert."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     alert = get_alert(alert_id, user_id)
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")

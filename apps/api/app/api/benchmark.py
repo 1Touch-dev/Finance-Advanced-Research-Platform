@@ -2,7 +2,8 @@
 Benchmark Attribution API (#44)
 """
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
+from app.auth.security import get_current_user
 from typing import Optional, List
 
 router = APIRouter(prefix="/benchmark", tags=["Benchmark"])
@@ -33,8 +34,10 @@ def api_compare_portfolio(
     benchmark: str = Query(default="SPY"),
     period: str = Query(default="1Y"),
     user_id: str = Query(default="demo_user"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Compare portfolio vs benchmark"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     return get_portfolio_vs_benchmark(user_id, benchmark)
@@ -44,8 +47,10 @@ def api_compare_portfolio(
 def api_get_sector_attribution(
     benchmark: str = Query(default="SPY"),
     user_id: str = Query(default="demo_user"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get sector attribution analysis"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     return get_sector_attribution(user_id)
@@ -56,8 +61,10 @@ def api_get_historical(
     benchmark: str = Query(default="SPY"),
     periods: int = Query(default=12),
     user_id: str = Query(default="demo_user"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get historical comparison"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     return get_historical_comparison(user_id, benchmark, periods)
@@ -67,8 +74,10 @@ def api_get_historical(
 def api_get_risk_metrics(
     benchmark: str = Query(default="SPY"),
     user_id: str = Query(default="demo_user"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get risk metrics vs benchmark"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     # Risk metrics are included in portfolio comparison
@@ -78,8 +87,10 @@ def api_get_risk_metrics(
 @router.get("/risk-contribution")
 def api_get_risk_contribution(
     user_id: str = Query(default="demo_user"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get risk contribution by position"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     return get_risk_contribution(user_id)
@@ -88,8 +99,10 @@ def api_get_risk_contribution(
 @router.get("/factor-exposure")
 def api_get_factor_exposure(
     user_id: str = Query(default="demo_user"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get factor exposure analysis"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     # Return risk contribution which includes factor-like data
@@ -101,8 +114,10 @@ def api_get_performance_attribution(
     benchmark: str = Query(default="SPY"),
     period: str = Query(default="1Y"),
     user_id: str = Query(default="demo_user"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get detailed performance attribution"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     return get_sector_attribution(user_id)

@@ -93,7 +93,8 @@ def get_benchmarks() -> List[Dict[str, Any]]:
                     "last_price": round(last_price, 2),
                     "daily_change_pct": round(change_pct, 2),
                 })
-            except Exception:
+            except Exception as exc:
+                log.debug("benchmark data fetch failed for %s: %s", ticker, exc)
                 continue
 
         _set_cache("benchmarks_list", results)

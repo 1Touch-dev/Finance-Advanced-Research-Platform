@@ -25,8 +25,11 @@ router = APIRouter(prefix="/portfolio-analytics", tags=["Portfolio Analytics"])
 
 
 @router.get("/factor-decomposition")
-def factor_decomposition(user_id: str = Query(..., description="User ID")):
+def factor_decomposition(user_id: str = Query(..., description="User ID"),
+    current_user: dict = Depends(get_current_user),
+):
     """D1: Get multi-factor risk attribution."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return get_factor_decomposition(user_id)
 
 
@@ -48,8 +51,11 @@ def model_portfolios():
 
 
 @router.get("/risk-parity")
-def risk_parity(user_id: str = Query(..., description="User ID")):
+def risk_parity(user_id: str = Query(..., description="User ID"),
+    current_user: dict = Depends(get_current_user),
+):
     """D4: Get risk-weighted allocation."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return get_risk_parity_allocation(user_id)
 
 
@@ -65,23 +71,31 @@ def scenario_analysis(
 
 
 @router.get("/drawdown")
-def drawdown_analytics(user_id: str = Query(..., description="User ID")):
+def drawdown_analytics(user_id: str = Query(..., description="User ID"),
+    current_user: dict = Depends(get_current_user),
+):
     """D6: Get max drawdown and recovery analysis."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return get_drawdown_analytics(user_id)
 
 
 @router.get("/correlation-matrix")
 def correlation_matrix(
     user_id: Optional[str] = Query(None, description="User ID"),
-    tickers: Optional[List[str]] = Query(None, description="Tickers to include")
+    tickers: Optional[List[str]] = Query(None, description="Tickers to include"),
+    current_user: dict = Depends(get_current_user),
 ):
     """D7: Get asset correlation heatmap data."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return get_correlation_matrix(user_id, tickers)
 
 
 @router.get("/sector-rotation")
-def sector_rotation(user_id: str = Query(..., description="User ID")):
+def sector_rotation(user_id: str = Query(..., description="User ID"),
+    current_user: dict = Depends(get_current_user),
+):
     """D8: Get sector momentum signals."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return get_sector_rotation_signals(user_id)
 
 
@@ -103,6 +117,9 @@ def custom_benchmark(
 
 
 @router.get("/performance-attribution")
-def performance_attribution(user_id: str = Query(..., description="User ID")):
+def performance_attribution(user_id: str = Query(..., description="User ID"),
+    current_user: dict = Depends(get_current_user),
+):
     """D11: Get Brinson performance attribution."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return get_performance_attribution(user_id)
