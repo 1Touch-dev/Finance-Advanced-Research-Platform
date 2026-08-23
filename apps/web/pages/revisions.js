@@ -40,7 +40,8 @@ function RevisionRow({ result, onClick }) {
   return (
     <tr
       className="hover:bg-gray-50 cursor-pointer border-b"
-      onClick={() => onClick && onClick(result)}
+      onClick={() =>
+ onClick && onClick(result)}
     >
       <td className="px-4 py-3">
         <div className="font-semibold text-blue-600">{result.ticker}</div>
@@ -223,7 +224,7 @@ export default function RevisionsPage() {
       if (minMomentum) url += `&min_momentum_30d=${minMomentum}`;
       if (trendFilter) url += `&trend_classification=${trendFilter}`;
 
-      const res = await fetch(url, { method: 'POST' });
+      const res = await apiFetch(url, { method: 'POST' });
       if (!res.ok) throw new Error('Failed to fetch screen results');
       const data = await res.json();
       setScreenResults(data);
@@ -238,8 +239,8 @@ export default function RevisionsPage() {
     setLoading(true);
     try {
       const [upRes, downRes] = await Promise.all([
-        fetch(`${API_BASE}/revisions/top-upward?estimate_type=${estimateType}&limit=10`),
-        fetch(`${API_BASE}/revisions/top-downward?estimate_type=${estimateType}&limit=10`),
+        apiFetch(`/revisions/top-upward?estimate_type=${estimateType}&limit=10`),
+        apiFetch(`/revisions/top-downward?estimate_type=${estimateType}&limit=10`),
       ]);
 
       if (upRes.ok) setTopUpward(await upRes.json());
@@ -254,7 +255,7 @@ export default function RevisionsPage() {
   const fetchAlerts = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/revisions/alerts?estimate_type=${estimateType}`);
+      const res = await apiFetch(`/revisions/alerts?estimate_type=${estimateType}`);
       if (res.ok) setAlerts(await res.json());
     } catch (err) {
       setError(err.message);
@@ -266,7 +267,7 @@ export default function RevisionsPage() {
   const fetchSummary = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/revisions/summary?estimate_type=${estimateType}`);
+      const res = await apiFetch(`/revisions/summary?estimate_type=${estimateType}`);
       if (res.ok) setSummary(await res.json());
     } catch (err) {
       setError(err.message);

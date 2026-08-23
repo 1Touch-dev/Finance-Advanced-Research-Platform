@@ -3,8 +3,6 @@ import Head from 'next/head';
 import NoDataCard from '../src/components/NoDataCard';
 import { isNoData, apiFetch } from '../lib/api';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
 export default function WorkspacesPage() {
   const [workspaces, setWorkspaces] = useState([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState(null);
@@ -13,6 +11,7 @@ export default function WorkspacesPage() {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchWorkspaces();
@@ -21,7 +20,7 @@ export default function WorkspacesPage() {
   async function fetchWorkspaces() {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/workspaces/`);
+      const res = await apiFetch(`/workspaces/`);
       const data = await res.json();
       if (isNoData(data)) {
         setNoData(data);
@@ -33,7 +32,7 @@ export default function WorkspacesPage() {
         selectWorkspace(data.workspaces[0].workspace_id);
       }
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
     setLoading(false);
   }
@@ -41,15 +40,15 @@ export default function WorkspacesPage() {
   async function selectWorkspace(id) {
     try {
       const [wsRes, actRes] = await Promise.all([
-        fetch(`${API_BASE}/workspaces/${id}`),
-        fetch(`${API_BASE}/workspaces/${id}/activity`)
+        apiFetch(`/workspaces/${id}`),
+        apiFetch(`/workspaces/${id}/activity`)
       ]);
       const wsData = await wsRes.json();
       const actData = await actRes.json();
       setSelectedWorkspace(wsData);
       setActivity(actData.activity || []);
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
   }
 
@@ -64,7 +63,7 @@ export default function WorkspacesPage() {
         fetchWorkspaces();
       }
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
   }
 
@@ -77,6 +76,7 @@ export default function WorkspacesPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
+
       <Head>
         <title>Workspaces | Finance Platform</title>
       </Head>

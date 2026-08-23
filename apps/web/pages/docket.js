@@ -36,6 +36,7 @@ function RiskBadge({ score }) {
 
   return (
     <span className={`px-2 py-1 rounded text-xs font-bold text-white ${color}`}>
+
       {label} ({score})
     </span>
   );
@@ -369,6 +370,7 @@ export default function DocketPage() {
   const [disclosures, setDisclosures] = useState(null);
   const [selectedFinding, setSelectedFinding] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -389,7 +391,7 @@ export default function DocketPage() {
       setCases(await caseRes.json());
       setDisclosures(await discRes.json());
     } catch (err) {
-      console.error(err);
+      setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }

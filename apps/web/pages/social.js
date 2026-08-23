@@ -14,6 +14,7 @@ export default function SocialPage() {
   const [institutional, setInstitutional] = useState(null);
   const [noData, setNoData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchTrending();
@@ -33,7 +34,7 @@ export default function SocialPage() {
         selectTicker(data.trending[0].ticker);
       }
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
     setLoading(false);
   }
@@ -57,7 +58,7 @@ export default function SocialPage() {
       setMomentum(momData);
       setInstitutional(instData);
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
     setLoading(false);
   }
@@ -76,6 +77,7 @@ export default function SocialPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
+
       <Head>
         <title>Social & Whale Tracking | Finance Platform</title>
       </Head>

@@ -3,8 +3,6 @@ import Head from 'next/head';
 import NoDataCard from '../src/components/NoDataCard';
 import { isNoData, apiFetch } from '../lib/api';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
 export default function BrokeragePage() {
   const [brokers, setBrokers] = useState([]);
   const [accounts, setAccounts] = useState([]);
@@ -15,6 +13,7 @@ export default function BrokeragePage() {
   const [noData, setNoData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [linking, setLinking] = useState(false);
+  const [error, setError] = useState(null);
   // user_id derived from JWT token server-side
   const userId = '';
 
@@ -25,9 +24,9 @@ export default function BrokeragePage() {
   async function fetchData() {
     try {
       const [brokersRes, accountsRes, statusRes] = await Promise.all([
-        fetch(`${API_BASE}/brokerage/brokers`),
-        fetch(`${API_BASE}/brokerage/accounts?user_id=${userId}`),
-        fetch(`${API_BASE}/brokerage/sync-status?user_id=${userId}`)
+        apiFetch(`/brokerage/brokers`),
+        apiFetch(`/brokerage/accounts?user_id=${userId}`),
+        apiFetch(`/brokerage/sync-status?user_id=${userId}`)
       ]);
       const brokersData = await brokersRes.json();
       if (isNoData(brokersData)) {
@@ -41,7 +40,7 @@ export default function BrokeragePage() {
       setAccounts(accountsData.accounts || []);
       setSyncStatus(statusData);
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
     setLoading(false);
   }
@@ -62,7 +61,7 @@ export default function BrokeragePage() {
         }
       }
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
     setLinking(false);
   }
@@ -71,15 +70,15 @@ export default function BrokeragePage() {
     setSelectedAccount(account);
     try {
       const [posRes, txRes] = await Promise.all([
-        fetch(`${API_BASE}/brokerage/accounts/${account.account_id}/positions?user_id=${userId}`),
-        fetch(`${API_BASE}/brokerage/accounts/${account.account_id}/transactions?user_id=${userId}`)
+        apiFetch(`/brokerage/accounts/${account.account_id}/positions?user_id=${userId}`),
+        apiFetch(`/brokerage/accounts/${account.account_id}/transactions?user_id=${userId}`)
       ]);
       const posData = await posRes.json();
       const txData = await txRes.json();
       setPositions(posData.positions || []);
       setTransactions(txData.transactions || []);
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
   }
 
@@ -88,7 +87,7 @@ export default function BrokeragePage() {
       await apiFetch(`/brokerage/accounts/${accountId}/sync?user_id=${userId}`, { method: 'POST' });
       fetchData();
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
   }
 
@@ -101,12 +100,13 @@ export default function BrokeragePage() {
       setTransactions([]);
       fetchData();
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
   }
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
+
       <Head>
         <title>Brokerage Sync | Finance Platform</title>
       </Head>

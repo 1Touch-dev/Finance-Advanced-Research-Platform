@@ -2,8 +2,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Head from 'next/head';
 import { apiFetch } from '../lib/api';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
 // Entity type colors
 const TYPE_COLORS = {
   person: '#3B82F6',   // Blue
@@ -34,6 +32,7 @@ export default function NetworkGraphPage() {
   const [graphStats, setGraphStats] = useState(null);
   const canvasRef = useRef(null);
   const [nodePositions, setNodePositions] = useState({});
+  const [error, setError] = useState(null);
 
   // Fetch graph stats on load
   useEffect(() => {
@@ -42,12 +41,12 @@ export default function NetworkGraphPage() {
 
   async function fetchGraphStats() {
     try {
-      const res = await fetch(`${API_BASE}/intelligence/graph/stats`);
+      const res = await apiFetch(`/intelligence/graph/stats`);
       const data = await res.json();
       setGraphStats(data);
       setDataLoaded(data.total_entities > 0);
     } catch (err) {
-      console.error('Error fetching stats:', err);
+      setError('Error fetching stats:', err);
     }
   }
 
@@ -59,7 +58,7 @@ export default function NetworkGraphPage() {
       alert(`Loaded: ${data.entities_loaded} entities, ${data.edges_loaded} edges`);
       fetchGraphStats();
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
       alert('Error loading PayPal Mafia data');
     }
     setLoading(false);
@@ -69,8 +68,7 @@ export default function NetworkGraphPage() {
     if (!seedEntity) return;
     setLoading(true);
     try {
-      const res = await fetch(
-        `${API_BASE}/intelligence/graph/explore/${encodeURIComponent(seedEntity)}?max_depth=${maxDepth}&max_nodes=200`
+      const res = await apiFetch(`/intelligence/graph/explore/${encodeURIComponent(seedEntity)}?max_depth=${maxDepth}&max_nodes=200`
       );
       const data = await res.json();
       if (data.error) {
@@ -80,7 +78,7 @@ export default function NetworkGraphPage() {
         initializeNodePositions(data.nodes);
       }
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
       alert('Error exploring network');
     }
     setLoading(false);
@@ -89,8 +87,7 @@ export default function NetworkGraphPage() {
   async function explorePayPalMafia() {
     setLoading(true);
     try {
-      const res = await fetch(
-        `${API_BASE}/intelligence/graph/paypal-mafia/explore?seed=${encodeURIComponent(seedEntity)}&max_depth=${maxDepth}`
+      const res = await apiFetch(`/intelligence/graph/paypal-mafia/explore?seed=${encodeURIComponent(seedEntity)}&max_depth=${maxDepth}`
       );
       const data = await res.json();
       if (data.error) {
@@ -100,7 +97,7 @@ export default function NetworkGraphPage() {
         initializeNodePositions(data.nodes);
       }
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
     setLoading(false);
   }
@@ -109,13 +106,12 @@ export default function NetworkGraphPage() {
     if (!connectionSource || !connectionTarget) return;
     setLoading(true);
     try {
-      const res = await fetch(
-        `${API_BASE}/intelligence/graph/connect?src=${encodeURIComponent(connectionSource)}&dst=${encodeURIComponent(connectionTarget)}&max_depth=4`
+      const res = await apiFetch(`/intelligence/graph/connect?src=${encodeURIComponent(connectionSource)}&dst=${encodeURIComponent(connectionTarget)}&max_depth=4`
       );
       const data = await res.json();
       setPathResults(data);
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
     setLoading(false);
   }
@@ -202,6 +198,7 @@ export default function NetworkGraphPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
+
       <Head>
         <title>Network Graph | Finance Intelligence</title>
       </Head>

@@ -6,7 +6,6 @@ import React, { useState, useEffect } from 'react';
 import Layout from '../src/components/Layout';
 import { apiFetch } from '../lib/api';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 // user_id derived from JWT token server-side
 
 export default function PriceAlerts() {
@@ -27,7 +26,7 @@ export default function PriceAlerts() {
 
   const fetchAlerts = async () => {
     setLoading(true);
-    const res = await fetch(`${API_BASE}/alerts?user_id=${USER_ID}`);
+    const res = await apiFetch(`/alerts?user_id=${USER_ID}`);
     if (res.ok) {
       const data = await res.json();
       setAlerts(data.alerts || []);
@@ -36,7 +35,7 @@ export default function PriceAlerts() {
   };
 
   const fetchAlertTypes = async () => {
-    const res = await fetch(`${API_BASE}/alerts/types`);
+    const res = await apiFetch(`/alerts/types`);
     if (res.ok) {
       const data = await res.json();
       setAlertTypes(data.alert_types || []);
@@ -44,7 +43,7 @@ export default function PriceAlerts() {
   };
 
   const fetchNotifications = async () => {
-    const res = await fetch(`${API_BASE}/alerts/notifications?user_id=${USER_ID}&limit=10`);
+    const res = await apiFetch(`/alerts/notifications?user_id=${USER_ID}&limit=10`);
     if (res.ok) {
       const data = await res.json();
       setNotifications(data.notifications || []);
@@ -52,7 +51,7 @@ export default function PriceAlerts() {
   };
 
   const fetchStats = async () => {
-    const res = await fetch(`${API_BASE}/alerts/stats?user_id=${USER_ID}`);
+    const res = await apiFetch(`/alerts/stats?user_id=${USER_ID}`);
     if (res.ok) setStats(await res.json());
   };
 

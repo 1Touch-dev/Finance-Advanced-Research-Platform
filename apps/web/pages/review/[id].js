@@ -1,11 +1,11 @@
 import { useRouter } from 'next/router'
 import useSWR from 'swr'
 import { useState } from 'react'
-import { getApiBaseUrl, authHeaders } from '../../lib/api'
+import { getApiBaseUrl, apiFetch } from '../../lib/api'
 import styles from '../../src/styles/Page.module.css'
 
 const API=getApiBaseUrl()
-const fetcher=(u)=>fetch(u).then(r=>r.json())
+const fetcher=(u)=>apiFetch(u).then(r=>r.json())
 
 export default function Review(){
   const router=useRouter(); const {id}=router.query
@@ -15,11 +15,11 @@ export default function Review(){
   const [comment,setComment]=useState('')
   const [err,setErr]=useState('')
   const [notice,setNotice]=useState('')
-  const addComment=async()=>{ await fetch(`${API}/review/comments`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({report_id:Number(id),section_id:sectionId?Number(sectionId):null,text:comment})}); setComment(''); }
-  const suggest=async()=>{ await fetch(`${API}/review/suggest`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({report_id:Number(id),section_id:Number(sectionId),proposed:sectionText})}); setSectionText('') }
-  const exportMd=async()=>{ const r=await fetch(`${API}/review/export/${id}/markdown`); setNotice(`Exported: ${(await r.json()).path}`)}
-  const exportPdf=async()=>{ const r=await fetch(`${API}/review/export/${id}/pdf`); setNotice(`Exported PDF: ${(await r.json()).path}`)}
-  const exportDocx=async()=>{ const r=await fetch(`${API}/review/export/${id}/docx`); setNotice(`Exported Word: ${(await r.json()).path}`)}
+  const addComment=async()=>{ await apiFetch(`/review/comments`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({report_id:Number(id),section_id:sectionId?Number(sectionId):null,text:comment})}); setComment(''); }
+  const suggest=async()=>{ await apiFetch(`/review/suggest`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({report_id:Number(id),section_id:Number(sectionId),proposed:sectionText})}); setSectionText('') }
+  const exportMd=async()=>{ const r=await apiFetch(`/review/export/${id}/markdown`); setNotice(`Exported: ${(await r.json()).path}`)}
+  const exportPdf=async()=>{ const r=await apiFetch(`/review/export/${id}/pdf`); setNotice(`Exported PDF: ${(await r.json()).path}`)}
+  const exportDocx=async()=>{ const r=await apiFetch(`/review/export/${id}/docx`); setNotice(`Exported Word: ${(await r.json()).path}`)}
   const safeAddComment = async () => {
     setErr(''); setNotice('')
     try { await addComment(); setNotice('Comment added.'); }

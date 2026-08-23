@@ -29,6 +29,7 @@ export default function PWAAdvancedPage() {
   const [currentSession, setCurrentSession] = useState(null);
   const [sessionName, setSessionName] = useState('');
   const [joinSessionId, setJoinSessionId] = useState('');
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchOfflineData();
@@ -40,9 +41,9 @@ export default function PWAAdvancedPage() {
   async function fetchOfflineData() {
     try {
       const [configRes, swRes, routesRes] = await Promise.all([
-        fetch(`${API_BASE}/pwa-advanced/offline/config`),
-        fetch(`${API_BASE}/pwa-advanced/offline/sw-config`),
-        fetch(`${API_BASE}/pwa-advanced/offline/cached?user_id=${userId}`)
+        apiFetch(`/pwa-advanced/offline/config`),
+        apiFetch(`/pwa-advanced/offline/sw-config`),
+        apiFetch(`/pwa-advanced/offline/cached?user_id=${userId}`)
       ]);
       const configData = await configRes.json();
       if (isNoData(configData)) { setNoData(configData); return; }
@@ -51,7 +52,7 @@ export default function PWAAdvancedPage() {
       const routesData = await routesRes.json();
       setCachedRoutes(routesData.cached_routes || []);
     } catch (err) {
-      console.error('Error fetching offline data:', err);
+      setError('Error fetching offline data:', err);
     }
   }
 
@@ -64,7 +65,7 @@ export default function PWAAdvancedPage() {
       await fetchOfflineData();
       setCacheRoute('');
     } catch (err) {
-      console.error('Error caching route:', err);
+      setError('Error caching route:', err);
     }
     setLoading(false);
   }
@@ -76,7 +77,7 @@ export default function PWAAdvancedPage() {
       await apiFetch(`/pwa-advanced/offline/cache?user_id=${userId}`, { method: 'DELETE' });
       await fetchOfflineData();
     } catch (err) {
-      console.error('Error clearing cache:', err);
+      setError('Error clearing cache:', err);
     }
     setLoading(false);
   }
@@ -84,10 +85,10 @@ export default function PWAAdvancedPage() {
   // E3: WebAuthn Functions
   async function fetchBiometricStatus() {
     try {
-      const res = await fetch(`${API_BASE}/pwa-advanced/biometric/status?user_id=${userId}`);
+      const res = await apiFetch(`/pwa-advanced/biometric/status?user_id=${userId}`);
       setBiometricStatus(await res.json());
     } catch (err) {
-      console.error('Error fetching biometric status:', err);
+      setError('Error fetching biometric status:', err);
     }
   }
 
@@ -175,11 +176,11 @@ export default function PWAAdvancedPage() {
   // E5: Screen Sharing Functions
   async function fetchActiveSessions() {
     try {
-      const res = await fetch(`${API_BASE}/pwa-advanced/screen/active?user_id=${userId}`);
+      const res = await apiFetch(`/pwa-advanced/screen/active?user_id=${userId}`);
       const data = await res.json();
       setSessions(data.sessions || []);
     } catch (err) {
-      console.error('Error fetching sessions:', err);
+      setError('Error fetching sessions:', err);
     }
   }
 
@@ -189,13 +190,13 @@ export default function PWAAdvancedPage() {
       const url = sessionName
         ? `${API_BASE}/pwa-advanced/screen/create?user_id=${userId}&session_name=${encodeURIComponent(sessionName)}`
         : `${API_BASE}/pwa-advanced/screen/create?user_id=${userId}`;
-      const res = await fetch(url, { method: 'POST' });
+      const res = await apiFetch(url, { method: 'POST' });
       const data = await res.json();
       setCurrentSession(data);
       setSessionName('');
       await fetchActiveSessions();
     } catch (err) {
-      console.error('Error creating session:', err);
+      setError('Error creating session:', err);
     }
     setLoading(false);
   }
@@ -215,7 +216,7 @@ export default function PWAAdvancedPage() {
         await fetchActiveSessions();
       }
     } catch (err) {
-      console.error('Error joining session:', err);
+      setError('Error joining session:', err);
     }
     setLoading(false);
   }
@@ -228,7 +229,7 @@ export default function PWAAdvancedPage() {
       setCurrentSession(null);
       await fetchActiveSessions();
     } catch (err) {
-      console.error('Error leaving session:', err);
+      setError('Error leaving session:', err);
     }
     setLoading(false);
   }
@@ -242,13 +243,14 @@ export default function PWAAdvancedPage() {
       setCurrentSession(null);
       await fetchActiveSessions();
     } catch (err) {
-      console.error('Error ending session:', err);
+      setError('Error ending session:', err);
     }
     setLoading(false);
   }
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
+
       <Head>
         <title>PWA Advanced | Finance Platform</title>
       </Head>

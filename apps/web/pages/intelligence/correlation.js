@@ -96,6 +96,7 @@ export default function CorrelationPage() {
 
   return (
     <div className={styles.page}>
+
       <PageHero
         title="Correlation and Comparative Analysis"
         description="Run the grounded correlation workflow, including event studies, insider and price relationships, political and contract timing, and optional comparative output when competitors are supplied."

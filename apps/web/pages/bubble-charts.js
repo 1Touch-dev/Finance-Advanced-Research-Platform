@@ -14,6 +14,7 @@ export default function BubbleChartsPage() {
   const [sizeMetric, setSizeMetric] = useState('revenue');
   const [colorBy, setColorBy] = useState('sector');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchInitialData();
@@ -31,7 +32,7 @@ export default function BubbleChartsPage() {
       setMetrics(metricsData.metrics || []);
       fetchChart();
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
     setLoading(false);
   }
@@ -43,7 +44,7 @@ export default function BubbleChartsPage() {
       const data = await res.json();
       setChartData(data);
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
     setLoading(false);
   }
@@ -80,6 +81,7 @@ export default function BubbleChartsPage() {
 
     return (
       <div className="relative h-96 border border-gray-700 rounded-lg overflow-hidden">
+
         {/* Y-axis label */}
         <div className="absolute left-0 top-1/2 transform -rotate-90 -translate-y-1/2 -translate-x-8 text-gray-400 text-sm">
           {chartData.y_axis?.label}

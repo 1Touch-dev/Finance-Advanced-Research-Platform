@@ -33,7 +33,8 @@ function SectorCard({ sector, onClick, isActive }) {
 
   return (
     <button
-      onClick={() => onClick(sector.value)}
+      onClick={() =>
+ onClick(sector.value)}
       className={`p-4 rounded-lg border transition-all ${
         isActive
           ? 'bg-blue-50 border-blue-500 shadow-md'

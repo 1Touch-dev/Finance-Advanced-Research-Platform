@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import styles from '../src/styles/Page.module.css'
-import { getApiBaseUrl, authHeaders } from '../lib/api'
+import { getApiBaseUrl, apiFetch } from '../lib/api'
 
 const API = getApiBaseUrl()
-const fetcher = url => fetch(url).then(r => r.json())
+const fetcher = url => apiFetch(url).then(r => r.json())
 
 // ── F-04: Inline investment threshold panel ───────────────────────────────────
 
@@ -23,7 +23,7 @@ function ThresholdPanel({ ticker, onSaved }) {
     setOpen(o => !o)
     if (!open && ticker) {
       try {
-        const r = await fetch(`${API}/tracking/watchlist/${encodeURIComponent(ticker)}/threshold`)
+        const r = await apiFetch(`/tracking/watchlist/${encodeURIComponent(ticker)}/threshold`)
         if (r.ok) {
           const d = await r.json()
           setThreshold(d.threshold || '')
@@ -52,7 +52,7 @@ function ThresholdPanel({ ticker, onSaved }) {
         alert_on_buy: onBuy,
         alert_on_sell: onSell,
       }
-      const r = await fetch(`${API}/tracking/watchlist/${encodeURIComponent(ticker)}/threshold`, {
+      const r = await apiFetch(`/tracking/watchlist/${encodeURIComponent(ticker)}/threshold`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -282,7 +282,7 @@ export default function TrackingPage() {
 
   const addEntity = async () => {
     if (!addName.trim()) return
-    await fetch(`${API}/tracking/watchlist`, {
+    await apiFetch(`/tracking/watchlist`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({
@@ -296,14 +296,14 @@ export default function TrackingPage() {
   }
 
   const removeEntity = async (name) => {
-    await fetch(`${API}/tracking/watchlist/${encodeURIComponent(name)}`, { method: 'DELETE' })
+    await apiFetch(`/tracking/watchlist/${encodeURIComponent(name)}`, { method: 'DELETE' })
     mutateList()
   }
 
   const runDigest = async () => {
     setDigestRunning(true); setDigestResult(null)
     try {
-      const r = await fetch(`${API}/tracking/digest/run?dry_run=${dryRun}`, { method: 'POST' })
+      const r = await apiFetch(`/tracking/digest/run?dry_run=${dryRun}`, { method: 'POST' })
       setDigestResult(await r.json())
     } catch(e) {
       setDigestResult({ error: e.message })
@@ -315,7 +315,7 @@ export default function TrackingPage() {
   const runBigTradeScan = async () => {
     setScanRunning(true); setScanResult(null)
     try {
-      const r = await fetch(`${API}/tracking/scan/insider-trades?dry_run=${scanDryRun}`, { method: 'POST' })
+      const r = await apiFetch(`/tracking/scan/insider-trades?dry_run=${scanDryRun}`, { method: 'POST' })
       setScanResult(await r.json())
     } catch(e) {
       setScanResult({ error: e.message })

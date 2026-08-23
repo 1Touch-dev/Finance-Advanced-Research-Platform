@@ -12,6 +12,7 @@ export default function TaxLotsPage() {
   const [methodComparison, setMethodComparison] = useState(null);
   const [loading, setLoading] = useState(true);
   const [noData, setNoData] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -33,7 +34,7 @@ export default function TaxLotsPage() {
       setHarvesting(harvestData.opportunities || []);
       setApproaching(approachData.lots || []);
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
     setLoading(false);
   }
@@ -44,7 +45,7 @@ export default function TaxLotsPage() {
       const data = await res.json();
       setMethodComparison(data);
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
   }
 
@@ -53,6 +54,7 @@ export default function TaxLotsPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
+
       <Head>
         <title>Tax Lot Optimization | Finance Platform</title>
       </Head>

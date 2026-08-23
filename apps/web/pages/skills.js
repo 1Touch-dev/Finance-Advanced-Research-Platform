@@ -8,7 +8,7 @@ export default function SkillsGateway(){
   const [data,setData]=useState(null);
   const [err,setErr]=useState('');
   const [status,setStatus]=useState(null);
-  useEffect(()=>{ fetch(`${API}/skills/status`).then(r=>r.json()).then(setStatus).catch(()=>{}) }, [API]);
+  useEffect(()=>{ apiFetch(`/skills/status`).then(r=>r.json()).then(setStatus).catch(()=>{}) }, [API]);
   const run=async()=>{
     setErr('');
     try {

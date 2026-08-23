@@ -4,8 +4,6 @@ import NoDataCard from '../src/components/NoDataCard';
 import { isNoData } from '../lib/api';
 import { apiFetch } from '../lib/api';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
 export default function EntityDiscoveryPage() {
   const [ticker, setTicker] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,6 +16,7 @@ export default function EntityDiscoveryPage() {
   const [boardConnections, setBoardConnections] = useState(null);
   const [activeTab, setActiveTab] = useState('entities');
   const [noData, setNoData] = useState(null);
+  const [error, setError] = useState(null);
 
   async function startDiscovery() {
     if (!ticker) return;
@@ -30,7 +29,7 @@ export default function EntityDiscoveryPage() {
       setActiveJob(data);
       await fetchAllData();
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
     setLoading(false);
   }
@@ -39,12 +38,12 @@ export default function EntityDiscoveryPage() {
     const t = ticker.toUpperCase();
     try {
       const [entitiesRes, graphRes, treeRes, subsRes, invRes, boardRes] = await Promise.all([
-        fetch(`${API_BASE}/agent/entities/${t}`),
-        fetch(`${API_BASE}/agent/graph/${t}?depth=2`),
-        fetch(`${API_BASE}/agent/family-tree/${t}`),
-        fetch(`${API_BASE}/agent/subsidiaries/${t}`),
-        fetch(`${API_BASE}/agent/investments/${t}`),
-        fetch(`${API_BASE}/agent/board-connections/${t}`)
+        apiFetch(`/agent/entities/${t}`),
+        apiFetch(`/agent/graph/${t}?depth=2`),
+        apiFetch(`/agent/family-tree/${t}`),
+        apiFetch(`/agent/subsidiaries/${t}`),
+        apiFetch(`/agent/investments/${t}`),
+        apiFetch(`/agent/board-connections/${t}`)
       ]);
       setEntities(await entitiesRes.json());
       setGraph(await graphRes.json());
@@ -53,7 +52,7 @@ export default function EntityDiscoveryPage() {
       setInvestments(await invRes.json());
       setBoardConnections(await boardRes.json());
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
   }
 
@@ -69,6 +68,7 @@ export default function EntityDiscoveryPage() {
     if (!node) return null;
     return (
       <div style={{ marginLeft: level * 24 }} className="py-1">
+
         <div className="flex items-center gap-2">
           <span className={`px-2 py-0.5 rounded text-xs ${
             node.type === 'parent' ? 'bg-blue-600' :

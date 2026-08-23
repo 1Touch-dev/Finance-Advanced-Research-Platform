@@ -3,8 +3,6 @@ import Head from 'next/head';
 import NoDataCard from '../src/components/NoDataCard';
 import { isNoData, apiFetch } from '../lib/api';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
 export default function NarrativeModelPage() {
   const [models, setModels] = useState([]);
   const [datasets, setDatasets] = useState([]);
@@ -23,6 +21,7 @@ export default function NarrativeModelPage() {
   const [reportType, setReportType] = useState('analysis');
   const [narrative, setNarrative] = useState(null);
   const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -31,9 +30,9 @@ export default function NarrativeModelPage() {
   async function fetchData() {
     try {
       const [modelsRes, datasetsRes, perfRes] = await Promise.all([
-        fetch(`${API_BASE}/narrative-model/models`),
-        fetch(`${API_BASE}/narrative-model/datasets`),
-        fetch(`${API_BASE}/narrative-model/performance`)
+        apiFetch(`/narrative-model/models`),
+        apiFetch(`/narrative-model/datasets`),
+        apiFetch(`/narrative-model/performance`)
       ]);
       const modelsData = await modelsRes.json();
       if (isNoData(modelsData)) {
@@ -48,7 +47,7 @@ export default function NarrativeModelPage() {
       setPerformance(perfData);
       if (modelsData.recommended) setSelectedModel(modelsData.recommended);
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
     setLoading(false);
   }
@@ -61,7 +60,7 @@ export default function NarrativeModelPage() {
       const data = await res.json();
       setTrainingJob(data);
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
   }
 
@@ -73,7 +72,7 @@ export default function NarrativeModelPage() {
       );
       setNarrative(await res.json());
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
     setGenerating(false);
   }
@@ -87,6 +86,7 @@ export default function NarrativeModelPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
+
       <Head>
         <title>Narrative Model | Finance Platform</title>
       </Head>

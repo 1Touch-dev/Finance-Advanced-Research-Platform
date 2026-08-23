@@ -29,6 +29,7 @@ function TierBadge({ tier }) {
 
   return (
     <span className={`px-3 py-1 rounded-full text-sm font-bold ${colors[tier] || 'bg-gray-300'}`}>
+
       {tier?.replace(/_/g, ' ').toUpperCase()}
     </span>
   );

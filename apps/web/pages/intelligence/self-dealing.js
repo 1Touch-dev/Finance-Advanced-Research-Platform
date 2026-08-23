@@ -163,6 +163,7 @@ export default function SelfDealingPage() {
 
   return (
     <div className={styles.page}>
+
       <PageHero
         title="Self-Dealing Analysis"
         description="Run the grounded self-dealing workflow against the current intelligence activation backend. This page only surfaces corroborated disclosure overlap, source availability, warnings, and no-findings states returned by the service."

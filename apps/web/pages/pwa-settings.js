@@ -3,8 +3,6 @@ import Head from 'next/head';
 import NoDataCard from '../src/components/NoDataCard';
 import { isNoData, apiFetch } from '../lib/api';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
 export default function PWASettingsPage() {
   const [preferences, setPreferences] = useState(null);
   const [compatibility, setCompatibility] = useState(null);
@@ -13,6 +11,7 @@ export default function PWASettingsPage() {
   const [loading, setLoading] = useState(true);
   const [pushSupported, setPushSupported] = useState(false);
   const [noData, setNoData] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -23,9 +22,9 @@ export default function PWASettingsPage() {
   async function fetchData() {
     try {
       const [prefsRes, compatRes, promptRes] = await Promise.all([
-        fetch(API_BASE + '/pwa/notifications/preferences?user_id=user_1'),
-        fetch(API_BASE + '/pwa/compatibility'),
-        fetch(API_BASE + '/pwa/install-prompt')
+        apiFetch('/pwa/notifications/preferences?user_id=user_1'),
+        apiFetch('/pwa/compatibility'),
+        apiFetch('/pwa/install-prompt')
       ]);
       const prefsData = await prefsRes.json();
       if (isNoData(prefsData)) { setNoData(prefsData); setLoading(false); return; }
@@ -35,7 +34,7 @@ export default function PWASettingsPage() {
       setCompatibility(compatData);
       setInstallPrompt(promptData);
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
     setLoading(false);
   }
@@ -54,13 +53,13 @@ export default function PWASettingsPage() {
     const newPrefs = { ...preferences, [key]: value };
     setPreferences(newPrefs);
     try {
-      await fetch(API_BASE + '/pwa/notifications/preferences?user_id=user_1', {
+      await apiFetch('/pwa/notifications/preferences?user_id=user_1', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newPrefs)
       });
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
   }
 
@@ -77,6 +76,7 @@ export default function PWASettingsPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
+
       <Head>
         <title>PWA Settings | Finance Platform</title>
       </Head>

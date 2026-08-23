@@ -13,6 +13,7 @@ export default function GlobalMarketsPage() {
   const [selectedStock, setSelectedStock] = useState(null);
   const [loading, setLoading] = useState(true);
   const [noData, setNoData] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -30,7 +31,7 @@ export default function GlobalMarketsPage() {
       setMarkets(marketsData.markets || []);
       setIndices(indicesData.indices || []);
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
     setLoading(false);
   }
@@ -42,7 +43,7 @@ export default function GlobalMarketsPage() {
       const data = await res.json();
       setSearchResults(data.results || []);
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
   }
 
@@ -52,7 +53,7 @@ export default function GlobalMarketsPage() {
       const data = await res.json();
       setSelectedStock(data);
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
   }
 
@@ -68,6 +69,7 @@ export default function GlobalMarketsPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
+
       <Head>
         <title>Global Markets | Finance Platform</title>
       </Head>

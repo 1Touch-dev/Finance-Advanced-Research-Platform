@@ -1,15 +1,14 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import NoDataCard from '../src/components/NoDataCard';
-import { isNoData , apiFetch } from '../lib/api';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { isNoData, apiFetch } from '../lib/api';
 
 export default function VisualizationsPage() {
   const [chartType, setChartType] = useState('sector-breakdown');
   const [chartData, setChartData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [noData, setNoData] = useState(null);
+  const [error, setError] = useState(null);
 
   const chartOptions = [
     { id: 'sector-breakdown', name: 'Sector Breakdown', endpoint: '/visualizations/sector-breakdown' },
@@ -31,12 +30,12 @@ export default function VisualizationsPage() {
     setNoData(null);
     const option = chartOptions.find(o => o.id === type);
     try {
-      const res = await fetch(`${API_BASE}${option.endpoint}`);
+      const res = await apiFetch(`${option.endpoint}`);
       const data = await res.json();
       if (isNoData(data)) { setNoData(data); setChartData(null); setLoading(false); return; }
       setChartData(data);
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
     setLoading(false);
   }
@@ -50,6 +49,7 @@ export default function VisualizationsPage() {
       case 'pie':
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
             <div className="flex items-center justify-center">
               {/* Simple pie representation */}
               <div className="relative w-64 h-64">

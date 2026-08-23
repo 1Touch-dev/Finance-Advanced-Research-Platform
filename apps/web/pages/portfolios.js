@@ -14,8 +14,6 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { apiFetch } from '../lib/api';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
 // ── P&L Badge ────────────────────────────────────────────────────────────────
 
 function PnLBadge({ value, percent }) {
@@ -25,6 +23,7 @@ function PnLBadge({ value, percent }) {
 
   return (
     <span className={`px-2 py-1 rounded text-sm font-medium ${color} ${bgColor}`}>
+
       {isPositive ? '+' : ''}{value?.toLocaleString(undefined, { style: 'currency', currency: 'USD' })}
       <span className="text-xs ml-1">({isPositive ? '+' : ''}{percent?.toFixed(1)}%)</span>
     </span>
@@ -303,7 +302,7 @@ function AddPositionModal({ portfolioId, onClose, onAdded }) {
         onClose();
       }
     } catch (err) {
-      console.error(err);
+      setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -391,7 +390,7 @@ function CreatePortfolioModal({ onClose, onCreated }) {
         onClose();
       }
     } catch (err) {
-      console.error(err);
+      setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -455,14 +454,15 @@ export default function PortfoliosPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAddPosition, setShowAddPosition] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const fetchPortfolios = async () => {
     try {
-      const res = await fetch(`${API_BASE}/portfolio`);
+      const res = await apiFetch(`/portfolio`);
       const data = await res.json();
       setPortfolios(data.portfolios || []);
     } catch (err) {
-      console.error(err);
+      setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -470,21 +470,21 @@ export default function PortfoliosPage() {
 
   const fetchPortfolioDetail = async (id) => {
     try {
-      const res = await fetch(`${API_BASE}/portfolio/${id}`);
+      const res = await apiFetch(`/portfolio/${id}`);
       const data = await res.json();
       setPortfolioDetail(data);
     } catch (err) {
-      console.error(err);
+      setError(err.message || "Something went wrong");
     }
   };
 
   const fetchPortfolioPnL = async (id) => {
     try {
-      const res = await fetch(`${API_BASE}/portfolio/${id}/pnl`);
+      const res = await apiFetch(`/portfolio/${id}/pnl`);
       const data = await res.json();
       setPortfolioPnL(data);
     } catch (err) {
-      console.error(err);
+      setError(err.message || "Something went wrong");
     }
   };
 

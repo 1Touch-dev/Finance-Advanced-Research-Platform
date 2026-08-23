@@ -28,6 +28,7 @@ function SignalBadge({ signal }) {
 
   return (
     <span className={`px-2 py-1 rounded text-xs font-bold ${colors[signal] || 'bg-gray-300'}`}>
+
       {signal?.replace(/_/g, ' ').toUpperCase()}
     </span>
   );
@@ -151,6 +152,7 @@ export default function VolumePage() {
   const [profile, setProfile] = useState(null);
   const [minRatio, setMinRatio] = useState(2.0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const fetchAlerts = async () => {
     setLoading(true);
@@ -159,7 +161,7 @@ export default function VolumePage() {
       const data = await res.json();
       setAlerts(data.alerts || []);
     } catch (err) {
-      console.error(err);
+      setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -172,7 +174,7 @@ export default function VolumePage() {
       const data = await res.json();
       setProfile(data);
     } catch (err) {
-      console.error(err);
+      setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }

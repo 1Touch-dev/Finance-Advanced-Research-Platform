@@ -433,7 +433,7 @@ function EmbeddedGraph({ entityId, entityName, onNodeClick }) {
     if (!entityId) return
     setLoading(true)
 
-    fetch(`${API}/graph/export?entity_id=${entityId}&depth=2`)
+    apiFetch(`/graph/export?entity_id=${entityId}&depth=2`)
       .then(r => r.json())
       .then(data => {
         if (!containerRef.current) return
@@ -779,7 +779,7 @@ export default function IntelligencePage() {
   const loadHistoric = async (id) => {
     setLoading(true); setErr('')
     try {
-      const r = await fetch(`${API}/intelligence/${id}`)
+      const r = await apiFetch(`/intelligence/${id}`)
       if (!r.ok) throw new Error(`API ${r.status}`)
       const data = await r.json()
       const sections = (data.sections || []).map(s => ({
@@ -848,14 +848,14 @@ export default function IntelligencePage() {
         url = `${API}/intelligence/generate-full-report?ticker=${deepTicker}`
         if (deepPeers) url += `&peers=${encodeURIComponent(deepPeers)}`
       }
-      const r = await fetch(url, { method: 'POST' })
+      const r = await apiFetch(url, { method: 'POST' })
       const data = await r.json()
       setDeepJobId(data.job_id)
       setDeepStatus({ status: 'running', message: 'Report generation started...' })
       // Start polling
       deepPollRef.current = setInterval(async () => {
         try {
-          const pr = await fetch(`${API}/intelligence/report-job/${data.job_id}`)
+          const pr = await apiFetch(`/intelligence/report-job/${data.job_id}`)
           const pdata = await pr.json()
           setDeepStatus(pdata)
           if (pdata.status === 'completed' || pdata.status === 'failed') {

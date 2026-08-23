@@ -12,6 +12,7 @@ export default function PersonsPage() {
   const [news, setNews] = useState([]);
   const [trades, setTrades] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   async function searchPersons(query) {
     if (!query) return;
@@ -20,7 +21,7 @@ export default function PersonsPage() {
       const data = await res.json();
       setSearchResults(data.persons || []);
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
   }
 
@@ -42,7 +43,7 @@ export default function PersonsPage() {
       setNews(newsData.news || []);
       setTrades(tradesData);
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
     setLoading(false);
   }
@@ -68,6 +69,7 @@ export default function PersonsPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
+
       <Head>
         <title>Executive Timelines | Finance Platform</title>
       </Head>

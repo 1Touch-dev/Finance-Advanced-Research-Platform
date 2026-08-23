@@ -43,6 +43,7 @@ export default function RegistryPage() {
   const [jurisdictions, setJurisdictions] = useState([]);
   const [showJurisdictions, setShowJurisdictions] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [error, setError] = useState(null);
 
   const apiBase = getApiBaseUrl();
 
@@ -71,7 +72,7 @@ export default function RegistryPage() {
       setResults(data.results || []);
       setTotal(data.total || 0);
     } catch (err) {
-      console.error(err);
+      setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -79,6 +80,7 @@ export default function RegistryPage() {
 
   return (
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '2rem 1rem' }}>
+
         {/* Header */}
         <div style={{ marginBottom: '2rem' }}>
           <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0 }}>

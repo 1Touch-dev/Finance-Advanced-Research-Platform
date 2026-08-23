@@ -97,6 +97,7 @@ function DetailList({ items }) {
 
   return (
     <dl className={sectionStyles.detailList}>
+
       {populated.map((item) => (
         <div key={item.label} className={sectionStyles.detailRow}>
           <dt>{item.label}</dt>

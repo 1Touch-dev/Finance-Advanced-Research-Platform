@@ -526,17 +526,26 @@ def _get_analyzed_sources(submissions: Dict[str, Any]) -> List[str]:
     """Get list of sources analyzed for ontology building."""
     sources = []
 
-    filings = submissions.get("filings", {}).get("recent", {})
-    forms = filings.get("form", [])
-    dates = filings.get("filingDate", [])
+    # get_company_submissions() normalises SEC's parallel-array shape into a flat
+    # list of {form, filing_date, ...} dicts. Reading it as the raw
+    # submissions["filings"]["recent"] nested dict raised
+    # "'list' object has no attribute 'get'" and 500'd every /ontology/* endpoint.
+    filings = submissions.get("filings") or []
+    if isinstance(filings, dict):  # tolerate a raw SEC payload
+        recent = filings.get("recent", {})
+        forms = recent.get("form", []) or []
+        dates = recent.get("filingDate", []) or []
+        filings = [{"form": f, "filing_date": dates[i] if i < len(dates) else ""}
+                   for i, f in enumerate(forms)]
 
-    # Get most recent of each form type
     seen_forms = set()
-    for i, form in enumerate(forms[:50]):
-        if form not in seen_forms and form in ["10-K", "10-Q", "8-K", "DEF 14A"]:
+    for entry in filings[:50]:
+        if not isinstance(entry, dict):
+            continue
+        form = entry.get("form")
+        if form and form not in seen_forms and form in ["10-K", "10-Q", "8-K", "DEF 14A"]:
             seen_forms.add(form)
-            date = dates[i] if i < len(dates) else "unknown"
-            sources.append(f"{form} ({date})")
+            sources.append(f"{form} ({entry.get('filing_date') or 'unknown'})")
 
     return sources
 

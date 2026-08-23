@@ -102,6 +102,7 @@ export default function ContractProbabilityPage() {
 
   return (
     <div className={styles.page}>
+
       <PageHero
         title="Contract Probability"
         description="Review the grounded government-contract probability workflow, including historical performance, concentration risk, recompete exposure, top opportunities, evidence-backed warnings, and honest unavailable states."

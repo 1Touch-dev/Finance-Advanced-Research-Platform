@@ -10,6 +10,7 @@ export default function PortfolioAnalyticsPage() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState({});
   const [noData, setNoData] = useState(null);
+  const [error, setError] = useState(null);
   // user_id derived from JWT token server-side
   const userId = '';
 
@@ -38,12 +39,12 @@ export default function PortfolioAnalyticsPage() {
     try {
       const needsUser = !['models', 'factor-timing'].includes(tabId);
       const url = `${API_BASE}/portfolio-analytics/${tab.endpoint}${needsUser ? `?user_id=${userId}` : ''}`;
-      const res = await fetch(url, { method: tab.method || 'GET' });
+      const res = await apiFetch(url, { method: tab.method || 'GET' });
       const result = await res.json();
       if (isNoData(result)) { setNoData(result); setLoading(false); return; }
       setData(prev => ({ ...prev, [tabId]: result }));
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
     setLoading(false);
   }
@@ -52,6 +53,7 @@ export default function PortfolioAnalyticsPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
+
       <Head>
         <title>Portfolio Analytics | Finance Platform</title>
       </Head>

@@ -60,6 +60,7 @@ export default function InteractiveReportByIdPage() {
 
   return (
     <div className={styles.page}>
+
       <PageHero
         title="Interactive Report Viewer"
         description="Open the persisted interactive HTML for a saved intelligence report. Historical reports that predate interactive payload support are handled as a clear compatibility message rather than a generic crash."

@@ -25,6 +25,7 @@ function IVSnapshotCard({ data }) {
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
+
       <div className="flex justify-between items-start mb-4">
         <div>
           <h3 className="text-lg font-semibold">{data.ticker}</h3>
@@ -275,6 +276,7 @@ export default function OptionsPage() {
   const [history, setHistory] = useState(null);
   const [screenResults, setScreenResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -291,7 +293,7 @@ export default function OptionsPage() {
       setSkew(await skewRes.json());
       setHistory(await histRes.json());
     } catch (err) {
-      console.error(err);
+      setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -304,7 +306,7 @@ export default function OptionsPage() {
       const data = await res.json();
       setScreenResults(data.results || []);
     } catch (err) {
-      console.error(err);
+      setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }

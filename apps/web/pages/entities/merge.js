@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getApiBaseUrl } from '../../lib/api'
+import { getApiBaseUrl, apiFetch } from '../../lib/api'
 import styles from '../../src/styles/Page.module.css'
 
 export default function EntityMergePage() {
@@ -12,7 +12,7 @@ export default function EntityMergePage() {
   const load = async () => {
     setErr('')
     try {
-      const r = await fetch(`${API}/entities/merge/candidates`)
+      const r = await apiFetch(`/entities/merge/candidates`)
       if (!r.ok) throw new Error(`API ${r.status}`)
       setCandidates(await r.json())
     } catch (e) {

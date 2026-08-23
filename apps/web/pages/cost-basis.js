@@ -12,6 +12,7 @@ export default function CostBasisPage() {
   const [loading, setLoading] = useState(true);
   const [taxComparison, setTaxComparison] = useState(null);
   const [noData, setNoData] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -30,7 +31,7 @@ export default function CostBasisPage() {
       setPositions(posData.positions || []);
       setSummary(sumData);
     } catch (err) {
-      console.error('Error fetching cost basis data:', err);
+      setError('Error fetching cost basis data:', err);
     }
     setLoading(false);
   }
@@ -41,7 +42,7 @@ export default function CostBasisPage() {
       const data = await res.json();
       setTaxComparison(data);
     } catch (err) {
-      console.error('Error comparing tax methods:', err);
+      setError('Error comparing tax methods:', err);
     }
   }
 
@@ -50,6 +51,7 @@ export default function CostBasisPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
+
       <Head>
         <title>Cost Basis Tracking | Finance Platform</title>
       </Head>

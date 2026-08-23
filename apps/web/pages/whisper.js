@@ -26,6 +26,7 @@ function DirectionBadge({ direction }) {
 
   return (
     <span className={`px-2 py-1 rounded text-xs font-bold ${colors[direction] || 'bg-gray-300'}`}>
+
       {direction?.toUpperCase()}
     </span>
   );
@@ -326,6 +327,7 @@ export default function WhisperPage() {
   const [compareData, setCompareData] = useState(null);
   const [compareTickers, setCompareTickers] = useState('NVDA,AAPL,MSFT,GOOGL');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -342,7 +344,7 @@ export default function WhisperPage() {
       setHistory(await histRes.json());
       setDispersion(await dispRes.json());
     } catch (err) {
-      console.error(err);
+      setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -355,7 +357,7 @@ export default function WhisperPage() {
       const data = await res.json();
       setScreenResults(data.results || []);
     } catch (err) {
-      console.error(err);
+      setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -368,7 +370,7 @@ export default function WhisperPage() {
       const data = await res.json();
       setCompareData(data);
     } catch (err) {
-      console.error(err);
+      setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }

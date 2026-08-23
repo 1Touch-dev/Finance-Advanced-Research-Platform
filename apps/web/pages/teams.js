@@ -13,6 +13,7 @@ export default function TeamsPage() {
   const [memberPermissions, setMemberPermissions] = useState(null);
   const [loading, setLoading] = useState(true);
   const [noData, setNoData] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -37,7 +38,7 @@ export default function TeamsPage() {
         selectTeam(teamsData.teams[0].team_id);
       }
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
     setLoading(false);
   }
@@ -48,7 +49,7 @@ export default function TeamsPage() {
       const data = await res.json();
       setSelectedTeam(data);
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
   }
 
@@ -58,7 +59,7 @@ export default function TeamsPage() {
       const data = await res.json();
       setMemberPermissions({ userId, ...data });
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
   }
 
@@ -78,6 +79,7 @@ export default function TeamsPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
+
       <Head>
         <title>Team Permissions | Finance Platform</title>
       </Head>

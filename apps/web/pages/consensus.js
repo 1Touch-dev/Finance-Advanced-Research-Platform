@@ -21,6 +21,7 @@ function ConsensusCard({ data }) {
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
+
       <div className="flex justify-between items-start mb-4">
         <div>
           <h3 className="text-lg font-semibold">{data.ticker} Consensus</h3>

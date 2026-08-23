@@ -12,8 +12,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Head from 'next/head';
 import { apiFetch } from '../lib/api';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
 // ── Formula Input ────────────────────────────────────────────────────────────
 
 function FormulaInput({ value, onChange, validation, onEvaluate }) {
@@ -297,8 +295,8 @@ export default function FormulaPage() {
     const fetchRef = async () => {
       try {
         const [metricsRes, funcsRes] = await Promise.all([
-          fetch(`${API_BASE}/formula/reference/metrics`),
-          fetch(`${API_BASE}/formula/reference/functions`),
+          apiFetch(`/formula/reference/metrics`),
+          apiFetch(`/formula/reference/functions`),
         ]);
         const metricsData = await metricsRes.json();
         const funcsData = await funcsRes.json();
@@ -318,7 +316,7 @@ export default function FormulaPage() {
       return;
     }
     try {
-      const res = await fetch(`${API_BASE}/formula/validate?formula=${encodeURIComponent(f)}`);
+      const res = await apiFetch(`/formula/validate?formula=${encodeURIComponent(f)}`);
       const data = await res.json();
       setValidation(data);
     } catch (err) {

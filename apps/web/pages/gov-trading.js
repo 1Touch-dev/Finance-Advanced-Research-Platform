@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import useSWR from 'swr'
-import { getApiBaseUrl, authHeaders } from '../lib/api'
+import { getApiBaseUrl, apiFetch } from '../lib/api'
 import styles from '../src/styles/Page.module.css'
 
 const API = typeof window !== 'undefined' ? getApiBaseUrl() : ''
-const fetcher = url => fetch(url).then(r => r.json())
+const fetcher = url => apiFetch(url).then(r => r.json())
 
 const PARTY_COLORS = { D: '#60a5fa', R: '#f87171', I: '#a78bfa' }
 const PARTY_NAMES = { D: 'Democrat', R: 'Republican', I: 'Independent' }
@@ -425,7 +425,7 @@ function PoliticianTab() {
     setProfileData(null)
     setVotesExpanded(false)
     try {
-      const res = await fetch(`${API}/market/gov-trading/politician/${id}`)
+      const res = await apiFetch(`/market/gov-trading/politician/${id}`)
       setProfileData(await res.json())
     } catch(e) { console.error(e) }
     setLoading(false)

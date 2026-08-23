@@ -9,6 +9,7 @@ export default function ValuationPage() {
   const [valuation, setValuation] = useState(null);
   const [comparison, setComparison] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const tickers = ['NVDA', 'AAPL', 'MSFT', 'GOOGL', 'META', 'AMZN', 'TSLA'];
 
@@ -28,7 +29,7 @@ export default function ValuationPage() {
       setValuation(valData);
       setComparison(compData);
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
     setLoading(false);
   }
@@ -53,6 +54,7 @@ export default function ValuationPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
+
       <Head>
         <title>Valuation Analysis | Finance Platform</title>
       </Head>

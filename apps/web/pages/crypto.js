@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import useSWR from 'swr'
-import { getApiBaseUrl, authHeaders } from '../lib/api'
+import { getApiBaseUrl, apiFetch } from '../lib/api'
 
 const API = typeof window !== 'undefined' ? getApiBaseUrl() : ''
-const fetcher = url => fetch(url).then(r => r.json())
+const fetcher = url => apiFetch(url).then(r => r.json())
 
 const fmt  = (v, d = 2) => v == null ? '—' : typeof v === 'number' ? v.toFixed(d) : v
 const fmtBig = v => {
@@ -234,7 +234,7 @@ function WalletTab() {
       const endpoint = network === 'eth'
         ? `${API}/market/crypto/wallet/eth/${addr.trim()}`
         : `${API}/market/crypto/wallet/btc/${addr.trim()}`
-      const data = await fetch(endpoint).then(r => r.json())
+      const data = await apiFetch(endpoint).then(r => r.json())
       if (data.error) setErr(data.error)
       else setResult(data)
     } catch (e) { setErr(e.message) }

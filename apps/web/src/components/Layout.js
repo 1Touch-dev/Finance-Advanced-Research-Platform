@@ -17,6 +17,9 @@ const NAV_GROUPS = [
       { href: '/search', label: 'Global Search', icon: '⌕' },
       { href: '/saved', label: 'Saved', icon: '⊡' },
       { href: '/timeline', label: 'Timeline', icon: '⊟' },
+      { href: '/network-graph', label: 'Network Graph', icon: '⬡' },
+      { href: '/entity-discovery', label: 'Entity Discovery', icon: '◎' },
+      { href: '/persons', label: 'Persons', icon: '⊡' },
     ],
   },
   {
@@ -29,6 +32,10 @@ const NAV_GROUPS = [
       { href: '/compare', label: 'Compare', icon: '⇄' },
       { href: '/economics', label: 'Economics', icon: '∿' },
       { href: '/consensus', label: 'Consensus', icon: '◈' },
+      { href: '/global-markets', label: 'Global Markets', icon: '⊞' },
+      { href: '/benchmark', label: 'Benchmark', icon: '▲' },
+      { href: '/bubble-charts', label: 'Bubble Charts', icon: '◈' },
+      { href: '/visualizations', label: 'Visualizations', icon: '◎' },
     ],
   },
   {
@@ -41,6 +48,7 @@ const NAV_GROUPS = [
       { href: '/insider-activity', label: 'Insider Activity', icon: '⊡' },
       { href: '/short-interest', label: 'Short Interest', icon: '▼' },
       { href: '/crypto', label: 'Crypto', icon: '◈' },
+      { href: '/social', label: 'Social Sentiment', icon: '⬡' },
     ],
   },
   {
@@ -48,8 +56,11 @@ const NAV_GROUPS = [
     items: [
       { href: '/earnings-calendar', label: 'Earnings', icon: '◈' },
       { href: '/ipo-calendar', label: 'IPO Calendar', icon: '⊕' },
+      { href: '/calendar', label: 'Calendar', icon: '◎' },
       { href: '/ma-rumors', label: 'M&A Rumors', icon: '⇄' },
       { href: '/private-company', label: 'Private Co', icon: '⬡' },
+      { href: '/macro-dashboard', label: 'Macro Dashboard', icon: '∿' },
+      { href: '/revisions', label: 'Revisions', icon: '⊟' },
     ],
   },
   {
@@ -68,17 +79,28 @@ const NAV_GROUPS = [
     ],
   },
   {
+    label: 'Portfolio',
+    items: [
+      { href: '/portfolios', label: 'Portfolios', icon: '⊡' },
+      { href: '/portfolio-analytics', label: 'Analytics', icon: '◈' },
+      { href: '/cost-basis', label: 'Cost Basis', icon: '$' },
+      { href: '/tax-lots', label: 'Tax Lots', icon: '⊟' },
+      { href: '/alerts', label: 'Price Alerts', icon: '⚑' },
+      { href: '/workspaces', label: 'Workspaces', icon: '⬡' },
+      { href: '/teams', label: 'Teams', icon: '⊞' },
+    ],
+  },
+  {
     label: 'Tools',
     items: [
       { href: '/registry', label: 'Registry', icon: '⊟' },
       { href: '/graph', label: 'Graph', icon: '⬡' },
       { href: '/tracking', label: 'Tracking', icon: '◎' },
       { href: '/tracking/alerts', label: 'Alerts', icon: '⚑' },
-      { href: '/portfolios', label: 'Portfolios', icon: '⊡' },
-      { href: '/portfolio-analytics', label: 'Analytics', icon: '◈' },
       { href: '/recursive-discovery', label: 'Entity Graph', icon: '⬡' },
       { href: '/skills', label: 'Skills', icon: '⚙' },
       { href: '/metrics', label: 'Metrics', icon: '◈' },
+      { href: '/entities/merge', label: 'Entity Merge', icon: '⇄' },
     ],
   },
   {

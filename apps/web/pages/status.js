@@ -1,9 +1,7 @@
 import Head from 'next/head'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
-import { getApiBaseUrl , apiFetch } from '../lib/api'
-
-const API = typeof window !== 'undefined' ? getApiBaseUrl() : ''
+import { apiFetch } from '../lib/api'
 
 const SERVICES = [
   { id: 'api', name: 'Core API', description: 'Main API endpoints' },
@@ -85,7 +83,7 @@ export default function Status() {
       const timeoutId = setTimeout(() => controller.abort(), 5000) // 5s timeout
 
       try {
-        const res = await fetch(`${API}/status`, { signal: controller.signal })
+        const res = await apiFetch(`/status`, { signal: controller.signal })
         clearTimeout(timeoutId)
 
         if (!res.ok) throw new Error('API error')

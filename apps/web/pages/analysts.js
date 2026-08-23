@@ -27,6 +27,7 @@ function TierBadge({ tier }) {
 
   return (
     <span className={`px-2 py-1 rounded text-xs font-bold ${colors[tier] || 'bg-gray-300'}`}>
+
       {tier?.replace(/_/g, ' ').toUpperCase()}
     </span>
   );
@@ -123,6 +124,7 @@ export default function AnalystsPage() {
   const [searchResults, setSearchResults] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const fetchLeaderboard = async () => {
     setLoading(true);
@@ -131,7 +133,7 @@ export default function AnalystsPage() {
       const data = await res.json();
       setRanking(data.ranking || []);
     } catch (err) {
-      console.error(err);
+      setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -144,7 +146,7 @@ export default function AnalystsPage() {
       const data = await res.json();
       setFirmRanking(data);
     } catch (err) {
-      console.error(err);
+      setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -158,7 +160,7 @@ export default function AnalystsPage() {
       const data = await res.json();
       setSearchResults(data.analysts || []);
     } catch (err) {
-      console.error(err);
+      setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }

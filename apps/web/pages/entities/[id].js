@@ -6,10 +6,10 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, 
 import { getApiBaseUrl } from '../../lib/api'
 import styles from '../../src/styles/Page.module.css'
 import eStyles from '../../src/styles/Entity.module.css'
-import { apiFetch, authHeaders } from '../../lib/api'
+import { apiFetch } from '../../lib/api'
 
 const API = getApiBaseUrl()
-const fetcher = (url) => fetch(url, { headers: authHeaders() }).then(r => r.json()).catch(() => null)
+const fetcher = (url) => apiFetch(url).then(r => r.json()).catch(() => null)
 
 function Badge({ label, color = '#818cf8' }) {
   return (
@@ -267,7 +267,7 @@ function ChatTab({ entityName, reportId }) {
     setMsgs(m => [...m, { role:'user', text:question }])
     setLoading(true)
     try {
-      const r = await fetch(`${API}/chat/ask`, { method:'POST', headers:{'Content-Type':'application/json'},
+      const r = await apiFetch(`/chat/ask`, { method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ question, report_id: reportId||null, entity_name: entityName }) })
       const d = await r.json()
       setMsgs(m => [...m, { role:'assistant', text: d.answer||d.response||'No answer returned.' }])
@@ -435,7 +435,7 @@ function IntelligenceTab({ ticker, entityName }) {
     if (!ticker) { setError('No ticker available for intelligence analysis.'); return }
     setLoading(true); setError(null)
     try {
-      const r = await fetch(`${API}/market/intelligence/report?ticker=${ticker}&company=${encodeURIComponent(entityName)}`)
+      const r = await apiFetch(`/market/intelligence/report?ticker=${ticker}&company=${encodeURIComponent(entityName)}`)
       const d = await r.json()
       setReport(d); setRan(true)
     } catch (e) { setError(e.message) }
@@ -558,7 +558,7 @@ function OsintTab({ entityName }) {
     if (!username) return
     setLoading(true); setActiveCheck('username')
     try {
-      const r = await fetch(`${API}/market/osint/username?username=${encodeURIComponent(username)}`)
+      const r = await apiFetch(`/market/osint/username?username=${encodeURIComponent(username)}`)
       setResults({ type: 'username', data: await r.json() })
     } catch (e) { setResults({ type: 'error', data: { error: e.message } }) }
     finally { setLoading(false) }
@@ -568,7 +568,7 @@ function OsintTab({ entityName }) {
     if (!domain) return
     setLoading(true); setActiveCheck('domain')
     try {
-      const r = await fetch(`${API}/market/osint/domain?domain=${encodeURIComponent(domain)}`)
+      const r = await apiFetch(`/market/osint/domain?domain=${encodeURIComponent(domain)}`)
       setResults({ type: 'domain', data: await r.json() })
     } catch (e) { setResults({ type: 'error', data: { error: e.message } }) }
     finally { setLoading(false) }
@@ -577,7 +577,7 @@ function OsintTab({ entityName }) {
   const runPersonReport = async () => {
     setLoading(true); setActiveCheck('person')
     try {
-      const r = await fetch(`${API}/market/osint/linkedin?person=${encodeURIComponent(entityName)}`)
+      const r = await apiFetch(`/market/osint/linkedin?person=${encodeURIComponent(entityName)}`)
       const linkedin = await r.json()
       setResults({ type: 'person', data: { linkedin, person: entityName } })
     } catch (e) { setResults({ type: 'error', data: { error: e.message } }) }
@@ -722,7 +722,7 @@ function AddToTrackingBtn({ entityName, entityType }) {
   const add = async () => {
     setStatus('adding…')
     try {
-      const r = await fetch(`${API}/tracking/watchlist`, { method:'POST', headers:{'Content-Type':'application/json'},
+      const r = await apiFetch(`/tracking/watchlist`, { method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ entity_name:entityName, entity_type:entityType||'org' }) })
       const d = await r.json()
       setStatus(d.error ? '⚠ '+d.error : '✓ Added')

@@ -26,6 +26,7 @@ function TierBadge({ tier }) {
 
   return (
     <span className={`px-2 py-1 rounded text-xs font-bold ${colors[tier] || 'bg-gray-300'}`}>
+
       {tier?.toUpperCase()}
     </span>
   );
@@ -193,7 +194,7 @@ function UserProfileModal({ userId, onClose }) {
         setProfile(await profileRes.json());
         setCalibration(await calibRes.json());
       } catch (err) {
-        console.error(err);
+        setError(err.message || "Something went wrong");
       } finally {
         setLoading(false);
       }
@@ -319,6 +320,7 @@ export default function LeaderboardPage() {
   const [ideas, setIdeas] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const fetchLeaderboard = async () => {
     setLoading(true);
@@ -327,7 +329,7 @@ export default function LeaderboardPage() {
       const data = await res.json();
       setLeaderboard(data.leaderboard || []);
     } catch (err) {
-      console.error(err);
+      setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -340,7 +342,7 @@ export default function LeaderboardPage() {
       const data = await res.json();
       setIdeas(data.ideas || []);
     } catch (err) {
-      console.error(err);
+      setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }

@@ -112,6 +112,7 @@ export default function IntelligenceNetworkPage() {
 
   return (
     <div className={styles.page}>
+
       <PageHero
         title="Intelligence Network Analysis"
         description="Review grounded founder overlap, board interlocks, holder clustering, concentration metrics, competitor overlap, and the backend's first-degree relationship warnings without implying unsupported second-degree links."

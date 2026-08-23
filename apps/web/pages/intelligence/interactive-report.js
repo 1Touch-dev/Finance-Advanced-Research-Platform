@@ -79,6 +79,7 @@ export default function InteractiveReportPage() {
 
   return (
     <div className={styles.page}>
+
       <PageHero
         title="Interactive Report"
         description="Generate a fresh interactive intelligence report directly from the backend HTML endpoint. This is for newly generated compatible content; historical reports can be opened from their saved report pages."

@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import Link from 'next/link'
-import { getApiBaseUrl, authHeaders } from '../../lib/api'
+import { getApiBaseUrl, apiFetch } from '../../lib/api'
 import styles from '../../src/styles/Page.module.css'
 
 const API = getApiBaseUrl()
-const fetcher = url => fetch(url).then(r => r.json()).catch(() => ({ alerts: [] }))
+const fetcher = url => apiFetch(url).then(r => r.json()).catch(() => ({ alerts: [] }))
 const SEV_COLOR = { info:'#60a5fa', warn:'#fbbf24', critical:'#f87171', page:'#ef4444' }
 
 export default function AlertsPage() {
@@ -14,8 +14,8 @@ export default function AlertsPage() {
   const url = `${API}/tracking/alerts?limit=100${severity!=='all'?`&severity=${severity}`:''}${status!=='all'?`&status=${status}`:''}`
   const { data, mutate } = useSWR(url, fetcher, { refreshInterval: 30000 })
   const alerts = data?.alerts || []
-  const ack = async (id) => { await fetch(`${API}/tracking/alerts/${id}/acknowledge`, { method:'POST' }); mutate() }
-  const snooze = async (id) => { await fetch(`${API}/tracking/alerts/${id}/snooze?hours=24`, { method:'POST' }); mutate() }
+  const ack = async (id) => { await apiFetch(`/tracking/alerts/${id}/acknowledge`, { method:'POST' }); mutate() }
+  const snooze = async (id) => { await apiFetch(`/tracking/alerts/${id}/snooze?hours=24`, { method:'POST' }); mutate() }
   return (
     <main className="page-wrap">
       <section className="card">

@@ -12,6 +12,7 @@ export default function BenchmarkPage() {
   const [selectedBenchmark, setSelectedBenchmark] = useState('SPY');
   const [noData, setNoData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchBenchmarks();
@@ -34,7 +35,7 @@ export default function BenchmarkPage() {
       }
       setBenchmarks(data.benchmarks || []);
     } catch (err) {
-      console.error('Error fetching benchmarks:', err);
+      setError('Error fetching benchmarks:', err);
     }
     setLoading(false);
   }
@@ -51,7 +52,7 @@ export default function BenchmarkPage() {
       setComparison(compData);
       setAttribution(attrData);
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
     setLoading(false);
   }
@@ -60,6 +61,7 @@ export default function BenchmarkPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
+
       <Head>
         <title>Benchmark Attribution | Finance Platform</title>
       </Head>

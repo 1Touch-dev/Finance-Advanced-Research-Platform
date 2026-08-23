@@ -16,6 +16,7 @@ export default function RecursiveDiscoveryPage() {
   const [comparison, setComparison] = useState(null);
   const [activeTab, setActiveTab] = useState('graph');
   const [noData, setNoData] = useState(null);
+  const [error, setError] = useState(null);
 
   async function runDiscovery() {
     if (!ticker) return;
@@ -36,7 +37,7 @@ export default function RecursiveDiscoveryPage() {
       setCircular(await circularRes.json());
       setChain(await chainRes.json());
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
     setLoading(false);
   }
@@ -48,7 +49,7 @@ export default function RecursiveDiscoveryPage() {
       setComparison(await res.json());
       setActiveTab('compare');
     } catch (err) {
-      console.error('Error:', err);
+      setError('Error:', err);
     }
   }
 
@@ -62,6 +63,7 @@ export default function RecursiveDiscoveryPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
+
       <Head>
         <title>Recursive Entity Discovery | Finance Platform</title>
       </Head>
