@@ -19,6 +19,7 @@ from app.services.company_ontology_service import (
     get_kpi_dashboard,
     calculate_kpi,
     ontology_to_dict,
+    UpstreamUnavailable,
     INDUSTRY_KPI_TEMPLATES,
     SIC_TO_INDUSTRY,
 )
@@ -54,9 +55,11 @@ def get_company_ontology(
         return ontology_to_dict(ontology)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except UpstreamUnavailable as e:
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
-        logger.error(f"Error building ontology for {ticker}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to build ontology")
+        logger.exception("Error building ontology for %s", ticker)
+        raise HTTPException(status_code=500, detail=f"Failed to build ontology: {e}")
 
 
 @router.get("/{ticker}/kpis")
@@ -71,9 +74,11 @@ def get_company_kpis(ticker: str):
         return dashboard
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except UpstreamUnavailable as e:
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
-        logger.error(f"Error getting KPIs for {ticker}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get KPIs")
+        logger.exception("Error getting KPIs for %s", ticker)
+        raise HTTPException(status_code=500, detail=f"Failed to get KPIs: {e}")
 
 
 @router.get("/{ticker}/kpi/{kpi_id}")
@@ -86,13 +91,51 @@ def calculate_company_kpi(
     Calculate a specific KPI for a company.
     """
     try:
-        result = calculate_kpi(ticker.upper(), kpi_id, period=period)
+        # calculate_kpi() takes a resolved KPIDefinition plus the financial data;
+        # it was previously called as calculate_kpi(ticker, kpi_id), which raised
+        # "'str' object has no attribute 'formula'" on every request.
+        ontology = build_company_ontology(
+            ticker=ticker.upper(),
+            include_kpis=True,
+            include_entities=False,
+            include_terminology=False,
+        )
+        kpi = next((k for k in ontology.kpis if k.id == kpi_id), None)
+        if kpi is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"KPI {kpi_id!r} not defined for {ticker.upper()}; "
+                       f"see GET /ontology/{ticker.upper()}/kpis",
+            )
+
+        from app.connectors.sec_edgar_connector import (
+            get_company_facts,
+            extract_financial_statements,
+        )
+        # extract_financial_statements() takes XBRL company facts, not a CIK.
+        facts = get_company_facts(ontology.cik) or {}
+        financial_data = extract_financial_statements(facts) or {}
+
+        result = calculate_kpi(kpi, financial_data, period=period or "latest")
+        if result is None:
+            return {
+                "ticker": ontology.ticker,
+                "kpi_id": kpi_id,
+                "value": None,
+                "no_data": True,
+                "reason": "KPI has neither a formula nor XBRL concepts, "
+                          "or the required facts are absent from the filing",
+            }
         return result
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except UpstreamUnavailable as e:
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
-        logger.error(f"Error calculating KPI {kpi_id} for {ticker}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to calculate KPI")
+        logger.exception("Error calculating KPI %s for %s", kpi_id, ticker)
+        raise HTTPException(status_code=500, detail=f"Failed to calculate KPI: {e}")
 
 
 @router.get("/{ticker}/entities")
@@ -127,9 +170,11 @@ def get_company_entities(ticker: str):
         }
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except UpstreamUnavailable as e:
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
-        logger.error(f"Error getting entities for {ticker}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get entities")
+        logger.exception("Error getting entities for %s", ticker)
+        raise HTTPException(status_code=500, detail=f"Failed to get entities: {e}")
 
 
 @router.get("/reference/industries")

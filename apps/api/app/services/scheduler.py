@@ -126,7 +126,13 @@ def _refresh_graph_ingestion():
 
 # ─── Schedule Table ──────────────────────────────────────────────────────────
 
+def _refresh_uptime_checks():
+    from app.api.status import _run_health_checks
+    _run_health_checks()
+
+
 JOBS = [
+    {"name": "uptime_monitor", "interval": 60, "fn": _refresh_uptime_checks},
     {"name": "earnings_calendar", "interval": 3600, "fn": _refresh_earnings_calendar},
     {"name": "short_interest", "interval": 14400, "fn": _refresh_short_interest},
     {"name": "gov_trading", "interval": 21600, "fn": _refresh_gov_trading},

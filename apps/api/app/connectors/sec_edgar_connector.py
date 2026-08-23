@@ -524,7 +524,16 @@ def extract_financial_statements(facts: Dict[str, Any], years: int = 5) -> Dict[
         "accounting_standard": "unknown",
     }
 
-    # Check both US-GAAP and IFRS namespaces
+    # Check both US-GAAP and IFRS namespaces.
+    # Callers pass either the raw companyfacts payload (namespaces at the top level)
+    # or get_company_facts()'s wrapper, which nests them under "facts". Accepting
+    # both is what stops a silent all-empty result: reading the wrapper directly
+    # found no "us-gaap" key and returned zero rows for every statement.
+    if "facts" in facts and isinstance(facts.get("facts"), dict) and (
+        "us-gaap" in facts["facts"] or "ifrs-full" in facts["facts"]
+    ):
+        facts = facts["facts"]
+
     us_gaap = facts.get("us-gaap", {})
     ifrs_full = facts.get("ifrs-full", {})
 

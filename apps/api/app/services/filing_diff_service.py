@@ -146,6 +146,7 @@ def get_filing_diff(
         get_filer_cik,
         get_company_submissions,
         extract_financial_statements,
+        get_company_facts,
         get_segment_data,
     )
     from app.connectors.filing_notes_connector import get_filing_notes
@@ -171,9 +172,31 @@ def get_filing_diff(
 
     base_filing_info, compare_filing_info = filings[0], filings[1]
 
-    # Extract financial data for both periods
-    base_financials = extract_financial_statements(cik)
-    compare_financials = extract_financial_statements(cik)
+    # Extract financial data for both periods.
+    # Two bugs previously: extract_financial_statements() takes XBRL company facts,
+    # not a CIK string; and both calls were identical, so every "diff" compared a
+    # period against itself and could only ever report zero change.
+    facts = get_company_facts(cik) or {}
+    all_periods = extract_financial_statements(facts)
+
+    def _period_slice(filing_info: dict) -> dict:
+        """Statement rows for the period covering this filing, newest first."""
+        date = (filing_info or {}).get("filing_date") or ""
+        year = date[:4]
+        sliced = {}
+        for section in ("income_statement", "balance_sheet", "cash_flow"):
+            rows = all_periods.get(section) or []
+            if not isinstance(rows, list):
+                sliced[section] = rows
+                continue
+            match = [r for r in rows
+                     if isinstance(r, dict) and str(r.get("fiscal_year") or
+                                                   r.get("end") or "").startswith(year)]
+            sliced[section] = match or rows[:1]
+        return sliced
+
+    base_financials = _period_slice(base_filing_info)
+    compare_financials = _period_slice(compare_filing_info)
 
     # Get segment data
     base_segments = get_segment_data(ticker)

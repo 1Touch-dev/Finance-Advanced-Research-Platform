@@ -25,6 +25,13 @@ from collections import defaultdict
 logger = logging.getLogger(__name__)
 
 
+class UpstreamUnavailable(RuntimeError):
+    """SEC EDGAR could not be reached — distinct from 'company not found'.
+
+    Lets the API layer answer 503 rather than 404 or a misleading empty ontology.
+    """
+
+
 class MetricType(Enum):
     """Types of KPI metrics."""
     FINANCIAL = "financial"
@@ -269,9 +276,16 @@ def build_company_ontology(
     submissions = get_company_submissions(cik)
     if not submissions:
         raise ValueError(f"Could not fetch submissions for CIK: {cik}")
+    # The connector returns a populated dict with `error` set on failure, so a plain
+    # truthiness check passes and the caller silently builds an empty ontology.
+    if submissions.get("error"):
+        raise UpstreamUnavailable(
+            f"SEC EDGAR unavailable for CIK {cik}: {submissions['error']}"
+        )
 
-    company_name = submissions.get("name", ticker)
-    sic_code = submissions.get("sicDescription", "")
+    company_name = submissions.get("name") or ticker
+    # connector key is "sic_description"; "sicDescription" is the raw SEC spelling
+    sic_code = submissions.get("sic_description") or submissions.get("sicDescription", "")
 
     # Try to extract SIC code from description or use default
     sic_match = re.search(r'\d{4}', str(submissions.get("sic", "")))
@@ -684,13 +698,19 @@ def get_kpi_dashboard(
     Returns:
         Dict with all KPIs calculated and formatted
     """
-    from app.connectors.sec_edgar_connector import extract_financial_statements, get_filer_cik
+    from app.connectors.sec_edgar_connector import (
+        extract_financial_statements,
+        get_company_facts,
+        get_filer_cik,
+    )
 
     if not ontology:
         ontology = build_company_ontology(ticker)
 
     cik = get_filer_cik(ticker)
-    financial_data = extract_financial_statements(cik) if cik else {}
+    # extract_financial_statements() parses XBRL company facts; passing the CIK
+    # string raised "'str' object has no attribute 'get'".
+    financial_data = extract_financial_statements(get_company_facts(cik) or {}) if cik else {}
 
     kpi_results = []
     for kpi in ontology.kpis:

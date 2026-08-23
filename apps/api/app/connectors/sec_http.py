@@ -34,6 +34,12 @@ SEC_HEADERS = {
 _MIN_INTERVAL = float(os.getenv("SEC_MIN_REQUEST_INTERVAL", "0.15"))
 _MAX_ATTEMPTS = int(os.getenv("SEC_MAX_ATTEMPTS", "4"))
 
+# Ceiling on total time one logical SEC call may spend, retries and backoff
+# included. Without it, a fan-out endpoint that makes five SEC calls while the
+# network is unreachable spends 5 x (timeout + 2 + 4 + 8) and blows past a
+# minute, which is how /ontology/* and /filings/* reached 60s.
+_DEADLINE = float(os.getenv("SEC_REQUEST_DEADLINE", "20"))
+
 _lock = threading.Lock()
 _last_request = 0.0
 
@@ -64,29 +70,49 @@ def _throttle() -> None:
 
 
 def sec_get(url: str, *, headers: Optional[dict] = None, timeout: int = 30,
-            attempts: int = _MAX_ATTEMPTS, **kwargs) -> Optional[requests.Response]:
+            attempts: int = _MAX_ATTEMPTS, deadline: Optional[float] = None,
+            **kwargs) -> Optional[requests.Response]:
     """GET an SEC URL, respecting the shared rate budget.
 
     Retries on 429 and on 5xx, backing off exponentially and honouring
     Retry-After when EDGAR supplies it. Returns None once the attempts are
     exhausted so callers can distinguish "throttled" from "empty", rather than
     receiving a 429 error page and parsing it as though it were a filing.
+
+    ``deadline`` caps total wall-clock time across all attempts. Connection
+    errors are not retried: an unreachable host or a blocked proxy will not
+    recover within a request, so backing off only burns the caller's budget.
     """
     request_headers = dict(SEC_HEADERS)
     if headers:
         request_headers.update(headers)
 
+    budget = _DEADLINE if deadline is None else deadline
+    started = time.monotonic()
+    timeout = min(timeout, budget)
+
+    def remaining() -> float:
+        return budget - (time.monotonic() - started)
+
     for attempt in range(1, attempts + 1):
+        if remaining() <= 0:
+            logger.warning("SEC deadline of %.0fs exhausted for %s", budget, url)
+            return None
         _throttle()
         try:
             response = requests.get(url, headers=request_headers,
-                                    timeout=timeout, **kwargs)
+                                    timeout=max(1.0, min(timeout, remaining())), **kwargs)
+        except (requests.ConnectionError, requests.Timeout) as exc:
+            # Unreachable host / blocked proxy / timeout: retrying in-request
+            # cannot help, so fail fast instead of sleeping 2+4+8s.
+            logger.warning("SEC unreachable for %s: %s", url, exc)
+            return None
         except requests.RequestException as exc:
             logger.warning("SEC request error (attempt %d/%d) for %s: %s",
                            attempt, attempts, url, exc)
             if attempt == attempts:
                 return None
-            time.sleep(min(2 ** attempt, 16))
+            time.sleep(min(2 ** attempt, 16, max(0.0, remaining())))
             continue
 
         if response.status_code == 429 or response.status_code >= 500:
@@ -101,6 +127,10 @@ def sec_get(url: str, *, headers: Optional[dict] = None, timeout: int = 30,
                 delay = float(retry_after) if retry_after else min(2 ** attempt, 16)
             except ValueError:
                 delay = min(2 ** attempt, 16)
+            delay = min(delay, max(0.0, remaining()))
+            if delay <= 0:
+                logger.warning("SEC deadline of %.0fs exhausted for %s", budget, url)
+                return None
             logger.warning("SEC %d for %s; retrying in %.1fs (attempt %d/%d)",
                            response.status_code, url, delay, attempt, attempts)
             time.sleep(delay)
