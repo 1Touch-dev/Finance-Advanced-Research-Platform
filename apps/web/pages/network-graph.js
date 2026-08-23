@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Head from 'next/head';
+import { apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -53,7 +54,7 @@ export default function NetworkGraphPage() {
   async function loadPayPalMafia() {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/intelligence/graph/paypal-mafia/load`, { method: 'POST' });
+      const res = await apiFetch(`/intelligence/graph/paypal-mafia/load`, { method: 'POST' });
       const data = await res.json();
       alert(`Loaded: ${data.entities_loaded} entities, ${data.edges_loaded} edges`);
       fetchGraphStats();

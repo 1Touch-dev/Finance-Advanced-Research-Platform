@@ -40,6 +40,12 @@ class RevisionDirection(str, Enum):
     UNCHANGED = "unchanged"
 
 
+class SurpriseType(str, Enum):
+    BEAT = "beat"
+    MISS = "miss"
+    INLINE = "inline"
+
+
 @dataclass
 class ConsensusSnapshot:
     ticker: str
@@ -82,6 +88,10 @@ class Momentum:
     momentum_90d: float = 0.0
     trend: str = "neutral"
     num_revisions_30d: int = 0
+
+
+# Backwards-compatible alias used by revision_screener_service
+ConsensusMomentum = Momentum
 
 
 @dataclass

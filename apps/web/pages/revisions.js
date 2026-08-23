@@ -11,6 +11,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 

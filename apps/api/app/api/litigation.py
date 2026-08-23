@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/types/enforcement")
-async def list_enforcement_types():
+def list_enforcement_types():
     """List available enforcement event types."""
     return {
         "enforcement_types": [
@@ -48,7 +48,7 @@ async def list_enforcement_types():
 
 
 @router.get("/types/risk-levels")
-async def list_risk_levels():
+def list_risk_levels():
     """List available risk levels."""
     return {
         "risk_levels": [
@@ -62,7 +62,7 @@ async def list_risk_levels():
 
 
 @router.get("/{ticker}/enforcement")
-async def get_ticker_enforcement_events(
+def get_ticker_enforcement_events(
     ticker: str,
     years: int = Query(5, ge=1, le=10, description="Years to search back"),
     event_type: Optional[str] = Query(None, description="Filter by event type (sec, doj, ftc, ofac)"),
@@ -104,7 +104,7 @@ async def get_ticker_enforcement_events(
 
 
 @router.get("/{ticker}/event-study")
-async def run_ticker_event_study(
+def run_ticker_event_study(
     ticker: str,
     event_window: int = Query(5, ge=1, le=20, description="Days before/after event"),
 ):
@@ -149,7 +149,7 @@ async def run_ticker_event_study(
 
 
 @router.get("/{ticker}/velocity")
-async def get_ticker_docket_velocity(
+def get_ticker_docket_velocity(
     ticker: str,
     period_days: int = Query(90, ge=30, le=365, description="Period to measure velocity"),
 ):
@@ -180,7 +180,7 @@ async def get_ticker_docket_velocity(
 
 
 @router.get("/{ticker}/exposure")
-async def get_ticker_normalized_exposure(ticker: str):
+def get_ticker_normalized_exposure(ticker: str):
     """
     Get litigation exposure normalized to financials (#54).
 
@@ -211,7 +211,7 @@ async def get_ticker_normalized_exposure(ticker: str):
 
 
 @router.get("/{ticker}/snapshot")
-async def get_ticker_litigation_snapshot(
+def get_ticker_litigation_snapshot(
     ticker: str,
     as_of_date: Optional[str] = Query(None, description="Date for snapshot (YYYY-MM-DD)"),
 ):
@@ -240,7 +240,7 @@ async def get_ticker_litigation_snapshot(
 
 
 @router.get("/{ticker}/history")
-async def get_ticker_litigation_history(
+def get_ticker_litigation_history(
     ticker: str,
     start_date: str = Query(..., description="Start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
@@ -279,7 +279,7 @@ async def get_ticker_litigation_history(
 
 
 @router.get("/{ticker}/screener-fields")
-async def get_ticker_screener_fields(ticker: str):
+def get_ticker_screener_fields(ticker: str):
     """
     Get litigation screener fields for a company (#56).
 
@@ -302,7 +302,7 @@ async def get_ticker_screener_fields(ticker: str):
 
 
 @router.post("/screen")
-async def screen_by_litigation(
+def screen_by_litigation(
     tickers: List[str] = Query(..., description="List of tickers to screen"),
     min_risk_score: Optional[float] = Query(None, ge=0, le=100),
     max_risk_score: Optional[float] = Query(None, ge=0, le=100),

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import styles from '../src/styles/Page.module.css'
-import { getApiBaseUrl } from '../lib/api'
+import { getApiBaseUrl, authHeaders } from '../lib/api'
 
 const API = getApiBaseUrl()
 const fetcher = url => fetch(url).then(r => r.json())

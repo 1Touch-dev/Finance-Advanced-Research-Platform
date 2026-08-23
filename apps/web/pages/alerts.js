@@ -4,9 +4,10 @@
 
 import React, { useState, useEffect } from 'react';
 import Layout from '../src/components/Layout';
+import { apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-const USER_ID = 'demo_user';
+// user_id derived from JWT token server-side
 
 export default function PriceAlerts() {
   const [alerts, setAlerts] = useState([]);
@@ -62,7 +63,7 @@ export default function PriceAlerts() {
       alert_type: form.alertType,
       target_value: form.targetValue,
     });
-    const res = await fetch(`${API_BASE}/alerts?${params}`, { method: 'POST' });
+    const res = await apiFetch(`/alerts?${params}`, { method: 'POST' });
     if (res.ok) {
       setShowCreate(false);
       setForm({ ticker: '', alertType: 'price_above', targetValue: '' });
@@ -73,7 +74,7 @@ export default function PriceAlerts() {
 
   const deleteAlert = async (alertId) => {
     if (!confirm('Delete this alert?')) return;
-    const res = await fetch(`${API_BASE}/alerts/${alertId}?user_id=${USER_ID}`, { method: 'DELETE' });
+    const res = await apiFetch(`/alerts/${alertId}?user_id=${USER_ID}`, { method: 'DELETE' });
     if (res.ok) {
       fetchAlerts();
       fetchStats();

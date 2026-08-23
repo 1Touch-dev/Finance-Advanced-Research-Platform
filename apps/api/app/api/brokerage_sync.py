@@ -23,13 +23,13 @@ router = APIRouter(prefix="/brokerage", tags=["Brokerage Sync"])
 
 
 @router.get("/brokers")
-async def list_brokers():
+def list_brokers():
     """Get list of supported brokers."""
     return get_supported_brokers()
 
 
 @router.post("/link/initiate")
-async def start_link(
+def start_link(
     user_id: str = Query(..., description="User ID"),
     broker_id: str = Query(..., description="Broker ID"),
     current_user: dict = Depends(get_current_user),
@@ -39,7 +39,7 @@ async def start_link(
 
 
 @router.post("/link/complete")
-async def finish_link(
+def finish_link(
     user_id: str = Query(..., description="User ID"),
     link_token: str = Query(..., description="Link token from initiate"),
     access_token: str = Query(..., description="Access token from OAuth"),
@@ -50,7 +50,7 @@ async def finish_link(
 
 
 @router.get("/accounts")
-async def list_accounts(
+def list_accounts(
     user_id: str = Query(..., description="User ID")
 ):
     """Get all linked brokerage accounts."""
@@ -58,7 +58,7 @@ async def list_accounts(
 
 
 @router.post("/accounts/{account_id}/sync")
-async def trigger_sync(
+def trigger_sync(
     account_id: str,
     user_id: str = Query(..., description="User ID"),
     current_user: dict = Depends(get_current_user),
@@ -68,7 +68,7 @@ async def trigger_sync(
 
 
 @router.get("/accounts/{account_id}/positions")
-async def get_positions(
+def get_positions(
     account_id: str,
     user_id: str = Query(..., description="User ID")
 ):
@@ -77,7 +77,7 @@ async def get_positions(
 
 
 @router.get("/accounts/{account_id}/transactions")
-async def get_transactions(
+def get_transactions(
     account_id: str,
     user_id: str = Query(..., description="User ID"),
     limit: int = Query(50, description="Max transactions to return")
@@ -87,7 +87,7 @@ async def get_transactions(
 
 
 @router.delete("/accounts/{account_id}")
-async def remove_account(
+def remove_account(
     account_id: str,
     user_id: str = Query(..., description="User ID"),
     current_user: dict = Depends(get_current_user),
@@ -97,7 +97,7 @@ async def remove_account(
 
 
 @router.get("/sync-status")
-async def check_sync_status(
+def check_sync_status(
     user_id: str = Query(..., description="User ID")
 ):
     """Get sync status for all accounts."""

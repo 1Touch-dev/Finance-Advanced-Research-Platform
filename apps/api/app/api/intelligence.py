@@ -1756,7 +1756,7 @@ class NarrativeEditResponse(BaseModel):
 
 
 @router.post("/{report_id}/edit", response_model=NarrativeEditResponse)
-async def save_narrative_edit(
+def save_narrative_edit(
     report_id: str,
     edit: NarrativeEditRequest,
 ):
@@ -1813,7 +1813,7 @@ async def save_narrative_edit(
 
 
 @router.get("/training-stats")
-async def get_training_stats():
+def get_training_stats():
     """
     Get statistics about collected training data.
 

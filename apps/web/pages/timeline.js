@@ -3,7 +3,7 @@ import { useRouter } from 'next/router'
 import styles from '../src/styles/Page.module.css'
 import eStyles from '../src/styles/Entity.module.css'
 import tStyles from '../src/styles/Timeline.module.css'
-import { getApiBaseUrl } from '../lib/api'
+import { getApiBaseUrl, apiFetch } from '../lib/api';
 import Link from 'next/link'
 
 const API = getApiBaseUrl()
@@ -123,8 +123,7 @@ export default function TimelinePage() {
     setLoading(true)
     try {
       // Try to get timeline from entities API
-      const r = await fetch(`${API}/intelligence/generate?entity_name=${encodeURIComponent(entityName)}&entity_type=org`, {
-        method: 'POST',
+      const r = await apiFetch(`/intelligence/generate?entity_name=${encodeURIComponent(entityName)}&entity_type=org`, { method: 'POST',
       })
       if (r.ok) {
         const data = await r.json()

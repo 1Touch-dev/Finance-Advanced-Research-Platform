@@ -19,7 +19,7 @@ router = APIRouter(prefix="/short-interest", tags=["short-interest"])
 
 
 @router.get("/ticker/{ticker}")
-async def ticker_short_interest(
+def ticker_short_interest(
     ticker: str,
 ):
     """Get current short interest for a ticker."""
@@ -30,7 +30,7 @@ async def ticker_short_interest(
 
 
 @router.get("/ticker/{ticker}/history")
-async def ticker_short_history(
+def ticker_short_history(
     ticker: str,
     periods: int = Query(12, ge=1, le=24, description="Number of bi-weekly periods"),
 ):
@@ -44,7 +44,7 @@ async def ticker_short_history(
 
 
 @router.get("/most-shorted")
-async def most_shorted(
+def most_shorted(
     min_short_percent: float = Query(10.0, ge=0, description="Minimum short % of float"),
     limit: int = Query(20, ge=1, le=100),
 ):
@@ -58,7 +58,7 @@ async def most_shorted(
 
 
 @router.get("/squeeze-candidates")
-async def squeeze_candidates(
+def squeeze_candidates(
     min_score: float = Query(50.0, ge=0, le=100, description="Minimum squeeze score"),
     limit: int = Query(20, ge=1, le=100),
 ):
@@ -72,7 +72,7 @@ async def squeeze_candidates(
 
 
 @router.get("/changes")
-async def short_changes(
+def short_changes(
     min_change: float = Query(10.0, ge=0, description="Minimum change %"),
     direction: str = Query("both", description="up, down, or both"),
     limit: int = Query(20, ge=1, le=100),
@@ -90,7 +90,7 @@ async def short_changes(
 
 
 @router.get("/sectors")
-async def sector_summary():
+def sector_summary():
     """Get short interest summary by sector."""
     summary = get_sector_short_summary()
     return {
@@ -100,13 +100,13 @@ async def sector_summary():
 
 
 @router.get("/stats")
-async def short_stats():
+def short_stats():
     """Get overall short interest statistics."""
     return get_short_stats()
 
 
 @router.get("/compare")
-async def compare_tickers(
+def compare_tickers(
     tickers: str = Query(..., description="Comma-separated tickers"),
 ):
     """Compare short interest across multiple tickers."""

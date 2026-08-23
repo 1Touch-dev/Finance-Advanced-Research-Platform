@@ -1,7 +1,7 @@
 import Head from 'next/head'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { getApiBaseUrl } from '../lib/api'
+import { getApiBaseUrl, apiFetch } from '../lib/api';
 
 const API = typeof window !== 'undefined' ? getApiBaseUrl() : ''
 
@@ -36,8 +36,7 @@ export default function Support() {
     setSubmitting(true)
 
     try {
-      const res = await fetch(`${API}/support/tickets`, {
-        method: 'POST',
+      const res = await apiFetch(`/support/tickets`, { method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ category, priority, subject, message, email }),
       })

@@ -24,13 +24,13 @@ export default function EntityMergePage() {
 
   const approve = async (c) => {
     setNotice('')
-    await fetch(`${API}/entities/merge/approve?primary_id=${c.a.id}&secondary_id=${c.b.id}`, { method: 'POST' })
+    await apiFetch(`/entities/merge/approve?primary_id=${c.a.id}&secondary_id=${c.b.id}`, { method: 'POST' })
     setNotice(`Merged ${c.b.name} into ${c.a.name}`)
     load()
   }
 
   const reject = async (id) => {
-    await fetch(`${API}/entities/merge/reject?candidate_id=${id}`, { method: 'POST' })
+    await apiFetch(`/entities/merge/reject?candidate_id=${id}`, { method: 'POST' })
     setNotice('Merge rejected')
     load()
   }

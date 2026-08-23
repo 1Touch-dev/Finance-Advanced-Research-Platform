@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/router'
-import { getApiBaseUrl } from '../lib/api'
+import { getApiBaseUrl, apiFetch } from '../lib/api';
 import styles from '../src/styles/Page.module.css'
 import iStyles from '../src/styles/Intelligence.module.css'
 
@@ -737,7 +737,7 @@ export default function IntelligencePage() {
     setTimeout(() => {
       const params = new URLSearchParams({ entity_name: name, entity_type: 'org' })
       setLoading(true)
-      fetch(`${API}/intelligence/generate?${params}`, { method: 'POST' })
+      apiFetch(`/intelligence/generate?${params}`, { method: 'POST' })
         .then(r => r.ok ? r.json() : r.text().then(t => { throw new Error(`API ${r.status}: ${t.slice(0, 200)}`) }))
         .then(data => {
           setReport(data)
@@ -756,7 +756,7 @@ export default function IntelligencePage() {
       const params = new URLSearchParams({ entity_name: entityName, entity_type: entityType })
       if (ticker) params.set('ticker', ticker)
       const endpoint = enhanced ? 'generate-enhanced' : 'generate'
-      const r = await fetch(`${API}/intelligence/${endpoint}?${params}`, { method: 'POST' })
+      const r = await apiFetch(`/intelligence/${endpoint}?${params}`, { method: 'POST' })
       if (!r.ok) {
         const txt = await r.text()
         throw new Error(`API ${r.status}: ${txt.slice(0, 200)}`)
@@ -807,8 +807,7 @@ export default function IntelligencePage() {
     setChatHistory(h => [...h, { role: 'user', content: question }])
     setChatLoading(true)
     try {
-      const r = await fetch(`${API}/chat/ask`, {
-        method:  'POST',
+      const r = await apiFetch(`/chat/ask`, { method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
           report_id: report.report_id,
@@ -1131,7 +1130,7 @@ export default function IntelligencePage() {
                 {/* Add to Tracking */}
                 {report && (
                   <button onClick={async () => {
-                    await fetch(`${API}/tracking/watchlist`, { method:'POST', headers:{'Content-Type':'application/json'},
+                    await apiFetch(`/tracking/watchlist`, { method:'POST', headers:{'Content-Type':'application/json'},
                       body: JSON.stringify({ entity_name: report.entity_name, entity_type: report.entity_type||'org' }) })
                     alert(`${report.entity_name} added to tracking watchlist`)
                   }} style={{ background:'rgba(74,222,128,0.1)', border:'1px solid rgba(74,222,128,0.4)', borderRadius:6, color:'#4ade80', cursor:'pointer', fontSize:'0.72rem', padding:'0.2rem 0.6rem' }}>+ Track</button>

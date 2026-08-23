@@ -13,6 +13,7 @@ router = APIRouter(prefix="/insider", tags=["Insider Activity"])
 @router.get("/transactions")
 def get_recent_transactions(
     days: int = Query(7, ge=1, le=90, description="Days to look back"),
+    ticker: Optional[str] = Query(None, description="Filter by ticker symbol"),
     transaction_type: Optional[str] = Query(None, description="P=Purchase, S=Sale"),
     min_value: float = Query(0, ge=0, description="Minimum transaction value"),
     limit: int = Query(50, ge=1, le=200),
@@ -30,11 +31,15 @@ def get_recent_transactions(
         min_value=min_value,
         limit=limit,
     )
+    if ticker:
+        ticker_upper = ticker.upper()
+        transactions = [t for t in transactions if t.get("ticker", "").upper() == ticker_upper]
     return {
         "transactions": transactions,
         "count": len(transactions),
         "filters": {
             "days": days,
+            "ticker": ticker,
             "transaction_type": transaction_type,
             "min_value": min_value,
         },

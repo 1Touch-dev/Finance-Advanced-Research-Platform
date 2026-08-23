@@ -241,7 +241,9 @@ def search_politician(name: str) -> Dict:
     for category in ["top_by_trades", "top_by_volume", "top_by_returns", "executive_branch"]:
         records = data.get(category, [])
         for i, r in enumerate(records):
-            official = (r.get("official") or r.get("name") or "").lower()
+            official = str(r.get("official") or r.get("name") or "").lower()
+            if not official or official == "nan":
+                continue
             if name_lower in official or official in name_lower:
                 results["found"] = True
                 results["rankings"][category] = {
@@ -253,7 +255,9 @@ def search_politician(name: str) -> Dict:
 
     # Search in notable cases
     for case in data.get("notable_cases", []):
-        official = (case.get("official") or "").lower()
+        official = str(case.get("official") or "").lower()
+        if not official or official == "nan":
+            continue
         if name_lower in official or official in name_lower:
             results["notable_cases"].append(case)
 

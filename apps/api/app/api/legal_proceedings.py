@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/types/case-types")
-async def list_case_types():
+def list_case_types():
     """List available case type classifications."""
     return {
         "case_types": [
@@ -42,7 +42,7 @@ async def list_case_types():
 
 
 @router.get("/types/case-statuses")
-async def list_case_statuses():
+def list_case_statuses():
     """List available case status values."""
     return {
         "case_statuses": [
@@ -53,7 +53,7 @@ async def list_case_statuses():
 
 
 @router.get("/types/materiality-assessments")
-async def list_materiality_assessments():
+def list_materiality_assessments():
     """List materiality assessment categories."""
     return {
         "materiality_assessments": [
@@ -67,7 +67,7 @@ async def list_materiality_assessments():
 
 
 @router.get("/{ticker}/proceedings")
-async def get_ticker_proceedings(
+def get_ticker_proceedings(
     ticker: str,
     include_contingencies: bool = Query(True, description="Include contingencies note"),
     case_type: Optional[str] = Query(None, description="Filter by case type"),
@@ -124,7 +124,7 @@ async def get_ticker_proceedings(
 
 
 @router.get("/{ticker}/proceedings/summary")
-async def get_ticker_proceedings_summary(ticker: str):
+def get_ticker_proceedings_summary(ticker: str):
     """
     Get summary of legal proceedings for a company (#50).
 
@@ -160,7 +160,7 @@ async def get_ticker_proceedings_summary(ticker: str):
 
 
 @router.get("/{ticker}/reserves")
-async def get_ticker_reserves(ticker: str):
+def get_ticker_reserves(ticker: str):
     """
     Get current litigation reserves for a company (#51).
 
@@ -187,7 +187,7 @@ async def get_ticker_reserves(ticker: str):
 
 
 @router.get("/{ticker}/reserve-history")
-async def get_ticker_reserve_history(
+def get_ticker_reserve_history(
     ticker: str,
     periods: int = Query(8, ge=2, le=20, description="Number of periods"),
 ):
@@ -213,7 +213,7 @@ async def get_ticker_reserve_history(
 
 
 @router.get("/{ticker}/reserve-adequacy")
-async def get_ticker_reserve_adequacy(ticker: str):
+def get_ticker_reserve_adequacy(ticker: str):
     """
     Analyze litigation reserve adequacy (#51).
 
@@ -232,7 +232,7 @@ async def get_ticker_reserve_adequacy(ticker: str):
 
 
 @router.get("/{ticker}/reserve-ratios")
-async def get_ticker_reserve_ratios(ticker: str):
+def get_ticker_reserve_ratios(ticker: str):
     """
     Get litigation reserve ratios vs financials (#51).
 

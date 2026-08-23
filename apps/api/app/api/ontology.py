@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.get("/{ticker}")
-async def get_company_ontology(
+def get_company_ontology(
     ticker: str,
     include_kpis: bool = True,
     include_entities: bool = True,
@@ -60,7 +60,7 @@ async def get_company_ontology(
 
 
 @router.get("/{ticker}/kpis")
-async def get_company_kpis(ticker: str):
+def get_company_kpis(ticker: str):
     """
     Get KPI dashboard for a company.
 
@@ -77,7 +77,7 @@ async def get_company_kpis(ticker: str):
 
 
 @router.get("/{ticker}/kpi/{kpi_id}")
-async def calculate_company_kpi(
+def calculate_company_kpi(
     ticker: str,
     kpi_id: str,
     period: Optional[str] = Query(None, description="Fiscal period (e.g., '2024Q4', '2024FY')")
@@ -96,7 +96,7 @@ async def calculate_company_kpi(
 
 
 @router.get("/{ticker}/entities")
-async def get_company_entities(ticker: str):
+def get_company_entities(ticker: str):
     """
     Get extracted entity concepts for a company.
 
@@ -133,7 +133,7 @@ async def get_company_entities(ticker: str):
 
 
 @router.get("/reference/industries")
-async def list_industries():
+def list_industries():
     """
     Get list of available industry templates with KPI counts.
     """
@@ -153,7 +153,7 @@ async def list_industries():
 
 
 @router.get("/reference/industries/{industry}/kpis")
-async def get_industry_kpi_templates(industry: str):
+def get_industry_kpi_templates(industry: str):
     """
     Get KPI templates for a specific industry.
     """

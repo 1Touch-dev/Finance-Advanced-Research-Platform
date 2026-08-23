@@ -34,30 +34,9 @@ def bootstrap(db: Session = Depends(get_db)):
     db.commit()
     return {"seeded_permissions": base_perms}
 
-@router.post('/auth/register')
-def register(email: str, password: str, name: Optional[str]=None, db: Session = Depends(get_db)):
-    if db.query(User).filter_by(email=email).first():
-        raise HTTPException(400, 'email exists')
-    u = User(email=email, name=name, password_hash=hash_password(password))
-    db.add(u); db.commit(); db.refresh(u)
-    db.add(AuditLog(user_id=u.id, action='user.register', entity_type='user', entity_id=str(u.id)))
-    db.commit()
-    return {"id": u.id, "email": u.email}
 
-@router.post('/auth/login')
-def login(email: str, password: str, mfa_code: Optional[str] = None, db: Session = Depends(get_db)):
-    u = db.query(User).filter_by(email=email).first()
-    if not u or not u.password_hash or not verify_password(password, u.password_hash):
-        raise HTTPException(401, 'invalid credentials')
-    if u.mfa_enabled and u.mfa_secret:
-        from app.auth.mfa import verify_totp
-        if not mfa_code or not verify_totp(u.mfa_secret, mfa_code):
-            raise HTTPException(401, 'mfa required')
-    tok = create_token(u.id, u.email)
-    refresh = create_refresh_token(u.id, u.email)
-    db.add(AuditLog(user_id=u.id, action='auth.login', entity_type='user', entity_id=str(u.id)))
-    db.commit()
-    return {"token": tok, "refresh_token": refresh}
+# Auth: register/login are handled by app.api.auth (JSON body, returns access_token).
+# MFA, refresh, logout, and OIDC remain here for backwards compatibility.
 
 @router.post('/auth/mfa/enroll')
 def mfa_enroll(user_id: int, db: Session = Depends(get_db)):

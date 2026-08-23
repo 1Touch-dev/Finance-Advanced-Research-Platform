@@ -1,7 +1,7 @@
 import { useRouter } from 'next/router'
 import useSWR from 'swr'
 import { useState } from 'react'
-import { getApiBaseUrl } from '../../lib/api'
+import { getApiBaseUrl, authHeaders } from '../../lib/api'
 import styles from '../../src/styles/Page.module.css'
 
 const API=getApiBaseUrl()

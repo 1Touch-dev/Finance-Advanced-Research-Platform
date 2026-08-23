@@ -177,7 +177,11 @@ def get_eth_wallet(address: str) -> dict:
         params["apikey"] = ETHERSCAN_KEY
 
     bal_data = _get(ETHERSCAN_BASE, params=params)
-    balance_wei = int(bal_data.get("result", 0) or 0)
+    raw_result = bal_data.get("result", 0) if bal_data else 0
+    try:
+        balance_wei = int(raw_result or 0)
+    except (ValueError, TypeError):
+        return {"address": address, "error": str(raw_result)[:200], "balance_eth": 0}
     balance_eth = balance_wei / 1e18
 
     # ERC-20 token holdings

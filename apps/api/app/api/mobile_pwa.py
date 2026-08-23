@@ -21,31 +21,31 @@ router = APIRouter(prefix="/pwa", tags=["PWA"])
 
 
 @router.get("/manifest")
-async def get_manifest():
+def get_manifest():
     """Get PWA manifest.json content."""
     return get_pwa_manifest()
 
 
 @router.get("/sw-config")
-async def get_sw_config():
+def get_sw_config():
     """Get service worker configuration."""
     return get_service_worker_config()
 
 
 @router.get("/install-prompt")
-async def get_install_prompt():
+def get_install_prompt():
     """Get install prompt configuration."""
     return get_install_prompt_config()
 
 
 @router.get("/compatibility")
-async def get_compatibility():
+def get_compatibility():
     """Check PWA feature compatibility."""
     return check_pwa_compatibility()
 
 
 @router.post("/push/subscribe")
-async def subscribe_push(
+def subscribe_push(
     user_id: str = Query(..., description="User ID"),
     subscription: Dict[str, Any] = Body(..., description="Push subscription object")
 ):
@@ -54,7 +54,7 @@ async def subscribe_push(
 
 
 @router.delete("/push/subscribe")
-async def unsubscribe_push(
+def unsubscribe_push(
     user_id: str = Query(..., description="User ID")
 ):
     """Unregister push notification subscription."""
@@ -62,7 +62,7 @@ async def unsubscribe_push(
 
 
 @router.get("/notifications/preferences")
-async def get_preferences(
+def get_preferences(
     user_id: str = Query(..., description="User ID")
 ):
     """Get user notification preferences."""
@@ -70,7 +70,7 @@ async def get_preferences(
 
 
 @router.put("/notifications/preferences")
-async def update_preferences(
+def update_preferences(
     user_id: str = Query(..., description="User ID"),
     preferences: Dict[str, bool] = Body(..., description="Notification preferences")
 ):
@@ -79,7 +79,7 @@ async def update_preferences(
 
 
 @router.post("/notifications/send")
-async def send_notification(
+def send_notification(
     user_id: str = Query(..., description="User ID"),
     title: str = Query(..., description="Notification title"),
     body: str = Query(..., description="Notification body"),

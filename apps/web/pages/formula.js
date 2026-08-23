@@ -10,6 +10,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Head from 'next/head';
+import { apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -336,8 +337,7 @@ export default function FormulaPage() {
 
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/formula/evaluate`, {
-        method: 'POST',
+      const res = await apiFetch(`/formula/evaluate`, { method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ formula, days: 252 }),
       });

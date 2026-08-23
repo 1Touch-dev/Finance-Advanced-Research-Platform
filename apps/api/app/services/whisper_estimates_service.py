@@ -178,14 +178,24 @@ class WhisperSnapshot:
 class AnalystEstimate:
     analyst_name: str
     estimate: float
-    analyst_type: str
-    date: str
+    analyst_type: str = ""
+    date: str = ""
+    analyst_id: str = ""
+    firm: str = ""
+    estimate_date: str = ""
+    metric: str = ""
+    period: str = ""
 
     def to_dict(self) -> dict:
         return {
+            "analyst_id": self.analyst_id,
             "analyst_name": self.analyst_name,
+            "firm": self.firm,
             "estimate": self.estimate,
             "analyst_type": self.analyst_type,
+            "date": self.date or self.estimate_date,
+            "metric": self.metric,
+            "period": self.period,
             "date": self.date,
         }
 
@@ -505,11 +515,11 @@ class WhisperEstimatesService:
             ))
         return results
 
-    def list_analyst_types(self) -> List[str]:
-        return [t.value for t in AnalystType]
+    def list_analyst_types(self) -> List[dict]:
+        return [{"value": t.value, "name": t.value.replace("_", " ").title(), "description": t.value.replace("_", " ").title() + " analysts"} for t in AnalystType]
 
-    def list_estimate_metrics(self) -> List[str]:
-        return [m.value for m in EstimateMetric]
+    def list_estimate_metrics(self) -> List[dict]:
+        return [{"value": m.value, "name": m.value.upper(), "description": m.value.upper() + " estimate"} for m in EstimateMetric]
 
 
 _service_instance = None

@@ -137,22 +137,28 @@ def entity_evidence(entity_id: int, limit: int = 50, db: Session = Depends(get_d
 # Saved/recent searches (Phase 1 basics)
 @router.post('/saved')
 def save_search(query: str, db: Session = Depends(get_db)):
-    db.execute(text("create table if not exists saved_searches (id serial primary key, query text, created_at timestamp with time zone default now())"))
-    db.execute(text("insert into saved_searches (query) values (:q)"), {"q": query}); db.commit()
+    db.execute(text("CREATE TABLE IF NOT EXISTS saved_searches (id INTEGER PRIMARY KEY AUTOINCREMENT, query TEXT, created_at TEXT DEFAULT (datetime('now')))"))
+    db.execute(text("INSERT INTO saved_searches (query) VALUES (:q)"), {"q": query}); db.commit()
     return {"ok": True}
 
 @router.get('/saved')
 def list_saved(db: Session = Depends(get_db)):
-    rows = db.execute(text("select id, query, created_at from saved_searches order by id desc limit 50")).fetchall()
-    return [{"id": r[0], "query": r[1], "created_at": _safe_isoformat(r[2])} for r in rows]
+    try:
+        rows = db.execute(text("SELECT id, query, created_at FROM saved_searches ORDER BY id DESC LIMIT 50")).fetchall()
+        return [{"id": r[0], "query": r[1], "created_at": r[2]} for r in rows]
+    except Exception:
+        return []
 
 @router.post('/recent')
 def add_recent(query: str, db: Session = Depends(get_db)):
-    db.execute(text("create table if not exists recent_searches (id serial primary key, query text, created_at timestamp with time zone default now())"))
-    db.execute(text("insert into recent_searches (query) values (:q)"), {"q": query}); db.commit()
+    db.execute(text("CREATE TABLE IF NOT EXISTS recent_searches (id INTEGER PRIMARY KEY AUTOINCREMENT, query TEXT, created_at TEXT DEFAULT (datetime('now')))"))
+    db.execute(text("INSERT INTO recent_searches (query) VALUES (:q)"), {"q": query}); db.commit()
     return {"ok": True}
 
 @router.get('/recent')
 def list_recent(db: Session = Depends(get_db)):
-    rows = db.execute(text("select id, query, created_at from recent_searches order by id desc limit 50")).fetchall()
-    return [{"id": r[0], "query": r[1], "created_at": _safe_isoformat(r[2])} for r in rows]
+    try:
+        rows = db.execute(text("SELECT id, query, created_at FROM recent_searches ORDER BY id DESC LIMIT 50")).fetchall()
+        return [{"id": r[0], "query": r[1], "created_at": r[2]} for r in rows]
+    except Exception:
+        return []

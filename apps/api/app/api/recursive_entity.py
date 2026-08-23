@@ -18,7 +18,7 @@ router = APIRouter(prefix="/recursive", tags=["Recursive Entity Discovery"])
 
 
 @router.post("/discover/{ticker}")
-async def discover_recursively(
+def discover_recursively(
     ticker: str,
     max_depth: int = Query(3, description="Maximum recursion depth")
 ):
@@ -27,7 +27,7 @@ async def discover_recursively(
 
 
 @router.get("/graph/{ticker}")
-async def entity_graph(
+def entity_graph(
     ticker: str,
     max_depth: int = Query(3, description="Maximum graph depth")
 ):
@@ -36,7 +36,7 @@ async def entity_graph(
 
 
 @router.get("/path")
-async def shortest_path(
+def shortest_path(
     source: str = Query(..., description="Source entity"),
     target: str = Query(..., description="Target entity")
 ):
@@ -45,25 +45,25 @@ async def shortest_path(
 
 
 @router.get("/clusters/{ticker}")
-async def entity_clusters(ticker: str):
+def entity_clusters(ticker: str):
     """Identify clusters of related entities."""
     return get_entity_clusters(ticker)
 
 
 @router.get("/circular/{ticker}")
-async def circular_ownership(ticker: str):
+def circular_ownership(ticker: str):
     """Detect circular ownership patterns."""
     return detect_circular_ownership(ticker)
 
 
 @router.get("/chain/{ticker}")
-async def ownership_chain(ticker: str):
+def ownership_chain(ticker: str):
     """Get ownership chain to ultimate parent."""
     return get_ownership_chain(ticker)
 
 
 @router.get("/compare")
-async def compare_networks(
+def compare_networks(
     ticker1: str = Query(..., description="First ticker"),
     ticker2: str = Query(..., description="Second ticker")
 ):

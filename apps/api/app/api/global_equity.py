@@ -19,19 +19,19 @@ router = APIRouter(prefix="/global", tags=["Global Equity"])
 
 
 @router.get("/markets")
-async def list_markets():
+def list_markets():
     """Get list of supported global markets."""
     return get_supported_markets()
 
 
 @router.get("/markets/status")
-async def market_status():
+def market_status():
     """Get real-time status for all global markets."""
     return get_market_status()
 
 
 @router.get("/search")
-async def search_stocks(
+def search_stocks(
     query: str = Query(..., description="Search query"),
     markets: Optional[str] = Query(None, description="Comma-separated market codes to filter")
 ):
@@ -41,13 +41,13 @@ async def search_stocks(
 
 
 @router.get("/quote/{ticker}")
-async def get_quote(ticker: str):
+def get_quote(ticker: str):
     """Get quote for an international stock."""
     return get_global_quote(ticker)
 
 
 @router.get("/convert")
-async def currency_convert(
+def currency_convert(
     amount: float = Query(..., description="Amount to convert"),
     from_currency: str = Query(..., description="Source currency code"),
     to_currency: str = Query(..., description="Target currency code")
@@ -57,12 +57,12 @@ async def currency_convert(
 
 
 @router.get("/adr/{ticker}")
-async def get_adr(ticker: str):
+def get_adr(ticker: str):
     """Get ADR/GDR mappings for international stocks."""
     return get_adr_mappings(ticker)
 
 
 @router.get("/indices")
-async def list_indices():
+def list_indices():
     """Get major global indices."""
     return get_global_indices()

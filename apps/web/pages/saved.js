@@ -1,10 +1,10 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import useSWR from 'swr'
-import { getApiBaseUrl } from '../lib/api'
+import { getApiBaseUrl, authHeaders } from '../lib/api'
 
 const API = getApiBaseUrl()
-const fetcher = (url) => fetch(url).then((response) => response.json()).catch(() => ({ reports: [] }))
+const fetcher = (url) => fetch(url, { headers: authHeaders() }).then((response) => response.json()).catch(() => ({ reports: [] }))
 
 export default function SavedReports() {
   const [search, setSearch] = useState('')

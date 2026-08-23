@@ -129,7 +129,10 @@ router = APIRouter(prefix="/registry", tags=["registry"])
 @router.get("/health")
 def registry_health(db: Session = Depends(get_db)):
     """Returns jurisdiction count and live record count."""
-    from us.state_registry.registry import JURISDICTIONS, TIER_COUNTS
+    try:
+        from us.state_registry.registry import JURISDICTIONS, TIER_COUNTS
+    except ImportError:
+        return {"status": "ok", "total_jurisdictions_registered": 0, "message": "Registry module not installed"}
 
     try:
         result = db.execute(text(
@@ -166,7 +169,10 @@ def registry_health(db: Session = Depends(get_db)):
 @router.get("/jurisdictions")
 def list_jurisdictions(db: Session = Depends(get_db)):
     """List all 51 jurisdictions with tier, SOS URL, and last run status."""
-    from us.state_registry.registry import JURISDICTIONS
+    try:
+        from us.state_registry.registry import JURISDICTIONS
+    except ImportError:
+        return {"jurisdictions": [], "message": "Registry module not installed"}
 
     rows = {}
     try:

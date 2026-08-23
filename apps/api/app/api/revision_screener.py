@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/types/estimate-types")
-async def list_estimate_types():
+def list_estimate_types():
     """List available estimate types for screening."""
     return {
         "estimate_types": [
@@ -48,7 +48,7 @@ async def list_estimate_types():
 
 
 @router.get("/types/periods")
-async def list_periods():
+def list_periods():
     """List available fiscal periods."""
     return {
         "periods": [
@@ -59,7 +59,7 @@ async def list_periods():
 
 
 @router.get("/types/trends")
-async def list_trend_classifications():
+def list_trend_classifications():
     """List revision trend classifications."""
     return {
         "trend_classifications": [
@@ -70,7 +70,7 @@ async def list_trend_classifications():
 
 
 @router.get("/types/sort-options")
-async def list_sort_options():
+def list_sort_options():
     """List available sort options for screener."""
     return {
         "sort_options": [
@@ -84,7 +84,7 @@ async def list_sort_options():
 
 
 @router.post("/screen")
-async def screen_revisions(
+def screen_revisions(
     tickers: Optional[List[str]] = Query(None, description="Tickers to screen (default: all)"),
     estimate_type: str = Query("eps", description="Estimate type (eps, revenue, ebitda, etc.)"),
     fiscal_period: str = Query("FY", description="Fiscal period (Q1-Q4, FY)"),
@@ -170,7 +170,7 @@ async def screen_revisions(
 
 
 @router.get("/top-upward")
-async def get_top_upward(
+def get_top_upward(
     estimate_type: str = Query("eps", description="Estimate type"),
     fiscal_period: str = Query("FY", description="Fiscal period"),
     limit: int = Query(10, ge=1, le=100, description="Number of results"),
@@ -206,7 +206,7 @@ async def get_top_upward(
 
 
 @router.get("/top-downward")
-async def get_top_downward(
+def get_top_downward(
     estimate_type: str = Query("eps", description="Estimate type"),
     fiscal_period: str = Query("FY", description="Fiscal period"),
     limit: int = Query(10, ge=1, le=100, description="Number of results"),
@@ -242,7 +242,7 @@ async def get_top_downward(
 
 
 @router.get("/accelerating")
-async def get_accelerating(
+def get_accelerating(
     direction: str = Query("up", description="Direction: up or down"),
     estimate_type: str = Query("eps", description="Estimate type"),
     fiscal_period: str = Query("FY", description="Fiscal period"),
@@ -284,7 +284,7 @@ async def get_accelerating(
 
 
 @router.get("/alerts")
-async def get_alerts(
+def get_alerts(
     tickers: Optional[List[str]] = Query(None, description="Tickers to check (default: all)"),
     estimate_type: str = Query("eps", description="Estimate type"),
     fiscal_period: str = Query("FY", description="Fiscal period"),
@@ -329,7 +329,7 @@ async def get_alerts(
 
 
 @router.get("/summary")
-async def get_summary(
+def get_summary(
     tickers: Optional[List[str]] = Query(None, description="Tickers to summarize (default: all)"),
     estimate_type: str = Query("eps", description="Estimate type"),
     fiscal_period: str = Query("FY", description="Fiscal period"),

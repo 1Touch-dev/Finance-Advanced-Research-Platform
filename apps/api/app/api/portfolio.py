@@ -39,7 +39,7 @@ router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 # ── List Portfolios ───────────────────────────────────────────────────────────
 
 @router.get("")
-async def list_portfolios(
+def list_portfolios(
     db: Session = Depends(get_db),
 ):
     """
@@ -84,7 +84,7 @@ async def list_portfolios(
 # ── Create Portfolio ──────────────────────────────────────────────────────────
 
 @router.post("")
-async def create_portfolio(
+def create_portfolio(
     name: str = Query(..., description="Portfolio name"),
     base_currency: str = Query("USD", description="Base currency"),
     thesis: Optional[str] = Query(None, description="Investment thesis"),
@@ -115,7 +115,7 @@ async def create_portfolio(
 # ── Compare Portfolios (MUST come before /{portfolio_id}) ─────────────────────
 
 @router.get("/compare")
-async def compare_portfolios(
+def compare_portfolios(
     ids: str = Query(..., description="Comma-separated portfolio IDs"),
     db: Session = Depends(get_db),
 ):
@@ -124,10 +124,13 @@ async def compare_portfolios(
     """
     import datetime
 
-    portfolio_ids = [int(x.strip()) for x in ids.split(",")]
+    try:
+        portfolio_ids = [int(x.strip()) for x in ids.split(",") if x.strip().isdigit()]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="IDs must be integers")
 
     if len(portfolio_ids) < 2:
-        raise HTTPException(status_code=400, detail="Need at least 2 portfolios to compare")
+        raise HTTPException(status_code=400, detail="Need at least 2 portfolio IDs (comma-separated integers)")
 
     service = get_portfolio_service()
     results = []
@@ -164,7 +167,7 @@ async def compare_portfolios(
 # ── Get Portfolio Summary ─────────────────────────────────────────────────────
 
 @router.get("/{portfolio_id}")
-async def get_portfolio(
+def get_portfolio(
     portfolio_id: int,
     db: Session = Depends(get_db),
 ):
@@ -202,7 +205,7 @@ async def get_portfolio(
 # ── Update Portfolio ──────────────────────────────────────────────────────────
 
 @router.put("/{portfolio_id}")
-async def update_portfolio(
+def update_portfolio(
     portfolio_id: int,
     name: Optional[str] = Query(None),
     base_currency: Optional[str] = Query(None),
@@ -237,7 +240,7 @@ async def update_portfolio(
 # ── Delete Portfolio ──────────────────────────────────────────────────────────
 
 @router.delete("/{portfolio_id}")
-async def delete_portfolio(
+def delete_portfolio(
     portfolio_id: int,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -263,7 +266,7 @@ async def delete_portfolio(
 # ── Add Position ──────────────────────────────────────────────────────────────
 
 @router.post("/{portfolio_id}/positions")
-async def add_position(
+def add_position(
     portfolio_id: int,
     ticker: str = Query(..., description="Stock ticker"),
     quantity: float = Query(..., description="Number of shares"),
@@ -303,7 +306,7 @@ async def add_position(
 # ── Update Position ───────────────────────────────────────────────────────────
 
 @router.put("/{portfolio_id}/positions/{position_id}")
-async def update_position(
+def update_position(
     portfolio_id: int,
     position_id: int,
     quantity: Optional[float] = Query(None),
@@ -340,7 +343,7 @@ async def update_position(
 # ── Delete Position ───────────────────────────────────────────────────────────
 
 @router.delete("/{portfolio_id}/positions/{position_id}")
-async def delete_position(
+def delete_position(
     portfolio_id: int,
     position_id: int,
     db: Session = Depends(get_db),
@@ -362,7 +365,7 @@ async def delete_position(
 # ── Get Performance ───────────────────────────────────────────────────────────
 
 @router.get("/{portfolio_id}/performance")
-async def get_performance(
+def get_performance(
     portfolio_id: int,
     db: Session = Depends(get_db),
 ):
@@ -394,7 +397,7 @@ async def get_performance(
 # ── Get Allocation ────────────────────────────────────────────────────────────
 
 @router.get("/{portfolio_id}/allocation")
-async def get_allocation(
+def get_allocation(
     portfolio_id: int,
     db: Session = Depends(get_db),
 ):
@@ -426,7 +429,7 @@ async def get_allocation(
 # ── Risk Metrics (#45) ────────────────────────────────────────────────────────
 
 @router.get("/{portfolio_id}/risk")
-async def get_risk_metrics(
+def get_risk_metrics(
     portfolio_id: int,
     db: Session = Depends(get_db),
 ):
@@ -474,7 +477,7 @@ async def get_risk_metrics(
 # ── Position-level P&L (#41) ─────────────────────────────────────────────────
 
 @router.get("/{portfolio_id}/pnl")
-async def get_portfolio_pnl(
+def get_portfolio_pnl(
     portfolio_id: int,
     db: Session = Depends(get_db),
 ):
@@ -511,7 +514,7 @@ async def get_portfolio_pnl(
 
 
 @router.get("/{portfolio_id}/positions/{position_id}/pnl")
-async def get_position_pnl(
+def get_position_pnl(
     portfolio_id: int,
     position_id: int,
     db: Session = Depends(get_db),

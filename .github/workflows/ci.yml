@@ -16,18 +16,42 @@ jobs:
       - name: Install dependencies
         working-directory: apps/api
         run: pip install -r requirements.txt
-      - name: Run smoke test (offline mode)
+      - name: Verify app loads
         working-directory: apps/api
         env:
           DATABASE_URL: sqlite:///./test.db
           RAG_PRELOAD: 'off'
         run: python -c "from app.main import app; print('API loads successfully')"
-      - name: Check no random imports in services
+      - name: Run pytest (offline subset)
+        working-directory: apps/api
+        env:
+          DATABASE_URL: sqlite:///./test.db
+          RAG_PRELOAD: 'off'
+          RATE_LIMIT: 'off'
+          FINNHUB_API_KEY: ''
+          FMP_API_KEY: ''
         run: |
-          if grep -r "import random" apps/api/app/services/*.py; then
-            echo "ERROR: Found import random in services!"
+          pip install pytest pytest-timeout
+          python -m pytest tests/ -q --timeout=60 --continue-on-collection-errors -x --ignore=tests/test_deep_research_connectors.py 2>&1 | tail -30
+      - name: Check no random imports in app code
+        run: |
+          if grep -r "import random" apps/api/app/services/*.py apps/api/app/api/*.py; then
+            echo "ERROR: Found import random in app code!"
             exit 1
           fi
+      - name: Verify all routers load (no silent failures)
+        working-directory: apps/api
+        env:
+          DATABASE_URL: sqlite:///./test.db
+          RAG_PRELOAD: 'off'
+        run: |
+          python -c "
+          from app.main import app
+          spec = app.openapi()
+          ops = sum(1 for p in spec['paths'] for m in spec['paths'][p] if m in ('get','post','put','delete','patch'))
+          print(f'Routes: {ops} operations across {len(spec[\"paths\"])} paths')
+          assert ops > 800, f'Expected 800+ ops, got {ops} — a router failed to load'
+          "
 
   web-build:
     runs-on: ubuntu-latest

@@ -12,6 +12,7 @@
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
+import { apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -295,9 +296,7 @@ function AddPositionModal({ portfolioId, onClose, onAdded }) {
     setLoading(true);
 
     try {
-      const res = await fetch(
-        `${API_BASE}/portfolio/${portfolioId}/positions?ticker=${ticker}&quantity=${quantity}&cost_basis=${costBasis}`,
-        { method: 'POST' }
+      const res = await apiFetch(`/portfolio/${portfolioId}/positions?ticker=${ticker}&quantity=${quantity}&cost_basis=${costBasis}`, { method: 'POST' }
       );
       if (res.ok) {
         onAdded();
@@ -386,7 +385,7 @@ function CreatePortfolioModal({ onClose, onCreated }) {
       const params = new URLSearchParams({ name });
       if (thesis) params.append('thesis', thesis);
 
-      const res = await fetch(`${API_BASE}/portfolio?${params}`, { method: 'POST' });
+      const res = await apiFetch(`/portfolio?${params}`, { method: 'POST' });
       if (res.ok) {
         onCreated();
         onClose();

@@ -1,10 +1,10 @@
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import useSWR from 'swr'
-import { getApiBaseUrl } from '../../lib/api'
+import { getApiBaseUrl, authHeaders } from '../../lib/api'
 
 const API = getApiBaseUrl()
-const fetcher = (url) => fetch(url).then((response) => response.json()).catch(() => null)
+const fetcher = (url) => fetch(url, { headers: authHeaders() }).then((response) => response.json()).catch(() => null)
 
 const CONFIDENCE_COLOR = {
   DOCUMENTED: '#4ade80',

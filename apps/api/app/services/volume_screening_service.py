@@ -42,6 +42,15 @@ class VolumeSignal(str, Enum):
     VERY_LOW = "very_low"
 
 
+class PriceVolumePattern(str, Enum):
+    BREAKOUT = "breakout"
+    BREAKDOWN = "breakdown"
+    ACCUMULATION = "accumulation"
+    DISTRIBUTION = "distribution"
+    CLIMAX = "climax"
+    NORMAL = "normal"
+
+
 def _get_cached(key: str):
     if key in _cache:
         entry = _cache[key]

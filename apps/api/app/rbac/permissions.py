@@ -2,7 +2,7 @@ from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Optional
 from app.db.session import get_db
-from app.auth.security import decode_token
+from app.auth.security import get_current_user as _get_current_user_dict
 from app.models.models import Membership, Role, Permission, RolePermission, Workspace
 
 # ABAC hook placeholder
@@ -15,12 +15,18 @@ class Current:
         self.user_id = user_id
         self.email = email
 
-async def get_current_user(authorization: Optional[str] = None) -> Current:
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing token")
-    token = authorization.split(" ",1)[1]
-    payload = decode_token(token)
-    return Current(user_id=int(payload["sub"]), email=payload.get("email"))
+
+async def get_current_user(
+    principal: dict = Depends(_get_current_user_dict),
+) -> Current:
+    """Adapt the canonical Authorization-header dependency to the RBAC ``Current`` shape.
+
+    Delegating rather than re-implementing matters here: the previous signature was
+    ``authorization: Optional[str] = None``, which FastAPI resolves as a *query*
+    parameter. The header was therefore never read (every call 401'd) and the only
+    way through was ``?authorization=Bearer+<token>``, i.e. tokens in URLs and logs.
+    """
+    return Current(user_id=principal["user_id"], email=principal.get("email"))
 
 def require_permission(perm_name: str):
     async def checker(curr: Current = Depends(get_current_user), db: Session = Depends(get_db), workspace_id: Optional[int] = None):

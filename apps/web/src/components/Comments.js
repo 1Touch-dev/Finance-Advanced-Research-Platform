@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { apiFetch } from '../../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -317,7 +318,7 @@ export default function Comments({
         visibility,
       });
 
-      const res = await fetch(`${API_BASE}/comments?${params}`, { method: 'POST' });
+      const res = await apiFetch(`/comments?${params}`, { method: 'POST' });
       if (!res.ok) throw new Error('Failed to create comment');
       await fetchComments();
       await fetchStats();
@@ -340,7 +341,7 @@ export default function Comments({
         parent_id: parentId,
       });
 
-      const res = await fetch(`${API_BASE}/comments?${params}`, { method: 'POST' });
+      const res = await apiFetch(`/comments?${params}`, { method: 'POST' });
       if (!res.ok) throw new Error('Failed to create reply');
       await fetchComments();
     } catch (err) {
@@ -352,9 +353,7 @@ export default function Comments({
 
   const handleReact = async (commentId, reactionType) => {
     try {
-      const res = await fetch(
-        `${API_BASE}/comments/${commentId}/react?user_id=${currentUserId}&reaction_type=${reactionType}`,
-        { method: 'POST' }
+      const res = await apiFetch(`/comments/${commentId}/react?user_id=${currentUserId}&reaction_type=${reactionType}`, { method: 'POST' }
       );
       if (!res.ok) throw new Error('Failed to add reaction');
       await fetchComments();
@@ -365,9 +364,7 @@ export default function Comments({
 
   const handleEdit = async (commentId, content) => {
     try {
-      const res = await fetch(
-        `${API_BASE}/comments/${commentId}?user_id=${currentUserId}&content=${encodeURIComponent(content)}`,
-        { method: 'PUT' }
+      const res = await apiFetch(`/comments/${commentId}?user_id=${currentUserId}&content=${encodeURIComponent(content)}`, { method: 'PUT' }
       );
       if (!res.ok) throw new Error('Failed to edit comment');
       await fetchComments();
@@ -379,9 +376,7 @@ export default function Comments({
   const handleDelete = async (commentId) => {
     if (!window.confirm('Delete this comment?')) return;
     try {
-      const res = await fetch(
-        `${API_BASE}/comments/${commentId}?user_id=${currentUserId}`,
-        { method: 'DELETE' }
+      const res = await apiFetch(`/comments/${commentId}?user_id=${currentUserId}`, { method: 'DELETE' }
       );
       if (!res.ok) throw new Error('Failed to delete comment');
       await fetchComments();

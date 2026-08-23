@@ -584,35 +584,67 @@ def calculate_risk_metrics(
         h.weight * _get_real_beta(h.ticker) for h in holdings
     ) / total_weight if total_weight > 0 else 1.0
 
-    # Simulate portfolio volatility based on holdings
-    # More holdings = lower volatility due to diversification
-    base_vol = 0.18  # 18% base volatility
-    diversification_benefit = max(0.5, 1 - len(holdings) * 0.03)  # 3% reduction per holding
-    portfolio_volatility = base_vol * diversification_benefit * weighted_beta
+    # Compute real portfolio volatility from yfinance historical returns
+    try:
+        import yfinance as yf
+        import numpy as np
+        import pandas as pd
+        tickers_str = " ".join(h.ticker for h in holdings[:20])
+        hist = yf.download(tickers_str, period="1y", interval="1d", progress=False, timeout=15)
+        if "Adj Close" in hist.columns or "Close" in hist.columns:
+            prices = hist.get("Adj Close", hist.get("Close"))
+            if isinstance(prices, pd.Series):
+                prices = prices.to_frame()
+            returns = prices.pct_change().dropna()
+            if len(returns) > 20:
+                weights = np.array([h.weight for h in holdings[:len(returns.columns)]])
+                weights = weights[:len(returns.columns)]
+                weights = weights / weights.sum() if weights.sum() > 0 else weights
+                port_returns = (returns * weights).sum(axis=1)
+                portfolio_volatility = float(port_returns.std() * math.sqrt(252))
+                mean_return = float(port_returns.mean() * 252)
+                downside_returns = port_returns[port_returns < 0]
+                downside_dev = float(downside_returns.std() * math.sqrt(252)) if len(downside_returns) > 0 else 0.0
+                cumulative = (1 + port_returns).cumprod()
+                running_max = cumulative.cummax()
+                drawdowns = (cumulative - running_max) / running_max
+                max_dd = float(drawdowns.min())
+                current_dd = float(drawdowns.iloc[-1]) if len(drawdowns) > 0 else 0.0
+            else:
+                raise ValueError("Insufficient data")
+        else:
+            raise ValueError("No price data")
+    except Exception:
+        portfolio_volatility = 0.18 * max(0.5, 1 - len(holdings) * 0.03) * weighted_beta
+        mean_return = None
+        downside_dev = None
+        max_dd = None
+        current_dd = None
 
     # Calculate VaR (parametric method)
-    # VaR = Portfolio Value * Z-score * Volatility * sqrt(time)
     z_95 = 1.645
     z_99 = 2.326
-    daily_vol = portfolio_volatility / math.sqrt(252)  # Daily vol
+    daily_vol = portfolio_volatility / math.sqrt(252)
 
     var_95_daily = total_value * z_95 * daily_vol
     var_99_daily = total_value * z_99 * daily_vol
     var_95_monthly = total_value * z_95 * portfolio_volatility * math.sqrt(21/252)
     var_99_monthly = total_value * z_99 * portfolio_volatility * math.sqrt(21/252)
 
-    # Risk-adjusted returns
-    # TODO: compute from real historical data via yfinance
-    risk_free_rate = 0.05  # 5% risk-free rate
-    expected_return = None  # Needs real historical return series
-    downside_deviation = None  # Needs real downside return series
-    sharpe_ratio = 0.0
-    sortino_ratio = 0.0
+    # Risk-adjusted returns from real data
+    risk_free_rate = 0.05
+    if mean_return is not None and portfolio_volatility > 0:
+        sharpe_ratio = (mean_return - risk_free_rate) / portfolio_volatility
+    else:
+        sharpe_ratio = None
+    if mean_return is not None and downside_dev and downside_dev > 0:
+        sortino_ratio = (mean_return - risk_free_rate) / downside_dev
+    else:
+        sortino_ratio = None
 
     # Drawdown metrics
-    # TODO: compute from real historical price series
-    max_drawdown = None
-    current_drawdown = None
+    max_drawdown = max_dd
+    current_drawdown = current_dd
     avg_drawdown = None
     drawdown_duration = 0
 
@@ -629,7 +661,6 @@ def calculate_risk_metrics(
     max_sector_weight = max(sector_weights.values()) if sector_weights else 0
 
     # Correlation and diversification
-    # TODO: compute from real return correlation matrix
     n = len(holdings)
     avg_correlation = None
     diversification_ratio = 1 / math.sqrt(n) if n > 0 else 1
@@ -645,9 +676,9 @@ def calculate_risk_metrics(
         portfolio_beta=weighted_beta,
         weighted_avg_beta=weighted_beta,
         portfolio_volatility=portfolio_volatility,
-        downside_deviation=downside_deviation or 0.0,
-        sharpe_ratio=sharpe_ratio,
-        sortino_ratio=sortino_ratio,
+        downside_deviation=downside_dev or 0.0,
+        sharpe_ratio=sharpe_ratio or 0.0,
+        sortino_ratio=sortino_ratio or 0.0,
         max_drawdown=max_drawdown or 0.0,
         current_drawdown=current_drawdown or 0.0,
         avg_drawdown=avg_drawdown or 0.0,

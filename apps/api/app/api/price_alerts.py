@@ -24,7 +24,7 @@ router = APIRouter(prefix="/alerts", tags=["price-alerts"])
 
 
 @router.post("")
-async def create_price_alert(
+def create_price_alert(
     user_id: str = Query(..., description="User ID"),
     ticker: str = Query(..., description="Stock ticker"),
     alert_type: str = Query(..., description="Alert type"),
@@ -56,7 +56,7 @@ async def create_price_alert(
 
 
 @router.get("")
-async def list_alerts(
+def list_alerts(
     user_id: str = Query(..., description="User ID"),
     status: Optional[str] = Query(None, description="Filter by status"),
     ticker: Optional[str] = Query(None, description="Filter by ticker"),
@@ -70,7 +70,7 @@ async def list_alerts(
 
 
 @router.get("/types")
-async def list_alert_types():
+def list_alert_types():
     """Get available alert types."""
     return {
         "alert_types": get_alert_types(),
@@ -78,7 +78,7 @@ async def list_alert_types():
 
 
 @router.get("/stats")
-async def alert_stats(
+def alert_stats(
     user_id: str = Query(..., description="User ID"),
 ):
     """Get alert statistics for a user."""
@@ -86,7 +86,7 @@ async def alert_stats(
 
 
 @router.get("/notifications")
-async def list_notifications(
+def list_notifications(
     user_id: str = Query(..., description="User ID"),
     unread_only: bool = Query(False, description="Only unread"),
     limit: int = Query(50, ge=1, le=200),
@@ -100,7 +100,7 @@ async def list_notifications(
 
 
 @router.post("/notifications/{notification_id}/read")
-async def mark_read(
+def mark_read(
     notification_id: str,
     user_id: str = Query(..., description="User ID"),
     current_user: dict = Depends(get_current_user),
@@ -113,7 +113,7 @@ async def mark_read(
 
 
 @router.get("/{alert_id}")
-async def get_single_alert(
+def get_single_alert(
     alert_id: str,
     user_id: str = Query(..., description="User ID"),
 ):
@@ -125,7 +125,7 @@ async def get_single_alert(
 
 
 @router.put("/{alert_id}")
-async def update_price_alert(
+def update_price_alert(
     alert_id: str,
     user_id: str = Query(..., description="User ID"),
     target_value: Optional[float] = Query(None),
@@ -156,7 +156,7 @@ async def update_price_alert(
 
 
 @router.delete("/{alert_id}")
-async def delete_price_alert(
+def delete_price_alert(
     alert_id: str,
     user_id: str = Query(..., description="User ID"),
     current_user: dict = Depends(get_current_user),
@@ -169,7 +169,7 @@ async def delete_price_alert(
 
 
 @router.post("/check/{ticker}")
-async def check_ticker_alerts(
+def check_ticker_alerts(
     ticker: str,
     current_price: float = Query(..., description="Current price"),
     current_user: dict = Depends(get_current_user),

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import NoDataCard from '../src/components/NoDataCard';
-import { isNoData } from '../lib/api';
+import { isNoData, apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -15,7 +15,8 @@ export default function BrokeragePage() {
   const [noData, setNoData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [linking, setLinking] = useState(false);
-  const userId = 'demo_user';
+  // user_id derived from JWT token server-side
+  const userId = '';
 
   useEffect(() => {
     fetchData();
@@ -48,16 +49,12 @@ export default function BrokeragePage() {
   async function linkBroker(brokerId) {
     setLinking(true);
     try {
-      const initRes = await fetch(
-        `${API_BASE}/brokerage/link/initiate?user_id=${userId}&broker_id=${brokerId}`,
-        { method: 'POST' }
+      const initRes = await apiFetch(`/brokerage/link/initiate?user_id=${userId}&broker_id=${brokerId}`, { method: 'POST' }
       );
       const initData = await initRes.json();
       if (initData.link_token) {
         // Simulate OAuth completion
-        const completeRes = await fetch(
-          `${API_BASE}/brokerage/link/complete?user_id=${userId}&link_token=${initData.link_token}&access_token=simulated_token`,
-          { method: 'POST' }
+        const completeRes = await apiFetch(`/brokerage/link/complete?user_id=${userId}&link_token=${initData.link_token}&access_token=simulated_token`, { method: 'POST' }
         );
         const completeData = await completeRes.json();
         if (completeData.status === 'linked') {
@@ -88,7 +85,7 @@ export default function BrokeragePage() {
 
   async function syncAccount(accountId) {
     try {
-      await fetch(`${API_BASE}/brokerage/accounts/${accountId}/sync?user_id=${userId}`, { method: 'POST' });
+      await apiFetch(`/brokerage/accounts/${accountId}/sync?user_id=${userId}`, { method: 'POST' });
       fetchData();
     } catch (err) {
       console.error('Error:', err);
@@ -98,7 +95,7 @@ export default function BrokeragePage() {
   async function unlinkAccount(accountId) {
     if (!confirm('Are you sure you want to unlink this account?')) return;
     try {
-      await fetch(`${API_BASE}/brokerage/accounts/${accountId}?user_id=${userId}`, { method: 'DELETE' });
+      await apiFetch(`/brokerage/accounts/${accountId}?user_id=${userId}`, { method: 'DELETE' });
       setSelectedAccount(null);
       setPositions([]);
       setTransactions([]);

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import useSWR from 'swr'
-import { getApiBaseUrl } from '../lib/api'
+import { getApiBaseUrl, authHeaders } from '../lib/api'
 
 const API = typeof window !== 'undefined' ? getApiBaseUrl() : ''
 const fetcher = url => fetch(url).then(r => r.json())

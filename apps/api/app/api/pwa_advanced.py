@@ -33,19 +33,19 @@ router = APIRouter(prefix="/pwa-advanced", tags=["PWA Advanced"])
 # ========== E2: Offline Caching ==========
 
 @router.get("/offline/config")
-async def offline_config():
+def offline_config():
     """E2: Get offline caching configuration."""
     return get_offline_config()
 
 
 @router.get("/offline/sw-config")
-async def sw_config():
+def sw_config():
     """E2: Get service worker configuration."""
     return get_service_worker_config()
 
 
 @router.post("/offline/cache")
-async def cache_route(
+def cache_route(
     user_id: str = Query(...),
     route: str = Query(...)
 ):
@@ -54,13 +54,13 @@ async def cache_route(
 
 
 @router.get("/offline/cached")
-async def cached_routes(user_id: str = Query(...)):
+def cached_routes(user_id: str = Query(...)):
     """E2: Get all cached routes for a user."""
     return get_cached_routes(user_id)
 
 
 @router.delete("/offline/cache")
-async def clear_user_cache(user_id: str = Query(...)):
+def clear_user_cache(user_id: str = Query(...)):
     """E2: Clear all cached data for a user."""
     return clear_cache(user_id)
 
@@ -68,7 +68,7 @@ async def clear_user_cache(user_id: str = Query(...)):
 # ========== E3: WebAuthn / Biometric ==========
 
 @router.post("/biometric/register/start")
-async def biometric_register_start(
+def biometric_register_start(
     user_id: str = Query(...),
     username: str = Query(...)
 ):
@@ -77,7 +77,7 @@ async def biometric_register_start(
 
 
 @router.post("/biometric/register/complete")
-async def biometric_register_complete(
+def biometric_register_complete(
     user_id: str = Query(...),
     credential_id: str = Body(...),
     public_key: str = Body(...)
@@ -87,13 +87,13 @@ async def biometric_register_complete(
 
 
 @router.post("/biometric/login/start")
-async def biometric_login_start(user_id: str = Query(...)):
+def biometric_login_start(user_id: str = Query(...)):
     """E3: Start WebAuthn login."""
     return start_webauthn_login(user_id)
 
 
 @router.post("/biometric/login/verify")
-async def biometric_login_verify(
+def biometric_login_verify(
     user_id: str = Query(...),
     credential_id: str = Body(...),
     signature: str = Body(...)
@@ -103,7 +103,7 @@ async def biometric_login_verify(
 
 
 @router.get("/biometric/status")
-async def biometric_status(user_id: str = Query(...)):
+def biometric_status(user_id: str = Query(...)):
     """E3: Get biometric authentication status."""
     return get_biometric_status(user_id)
 
@@ -111,7 +111,7 @@ async def biometric_status(user_id: str = Query(...)):
 # ========== E5: Screen Sharing ==========
 
 @router.post("/screen/create")
-async def screen_create(
+def screen_create(
     user_id: str = Query(...),
     session_name: Optional[str] = Query(None)
 ):
@@ -120,30 +120,30 @@ async def screen_create(
 
 
 @router.post("/screen/{session_id}/join")
-async def screen_join(session_id: str, user_id: str = Query(...)):
+def screen_join(session_id: str, user_id: str = Query(...)):
     """E5: Join a screen sharing session."""
     return join_screen_session(session_id, user_id)
 
 
 @router.post("/screen/{session_id}/leave")
-async def screen_leave(session_id: str, user_id: str = Query(...)):
+def screen_leave(session_id: str, user_id: str = Query(...)):
     """E5: Leave a screen sharing session."""
     return leave_screen_session(session_id, user_id)
 
 
 @router.post("/screen/{session_id}/end")
-async def screen_end(session_id: str, user_id: str = Query(...)):
+def screen_end(session_id: str, user_id: str = Query(...)):
     """E5: End a screen sharing session."""
     return end_screen_session(session_id, user_id)
 
 
 @router.get("/screen/active")
-async def screen_active(user_id: str = Query(...)):
+def screen_active(user_id: str = Query(...)):
     """E5: Get all active screen sharing sessions."""
     return get_active_sessions(user_id)
 
 
 @router.get("/screen/{session_id}")
-async def screen_info(session_id: str):
+def screen_info(session_id: str):
     """E5: Get screen sharing session info."""
     return get_session_info(session_id)

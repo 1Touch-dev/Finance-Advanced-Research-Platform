@@ -45,17 +45,17 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 # ── Dashboard Endpoints ───────────────────────────────────────────────────────
 
 @router.get("")
-async def list_dashboards(
-    user_id: str = Query(..., description="User ID"),
+def list_dashboards(
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
-    Get all dashboards for a user.
+    Get all dashboards for the authenticated user.
     """
+    user_id = str(current_user["sub"])
     try:
         dashboards = db.query(Dashboard).filter_by(user_id=user_id).all()
     except Exception:
-        # Table may not exist yet
         return {
             "dashboards": [get_default_dashboard_config(user_id)],
             "count": 1,
@@ -63,7 +63,6 @@ async def list_dashboards(
         }
 
     if not dashboards:
-        # Return default dashboard config if user has none
         return {
             "dashboards": [get_default_dashboard_config(user_id)],
             "count": 1,
@@ -101,7 +100,7 @@ async def list_dashboards(
 
 
 @router.post("")
-async def create_dashboard(
+def create_dashboard(
     user_id: str = Query(..., description="User ID"),
     name: str = Query("My Dashboard", description="Dashboard name"),
     is_default: bool = Query(False, description="Set as default"),
@@ -137,7 +136,7 @@ async def create_dashboard(
 
 
 @router.get("/{dashboard_id}")
-async def get_dashboard(
+def get_dashboard(
     dashboard_id: int,
     db: Session = Depends(get_db),
 ):
@@ -173,7 +172,7 @@ async def get_dashboard(
 
 
 @router.put("/{dashboard_id}")
-async def update_dashboard(
+def update_dashboard(
     dashboard_id: int,
     name: Optional[str] = Query(None),
     is_default: Optional[bool] = Query(None),
@@ -212,7 +211,7 @@ async def update_dashboard(
 
 
 @router.delete("/{dashboard_id}")
-async def delete_dashboard(
+def delete_dashboard(
     dashboard_id: int,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -238,7 +237,7 @@ async def delete_dashboard(
 # ── Widget Endpoints ──────────────────────────────────────────────────────────
 
 @router.post("/{dashboard_id}/widgets")
-async def add_widget(
+def add_widget(
     dashboard_id: int,
     widget_type: str = Query(..., description="Widget type"),
     title: Optional[str] = Query(None, description="Widget title"),
@@ -281,7 +280,7 @@ async def add_widget(
 
 
 @router.put("/{dashboard_id}/widgets/{widget_id}")
-async def update_widget(
+def update_widget(
     dashboard_id: int,
     widget_id: int,
     title: Optional[str] = Query(None),
@@ -324,7 +323,7 @@ async def update_widget(
 
 
 @router.delete("/{dashboard_id}/widgets/{widget_id}")
-async def delete_widget(
+def delete_widget(
     dashboard_id: int,
     widget_id: int,
     db: Session = Depends(get_db),
@@ -346,7 +345,7 @@ async def delete_widget(
 
 
 @router.get("/widget-types")
-async def list_widget_types():
+def list_widget_types():
     """
     Get available widget types and their configuration options.
     """
@@ -362,7 +361,7 @@ watchlist_router = APIRouter(prefix="/watchlist", tags=["watchlist"])
 
 
 @watchlist_router.post("/{watchlist_id}/share")
-async def share_watchlist(
+def share_watchlist(
     watchlist_id: int,
     shared_by: str = Query(..., description="User sharing the watchlist"),
     shared_with: str = Query(..., description="User to share with"),
@@ -415,7 +414,7 @@ async def share_watchlist(
 
 
 @watchlist_router.delete("/{watchlist_id}/share/{share_id}")
-async def revoke_share(
+def revoke_share(
     watchlist_id: int,
     share_id: int,
     db: Session = Depends(get_db),
@@ -436,7 +435,7 @@ async def revoke_share(
 
 
 @watchlist_router.get("/{watchlist_id}/shares")
-async def get_watchlist_shares(
+def get_watchlist_shares(
     watchlist_id: int,
     db: Session = Depends(get_db),
 ):
@@ -467,7 +466,7 @@ async def get_watchlist_shares(
 
 
 @watchlist_router.get("/shared")
-async def get_shared_watchlists(
+def get_shared_watchlists(
     user_id: str = Query(..., description="User ID to get shared watchlists for"),
     db: Session = Depends(get_db),
 ):

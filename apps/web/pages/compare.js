@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import styles from '../src/styles/Page.module.css'
 import cStyles from '../src/styles/Compare.module.css'
-import { getApiBaseUrl } from '../lib/api'
+import { getApiBaseUrl, apiFetch } from '../lib/api';
 
 const API = getApiBaseUrl()
 
@@ -242,7 +242,7 @@ export default function ComparePage() {
     try {
       const params = new URLSearchParams({ entity_name: slot.name, entity_type: slot.type })
       if (slot.ticker) params.set('ticker', slot.ticker)
-      const r = await fetch(`${API}/intelligence/generate?${params}`, { method: 'POST' })
+      const r = await apiFetch(`/intelligence/generate?${params}`, { method: 'POST' })
       const data = r.ok ? await r.json() : null
       setReports(prev => {
         const a = [...prev]

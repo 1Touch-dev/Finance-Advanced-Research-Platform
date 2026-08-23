@@ -33,7 +33,7 @@ _report_cache: dict[str, ReconciliationReport] = {}
 
 
 @router.get("/{ticker}/reconcile")
-async def reconcile_docket_disclosure(
+def reconcile_docket_disclosure(
     ticker: str,
     lookback_years: int = Query(3, ge=1, le=10, description="Years of litigation to analyze"),
     refresh: bool = Query(False, description="Force refresh even if cached"),
@@ -73,7 +73,7 @@ async def reconcile_docket_disclosure(
 
 
 @router.get("/{ticker}/findings")
-async def get_findings(
+def get_findings(
     ticker: str,
     min_risk: Optional[float] = Query(None, ge=0, le=100, description="Minimum risk score"),
     divergence_type: Optional[str] = Query(None, description="Filter by divergence type"),
@@ -145,7 +145,7 @@ async def get_findings(
 
 
 @router.get("/{ticker}/cases")
-async def get_docket_cases(
+def get_docket_cases(
     ticker: str,
     status: Optional[str] = Query(None, description="Filter by case status (open/closed/settled)"),
     limit: int = Query(50, ge=1, le=200, description="Maximum cases to return"),
@@ -201,7 +201,7 @@ async def get_docket_cases(
 
 
 @router.get("/{ticker}/disclosures")
-async def get_disclosures(
+def get_disclosures(
     ticker: str,
     filing_type: Optional[str] = Query(None, description="Filter by filing type (10-K/10-Q/8-K)"),
     limit: int = Query(50, ge=1, le=200, description="Maximum disclosures to return"),
@@ -253,7 +253,7 @@ async def get_disclosures(
 
 
 @router.get("/{ticker}/summary")
-async def get_reconciliation_summary(ticker: str):
+def get_reconciliation_summary(ticker: str):
     """
     Get reconciliation summary for a company.
 
@@ -286,7 +286,7 @@ async def get_reconciliation_summary(ticker: str):
 
 
 @router.get("/finding/{finding_id}")
-async def get_finding_detail(finding_id: str):
+def get_finding_detail(finding_id: str):
     """
     Get detailed information about a specific finding.
     """
@@ -330,7 +330,7 @@ async def get_finding_detail(finding_id: str):
 
 
 @router.get("/types/divergence")
-async def list_divergence_types():
+def list_divergence_types():
     """
     List available divergence types for filtering.
     """
@@ -346,7 +346,7 @@ async def list_divergence_types():
 
 
 @router.get("/types/materiality")
-async def list_materiality_levels():
+def list_materiality_levels():
     """
     List materiality levels for filtering.
     """

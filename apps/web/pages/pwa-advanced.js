@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import NoDataCard from '../src/components/NoDataCard';
-import { isNoData } from '../lib/api';
+import { isNoData, apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -9,7 +9,8 @@ export default function PWAAdvancedPage() {
   const [activeTab, setActiveTab] = useState('offline');
   const [loading, setLoading] = useState(false);
   const [noData, setNoData] = useState(null);
-  const userId = 'demo_user';
+  // user_id derived from JWT token server-side
+  const userId = '';
 
   // E2: Offline Caching State
   const [offlineConfig, setOfflineConfig] = useState(null);
@@ -58,8 +59,7 @@ export default function PWAAdvancedPage() {
     if (!cacheRoute) return;
     setLoading(true);
     try {
-      await fetch(`${API_BASE}/pwa-advanced/offline/cache?user_id=${userId}&route=${encodeURIComponent(cacheRoute)}`, {
-        method: 'POST'
+      await apiFetch(`/pwa-advanced/offline/cache?user_id=${userId}&route=${encodeURIComponent(cacheRoute)}`, { method: 'POST'
       });
       await fetchOfflineData();
       setCacheRoute('');
@@ -73,7 +73,7 @@ export default function PWAAdvancedPage() {
     if (!confirm('Clear all cached routes?')) return;
     setLoading(true);
     try {
-      await fetch(`${API_BASE}/pwa-advanced/offline/cache?user_id=${userId}`, { method: 'DELETE' });
+      await apiFetch(`/pwa-advanced/offline/cache?user_id=${userId}`, { method: 'DELETE' });
       await fetchOfflineData();
     } catch (err) {
       console.error('Error clearing cache:', err);
@@ -95,8 +95,7 @@ export default function PWAAdvancedPage() {
     setLoading(true);
     setAuthMessage('');
     try {
-      const res = await fetch(`${API_BASE}/pwa-advanced/biometric/register/start?user_id=${userId}&username=demo_user`, {
-        method: 'POST'
+      const res = await apiFetch(`/pwa-advanced/biometric/register/start?user_id=${userId}&username=demo_user`, { method: 'POST'
       });
       const data = await res.json();
       setRegistrationChallenge(data);
@@ -111,8 +110,7 @@ export default function PWAAdvancedPage() {
     if (!registrationChallenge) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/pwa-advanced/biometric/register/complete?user_id=${userId}`, {
-        method: 'POST',
+      const res = await apiFetch(`/pwa-advanced/biometric/register/complete?user_id=${userId}`, { method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           credential_id: 'simulated_cred_' + Date.now(),
@@ -135,8 +133,7 @@ export default function PWAAdvancedPage() {
     setLoading(true);
     setAuthMessage('');
     try {
-      const res = await fetch(`${API_BASE}/pwa-advanced/biometric/login/start?user_id=${userId}`, {
-        method: 'POST'
+      const res = await apiFetch(`/pwa-advanced/biometric/login/start?user_id=${userId}`, { method: 'POST'
       });
       const data = await res.json();
       if (data.error) {
@@ -155,8 +152,7 @@ export default function PWAAdvancedPage() {
     if (!loginChallenge) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/pwa-advanced/biometric/login/verify?user_id=${userId}`, {
-        method: 'POST',
+      const res = await apiFetch(`/pwa-advanced/biometric/login/verify?user_id=${userId}`, { method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           credential_id: loginChallenge.allowCredentials[0].id,
@@ -208,8 +204,7 @@ export default function PWAAdvancedPage() {
     if (!joinSessionId) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/pwa-advanced/screen/${joinSessionId}/join?user_id=${userId}`, {
-        method: 'POST'
+      const res = await apiFetch(`/pwa-advanced/screen/${joinSessionId}/join?user_id=${userId}`, { method: 'POST'
       });
       const data = await res.json();
       if (data.error) {
@@ -228,8 +223,7 @@ export default function PWAAdvancedPage() {
   async function leaveSession(sessionId) {
     setLoading(true);
     try {
-      await fetch(`${API_BASE}/pwa-advanced/screen/${sessionId}/leave?user_id=${userId}`, {
-        method: 'POST'
+      await apiFetch(`/pwa-advanced/screen/${sessionId}/leave?user_id=${userId}`, { method: 'POST'
       });
       setCurrentSession(null);
       await fetchActiveSessions();
@@ -243,8 +237,7 @@ export default function PWAAdvancedPage() {
     if (!confirm('End this screen sharing session?')) return;
     setLoading(true);
     try {
-      await fetch(`${API_BASE}/pwa-advanced/screen/${sessionId}/end?user_id=${userId}`, {
-        method: 'POST'
+      await apiFetch(`/pwa-advanced/screen/${sessionId}/end?user_id=${userId}`, { method: 'POST'
       });
       setCurrentSession(null);
       await fetchActiveSessions();

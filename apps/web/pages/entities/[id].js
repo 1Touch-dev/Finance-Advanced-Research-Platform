@@ -6,9 +6,10 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, 
 import { getApiBaseUrl } from '../../lib/api'
 import styles from '../../src/styles/Page.module.css'
 import eStyles from '../../src/styles/Entity.module.css'
+import { apiFetch, authHeaders } from '../../lib/api'
 
 const API = getApiBaseUrl()
-const fetcher = (url) => fetch(url).then(r => r.json()).catch(() => null)
+const fetcher = (url) => fetch(url, { headers: authHeaders() }).then(r => r.json()).catch(() => null)
 
 function Badge({ label, color = '#818cf8' }) {
   return (

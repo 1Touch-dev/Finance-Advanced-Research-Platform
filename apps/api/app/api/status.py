@@ -104,13 +104,8 @@ _uptime_history: dict = {s["id"]: [] for s in SERVICES}
 # ─── Helper Functions ───────────────────────────────────────────────────────
 
 def _calculate_uptime(service_id: str, days: int = 90) -> float:
-    """Calculate uptime percentage for a service over N days."""
-    # In production, this would query actual monitoring data
-    # For now, return high uptime with slight variation
-    import random
-    base_uptime = 99.90
-    variation = random.uniform(0, 0.09)
-    return round(base_uptime + variation, 4)
+    """Real monitoring not yet wired — return 0 (not fabricated)."""
+    return 0.0
 
 
 def _get_service_status(service_id: str) -> str:

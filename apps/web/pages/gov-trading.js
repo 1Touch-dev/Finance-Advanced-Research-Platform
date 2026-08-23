@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import useSWR from 'swr'
-import { getApiBaseUrl } from '../lib/api'
+import { getApiBaseUrl, authHeaders } from '../lib/api'
 import styles from '../src/styles/Page.module.css'
 
 const API = typeof window !== 'undefined' ? getApiBaseUrl() : ''

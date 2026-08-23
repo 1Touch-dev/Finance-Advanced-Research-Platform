@@ -29,7 +29,7 @@ router = APIRouter(prefix="/whisper", tags=["whisper"])
 # ── Static Routes (MUST come before parameterized routes) ────────────────────
 
 @router.get("/compare")
-async def compare_whispers(
+def compare_whispers(
     tickers: str = Query(..., description="Comma-separated tickers"),
     metric: str = Query("eps", description="Metric to compare"),
 ):
@@ -75,7 +75,7 @@ async def compare_whispers(
 
 
 @router.get("/screen")
-async def screen_by_whisper(
+def screen_by_whisper(
     min_whisper_vs_consensus: float = Query(None, description="Minimum whisper vs consensus %"),
     max_whisper_vs_consensus: float = Query(None, description="Maximum whisper vs consensus %"),
     direction: Optional[str] = Query(None, description="Filter by direction (above, below, inline)"),
@@ -128,7 +128,7 @@ async def screen_by_whisper(
 
 
 @router.get("/types/analyst")
-async def list_analyst_types():
+def list_analyst_types():
     """
     List available analyst types.
     """
@@ -137,7 +137,7 @@ async def list_analyst_types():
 
 
 @router.get("/types/metrics")
-async def list_estimate_metrics():
+def list_estimate_metrics():
     """
     List available estimate metrics.
     """
@@ -148,7 +148,7 @@ async def list_estimate_metrics():
 # ── Parameterized Routes (after static routes) ───────────────────────────────
 
 @router.get("/{ticker}")
-async def get_whisper_estimate(
+def get_whisper_estimate(
     ticker: str,
     period: str = Query("next_quarter", description="Period (e.g., next_quarter, Q1_2025)"),
     metric: str = Query("eps", description="Metric (eps, revenue, ebitda, fcf)"),
@@ -175,7 +175,7 @@ async def get_whisper_estimate(
 
 
 @router.get("/{ticker}/snapshot")
-async def get_whisper_snapshot(ticker: str):
+def get_whisper_snapshot(ticker: str):
     """
     Get quick whisper snapshot for a ticker.
 
@@ -188,7 +188,7 @@ async def get_whisper_snapshot(ticker: str):
 
 
 @router.get("/{ticker}/side-split")
-async def get_side_split_analysis(
+def get_side_split_analysis(
     ticker: str,
     period: str = Query("next_quarter", description="Period"),
     metric: str = Query("eps", description="Metric"),
@@ -215,7 +215,7 @@ async def get_side_split_analysis(
 
 
 @router.get("/{ticker}/history")
-async def get_whisper_history(
+def get_whisper_history(
     ticker: str,
     metric: str = Query("eps", description="Metric"),
     periods: int = Query(8, ge=4, le=20, description="Number of periods"),
@@ -240,7 +240,7 @@ async def get_whisper_history(
 
 
 @router.get("/{ticker}/dispersion")
-async def get_dispersion_by_side(
+def get_dispersion_by_side(
     ticker: str,
     period: str = Query("next_quarter", description="Period"),
     metric: str = Query("eps", description="Metric"),
@@ -265,7 +265,7 @@ async def get_dispersion_by_side(
 
 
 @router.get("/{ticker}/estimates")
-async def get_estimates_by_type(
+def get_estimates_by_type(
     ticker: str,
     analyst_type: str = Query(..., description="Analyst type (buy_side, sell_side, independent)"),
     period: str = Query("next_quarter", description="Period"),

@@ -19,7 +19,7 @@ router = APIRouter(prefix="/earnings", tags=["earnings-calendar"])
 
 
 @router.get("/upcoming")
-async def upcoming_earnings(
+def upcoming_earnings(
     days: int = Query(7, ge=1, le=30, description="Days ahead to look"),
     tickers: Optional[str] = Query(None, description="Comma-separated tickers"),
     importance: Optional[str] = Query(None, description="Filter by importance: high, medium, low"),
@@ -35,7 +35,7 @@ async def upcoming_earnings(
 
 
 @router.get("/date/{date}")
-async def earnings_by_date(
+def earnings_by_date(
     date: str,
 ):
     """Get all earnings for a specific date (YYYY-MM-DD)."""
@@ -51,7 +51,7 @@ async def earnings_by_date(
 
 
 @router.get("/ticker/{ticker}")
-async def ticker_earnings(
+def ticker_earnings(
     ticker: str,
     quarters: int = Query(8, ge=1, le=20, description="Number of quarters"),
 ):
@@ -65,7 +65,7 @@ async def ticker_earnings(
 
 
 @router.get("/week")
-async def earnings_week(
+def earnings_week(
     start_date: Optional[str] = Query(None, description="Week start date (YYYY-MM-DD)"),
 ):
     """Get earnings calendar for a week."""
@@ -80,7 +80,7 @@ async def earnings_week(
 
 
 @router.get("/surprises")
-async def earnings_surprises(
+def earnings_surprises(
     min_surprise: float = Query(5.0, description="Minimum surprise % (absolute)"),
     days_back: int = Query(30, ge=1, le=90, description="Days to look back"),
 ):
@@ -94,7 +94,7 @@ async def earnings_surprises(
 
 
 @router.get("/search")
-async def search_earnings_calendar(
+def search_earnings_calendar(
     query: Optional[str] = Query(None, description="Search query (ticker or company)"),
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
@@ -106,6 +106,6 @@ async def search_earnings_calendar(
 
 
 @router.get("/stats")
-async def earnings_stats():
+def earnings_stats():
     """Get earnings calendar statistics."""
     return get_earnings_stats()

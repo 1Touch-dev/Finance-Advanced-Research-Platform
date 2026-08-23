@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import NoDataCard from '../src/components/NoDataCard';
-import { isNoData } from '../lib/api';
+import { isNoData, apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -55,8 +55,7 @@ export default function WorkspacesPage() {
 
   async function createWorkspace() {
     try {
-      const res = await fetch(`${API_BASE}/workspaces/?name=${encodeURIComponent(newWorkspaceName)}`, {
-        method: 'POST'
+      const res = await apiFetch(`/workspaces/?name=${encodeURIComponent(newWorkspaceName)}`, { method: 'POST'
       });
       const data = await res.json();
       if (data.workspace_id) {

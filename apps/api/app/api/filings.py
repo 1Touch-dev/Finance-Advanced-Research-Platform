@@ -243,10 +243,17 @@ def search_filings(
     Returns:
         Matching filings with snippets
     """
-    from app.connectors.sec_edgar_connector import search_filings as sec_search
+    try:
+        from app.connectors.sec_edgar_connector import search_filings as sec_search
+    except ImportError:
+        return {
+            "query": query,
+            "results": [],
+            "count": 0,
+            "message": "Full-text filing search not yet available",
+        }
 
     try:
-        # Build SEC EDGAR full-text search query
         results = sec_search(
             query=query,
             ticker=ticker.upper() if ticker else None,
@@ -267,16 +274,13 @@ def search_filings(
             "results": results,
             "count": len(results) if results else 0,
         }
-    except AttributeError:
-        # search_filings may not exist yet
+    except Exception as e:
         return {
             "query": query,
-            "error": "Full-text search not yet implemented",
             "results": [],
             "count": 0,
+            "error": str(e)[:200],
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Search error: {str(e)}")
 
 
 # ── Company Ontology & KPI Routes ────────────────────────────────────────────────
@@ -307,10 +311,15 @@ def get_company_ontology(
             include_terminology=include_terminology,
         )
         return ontology_to_dict(ontology)
-    except ValueError as e:
+    except (ValueError, ImportError) as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error building ontology: {str(e)}")
+        return {
+            "ticker": ticker.upper(),
+            "ontology": {},
+            "error": str(e)[:200],
+            "message": "Ontology construction requires SEC filing data",
+        }
 
 
 @router.get("/kpis")
@@ -328,10 +337,15 @@ def get_company_kpis(
     try:
         dashboard = get_kpi_dashboard(ticker.upper())
         return dashboard
-    except ValueError as e:
+    except (ValueError, ImportError) as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error calculating KPIs: {str(e)}")
+        return {
+            "ticker": ticker.upper(),
+            "kpis": [],
+            "error": str(e)[:200],
+            "message": "KPI calculation requires SEC filing data",
+        }
 
 
 # ── Docket-to-Disclosure Reconciliation Routes (L-series) ───────────────────────

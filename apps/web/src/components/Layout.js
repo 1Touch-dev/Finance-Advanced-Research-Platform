@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { useMemo, useState } from 'react'
 import { getAdminBaseUrl, getApiBaseUrl } from '../../lib/api'
+import { useAuth } from '../../lib/auth'
 
 const NAV_GROUPS = [
   {
@@ -97,6 +98,8 @@ export default function Layout({ children }) {
   const adminUrl = useMemo(() => getAdminBaseUrl(), [])
   const apiBaseUrl = useMemo(() => getApiBaseUrl(), [])
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  let auth = null;
+  try { auth = useAuth(); } catch (e) { /* outside provider during SSG */ }
 
   const isActive = (href) => (
     href === '/' ? path === '/' : path === href || path.startsWith(`${href}/`)
@@ -315,6 +318,22 @@ export default function Layout({ children }) {
             >
               API Docs ↗
             </a>
+            {auth?.user && (
+              <button
+                onClick={() => { auth.logout(); router.push('/login'); }}
+                style={{
+                  fontSize: '0.72rem',
+                  color: 'var(--text-soft)',
+                  padding: '4px 10px',
+                  border: '1px solid var(--line)',
+                  borderRadius: 6,
+                  background: 'transparent',
+                  cursor: 'pointer',
+                }}
+              >
+                {auth.user.email} · Logout
+              </button>
+            )}
           </div>
         </header>
 

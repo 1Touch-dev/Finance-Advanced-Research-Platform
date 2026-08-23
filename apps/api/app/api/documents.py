@@ -29,7 +29,7 @@ _SEARCH_LIMIT = int(os.getenv("RAG_SEARCH_RATE_LIMIT", "30"))
 # -- Static routes first (before parameterized routes) ------------------------
 
 @router.post("/upload")
-async def upload_document(
+def upload_document(
     file: UploadFile = File(...),
     ticker: Optional[str] = Form(None),
     entity_id: Optional[str] = Form(None),
@@ -76,7 +76,7 @@ async def upload_document(
 
 
 @router.post("/bulk-upload")
-async def bulk_upload_documents(
+def bulk_upload_documents(
     files: List[UploadFile] = File(...),
     ticker: Optional[str] = Form(None),
     tags: Optional[str] = Form(None),
@@ -120,7 +120,7 @@ async def bulk_upload_documents(
 
 
 @router.get("/search", dependencies=[Depends(rate_limiter("docs_search", limit=_SEARCH_LIMIT, window=60))])
-async def search_documents(
+def search_documents(
     query: str = Query(..., description="Search query", max_length=2000),
     ticker: Optional[str] = Query(None, description="Filter by ticker"),
     document_ids: Optional[str] = Query(None, description="Comma-separated document IDs"),
@@ -170,7 +170,7 @@ async def search_documents(
 
 
 @router.get("/")
-async def list_documents(
+def list_documents(
     ticker: Optional[str] = Query(None, description="Filter by ticker"),
     entity_id: Optional[str] = Query(None, description="Filter by entity ID"),
     user_id: Optional[str] = Query(None, description="Filter by user ID"),
@@ -205,7 +205,7 @@ async def list_documents(
 # -- Parameterized routes (after static routes) -------------------------------
 
 @router.post("/{document_id}/process")
-async def process_document(document_id: str):
+def process_document(document_id: str):
     """
     Process an uploaded document: extract text and create chunks.
 
@@ -227,7 +227,7 @@ async def process_document(document_id: str):
 
 
 @router.get("/{document_id}")
-async def get_document(document_id: str):
+def get_document(document_id: str):
     """
     Get document metadata by ID.
     """
@@ -243,7 +243,7 @@ async def get_document(document_id: str):
 
 
 @router.get("/{document_id}/chunks")
-async def get_document_chunks(
+def get_document_chunks(
     document_id: str,
     page: Optional[int] = Query(None, description="Filter by page number"),
     limit: int = Query(50, description="Maximum chunks to return"),
@@ -293,7 +293,7 @@ async def get_document_chunks(
 
 
 @router.delete("/{document_id}")
-async def delete_document(document_id: str):
+def delete_document(document_id: str):
     """
     Delete a document and its chunks.
     """

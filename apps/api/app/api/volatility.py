@@ -20,7 +20,7 @@ router = APIRouter(prefix="/volatility", tags=["volatility"])
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.get("/surface/{ticker}")
-async def get_volatility_surface(ticker: str):
+def get_volatility_surface(ticker: str):
     """
     Get full implied volatility surface for a ticker.
 
@@ -33,7 +33,7 @@ async def get_volatility_surface(ticker: str):
 
 
 @router.get("/snapshot/{ticker}")
-async def get_volatility_snapshot(ticker: str):
+def get_volatility_snapshot(ticker: str):
     """
     Get quick IV snapshot for a ticker.
 
@@ -46,7 +46,7 @@ async def get_volatility_snapshot(ticker: str):
 
 
 @router.get("/history/{ticker}")
-async def get_volatility_history(
+def get_volatility_history(
     ticker: str,
     days: int = Query(252, ge=30, le=756)
 ):
@@ -61,7 +61,7 @@ async def get_volatility_history(
 
 
 @router.get("/skew/{ticker}")
-async def get_skew_analysis(
+def get_skew_analysis(
     ticker: str,
     expiry: Optional[str] = None
 ):
@@ -77,7 +77,7 @@ async def get_skew_analysis(
 
 
 @router.get("/screen")
-async def screen_volatility(
+def screen_volatility(
     min_iv_rank: float = Query(0, ge=0, le=100),
     max_iv_rank: float = Query(100, ge=0, le=100),
     min_iv_hv_spread: float = Query(-1, ge=-2, le=2),
@@ -114,7 +114,7 @@ async def screen_volatility(
 
 
 @router.get("/term-structure/{ticker}")
-async def get_term_structure(ticker: str):
+def get_term_structure(ticker: str):
     """
     Get ATM implied volatility term structure.
 

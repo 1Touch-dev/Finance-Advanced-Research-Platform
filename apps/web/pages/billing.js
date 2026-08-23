@@ -1,7 +1,7 @@
 import Head from 'next/head'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
-import { getApiBaseUrl } from '../lib/api'
+import { getApiBaseUrl, apiFetch } from '../lib/api';
 
 const API = typeof window !== 'undefined' ? getApiBaseUrl() : ''
 
@@ -40,8 +40,7 @@ export default function Billing() {
   const handleCancel = async () => {
     setCancelling(true)
     try {
-      const res = await fetch(`${API}/billing/cancel`, {
-        method: 'POST',
+      const res = await apiFetch(`/billing/cancel`, { method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: cancelReason }),
       })

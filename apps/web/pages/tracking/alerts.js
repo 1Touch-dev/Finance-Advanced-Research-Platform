@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import Link from 'next/link'
-import { getApiBaseUrl } from '../../lib/api'
+import { getApiBaseUrl, authHeaders } from '../../lib/api'
 import styles from '../../src/styles/Page.module.css'
 
 const API = getApiBaseUrl()

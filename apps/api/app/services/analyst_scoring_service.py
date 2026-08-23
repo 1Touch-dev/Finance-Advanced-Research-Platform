@@ -54,6 +54,20 @@ def _cached_get(cache_key: str, url: str, params: dict, timeout: int = 10) -> An
 
 # ── Data Models ──────────────────────────────────────────────────────────────
 
+class AnalystTier(str, Enum):
+    ELITE = "elite"
+    EXPERT = "expert"
+    COMPETENT = "competent"
+    NOVICE = "novice"
+    UNRANKED = "unranked"
+
+
+class CoverageStatus(str, Enum):
+    ACTIVE = "active"
+    DROPPED = "dropped"
+    INITIATED = "initiated"
+
+
 class RatingAction(Enum):
     upgrade = "upgrade"
     downgrade = "downgrade"

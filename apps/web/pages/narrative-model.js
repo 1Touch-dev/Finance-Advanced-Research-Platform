@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import NoDataCard from '../src/components/NoDataCard';
-import { isNoData } from '../lib/api';
+import { isNoData, apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -56,9 +56,7 @@ export default function NarrativeModelPage() {
   async function startTraining() {
     if (!selectedModel || !selectedDataset) return;
     try {
-      const res = await fetch(
-        `${API_BASE}/narrative-model/train?base_model=${selectedModel}&dataset_id=${selectedDataset}`,
-        { method: 'POST' }
+      const res = await apiFetch(`/narrative-model/train?base_model=${selectedModel}&dataset_id=${selectedDataset}`, { method: 'POST' }
       );
       const data = await res.json();
       setTrainingJob(data);
@@ -71,9 +69,7 @@ export default function NarrativeModelPage() {
     if (!ticker) return;
     setGenerating(true);
     try {
-      const res = await fetch(
-        `${API_BASE}/narrative-model/generate?ticker=${ticker}&report_type=${reportType}`,
-        { method: 'POST' }
+      const res = await apiFetch(`/narrative-model/generate?ticker=${ticker}&report_type=${reportType}`, { method: 'POST' }
       );
       setNarrative(await res.json());
     } catch (err) {

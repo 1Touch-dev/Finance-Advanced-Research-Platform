@@ -48,8 +48,11 @@ class VolatilitySurface:
     underlying_price: float
     as_of_date: str
     data_delay_minutes: int = 15
+    as_of_time: str = ""
     term_structure: List[Dict] = field(default_factory=list)
+    surface: List[Dict] = field(default_factory=list)
     strikes_by_expiry: Dict[str, List[Dict]] = field(default_factory=dict)
+    skew: Dict[str, Any] = field(default_factory=dict)
     atm_iv_30d: float = 0.0
     atm_iv_60d: float = 0.0
     atm_iv_90d: float = 0.0

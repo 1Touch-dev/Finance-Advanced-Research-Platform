@@ -39,7 +39,7 @@ class SaveFormulaRequest(BaseModel):
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.post("/evaluate")
-async def evaluate_formula(request: EvaluateRequest):
+def evaluate_formula(request: EvaluateRequest):
     """Evaluate a formula and return chart data."""
     service = get_formula_service()
 
@@ -53,7 +53,7 @@ async def evaluate_formula(request: EvaluateRequest):
 
 
 @router.get("/validate")
-async def validate_formula(formula: str = Query(...)):
+def validate_formula(formula: str = Query(...)):
     """Validate formula syntax without evaluating."""
     service = get_formula_service()
     validation = service.validate_formula(formula)
@@ -61,7 +61,7 @@ async def validate_formula(formula: str = Query(...)):
 
 
 @router.get("/list")
-async def list_formulas(category: Optional[str] = None):
+def list_formulas(category: Optional[str] = None):
     """List all saved formulas."""
     service = get_formula_service()
     formulas = service.list_formulas(category=category)
@@ -72,7 +72,7 @@ async def list_formulas(category: Optional[str] = None):
 
 
 @router.post("/save")
-async def save_formula(request: SaveFormulaRequest):
+def save_formula(request: SaveFormulaRequest):
     """Save a custom formula."""
     service = get_formula_service()
 
@@ -93,7 +93,7 @@ async def save_formula(request: SaveFormulaRequest):
 
 
 @router.get("/{formula_id}")
-async def get_formula(formula_id: str):
+def get_formula(formula_id: str):
     """Get a saved formula by ID."""
     service = get_formula_service()
     formula = service.get_formula(formula_id)
@@ -105,7 +105,7 @@ async def get_formula(formula_id: str):
 
 
 @router.delete("/{formula_id}")
-async def delete_formula(formula_id: str):
+def delete_formula(formula_id: str):
     """Delete a saved formula."""
     service = get_formula_service()
     success = service.delete_formula(formula_id)
@@ -117,7 +117,7 @@ async def delete_formula(formula_id: str):
 
 
 @router.get("/reference/metrics")
-async def get_available_metrics():
+def get_available_metrics():
     """Get list of available metrics for formulas."""
     service = get_formula_service()
     return {
@@ -126,7 +126,7 @@ async def get_available_metrics():
 
 
 @router.get("/reference/functions")
-async def get_available_functions():
+def get_available_functions():
     """Get list of available functions for formulas."""
     service = get_formula_service()
     return {

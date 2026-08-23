@@ -57,7 +57,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/types/entity-types")
-async def list_entity_types():
+def list_entity_types():
     """List available entity types for comments."""
     return {
         "entity_types": [
@@ -68,7 +68,7 @@ async def list_entity_types():
 
 
 @router.get("/types/document-types")
-async def list_document_types():
+def list_document_types():
     """List available document types for annotations."""
     return {
         "document_types": [
@@ -79,7 +79,7 @@ async def list_document_types():
 
 
 @router.get("/types/visibility-levels")
-async def list_visibility_levels():
+def list_visibility_levels():
     """List available visibility levels."""
     return {
         "visibility_levels": [
@@ -90,7 +90,7 @@ async def list_visibility_levels():
 
 
 @router.get("/types/reaction-types")
-async def list_reaction_types():
+def list_reaction_types():
     """List available reaction types."""
     return {
         "reaction_types": [
@@ -101,7 +101,7 @@ async def list_reaction_types():
 
 
 @router.get("/types/annotation-colors")
-async def list_annotation_colors():
+def list_annotation_colors():
     """List available annotation colors."""
     return {
         "annotation_colors": [
@@ -115,7 +115,7 @@ async def list_annotation_colors():
 
 
 @router.post("")
-async def create_new_comment(
+def create_new_comment(
     user_id: str = Query(..., description="User ID"),
     entity_type: str = Query(..., description="Entity type (stock, filing, report, etc.)"),
     entity_id: str = Query(..., description="Entity ID (ticker, document ID, etc.)"),
@@ -161,7 +161,7 @@ async def create_new_comment(
 
 
 @router.get("/entity/{entity_type}/{entity_id}")
-async def get_entity_comments(
+def get_entity_comments(
     entity_type: str,
     entity_id: str,
     user_id: Optional[str] = Query(None, description="User ID for visibility filtering"),
@@ -203,7 +203,7 @@ async def get_entity_comments(
 
 
 @router.get("/entity/{entity_type}/{entity_id}/stats")
-async def get_entity_comment_stats(
+def get_entity_comment_stats(
     entity_type: str,
     entity_id: str,
 ):
@@ -231,7 +231,7 @@ async def get_entity_comment_stats(
 
 
 @router.get("/{comment_id}")
-async def get_single_comment(comment_id: int):
+def get_single_comment(comment_id: int):
     """
     Get a single comment by ID (#47).
     """
@@ -243,7 +243,7 @@ async def get_single_comment(comment_id: int):
 
 
 @router.put("/{comment_id}")
-async def update_existing_comment(
+def update_existing_comment(
     comment_id: int,
     user_id: str = Query(..., description="User ID (must be author)"),
     content: str = Query(..., description="New comment content"),
@@ -273,7 +273,7 @@ async def update_existing_comment(
 
 
 @router.delete("/{comment_id}")
-async def delete_existing_comment(
+def delete_existing_comment(
     comment_id: int,
     user_id: str = Query(..., description="User ID (must be author)"),
     current_user: dict = Depends(get_current_user),
@@ -298,7 +298,7 @@ async def delete_existing_comment(
 
 
 @router.post("/{comment_id}/react")
-async def add_comment_reaction(
+def add_comment_reaction(
     comment_id: int,
     user_id: str = Query(..., description="User ID"),
     reaction_type: str = Query(..., description="Reaction type: like, insightful, disagree, question"),
@@ -330,7 +330,7 @@ async def add_comment_reaction(
 
 
 @router.delete("/{comment_id}/react")
-async def remove_comment_reaction(
+def remove_comment_reaction(
     comment_id: int,
     user_id: str = Query(..., description="User ID"),
 ):
@@ -356,7 +356,7 @@ annotations_router = APIRouter(prefix="/annotations", tags=["annotations"])
 
 
 @annotations_router.post("")
-async def create_new_annotation(
+def create_new_annotation(
     user_id: str = Query(..., description="User ID"),
     document_type: str = Query(..., description="Document type (filing, report, transcript, news)"),
     document_id: str = Query(..., description="Document ID"),
@@ -416,7 +416,7 @@ async def create_new_annotation(
 
 
 @annotations_router.get("/document/{document_type}/{document_id}")
-async def get_document_annotations(
+def get_document_annotations(
     document_type: str,
     document_id: str,
     user_id: Optional[str] = Query(None, description="User ID for visibility filtering"),
@@ -452,7 +452,7 @@ async def get_document_annotations(
 
 
 @annotations_router.get("/user")
-async def get_user_annotation_list(
+def get_user_annotation_list(
     user_id: str = Query(..., description="User ID"),
     document_type: Optional[str] = Query(None, description="Filter by document type"),
     limit: int = Query(50, ge=1, le=200, description="Maximum annotations"),
@@ -487,7 +487,7 @@ async def get_user_annotation_list(
 
 
 @annotations_router.get("/{annotation_id}")
-async def get_single_annotation(annotation_id: int):
+def get_single_annotation(annotation_id: int):
     """
     Get a single annotation by ID (#47).
     """
@@ -499,7 +499,7 @@ async def get_single_annotation(annotation_id: int):
 
 
 @annotations_router.put("/{annotation_id}")
-async def update_existing_annotation(
+def update_existing_annotation(
     annotation_id: int,
     user_id: str = Query(..., description="User ID (must be author)"),
     note: Optional[str] = Query(None, description="Updated note"),
@@ -540,7 +540,7 @@ async def update_existing_annotation(
 
 
 @annotations_router.delete("/{annotation_id}")
-async def delete_existing_annotation(
+def delete_existing_annotation(
     annotation_id: int,
     user_id: str = Query(..., description="User ID (must be author)"),
 ):

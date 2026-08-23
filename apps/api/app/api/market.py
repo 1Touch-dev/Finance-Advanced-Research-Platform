@@ -59,21 +59,52 @@ def get_insider_transactions(ticker: str):
     return {"ticker": ticker, "transactions": finnhub_insider_transactions(ticker)}
 
 
-# ── Financial statements (FMP) ────────────────────────────────────────────────
+# ── Financial statements (FMP with SEC EDGAR fallback) ────────────────────────
 
 @router.get("/income-statement")
 def get_income_statement(ticker: str, limit: int = 20):
-    return {"ticker": ticker, "statements": fmp_income_statement(ticker, limit)}
+    data = fmp_income_statement(ticker, limit)
+    if not data:
+        data = _sec_edgar_financials_fallback(ticker, "income")
+    return {"ticker": ticker, "statements": data, "source": "FMP" if fmp_income_statement(ticker, 1) else "SEC_EDGAR"}
 
 
 @router.get("/balance-sheet")
 def get_balance_sheet(ticker: str, limit: int = 10):
-    return {"ticker": ticker, "statements": fmp_balance_sheet(ticker, limit)}
+    data = fmp_balance_sheet(ticker, limit)
+    if not data:
+        data = _sec_edgar_financials_fallback(ticker, "balance")
+    return {"ticker": ticker, "statements": data}
 
 
 @router.get("/cash-flow")
 def get_cash_flow(ticker: str, limit: int = 10):
-    return {"ticker": ticker, "statements": fmp_cash_flow(ticker, limit)}
+    data = fmp_cash_flow(ticker, limit)
+    if not data:
+        data = _sec_edgar_financials_fallback(ticker, "cashflow")
+    return {"ticker": ticker, "statements": data}
+
+
+def _sec_edgar_financials_fallback(ticker: str, statement_type: str) -> list:
+    """Fall back to SEC EDGAR company facts when FMP returns empty."""
+    try:
+        from app.connectors.sec_edgar_connector import get_filer_cik, get_company_facts, extract_financial_statements
+        cik = get_filer_cik(ticker)
+        if not cik:
+            return []
+        facts = get_company_facts(cik)
+        if not facts:
+            return []
+        stmts = extract_financial_statements(facts, years=5)
+        if statement_type == "income":
+            return stmts.get("income_statement", [])
+        elif statement_type == "balance":
+            return stmts.get("balance_sheet", [])
+        elif statement_type == "cashflow":
+            return stmts.get("cash_flow", [])
+        return []
+    except Exception:
+        return []
 
 
 @router.get("/key-metrics")
@@ -301,46 +332,52 @@ def get_rss_articles(
     - entity: match against matched_entities array (e.g. 'Apple', 'Tesla')
     """
     from sqlalchemy import text
-    engine = _get_rss_engine()
-    filters = []
-    params: dict = {"limit": limit, "offset": offset}
-    if category:
-        filters.append("category = :category")
-        params["category"] = category
-    if region:
-        filters.append("region = :region")
-        params["region"] = region
-    if entity:
-        filters.append(":entity = ANY(matched_entities)")
-        params["entity"] = entity
-    where = ("WHERE " + " AND ".join(filters)) if filters else ""
-    with engine.connect() as conn:
-        rows = conn.execute(text(f"""
-            SELECT id, source_name, title, url, summary, published_at,
-                   category, region, matched_entities, sentiment_label
-            FROM rss_articles
-            {where}
-            ORDER BY published_at DESC NULLS LAST
-            LIMIT :limit OFFSET :offset
-        """), params).mappings().all()
-        total = conn.execute(text(f"SELECT COUNT(*) FROM rss_articles {where}"), params).scalar()
-    return {"total": total, "articles": [dict(r) for r in rows]}
+    try:
+        engine = _get_rss_engine()
+        filters = []
+        params: dict = {"limit": limit, "offset": offset}
+        if category:
+            filters.append("category = :category")
+            params["category"] = category
+        if region:
+            filters.append("region = :region")
+            params["region"] = region
+        if entity:
+            filters.append(":entity = ANY(matched_entities)")
+            params["entity"] = entity
+        where = ("WHERE " + " AND ".join(filters)) if filters else ""
+        with engine.connect() as conn:
+            rows = conn.execute(text(f"""
+                SELECT id, source_name, title, url, summary, published_at,
+                       category, region, matched_entities, sentiment_label
+                FROM rss_articles
+                {where}
+                ORDER BY published_at DESC NULLS LAST
+                LIMIT :limit OFFSET :offset
+            """), params).mappings().all()
+            total = conn.execute(text(f"SELECT COUNT(*) FROM rss_articles {where}"), params).scalar()
+        return {"total": total, "articles": [dict(r) for r in rows]}
+    except Exception as e:
+        return {"total": 0, "articles": [], "message": "RSS worker has not run yet — no articles ingested"}
 
 
 @router.get("/rss/entity-feed")
 def get_entity_rss_feed(entity: str, limit: int = 20):
     """Articles that mention a specific entity by name (auto-matched on ingest)."""
     from sqlalchemy import text
-    engine = _get_rss_engine()
-    with engine.connect() as conn:
-        rows = conn.execute(text("""
-            SELECT source_name, title, url, summary, published_at, category, region
-            FROM rss_articles
-            WHERE :entity = ANY(matched_entities)
-            ORDER BY published_at DESC NULLS LAST
-            LIMIT :limit
-        """), {"entity": entity, "limit": limit}).mappings().all()
-    return {"entity": entity, "articles": [dict(r) for r in rows]}
+    try:
+        engine = _get_rss_engine()
+        with engine.connect() as conn:
+            rows = conn.execute(text("""
+                SELECT source_name, title, url, summary, published_at, category, region
+                FROM rss_articles
+                WHERE :entity = ANY(matched_entities)
+                ORDER BY published_at DESC NULLS LAST
+                LIMIT :limit
+            """), {"entity": entity, "limit": limit}).mappings().all()
+        return {"entity": entity, "articles": [dict(r) for r in rows]}
+    except Exception as e:
+        return {"entity": entity, "articles": [], "message": "RSS worker has not run yet"}
 
 
 @router.get("/rss/digest")
@@ -350,31 +387,34 @@ def get_rss_digest(hours: int = 24):
     Grouped by category for a quick intelligence overview.
     """
     from sqlalchemy import text
-    engine = _get_rss_engine()
-    with engine.connect() as conn:
-        rows = conn.execute(text("""
-            SELECT category, source_name, title, url, summary, published_at, matched_entities
-            FROM (
-                SELECT *,
-                    ROW_NUMBER() OVER (PARTITION BY category ORDER BY published_at DESC NULLS LAST) AS rn
-                FROM rss_articles
-                WHERE published_at > NOW() - INTERVAL '1 hour' * :hours
-            ) sub
-            WHERE rn <= 10
-            ORDER BY category, published_at DESC
-        """), {"hours": hours}).mappings().all()
-    digest: dict = {}
-    for r in rows:
-        cat = r["category"] or "general"
-        digest.setdefault(cat, []).append({
-            "source": r["source_name"],
-            "title": r["title"],
-            "url": r["url"],
-            "summary": r["summary"],
-            "published_at": str(r["published_at"]) if r["published_at"] else None,
-            "entities": r["matched_entities"] or [],
-        })
-    return {"hours": hours, "digest": digest}
+    try:
+        engine = _get_rss_engine()
+        with engine.connect() as conn:
+            rows = conn.execute(text("""
+                SELECT category, source_name, title, url, summary, published_at, matched_entities
+                FROM (
+                    SELECT *,
+                        ROW_NUMBER() OVER (PARTITION BY category ORDER BY published_at DESC NULLS LAST) AS rn
+                    FROM rss_articles
+                    WHERE published_at > NOW() - INTERVAL '1 hour' * :hours
+                ) sub
+                WHERE rn <= 10
+                ORDER BY category, published_at DESC
+            """), {"hours": hours}).mappings().all()
+        digest: dict = {}
+        for r in rows:
+            cat = r["category"] or "general"
+            digest.setdefault(cat, []).append({
+                "source": r["source_name"],
+                "title": r["title"],
+                "url": r["url"],
+                "summary": r["summary"],
+                "published_at": str(r["published_at"]) if r["published_at"] else None,
+                "entities": r["matched_entities"] or [],
+            })
+        return {"hours": hours, "digest": digest}
+    except Exception as e:
+        return {"hours": hours, "digest": {}, "message": "RSS worker has not run yet"}
 
 
 @router.post("/rss/poll")

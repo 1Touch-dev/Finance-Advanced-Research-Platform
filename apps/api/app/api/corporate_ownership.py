@@ -37,7 +37,7 @@ router = APIRouter(prefix="/corporate-ownership", tags=["Corporate Ownership"])
 
 
 @router.get("/gleif/search")
-async def gleif_search(
+def gleif_search(
     entity_name: str = Query(..., description="Entity name to search"),
     limit: int = Query(5, description="Maximum results"),
 ):
@@ -51,7 +51,7 @@ async def gleif_search(
 
 
 @router.get("/gleif/entity/{lei}")
-async def gleif_entity_details(lei: str):
+def gleif_entity_details(lei: str):
     """Get full entity details from GLEIF by LEI."""
     entity = fetch_gleif_entity_details(lei)
     if not entity:
@@ -60,7 +60,7 @@ async def gleif_entity_details(lei: str):
 
 
 @router.get("/gleif/relationships/{lei}")
-async def gleif_relationships(lei: str):
+def gleif_relationships(lei: str):
     """Get parent/child/ultimate-parent relationships for a LEI."""
     return fetch_gleif_relationships(lei)
 
@@ -69,7 +69,7 @@ async def gleif_relationships(lei: str):
 
 
 @router.get("/chain/{lei}")
-async def ownership_chain(
+def ownership_chain(
     lei: str,
     max_depth: int = Query(5, description="Maximum chain depth"),
 ):
@@ -81,7 +81,7 @@ async def ownership_chain(
 
 
 @router.get("/network/{lei}")
-async def corporate_network(
+def corporate_network(
     lei: str,
     include_children: bool = Query(True, description="Include subsidiaries"),
     max_depth: int = Query(3, description="Maximum traversal depth"),
@@ -98,7 +98,7 @@ async def corporate_network(
 
 
 @router.get("/chain/by-name")
-async def ownership_chain_by_name(
+def ownership_chain_by_name(
     entity_name: str = Query(..., description="Entity name to search"),
     max_depth: int = Query(5, description="Maximum chain depth"),
 ):
@@ -123,7 +123,7 @@ async def ownership_chain_by_name(
 
 
 @router.get("/ubo/{entity_name}")
-async def detect_ubo(
+def detect_ubo(
     entity_name: str,
     jurisdiction: str = Query("", description="Jurisdiction code (e.g., 'uk', 'us')"),
 ):
@@ -141,7 +141,7 @@ async def detect_ubo(
 
 
 @router.get("/cross-reference/{entity_name}")
-async def cross_reference(
+def cross_reference(
     entity_name: str,
     jurisdiction: str = Query("", description="Jurisdiction code"),
 ):
@@ -157,7 +157,7 @@ async def cross_reference(
 
 
 @router.get("/private-intel/{entity_name}")
-async def private_company_intel(
+def private_company_intel(
     entity_name: str,
     jurisdiction: str = Query("", description="Jurisdiction code"),
 ):
@@ -172,7 +172,7 @@ async def private_company_intel(
 
 
 @router.get("/opencorporates/search")
-async def opencorporates_search(
+def opencorporates_search(
     company_name: str = Query(..., description="Company name to search"),
     jurisdiction: str = Query("", description="Jurisdiction code (e.g., 'us_de', 'gb')"),
     limit: int = Query(5, description="Maximum results"),
@@ -188,7 +188,7 @@ async def opencorporates_search(
 
 
 @router.get("/opencorporates/company/{jurisdiction}/{company_number}")
-async def opencorporates_enrich(
+def opencorporates_enrich(
     jurisdiction: str,
     company_number: str,
 ):
@@ -200,7 +200,7 @@ async def opencorporates_enrich(
 
 
 @router.get("/uk-companies-house/search")
-async def uk_companies_search(
+def uk_companies_search(
     company_name: str = Query(..., description="Company name to search"),
     limit: int = Query(5, description="Maximum results"),
 ):
@@ -214,7 +214,7 @@ async def uk_companies_search(
 
 
 @router.get("/uk-companies-house/company/{company_number}")
-async def uk_company_details(company_number: str):
+def uk_company_details(company_number: str):
     """
     Get full UK company details including officers, filings, and
     Persons with Significant Control (PSC).
@@ -223,7 +223,7 @@ async def uk_company_details(company_number: str):
 
 
 @router.get("/uk-companies-house/psc/{company_number}")
-async def uk_company_psc(company_number: str):
+def uk_company_psc(company_number: str):
     """Get only the Persons with Significant Control for a UK company."""
     details = enrich_uk_company(company_number)
     return {
@@ -238,7 +238,7 @@ async def uk_company_psc(company_number: str):
 
 
 @router.get("/full-analysis/{entity_name}")
-async def full_ownership_analysis(
+def full_ownership_analysis(
     entity_name: str,
     jurisdiction: str = Query("", description="Jurisdiction code"),
     include_network: bool = Query(True, description="Include network graph"),

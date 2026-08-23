@@ -106,7 +106,7 @@ class PathResponse(BaseModel):
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 @router.post("/entity", summary="Add an entity to the graph")
-async def add_entity(request: AddEntityRequest) -> Dict[str, Any]:
+def add_entity(request: AddEntityRequest) -> Dict[str, Any]:
     """
     Add an entity to the intelligence graph.
 
@@ -130,7 +130,7 @@ async def add_entity(request: AddEntityRequest) -> Dict[str, Any]:
 
 
 @router.post("/edge", summary="Add an edge with evidence")
-async def add_edge(request: AddEdgeRequest) -> Dict[str, Any]:
+def add_edge(request: AddEdgeRequest) -> Dict[str, Any]:
     """
     Add an edge (relationship) to the intelligence graph.
 
@@ -168,7 +168,7 @@ async def add_edge(request: AddEdgeRequest) -> Dict[str, Any]:
     response_model=ExploreResponse,
     summary="Explore network from seed entity"
 )
-async def explore_network(
+def explore_network(
     entity_id: str,
     max_depth: int = Query(3, ge=1, le=5, description="Maximum BFS depth"),
     max_nodes: int = Query(500, ge=10, le=2000, description="Maximum nodes to explore"),
@@ -204,7 +204,7 @@ async def explore_network(
 
 
 @router.get("/connect", summary="Find paths between two entities")
-async def find_connection(
+def find_connection(
     src: str = Query(..., description="Source entity ID"),
     dst: str = Query(..., description="Destination entity ID"),
     max_depth: int = Query(3, ge=1, le=5, description="Maximum path length"),
@@ -232,7 +232,7 @@ async def find_connection(
 
 
 @router.get("/resolve", summary="Resolve entity by identifier")
-async def resolve_entity(
+def resolve_entity(
     scheme: str = Query(..., description="Identifier scheme: CIK, LEI, EIN, FEC, etc."),
     value: str = Query(..., description="Identifier value"),
 ) -> Dict[str, Any]:
@@ -258,7 +258,7 @@ async def resolve_entity(
 
 
 @router.get("/stats", summary="Get graph statistics")
-async def get_stats() -> Dict[str, Any]:
+def get_stats() -> Dict[str, Any]:
     """
     Get statistics about the intelligence graph.
 
@@ -276,7 +276,7 @@ async def get_stats() -> Dict[str, Any]:
 
 
 @router.get("/relationship-types", summary="List valid relationship types")
-async def list_relationship_types() -> Dict[str, Any]:
+def list_relationship_types() -> Dict[str, Any]:
     """
     List all valid relationship types in the closed vocabulary.
 
@@ -298,7 +298,7 @@ async def list_relationship_types() -> Dict[str, Any]:
 
 
 @router.get("/confidence-tiers", summary="List confidence tiers with accuracy targets")
-async def list_confidence_tiers() -> Dict[str, Any]:
+def list_confidence_tiers() -> Dict[str, Any]:
     """
     List confidence tiers and their accuracy targets.
 
@@ -335,7 +335,7 @@ async def list_confidence_tiers() -> Dict[str, Any]:
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 @router.post("/paypal-mafia/load", summary="Load PayPal Mafia seed data")
-async def load_paypal_mafia() -> Dict[str, Any]:
+def load_paypal_mafia() -> Dict[str, Any]:
     """
     Load the PayPal Mafia demonstration dataset into the graph.
 
@@ -358,7 +358,7 @@ async def load_paypal_mafia() -> Dict[str, Any]:
 
 
 @router.get("/paypal-mafia/stats", summary="Get PayPal Mafia dataset stats")
-async def get_paypal_mafia_stats() -> Dict[str, Any]:
+def get_paypal_mafia_stats() -> Dict[str, Any]:
     """
     Get statistics about the PayPal Mafia dataset and graph state.
     """
@@ -366,7 +366,7 @@ async def get_paypal_mafia_stats() -> Dict[str, Any]:
 
 
 @router.get("/paypal-mafia/explore", summary="Explore PayPal Mafia network")
-async def explore_paypal_mafia(
+def explore_paypal_mafia(
     seed: str = Query(
         "person:peter-thiel",
         description="Seed entity ID to explore from"
@@ -396,7 +396,7 @@ async def explore_paypal_mafia(
 
 
 @router.get("/paypal-mafia/connect", summary="Find connection between two members")
-async def find_paypal_connection(
+def find_paypal_connection(
     person_a: str = Query(..., description="First entity ID"),
     person_b: str = Query(..., description="Second entity ID"),
     max_depth: int = Query(4, ge=1, le=6, description="Maximum path length"),
@@ -417,7 +417,7 @@ async def find_paypal_connection(
 
 
 @router.get("/paypal-mafia/queries", summary="Get interesting pre-defined queries")
-async def get_paypal_queries() -> Dict[str, Any]:
+def get_paypal_queries() -> Dict[str, Any]:
     """
     Get pre-defined interesting network queries.
 
@@ -444,7 +444,7 @@ class IngestEntityRequest(BaseModel):
 
 
 @router.post("/ingest/entity", summary="Ingest entity from public data sources")
-async def ingest_entity(request: IngestEntityRequest) -> Dict[str, Any]:
+def ingest_entity(request: IngestEntityRequest) -> Dict[str, Any]:
     """
     Ingest an entity and its network from multiple public data sources.
 
@@ -466,7 +466,7 @@ async def ingest_entity(request: IngestEntityRequest) -> Dict[str, Any]:
 
 
 @router.post("/ingest/sec/{cik}", summary="Ingest SEC company data")
-async def ingest_sec_company(
+def ingest_sec_company(
     cik: str,
     company_name: Optional[str] = Query(None, description="Company name override"),
 ) -> Dict[str, Any]:
@@ -484,7 +484,7 @@ async def ingest_sec_company(
 
 
 @router.post("/ingest/fec", summary="Ingest FEC political contribution data")
-async def ingest_fec_contributions(
+def ingest_fec_contributions(
     entity_name: str = Query(..., description="Entity name to search"),
     cycle: int = Query(2024, description="Election cycle year"),
 ) -> Dict[str, Any]:
@@ -504,7 +504,7 @@ async def ingest_fec_contributions(
 
 
 @router.post("/ingest/contracts", summary="Ingest government contract data")
-async def ingest_government_contracts(
+def ingest_government_contracts(
     entity_name: str = Query(..., description="Entity name to search"),
 ) -> Dict[str, Any]:
     """
@@ -522,7 +522,7 @@ async def ingest_government_contracts(
 
 
 @router.post("/ingest/demo", summary="Ingest demo companies")
-async def ingest_demo_companies() -> Dict[str, Any]:
+def ingest_demo_companies() -> Dict[str, Any]:
     """
     Ingest demonstration companies for testing.
 
@@ -533,7 +533,7 @@ async def ingest_demo_companies() -> Dict[str, Any]:
 
 
 @router.get("/ingest/targets", summary="List available ingestion targets")
-async def list_ingestion_targets() -> Dict[str, Any]:
+def list_ingestion_targets() -> Dict[str, Any]:
     """
     Get list of pre-defined companies available for ingestion.
     """

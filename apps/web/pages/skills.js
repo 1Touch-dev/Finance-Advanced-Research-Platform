@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getApiBaseUrl } from '../lib/api'
+import { getApiBaseUrl, apiFetch } from '../lib/api';
 import styles from '../src/styles/Page.module.css'
 export default function SkillsGateway(){
   const API = getApiBaseUrl()
@@ -14,8 +14,7 @@ export default function SkillsGateway(){
     try {
       const parsedInput = JSON.parse(input)
       const query = new URLSearchParams({ name, version: 'v1' }).toString()
-      const r = await fetch(`${API}/skills/run?${query}`,{
-        method:'POST',
+      const r = await apiFetch(`/skills/run?${query}`, { method:'POST',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ input: parsedInput })
       })

@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { apiFetch } from '../../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -368,7 +369,7 @@ export default function AnnotatableDocument({
         annotationData.tags.forEach((tag) => params.append('tags', tag));
       }
 
-      const res = await fetch(`${API_BASE}/annotations?${params}`, { method: 'POST' });
+      const res = await apiFetch(`/annotations?${params}`, { method: 'POST' });
       if (!res.ok) throw new Error('Failed to save annotation');
 
       await fetchAnnotations();
@@ -387,8 +388,7 @@ export default function AnnotatableDocument({
         ...updates,
       });
 
-      const res = await fetch(`${API_BASE}/annotations/${annotationId}?${params}`, {
-        method: 'PUT',
+      const res = await apiFetch(`/annotations/${annotationId}?${params}`, { method: 'PUT',
       });
       if (!res.ok) throw new Error('Failed to update annotation');
 
@@ -402,9 +402,7 @@ export default function AnnotatableDocument({
     if (!window.confirm('Delete this annotation?')) return;
 
     try {
-      const res = await fetch(
-        `${API_BASE}/annotations/${annotationId}?user_id=${currentUserId}`,
-        { method: 'DELETE' }
+      const res = await apiFetch(`/annotations/${annotationId}?user_id=${currentUserId}`, { method: 'DELETE' }
       );
       if (!res.ok) throw new Error('Failed to delete annotation');
 

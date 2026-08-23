@@ -20,7 +20,7 @@ router = APIRouter(prefix="/agent", tags=["Autonomous Agent"])
 
 
 @router.post("/discover")
-async def start_discovery(
+def start_discovery(
     ticker: str = Query(..., description="Stock ticker"),
     depth: int = Query(2, description="Discovery depth (1-5)"),
     entity_types: Optional[List[str]] = Query(None, description="Entity types to discover")
@@ -30,19 +30,19 @@ async def start_discovery(
 
 
 @router.get("/jobs/{job_id}")
-async def job_status(job_id: str):
+def job_status(job_id: str):
     """Get status of discovery job."""
     return get_job_status(job_id)
 
 
 @router.get("/entities/{ticker}")
-async def get_entities(ticker: str):
+def get_entities(ticker: str):
     """Get all discovered entities for a ticker."""
     return get_discovered_entities(ticker)
 
 
 @router.get("/graph/{ticker}")
-async def entity_graph(
+def entity_graph(
     ticker: str,
     depth: int = Query(2, description="Graph depth")
 ):
@@ -51,24 +51,24 @@ async def entity_graph(
 
 
 @router.get("/subsidiaries/{ticker}")
-async def subsidiaries(ticker: str):
+def subsidiaries(ticker: str):
     """Discover subsidiaries from SEC filings."""
     return discover_subsidiaries(ticker)
 
 
 @router.get("/investments/{ticker}")
-async def investments(ticker: str):
+def investments(ticker: str):
     """Discover investment holdings."""
     return discover_investments(ticker)
 
 
 @router.get("/board-connections/{ticker}")
-async def board_connections(ticker: str):
+def board_connections(ticker: str):
     """Discover board member connections."""
     return discover_board_connections(ticker)
 
 
 @router.get("/family-tree/{ticker}")
-async def family_tree(ticker: str):
+def family_tree(ticker: str):
     """Get corporate family tree structure."""
     return get_family_tree(ticker)

@@ -49,7 +49,7 @@ class ResolvePredictionRequest(BaseModel):
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.get("/predictions")
-async def get_prediction_leaderboard(
+def get_prediction_leaderboard(
     metric: str = Query("brier", enum=["brier", "accuracy", "calibration"]),
     limit: int = Query(20, ge=1, le=100),
     category: Optional[str] = None
@@ -77,7 +77,7 @@ async def get_prediction_leaderboard(
 
 
 @router.get("/ideas")
-async def get_idea_leaderboard(
+def get_idea_leaderboard(
     limit: int = Query(20, ge=1, le=100)
 ):
     """
@@ -95,7 +95,7 @@ async def get_idea_leaderboard(
 
 
 @router.post("/predict")
-async def submit_prediction(request: PredictionRequest):
+def submit_prediction(request: PredictionRequest):
     """
     Submit a new prediction.
 
@@ -122,7 +122,7 @@ async def submit_prediction(request: PredictionRequest):
 
 
 @router.post("/resolve")
-async def resolve_prediction(request: ResolvePredictionRequest):
+def resolve_prediction(request: ResolvePredictionRequest):
     """
     Resolve a pending prediction with actual outcome.
     """
@@ -140,7 +140,7 @@ async def resolve_prediction(request: ResolvePredictionRequest):
 
 
 @router.post("/idea")
-async def submit_idea(request: IdeaRequest):
+def submit_idea(request: IdeaRequest):
     """
     Submit a trading idea.
 
@@ -170,7 +170,7 @@ async def submit_idea(request: IdeaRequest):
 
 
 @router.get("/user/{user_id}")
-async def get_user_score(user_id: str):
+def get_user_score(user_id: str):
     """
     Get aggregated score for a user.
 
@@ -186,7 +186,7 @@ async def get_user_score(user_id: str):
 
 
 @router.get("/calibration/{user_id}")
-async def get_user_calibration(user_id: str):
+def get_user_calibration(user_id: str):
     """
     Get calibration analysis for a user.
 
@@ -201,7 +201,7 @@ async def get_user_calibration(user_id: str):
 
 
 @router.get("/tiers")
-async def get_tier_definitions():
+def get_tier_definitions():
     """
     Get tier definitions and thresholds.
     """
