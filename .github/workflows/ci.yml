@@ -32,11 +32,16 @@ jobs:
           FMP_API_KEY: ''
         run: |
           pip install pytest pytest-timeout
+          set -o pipefail
           python -m pytest tests/ -q --timeout=60 --continue-on-collection-errors -x --ignore=tests/test_deep_research_connectors.py 2>&1 | tail -30
       - name: Check no random imports in app code
         run: |
-          if grep -r "import random" apps/api/app/services/*.py apps/api/app/api/*.py; then
-            echo "ERROR: Found import random in app code!"
+          # Recursive on purpose: the previous non-recursive glob missed app/api/status.py.
+          # app/quality/synthetic.py is an offline training-data generator, not served code.
+          if grep -rn --include='*.py' "^\s*import random\|^\s*from random import" \
+               apps/api/app/services apps/api/app/api apps/api/app/connectors \
+               | grep -v 'quality/synthetic.py'; then
+            echo "ERROR: Found import random in served app code!"
             exit 1
           fi
       - name: Verify all routers load (no silent failures)

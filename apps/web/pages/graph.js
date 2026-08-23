@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { getApiBaseUrl } from '../lib/api'
+import { getApiBaseUrl , apiFetch } from '../lib/api'
 import styles from '../src/styles/Page.module.css'
 
 export default function GraphPage() {
@@ -13,7 +13,7 @@ export default function GraphPage() {
   const run = async () => {
     setErr('')
     try {
-      const r = await fetch(`${API}/graph/export?entity_id=${encodeURIComponent(entityId)}&depth=2`)
+      const r = await apiFetch(`/graph/export?entity_id=${encodeURIComponent(entityId)}&depth=2`)
       if (!r.ok) throw new Error(`API returned ${r.status}`)
       setData(await r.json())
     } catch (e) {

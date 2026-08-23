@@ -101,7 +101,7 @@ def list_dashboards(
 
 @router.post("")
 def create_dashboard(
-    user_id: str = Query(..., description="User ID"),
+    user_id: Optional[str] = Query(None, description="User ID"),
     name: str = Query("My Dashboard", description="Dashboard name"),
     is_default: bool = Query(False, description="Set as default"),
     db: Session = Depends(get_db),
@@ -110,6 +110,7 @@ def create_dashboard(
     """
     Create a new dashboard.
     """
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     # If setting as default, unset other defaults
     if is_default:
         db.execute(
@@ -467,7 +468,7 @@ def get_watchlist_shares(
 
 @watchlist_router.get("/shared")
 def get_shared_watchlists(
-    user_id: str = Query(..., description="User ID to get shared watchlists for"),
+    user_id: Optional[str] = Query(None, description="User ID to get shared watchlists for"),
     db: Session = Depends(get_db),
 ):
     """

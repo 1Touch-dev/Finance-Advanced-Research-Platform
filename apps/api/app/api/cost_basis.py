@@ -2,7 +2,8 @@
 Cost Basis Tracking API (#42)
 """
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
+from app.auth.security import get_current_user
 from typing import Optional
 
 router = APIRouter(prefix="/cost-basis", tags=["Cost Basis"])
@@ -52,8 +53,10 @@ def api_add_position(
     cost_per_share: float,
     purchase_date: str,
     user_id: str = Query(default="demo_user"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Add a new position"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     return add_position(user_id, ticker, shares, cost_per_share, purchase_date)
@@ -86,8 +89,10 @@ def api_calculate_realized_gain(
     shares: float,
     method: str = Query(default="fifo"),
     user_id: str = Query(default="demo_user"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Calculate realized gain for a potential sale"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     try:

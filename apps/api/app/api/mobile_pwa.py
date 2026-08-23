@@ -2,8 +2,10 @@
 Mobile PWA API (#33)
 Progressive web app with push alerts
 """
-from fastapi import APIRouter, Query, HTTPException, Body
+from fastapi import APIRouter, Query, HTTPException, Body, Depends
 from typing import Optional, Dict, Any
+
+from app.auth.security import get_current_user
 
 from app.services.mobile_pwa_service import (
     register_push_subscription,
@@ -46,24 +48,28 @@ def get_compatibility():
 
 @router.post("/push/subscribe")
 def subscribe_push(
-    user_id: str = Query(..., description="User ID"),
-    subscription: Dict[str, Any] = Body(..., description="Push subscription object")
+    user_id: Optional[str] = Query(None, description="User ID"),
+    subscription: Dict[str, Any] = Body(..., description="Push subscription object"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Register push notification subscription."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return register_push_subscription(user_id, subscription)
 
 
 @router.delete("/push/subscribe")
 def unsubscribe_push(
-    user_id: str = Query(..., description="User ID")
+    user_id: Optional[str] = Query(None, description="User ID"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Unregister push notification subscription."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return unregister_push_subscription(user_id)
 
 
 @router.get("/notifications/preferences")
 def get_preferences(
-    user_id: str = Query(..., description="User ID")
+    user_id: Optional[str] = Query(None, description="User ID")
 ):
     """Get user notification preferences."""
     return get_notification_preferences(user_id)
@@ -71,19 +77,23 @@ def get_preferences(
 
 @router.put("/notifications/preferences")
 def update_preferences(
-    user_id: str = Query(..., description="User ID"),
-    preferences: Dict[str, bool] = Body(..., description="Notification preferences")
+    user_id: Optional[str] = Query(None, description="User ID"),
+    preferences: Dict[str, bool] = Body(..., description="Notification preferences"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Update notification preferences."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return update_notification_preferences(user_id, preferences)
 
 
 @router.post("/notifications/send")
 def send_notification(
-    user_id: str = Query(..., description="User ID"),
+    user_id: Optional[str] = Query(None, description="User ID"),
     title: str = Query(..., description="Notification title"),
     body: str = Query(..., description="Notification body"),
-    data: Optional[Dict[str, Any]] = Body(None, description="Additional data")
+    data: Optional[Dict[str, Any]] = Body(None, description="Additional data"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Send push notification to user."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return send_push_notification(user_id, title, body, data)

@@ -4,7 +4,8 @@ Billing system is in setup mode — Stripe integration pending webhook configura
 The /plans endpoint returns valid static plan data; all subscription-management
 endpoints return an honest "not_configured" status until Stripe is wired.
 """
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from app.auth.security import get_current_user
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
@@ -24,14 +25,18 @@ def get_subscription(user_id: str = "demo"):
 
 
 @router.post("/cancel")
-def cancel_subscription(user_id: str = "demo"):
+def cancel_subscription(user_id: str = "demo",
+    current_user: dict = Depends(get_current_user),):
     """Cancel subscription (not yet configured)."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return _NOT_CONFIGURED
 
 
 @router.post("/resubscribe")
-def resubscribe(plan_id: str = "pro_monthly", user_id: str = "demo"):
+def resubscribe(plan_id: str = "pro_monthly", user_id: str = "demo",
+    current_user: dict = Depends(get_current_user),):
     """Reactivate a cancelled subscription (not yet configured)."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return _NOT_CONFIGURED
 
 
@@ -54,8 +59,10 @@ def download_invoice(invoice_id: str):
 
 
 @router.post("/renewal-notice")
-def send_renewal_notice(user_id: str = "demo", days_before: int = 7):
+def send_renewal_notice(user_id: str = "demo", days_before: int = 7,
+    current_user: dict = Depends(get_current_user),):
     """Send renewal notice to user (not yet configured)."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return _NOT_CONFIGURED
 
 

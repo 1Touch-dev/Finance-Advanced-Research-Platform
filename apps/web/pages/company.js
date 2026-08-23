@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { getApiBaseUrl } from '../lib/api'
+import { getApiBaseUrl , apiFetch } from '../lib/api'
 import styles from '../src/styles/Page.module.css'
 
 const API = typeof window !== 'undefined' ? getApiBaseUrl() : ''
@@ -540,12 +540,12 @@ export default function CompanyDeepPage() {
     setContractsData(null); setFundingData(null); setFundamentalsData(null)
     try {
       // Fetch fundamentals (price, P/E, market cap, etc.) from Yahoo Finance
-      fetch(`${API}/market/yf/fundamentals?ticker=${encodeURIComponent(query.toUpperCase())}`)
+      apiFetch(`/market/yf/fundamentals?ticker=${encodeURIComponent(query.toUpperCase())}`)
         .then(r => r.json())
         .then(d => setFundamentalsData(d.fundamentals || d))
         .catch(() => {})
 
-      const r = await fetch(`${API}/market/company/deep-report/${encodeURIComponent(query.toUpperCase())}`)
+      const r = await apiFetch(`/market/company/deep-report/${encodeURIComponent(query.toUpperCase())}`)
       const d = await r.json()
       if (d.error && !d.quarterly_financials && !d.analyst_ratings) {
         setErr(`Error: ${d.error}`)
@@ -560,7 +560,7 @@ export default function CompanyDeepPage() {
       if (companyName) {
         // Fetch contracts - pass ticker for accurate legal name lookup
         setContractsLoading(true)
-        fetch(`${API}/market/company/contracts/${encodeURIComponent(companyName)}?ticker=${tickerParam}`)
+        apiFetch(`/market/company/contracts/${encodeURIComponent(companyName)}?ticker=${tickerParam}`)
           .then(r => r.json())
           .then(setContractsData)
           .catch(() => {})
@@ -568,7 +568,7 @@ export default function CompanyDeepPage() {
 
         // Fetch funding - pass ticker for accurate legal name lookup
         setFundingLoading(true)
-        fetch(`${API}/market/company/funding/${encodeURIComponent(companyName)}?ticker=${tickerParam}`)
+        apiFetch(`/market/company/funding/${encodeURIComponent(companyName)}?ticker=${tickerParam}`)
           .then(r => r.json())
           .then(setFundingData)
           .catch(() => {})
@@ -576,7 +576,7 @@ export default function CompanyDeepPage() {
 
         // Fetch sentiment from news
         setSentimentLoading(true)
-        fetch(`${API}/market/news/newsapi?query=${encodeURIComponent(companyName)}&limit=30`)
+        apiFetch(`/market/news/newsapi?query=${encodeURIComponent(companyName)}&limit=30`)
           .then(r => r.json())
           .then(setSentimentData)
           .catch(() => {})

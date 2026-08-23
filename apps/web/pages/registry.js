@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getApiBaseUrl } from '../lib/api';
+import { getApiBaseUrl , apiFetch } from '../lib/api';
 const STATES = [
   { code: '', name: 'All States' },
   { code: 'us_al', name: 'Alabama' }, { code: 'us_ak', name: 'Alaska' },
@@ -47,11 +47,11 @@ export default function RegistryPage() {
   const apiBase = getApiBaseUrl();
 
   useEffect(() => {
-    fetch(`${apiBase}/registry/health`)
+    apiFetch(`/registry/health`)
       .then(r => r.json())
       .then(d => setHealth(d))
       .catch(() => {});
-    fetch(`${apiBase}/registry/jurisdictions`)
+    apiFetch(`/registry/jurisdictions`)
       .then(r => r.json())
       .then(d => setJurisdictions(d.jurisdictions || []))
       .catch(() => {});
@@ -66,7 +66,7 @@ export default function RegistryPage() {
       if (query) params.set('q', query);
       if (state) params.set('state', state);
       params.set('limit', '20');
-      const resp = await fetch(`${apiBase}/registry/search?${params}`);
+      const resp = await apiFetch(`/registry/search?${params}`);
       const data = await resp.json();
       setResults(data.results || []);
       setTotal(data.total || 0);

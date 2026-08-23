@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
-import { getApiBaseUrl } from '../lib/api';
+import { getApiBaseUrl , apiFetch } from '../lib/api';
 
 export default function EarningsCalendarPage() {
   const API = getApiBaseUrl();
@@ -28,7 +28,7 @@ export default function EarningsCalendarPage() {
 
   async function fetchStats() {
     try {
-      const res = await fetch(`${API}/earnings/stats`);
+      const res = await apiFetch(`/earnings/stats`);
       if (res.ok) setStats(await res.json());
     } catch (e) {
       console.error(e);
@@ -38,7 +38,7 @@ export default function EarningsCalendarPage() {
   async function fetchUpcoming() {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/earnings/upcoming?days=7`);
+      const res = await apiFetch(`/earnings/upcoming?days=7`);
       if (res.ok) {
         const d = await res.json();
         setData(d.events || []);
@@ -52,7 +52,7 @@ export default function EarningsCalendarPage() {
   async function fetchWeekCalendar() {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/earnings/week`);
+      const res = await apiFetch(`/earnings/week`);
       if (res.ok) {
         const d = await res.json();
         setWeekCalendar(d.calendar || {});
@@ -66,7 +66,7 @@ export default function EarningsCalendarPage() {
   async function fetchSurprises() {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/earnings/surprises?min_surprise=5&days_back=30`);
+      const res = await apiFetch(`/earnings/surprises?min_surprise=5&days_back=30`);
       if (res.ok) {
         const d = await res.json();
         setData(d.surprises || []);
@@ -80,7 +80,7 @@ export default function EarningsCalendarPage() {
   async function searchByTicker() {
     if (!searchTicker) return;
     try {
-      const res = await fetch(`${API}/earnings/ticker/${searchTicker}?quarters=8`);
+      const res = await apiFetch(`/earnings/ticker/${searchTicker}?quarters=8`);
       if (res.ok) {
         const d = await res.json();
         setTickerData(d);

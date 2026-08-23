@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Layout from '../src/components/Layout';
+import { apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -24,13 +25,13 @@ export default function MARumors() {
   }, [view]);
 
   const fetchStats = async () => {
-    const res = await fetch(`${API_BASE}/ma-rumors/stats`);
+    const res = await apiFetch(`/ma-rumors/stats`);
     if (res.ok) setStats(await res.json());
   };
 
   const fetchActive = async () => {
     setLoading(true);
-    const res = await fetch(`${API_BASE}/ma-rumors/active?days=60`);
+    const res = await apiFetch(`/ma-rumors/active?days=60`);
     if (res.ok) {
       const d = await res.json();
       setRumors(d.rumors || []);
@@ -40,7 +41,7 @@ export default function MARumors() {
 
   const fetchHighProbability = async () => {
     setLoading(true);
-    const res = await fetch(`${API_BASE}/ma-rumors/high-probability?min_score=30`);
+    const res = await apiFetch(`/ma-rumors/high-probability?min_score=30`);
     if (res.ok) {
       const d = await res.json();
       setRumors(d.rumors || []);
@@ -50,7 +51,7 @@ export default function MARumors() {
 
   const fetchConfirmed = async () => {
     setLoading(true);
-    const res = await fetch(`${API_BASE}/ma-rumors/confirmed`);
+    const res = await apiFetch(`/ma-rumors/confirmed`);
     if (res.ok) {
       const d = await res.json();
       setRumors(d.deals || []);
@@ -60,7 +61,7 @@ export default function MARumors() {
 
   const fetchLargest = async () => {
     setLoading(true);
-    const res = await fetch(`${API_BASE}/ma-rumors/largest?limit=20`);
+    const res = await apiFetch(`/ma-rumors/largest?limit=20`);
     if (res.ok) {
       const d = await res.json();
       setRumors(d.deals || []);
@@ -71,7 +72,7 @@ export default function MARumors() {
   const searchRumors = async () => {
     if (!searchQuery) return;
     setLoading(true);
-    const res = await fetch(`${API_BASE}/ma-rumors/search?q=${searchQuery}`);
+    const res = await apiFetch(`/ma-rumors/search?q=${searchQuery}`);
     if (res.ok) {
       const d = await res.json();
       setRumors(d.results || []);

@@ -116,7 +116,7 @@ def list_annotation_colors():
 
 @router.post("")
 def create_new_comment(
-    user_id: str = Query(..., description="User ID"),
+    user_id: Optional[str] = Query(None, description="User ID"),
     entity_type: str = Query(..., description="Entity type (stock, filing, report, etc.)"),
     entity_id: str = Query(..., description="Entity ID (ticker, document ID, etc.)"),
     content: str = Query(..., description="Comment content"),
@@ -131,6 +131,7 @@ def create_new_comment(
     Supports commenting on stocks, filings, reports, and other entities.
     Threading is supported via parent_id.
     """
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     # Parse entity type
     try:
         etype = EntityType(entity_type.lower())
@@ -245,7 +246,7 @@ def get_single_comment(comment_id: int):
 @router.put("/{comment_id}")
 def update_existing_comment(
     comment_id: int,
-    user_id: str = Query(..., description="User ID (must be author)"),
+    user_id: Optional[str] = Query(None, description="User ID (must be author)"),
     content: str = Query(..., description="New comment content"),
     current_user: dict = Depends(get_current_user),
 ):
@@ -254,6 +255,7 @@ def update_existing_comment(
 
     Only the original author can edit their comment.
     """
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     try:
         comment = update_comment(
             comment_id=comment_id,
@@ -275,7 +277,7 @@ def update_existing_comment(
 @router.delete("/{comment_id}")
 def delete_existing_comment(
     comment_id: int,
-    user_id: str = Query(..., description="User ID (must be author)"),
+    user_id: Optional[str] = Query(None, description="User ID (must be author)"),
     current_user: dict = Depends(get_current_user),
 ):
     """
@@ -283,6 +285,7 @@ def delete_existing_comment(
 
     Only the original author can delete their comment.
     """
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     try:
         success = delete_comment(comment_id=comment_id, user_id=user_id)
         if not success:
@@ -300,14 +303,16 @@ def delete_existing_comment(
 @router.post("/{comment_id}/react")
 def add_comment_reaction(
     comment_id: int,
-    user_id: str = Query(..., description="User ID"),
+    user_id: Optional[str] = Query(None, description="User ID"),
     reaction_type: str = Query(..., description="Reaction type: like, insightful, disagree, question"),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Add a reaction to a comment (#47).
 
     If user already has a reaction, it's updated to the new type.
     """
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     # Parse reaction type
     try:
         rtype = ReactionType(reaction_type.lower())
@@ -332,11 +337,13 @@ def add_comment_reaction(
 @router.delete("/{comment_id}/react")
 def remove_comment_reaction(
     comment_id: int,
-    user_id: str = Query(..., description="User ID"),
+    user_id: Optional[str] = Query(None, description="User ID"),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Remove user's reaction from a comment (#47).
     """
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     try:
         success = remove_reaction(comment_id=comment_id, user_id=user_id)
         if not success:
@@ -357,7 +364,7 @@ annotations_router = APIRouter(prefix="/annotations", tags=["annotations"])
 
 @annotations_router.post("")
 def create_new_annotation(
-    user_id: str = Query(..., description="User ID"),
+    user_id: Optional[str] = Query(None, description="User ID"),
     document_type: str = Query(..., description="Document type (filing, report, transcript, news)"),
     document_id: str = Query(..., description="Document ID"),
     start_offset: int = Query(..., ge=0, description="Start character offset"),
@@ -367,12 +374,14 @@ def create_new_annotation(
     color: str = Query("yellow", description="Highlight color"),
     tags: Optional[List[str]] = Query(None, description="Tags for organization"),
     visibility: str = Query("private", description="Visibility: private, team, public"),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Create a new annotation (#47).
 
     Annotations highlight text in documents with optional notes.
     """
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     # Validate offsets
     if end_offset <= start_offset:
         raise HTTPException(status_code=400, detail="end_offset must be greater than start_offset")
@@ -453,7 +462,7 @@ def get_document_annotations(
 
 @annotations_router.get("/user")
 def get_user_annotation_list(
-    user_id: str = Query(..., description="User ID"),
+    user_id: Optional[str] = Query(None, description="User ID"),
     document_type: Optional[str] = Query(None, description="Filter by document type"),
     limit: int = Query(50, ge=1, le=200, description="Maximum annotations"),
 ):
@@ -501,16 +510,18 @@ def get_single_annotation(annotation_id: int):
 @annotations_router.put("/{annotation_id}")
 def update_existing_annotation(
     annotation_id: int,
-    user_id: str = Query(..., description="User ID (must be author)"),
+    user_id: Optional[str] = Query(None, description="User ID (must be author)"),
     note: Optional[str] = Query(None, description="Updated note"),
     color: Optional[str] = Query(None, description="Updated color"),
     tags: Optional[List[str]] = Query(None, description="Updated tags"),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Update an annotation (#47).
 
     Only the original author can edit their annotation.
     """
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     # Parse color if provided
     acolor = None
     if color:
@@ -542,13 +553,15 @@ def update_existing_annotation(
 @annotations_router.delete("/{annotation_id}")
 def delete_existing_annotation(
     annotation_id: int,
-    user_id: str = Query(..., description="User ID (must be author)"),
+    user_id: Optional[str] = Query(None, description="User ID (must be author)"),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Delete an annotation (#47).
 
     Only the original author can delete their annotation.
     """
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     try:
         success = delete_annotation(annotation_id=annotation_id, user_id=user_id)
         if not success:

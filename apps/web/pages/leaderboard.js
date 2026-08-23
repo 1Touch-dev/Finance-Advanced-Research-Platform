@@ -10,6 +10,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -186,8 +187,8 @@ function UserProfileModal({ userId, onClose }) {
     const fetchProfile = async () => {
       try {
         const [profileRes, calibRes] = await Promise.all([
-          fetch(`${API_BASE}/leaderboard/user/${userId}`),
-          fetch(`${API_BASE}/leaderboard/calibration/${userId}`),
+          apiFetch(`/leaderboard/user/${userId}`),
+          apiFetch(`/leaderboard/calibration/${userId}`),
         ]);
         setProfile(await profileRes.json());
         setCalibration(await calibRes.json());
@@ -322,7 +323,7 @@ export default function LeaderboardPage() {
   const fetchLeaderboard = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/leaderboard/predictions?metric=${metric}&limit=20`);
+      const res = await apiFetch(`/leaderboard/predictions?metric=${metric}&limit=20`);
       const data = await res.json();
       setLeaderboard(data.leaderboard || []);
     } catch (err) {
@@ -335,7 +336,7 @@ export default function LeaderboardPage() {
   const fetchIdeas = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/leaderboard/ideas?limit=20`);
+      const res = await apiFetch(`/leaderboard/ideas?limit=20`);
       const data = await res.json();
       setIdeas(data.ideas || []);
     } catch (err) {

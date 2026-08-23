@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -15,7 +16,7 @@ export default function PersonsPage() {
   async function searchPersons(query) {
     if (!query) return;
     try {
-      const res = await fetch(`${API_BASE}/persons/search?query=${encodeURIComponent(query)}`);
+      const res = await apiFetch(`/persons/search?query=${encodeURIComponent(query)}`);
       const data = await res.json();
       setSearchResults(data.persons || []);
     } catch (err) {
@@ -27,10 +28,10 @@ export default function PersonsPage() {
     setLoading(true);
     try {
       const [personRes, timelineRes, newsRes, tradesRes] = await Promise.all([
-        fetch(`${API_BASE}/persons/${personId}`),
-        fetch(`${API_BASE}/persons/${personId}/timeline-with-prices`),
-        fetch(`${API_BASE}/persons/${personId}/news`),
-        fetch(`${API_BASE}/persons/${personId}/trades`)
+        apiFetch(`/persons/${personId}`),
+        apiFetch(`/persons/${personId}/timeline-with-prices`),
+        apiFetch(`/persons/${personId}/news`),
+        apiFetch(`/persons/${personId}/trades`)
       ]);
       const personData = await personRes.json();
       const timelineData = await timelineRes.json();

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -21,8 +22,8 @@ export default function BubbleChartsPage() {
   async function fetchInitialData() {
     try {
       const [presetsRes, metricsRes] = await Promise.all([
-        fetch(`${API_BASE}/bubble-charts/presets`),
-        fetch(`${API_BASE}/bubble-charts/metrics`)
+        apiFetch(`/bubble-charts/presets`),
+        apiFetch(`/bubble-charts/metrics`)
       ]);
       const presetsData = await presetsRes.json();
       const metricsData = await metricsRes.json();
@@ -38,9 +39,7 @@ export default function BubbleChartsPage() {
   async function fetchChart() {
     setLoading(true);
     try {
-      const res = await fetch(
-        `${API_BASE}/bubble-charts/?x_metric=${xMetric}&y_metric=${yMetric}&size_metric=${sizeMetric}&color_by=${colorBy}`
-      );
+      const res = await apiFetch(`/bubble-charts/?x_metric=${xMetric}&y_metric=${yMetric}&size_metric=${sizeMetric}&color_by=${colorBy}`);
       const data = await res.json();
       setChartData(data);
     } catch (err) {

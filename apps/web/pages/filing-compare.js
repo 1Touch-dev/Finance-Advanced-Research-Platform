@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/router'
 import styles from '../src/styles/Page.module.css'
-import { getApiBaseUrl } from '../lib/api'
+import { getApiBaseUrl , apiFetch } from '../lib/api'
 
 const API = getApiBaseUrl()
 
@@ -43,7 +43,7 @@ function FilingSelector({ ticker, formType, onSelect, label }) {
   useEffect(() => {
     if (!ticker) return
     setLoading(true)
-    fetch(`${API}/filings/history?ticker=${ticker}&form_type=${formType}&limit=10`)
+    apiFetch(`/filings/history?ticker=${ticker}&form_type=${formType}&limit=10`)
       .then(r => r.json())
       .then(data => {
         setFilings(data.filings || [])
@@ -336,7 +336,7 @@ export default function FilingComparePage() {
       if (basePeriod) params.append('base_period', basePeriod)
       if (comparePeriod) params.append('compare_period', comparePeriod)
 
-      const res = await fetch(`${API}/filings/compare?${params}`)
+      const res = await apiFetch(`/filings/compare?${params}`)
       const data = await res.json()
 
       if (!res.ok) {

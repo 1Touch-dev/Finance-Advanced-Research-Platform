@@ -10,6 +10,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -274,7 +275,7 @@ function FindingDetail({ findingId, onClose }) {
   useEffect(() => {
     if (findingId) {
       setLoading(true);
-      fetch(`${API_BASE}/docket/finding/${findingId}`)
+      apiFetch(`/docket/finding/${findingId}`)
         .then(res => res.json())
         .then(setData)
         .catch(console.error)
@@ -373,14 +374,14 @@ export default function DocketPage() {
     setLoading(true);
     try {
       // Run reconciliation first
-      await fetch(`${API_BASE}/docket/${ticker}/reconcile`);
+      await apiFetch(`/docket/${ticker}/reconcile`);
 
       // Then fetch all data
       const [sumRes, findRes, caseRes, discRes] = await Promise.all([
-        fetch(`${API_BASE}/docket/${ticker}/summary`),
-        fetch(`${API_BASE}/docket/${ticker}/findings`),
-        fetch(`${API_BASE}/docket/${ticker}/cases`),
-        fetch(`${API_BASE}/docket/${ticker}/disclosures`),
+        apiFetch(`/docket/${ticker}/summary`),
+        apiFetch(`/docket/${ticker}/findings`),
+        apiFetch(`/docket/${ticker}/cases`),
+        apiFetch(`/docket/${ticker}/disclosures`),
       ]);
 
       setSummary(await sumRes.json());

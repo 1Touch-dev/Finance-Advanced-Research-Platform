@@ -2,8 +2,10 @@
 PWA Advanced Features API (E2, E3, E5)
 Offline caching, WebAuthn, Screen sharing
 """
-from fastapi import APIRouter, Query, Body
+from fastapi import APIRouter, Query, Body, Depends
 from typing import Optional
+
+from app.auth.security import get_current_user
 
 from app.services.pwa_advanced_service import (
     # E2: Offline Caching
@@ -47,9 +49,11 @@ def sw_config():
 @router.post("/offline/cache")
 def cache_route(
     user_id: str = Query(...),
-    route: str = Query(...)
+    route: str = Query(...),
+    current_user: dict = Depends(get_current_user),
 ):
     """E2: Register a route for offline caching."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return register_cached_route(user_id, route)
 
 
@@ -60,8 +64,11 @@ def cached_routes(user_id: str = Query(...)):
 
 
 @router.delete("/offline/cache")
-def clear_user_cache(user_id: str = Query(...)):
+def clear_user_cache(user_id: str = Query(...),
+    current_user: dict = Depends(get_current_user),
+):
     """E2: Clear all cached data for a user."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return clear_cache(user_id)
 
 
@@ -70,9 +77,11 @@ def clear_user_cache(user_id: str = Query(...)):
 @router.post("/biometric/register/start")
 def biometric_register_start(
     user_id: str = Query(...),
-    username: str = Query(...)
+    username: str = Query(...),
+    current_user: dict = Depends(get_current_user),
 ):
     """E3: Start WebAuthn registration."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return start_webauthn_registration(user_id, username)
 
 
@@ -80,15 +89,20 @@ def biometric_register_start(
 def biometric_register_complete(
     user_id: str = Query(...),
     credential_id: str = Body(...),
-    public_key: str = Body(...)
+    public_key: str = Body(...),
+    current_user: dict = Depends(get_current_user),
 ):
     """E3: Complete WebAuthn registration."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return complete_webauthn_registration(user_id, credential_id, public_key)
 
 
 @router.post("/biometric/login/start")
-def biometric_login_start(user_id: str = Query(...)):
+def biometric_login_start(user_id: str = Query(...),
+    current_user: dict = Depends(get_current_user),
+):
     """E3: Start WebAuthn login."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return start_webauthn_login(user_id)
 
 
@@ -96,9 +110,11 @@ def biometric_login_start(user_id: str = Query(...)):
 def biometric_login_verify(
     user_id: str = Query(...),
     credential_id: str = Body(...),
-    signature: str = Body(...)
+    signature: str = Body(...),
+    current_user: dict = Depends(get_current_user),
 ):
     """E3: Verify WebAuthn login."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return verify_webauthn_login(user_id, credential_id, signature)
 
 
@@ -113,27 +129,38 @@ def biometric_status(user_id: str = Query(...)):
 @router.post("/screen/create")
 def screen_create(
     user_id: str = Query(...),
-    session_name: Optional[str] = Query(None)
+    session_name: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
 ):
     """E5: Create a screen sharing session."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return create_screen_session(user_id, session_name)
 
 
 @router.post("/screen/{session_id}/join")
-def screen_join(session_id: str, user_id: str = Query(...)):
+def screen_join(session_id: str, user_id: str = Query(...),
+    current_user: dict = Depends(get_current_user),
+):
     """E5: Join a screen sharing session."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return join_screen_session(session_id, user_id)
 
 
 @router.post("/screen/{session_id}/leave")
-def screen_leave(session_id: str, user_id: str = Query(...)):
+def screen_leave(session_id: str, user_id: str = Query(...),
+    current_user: dict = Depends(get_current_user),
+):
     """E5: Leave a screen sharing session."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return leave_screen_session(session_id, user_id)
 
 
 @router.post("/screen/{session_id}/end")
-def screen_end(session_id: str, user_id: str = Query(...)):
+def screen_end(session_id: str, user_id: str = Query(...),
+    current_user: dict = Depends(get_current_user),
+):
     """E5: End a screen sharing session."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return end_screen_session(session_id, user_id)
 
 

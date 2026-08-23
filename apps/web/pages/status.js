@@ -1,7 +1,7 @@
 import Head from 'next/head'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
-import { getApiBaseUrl } from '../lib/api'
+import { getApiBaseUrl , apiFetch } from '../lib/api'
 
 const API = typeof window !== 'undefined' ? getApiBaseUrl() : ''
 

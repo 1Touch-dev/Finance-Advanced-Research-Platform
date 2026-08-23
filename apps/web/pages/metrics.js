@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { getApiBaseUrl } from '../lib/api'
+import { getApiBaseUrl , apiFetch } from '../lib/api'
 
 const POLL_INTERVAL = 5000
 const HISTORY_SIZE = 60
@@ -83,7 +83,7 @@ export default function MetricsDashboard() {
     let active = true
     async function poll() {
       try {
-        const resp = await fetch(`${getApiBaseUrl()}/health/rag`)
+        const resp = await apiFetch(`/health/rag`)
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
         const json = await resp.json()
         if (active) {

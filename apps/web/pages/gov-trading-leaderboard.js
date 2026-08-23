@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import Head from 'next/head';
-import { getApiBaseUrl } from '../lib/api';
+import { getApiBaseUrl , apiFetch } from '../lib/api';
 
 export default function GovTradingLeaderboardPage() {
   const API = getApiBaseUrl();
@@ -22,8 +22,8 @@ export default function GovTradingLeaderboardPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch(`${API}/market/gov-trading/leaderboard/${activeTab === 'notable' ? '' : activeTab}${activeTab === 'notable' ? 'notable-cases' : ''}`).then(r => r.ok ? r.json() : null),
-      fetch(`${API}/market/gov-trading/leaderboard/statistics`).then(r => r.ok ? r.json() : null),
+      apiFetch(`/market/gov-trading/leaderboard/${activeTab === 'notable' ? '' : activeTab}${activeTab === 'notable' ? 'notable-cases' : ''}`).then(r => r.ok ? r.json() : null),
+      apiFetch(`/market/gov-trading/leaderboard/statistics`).then(r => r.ok ? r.json() : null),
     ])
       .then(([leaderboard, statistics]) => {
         setData(leaderboard);
@@ -39,7 +39,7 @@ export default function GovTradingLeaderboardPage() {
   async function handleSearch() {
     if (!searchQuery.trim()) return;
     try {
-      const res = await fetch(`${API}/market/gov-trading/leaderboard/rank/${encodeURIComponent(searchQuery)}`);
+      const res = await apiFetch(`/market/gov-trading/leaderboard/rank/${encodeURIComponent(searchQuery)}`);
       setSearchResults(await res.json());
     } catch (e) {
       console.error(e);

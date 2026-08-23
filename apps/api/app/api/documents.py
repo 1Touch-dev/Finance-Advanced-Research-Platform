@@ -10,6 +10,7 @@ Provides endpoints for:
 
 import os
 from fastapi import APIRouter, Query, HTTPException, UploadFile, File, Form, Depends
+from app.auth.security import get_current_user
 from fastapi.responses import JSONResponse
 from typing import Optional, List
 
@@ -37,6 +38,7 @@ def upload_document(
     description: Optional[str] = Form(None),
     source: Optional[str] = Form(None),
     user_id: Optional[str] = Form(None),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Upload a document for processing.
@@ -46,6 +48,7 @@ def upload_document(
     Returns:
         Document metadata and ID
     """
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     service = get_ingestion_service()
 
     try:
@@ -81,10 +84,12 @@ def bulk_upload_documents(
     ticker: Optional[str] = Form(None),
     tags: Optional[str] = Form(None),
     user_id: Optional[str] = Form(None),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Upload multiple documents at once.
     """
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     service = get_ingestion_service()
     results = []
 

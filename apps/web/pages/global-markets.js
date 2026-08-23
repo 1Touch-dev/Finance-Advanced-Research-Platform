@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import NoDataCard from '../src/components/NoDataCard';
-import { isNoData } from '../lib/api';
+import { isNoData , apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -21,8 +21,8 @@ export default function GlobalMarketsPage() {
   async function fetchData() {
     try {
       const [marketsRes, indicesRes] = await Promise.all([
-        fetch(API_BASE + '/global/markets/status'),
-        fetch(API_BASE + '/global/indices')
+        apiFetch('/global/markets/status'),
+        apiFetch('/global/indices')
       ]);
       const marketsData = await marketsRes.json();
       if (isNoData(marketsData)) { setNoData(marketsData); setLoading(false); return; }
@@ -38,7 +38,7 @@ export default function GlobalMarketsPage() {
   async function searchStocks() {
     if (!searchQuery) return;
     try {
-      const res = await fetch(API_BASE + '/global/search?query=' + encodeURIComponent(searchQuery));
+      const res = await apiFetch('/global/search?query=' + encodeURIComponent(searchQuery));
       const data = await res.json();
       setSearchResults(data.results || []);
     } catch (err) {
@@ -48,7 +48,7 @@ export default function GlobalMarketsPage() {
 
   async function selectStock(ticker) {
     try {
-      const res = await fetch(API_BASE + '/global/quote/' + ticker);
+      const res = await apiFetch('/global/quote/' + ticker);
       const data = await res.json();
       setSelectedStock(data);
     } catch (err) {

@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Layout from '../src/components/Layout';
+import { apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -25,13 +26,13 @@ export default function InsiderActivity() {
   }, [view]);
 
   const fetchStats = async () => {
-    const res = await fetch(`${API_BASE}/insider/stats`);
+    const res = await apiFetch(`/insider/stats`);
     if (res.ok) setStats(await res.json());
   };
 
   const fetchScreen = async () => {
     setLoading(true);
-    const res = await fetch(`${API_BASE}/insider/screen?days=30&min_insiders=1`);
+    const res = await apiFetch(`/insider/screen?days=30&min_insiders=1`);
     if (res.ok) {
       const d = await res.json();
       setData(d.results || []);
@@ -41,7 +42,7 @@ export default function InsiderActivity() {
 
   const fetchClusterBuys = async () => {
     setLoading(true);
-    const res = await fetch(`${API_BASE}/insider/cluster-buys?days=30&min_insiders=2`);
+    const res = await apiFetch(`/insider/cluster-buys?days=30&min_insiders=2`);
     if (res.ok) {
       const d = await res.json();
       setData(d.clusters || []);
@@ -51,7 +52,7 @@ export default function InsiderActivity() {
 
   const fetchClusterSells = async () => {
     setLoading(true);
-    const res = await fetch(`${API_BASE}/insider/cluster-sells?days=30&min_insiders=2`);
+    const res = await apiFetch(`/insider/cluster-sells?days=30&min_insiders=2`);
     if (res.ok) {
       const d = await res.json();
       setData(d.clusters || []);
@@ -61,7 +62,7 @@ export default function InsiderActivity() {
 
   const fetchLargest = async () => {
     setLoading(true);
-    const res = await fetch(`${API_BASE}/insider/largest?days=30&limit=20`);
+    const res = await apiFetch(`/insider/largest?days=30&limit=20`);
     if (res.ok) {
       const d = await res.json();
       setData(d.transactions || []);
@@ -71,7 +72,7 @@ export default function InsiderActivity() {
 
   const fetchCeoCfo = async () => {
     setLoading(true);
-    const res = await fetch(`${API_BASE}/insider/ceo-cfo?days=30`);
+    const res = await apiFetch(`/insider/ceo-cfo?days=30`);
     if (res.ok) {
       const d = await res.json();
       setData(d.transactions || []);
@@ -81,7 +82,7 @@ export default function InsiderActivity() {
 
   const fetchSentiment = async () => {
     if (!ticker) return;
-    const res = await fetch(`${API_BASE}/insider/sentiment/${ticker}`);
+    const res = await apiFetch(`/insider/sentiment/${ticker}`);
     if (res.ok) {
       const d = await res.json();
       setSentiment(d);

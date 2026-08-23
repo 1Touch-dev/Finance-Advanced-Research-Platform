@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Head from 'next/head';
 import NoDataCard from '../src/components/NoDataCard';
-import { isNoData } from '../lib/api';
+import { isNoData , apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -24,10 +24,10 @@ export default function RecursiveDiscoveryPage() {
     const t = ticker.toUpperCase();
     try {
       const [graphRes, clustersRes, circularRes, chainRes] = await Promise.all([
-        fetch(`${API_BASE}/recursive/graph/${t}?max_depth=3`),
-        fetch(`${API_BASE}/recursive/clusters/${t}`),
-        fetch(`${API_BASE}/recursive/circular/${t}`),
-        fetch(`${API_BASE}/recursive/chain/${t}`)
+        apiFetch(`/recursive/graph/${t}?max_depth=3`),
+        apiFetch(`/recursive/clusters/${t}`),
+        apiFetch(`/recursive/circular/${t}`),
+        apiFetch(`/recursive/chain/${t}`)
       ]);
       const graphData = await graphRes.json();
       if (isNoData(graphData)) { setNoData(graphData); setLoading(false); return; }
@@ -44,7 +44,7 @@ export default function RecursiveDiscoveryPage() {
   async function compareNetworks() {
     if (!ticker || !compareTicker) return;
     try {
-      const res = await fetch(`${API_BASE}/recursive/compare?ticker1=${ticker.toUpperCase()}&ticker2=${compareTicker.toUpperCase()}`);
+      const res = await apiFetch(`/recursive/compare?ticker1=${ticker.toUpperCase()}&ticker2=${compareTicker.toUpperCase()}`);
       setComparison(await res.json());
       setActiveTab('compare');
     } catch (err) {

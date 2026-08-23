@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Layout from '../src/components/Layout';
+import { apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -23,13 +24,13 @@ export default function EarningsCalendar() {
   }, [view]);
 
   const fetchStats = async () => {
-    const res = await fetch(`${API_BASE}/earnings/stats`);
+    const res = await apiFetch(`/earnings/stats`);
     if (res.ok) setStats(await res.json());
   };
 
   const fetchUpcoming = async () => {
     setLoading(true);
-    const res = await fetch(`${API_BASE}/earnings/upcoming?days=14`);
+    const res = await apiFetch(`/earnings/upcoming?days=14`);
     if (res.ok) {
       const data = await res.json();
       setEvents(data.events || []);
@@ -39,7 +40,7 @@ export default function EarningsCalendar() {
 
   const fetchWeek = async () => {
     setLoading(true);
-    const res = await fetch(`${API_BASE}/earnings/week`);
+    const res = await apiFetch(`/earnings/week`);
     if (res.ok) {
       const data = await res.json();
       setWeekCalendar(data.calendar || {});
@@ -49,7 +50,7 @@ export default function EarningsCalendar() {
 
   const fetchSurprises = async () => {
     setLoading(true);
-    const res = await fetch(`${API_BASE}/earnings/surprises?min_surprise=5`);
+    const res = await apiFetch(`/earnings/surprises?min_surprise=5`);
     if (res.ok) {
       const data = await res.json();
       setEvents(data.surprises || []);
@@ -60,7 +61,7 @@ export default function EarningsCalendar() {
   const fetchTickerHistory = async () => {
     if (!selectedTicker) return;
     setLoading(true);
-    const res = await fetch(`${API_BASE}/earnings/ticker/${selectedTicker}`);
+    const res = await apiFetch(`/earnings/ticker/${selectedTicker}`);
     if (res.ok) {
       const data = await res.json();
       setEvents(data.history || []);

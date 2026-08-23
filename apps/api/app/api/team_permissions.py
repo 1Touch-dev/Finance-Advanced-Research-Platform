@@ -64,6 +64,7 @@ def api_create_team(
     current_user: dict = Depends(get_current_user),
 ):
     """Create a new team"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     return create_team(user_id, name)
@@ -88,6 +89,7 @@ def api_add_member(
     current_user: dict = Depends(get_current_user),
 ):
     """Add member to team"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     return add_team_member(team_id, user_id, email, name, role)
@@ -100,6 +102,7 @@ def api_remove_member(
     current_user: dict = Depends(get_current_user),
 ):
     """Remove member from team"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     return remove_team_member(team_id, user_id)
@@ -113,6 +116,7 @@ def api_update_role(
     current_user: dict = Depends(get_current_user),
 ):
     """Update member's role"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     return update_member_role(team_id, user_id, role)
@@ -126,6 +130,7 @@ def api_add_permission(
     current_user: dict = Depends(get_current_user),
 ):
     """Add custom permission to member"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     try:
@@ -143,6 +148,7 @@ def api_remove_permission(
     current_user: dict = Depends(get_current_user),
 ):
     """Remove custom permission from member"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     try:

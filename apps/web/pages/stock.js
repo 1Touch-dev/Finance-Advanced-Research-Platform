@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Link from 'next/link'
-import { getApiBaseUrl } from '../lib/api'
+import { getApiBaseUrl , apiFetch } from '../lib/api'
 import { LineChart, Line, ResponsiveContainer, Tooltip, ReferenceLine, XAxis } from 'recharts'
 
 const API = typeof window !== 'undefined' ? getApiBaseUrl() : ''
@@ -324,10 +324,10 @@ export default function StockPage() {
     setData(null); setTech(null); setIntel(null); setAnalyst(null)
     try {
       const [r1, r2, r3, r4] = await Promise.allSettled([
-        fetch(`${API}/market/yf/snapshot?ticker=${sym}`).then(r => r.json()),
-        fetch(`${API}/market/technicals?ticker=${sym}`).then(r => r.json()),
-        fetch(`${API}/market/intelligence/report?ticker=${sym}&company=${sym}`).then(r => r.json()),
-        fetch(`${API}/market/company/analyst-ratings/${sym}`).then(r => r.json()),
+        apiFetch(`/market/yf/snapshot?ticker=${sym}`).then(r => r.json()),
+        apiFetch(`/market/technicals?ticker=${sym}`).then(r => r.json()),
+        apiFetch(`/market/intelligence/report?ticker=${sym}&company=${sym}`).then(r => r.json()),
+        apiFetch(`/market/company/analyst-ratings/${sym}`).then(r => r.json()),
       ])
       if (r1.status === 'fulfilled') setData(r1.value)
       if (r2.status === 'fulfilled') setTech(r2.value)

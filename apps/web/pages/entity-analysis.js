@@ -10,6 +10,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Head from 'next/head';
+import { apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -413,7 +414,7 @@ export default function EntityAnalysisPage() {
 
   const fetchSectors = async () => {
     try {
-      const res = await fetch(`${API_BASE}/entities/multi/sectors`);
+      const res = await apiFetch(`/entities/multi/sectors`);
       const data = await res.json();
       setSectors(data.sectors || []);
     } catch (err) {
@@ -424,7 +425,7 @@ export default function EntityAnalysisPage() {
   const fetchSectorEntities = async (sector) => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/entities/multi/by-sector/${sector}`);
+      const res = await apiFetch(`/entities/multi/by-sector/${sector}`);
       const data = await res.json();
       setEntities(data.entities || []);
     } catch (err) {
@@ -451,7 +452,7 @@ export default function EntityAnalysisPage() {
     if (!supplyChainTicker) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/entities/multi/supply-chain/${supplyChainTicker}`);
+      const res = await apiFetch(`/entities/multi/supply-chain/${supplyChainTicker}`);
       const data = await res.json();
       setSupplyChainData(data);
     } catch (err) {
@@ -466,7 +467,7 @@ export default function EntityAnalysisPage() {
     setLoading(true);
     try {
       const tickerStr = selectedTickers.join(',');
-      const res = await fetch(`${API_BASE}/entities/multi/analyze/theme?theme=${encodeURIComponent(themeInput)}&tickers=${tickerStr}`);
+      const res = await apiFetch(`/entities/multi/analyze/theme?theme=${encodeURIComponent(themeInput)}&tickers=${tickerStr}`);
       const data = await res.json();
       setThematicData(data);
     } catch (err) {
@@ -481,7 +482,7 @@ export default function EntityAnalysisPage() {
     setLoading(true);
     try {
       const tickerStr = selectedTickers.join(',');
-      const res = await fetch(`${API_BASE}/entities/multi/compare?tickers=${tickerStr}`);
+      const res = await apiFetch(`/entities/multi/compare?tickers=${tickerStr}`);
       const data = await res.json();
       setComparisonData(data);
     } catch (err) {

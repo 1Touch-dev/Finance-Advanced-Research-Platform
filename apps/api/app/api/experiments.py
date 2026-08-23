@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 import uuid
 import hashlib
-import random
 
 router = APIRouter(prefix="/experiments", tags=["experiments"])
 

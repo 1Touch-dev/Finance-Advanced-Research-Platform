@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import NoDataCard from '../src/components/NoDataCard';
-import { isNoData } from '../lib/api';
+import { isNoData , apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -21,7 +21,7 @@ export default function SocialPage() {
 
   async function fetchTrending() {
     try {
-      const res = await fetch(`${API_BASE}/social/reddit/trending`);
+      const res = await apiFetch(`/social/reddit/trending`);
       const data = await res.json();
       if (isNoData(data)) {
         setNoData(data);
@@ -43,10 +43,10 @@ export default function SocialPage() {
     setLoading(true);
     try {
       const [sentRes, whaleRes, momRes, instRes] = await Promise.all([
-        fetch(`${API_BASE}/social/reddit/sentiment?ticker=${ticker}`),
-        fetch(`${API_BASE}/social/whales/flow/${ticker}`),
-        fetch(`${API_BASE}/social/momentum/${ticker}`),
-        fetch(`${API_BASE}/social/institutional/${ticker}`)
+        apiFetch(`/social/reddit/sentiment?ticker=${ticker}`),
+        apiFetch(`/social/whales/flow/${ticker}`),
+        apiFetch(`/social/momentum/${ticker}`),
+        apiFetch(`/social/institutional/${ticker}`)
       ]);
       const sentData = await sentRes.json();
       const whaleData = await whaleRes.json();

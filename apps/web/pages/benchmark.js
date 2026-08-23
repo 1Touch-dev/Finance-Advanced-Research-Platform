@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import NoDataCard from '../src/components/NoDataCard';
-import { isNoData } from '../lib/api';
+import { isNoData , apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -25,7 +25,7 @@ export default function BenchmarkPage() {
 
   async function fetchBenchmarks() {
     try {
-      const res = await fetch(`${API_BASE}/benchmark/available`);
+      const res = await apiFetch(`/benchmark/available`);
       const data = await res.json();
       if (isNoData(data)) {
         setNoData(data);
@@ -43,8 +43,8 @@ export default function BenchmarkPage() {
     setLoading(true);
     try {
       const [compRes, attrRes] = await Promise.all([
-        fetch(`${API_BASE}/benchmark/compare?benchmark=${benchmark}`),
-        fetch(`${API_BASE}/benchmark/sector-attribution`)
+        apiFetch(`/benchmark/compare?benchmark=${benchmark}`),
+        apiFetch(`/benchmark/sector-attribution`)
       ]);
       const compData = await compRes.json();
       const attrData = await attrRes.json();

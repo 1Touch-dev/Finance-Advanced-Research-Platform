@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Head from 'next/head';
-import { getApiBaseUrl } from '../lib/api';
+import { getApiBaseUrl , apiFetch } from '../lib/api';
 
 export default function PrivateCompanyPage() {
   const API = getApiBaseUrl();
@@ -15,7 +15,7 @@ export default function PrivateCompanyPage() {
     setLoading(true);
     setErr('');
     try {
-      const res = await fetch(`${API}/intelligence/private-co/full?name=${encodeURIComponent(companyName)}`);
+      const res = await apiFetch(`/intelligence/private-co/full?name=${encodeURIComponent(companyName)}`);
       if (!res.ok) throw new Error(`API error: ${res.status}`);
       setResults(await res.json());
       setActiveTab('full');
@@ -30,7 +30,7 @@ export default function PrivateCompanyPage() {
     setLoading(true);
     setErr('');
     try {
-      const res = await fetch(`${API}/intelligence/private-co/uk?name=${encodeURIComponent(companyName)}`);
+      const res = await apiFetch(`/intelligence/private-co/uk?name=${encodeURIComponent(companyName)}`);
       if (!res.ok) throw new Error(`API error: ${res.status}`);
       setResults({ uk_results: await res.json() });
       setActiveTab('uk');
@@ -45,7 +45,7 @@ export default function PrivateCompanyPage() {
     setLoading(true);
     setErr('');
     try {
-      const res = await fetch(`${API}/intelligence/private-co/form-d?name=${encodeURIComponent(companyName)}`);
+      const res = await apiFetch(`/intelligence/private-co/form-d?name=${encodeURIComponent(companyName)}`);
       if (!res.ok) throw new Error(`API error: ${res.status}`);
       setResults({ form_d_results: await res.json() });
       setActiveTab('formd');
@@ -60,7 +60,7 @@ export default function PrivateCompanyPage() {
     setLoading(true);
     setErr('');
     try {
-      const res = await fetch(`${API}/intelligence/private-co/funding?name=${encodeURIComponent(companyName)}`);
+      const res = await apiFetch(`/intelligence/private-co/funding?name=${encodeURIComponent(companyName)}`);
       if (!res.ok) throw new Error(`API error: ${res.status}`);
       setResults({ funding_results: await res.json() });
       setActiveTab('funding');

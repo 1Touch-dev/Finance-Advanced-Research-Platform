@@ -11,6 +11,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -279,10 +280,10 @@ export default function OptionsPage() {
     setLoading(true);
     try {
       const [snapRes, surfRes, skewRes, histRes] = await Promise.all([
-        fetch(`${API_BASE}/volatility/snapshot/${ticker}`),
-        fetch(`${API_BASE}/volatility/surface/${ticker}`),
-        fetch(`${API_BASE}/volatility/skew/${ticker}`),
-        fetch(`${API_BASE}/volatility/history/${ticker}`),
+        apiFetch(`/volatility/snapshot/${ticker}`),
+        apiFetch(`/volatility/surface/${ticker}`),
+        apiFetch(`/volatility/skew/${ticker}`),
+        apiFetch(`/volatility/history/${ticker}`),
       ]);
 
       setSnapshot(await snapRes.json());
@@ -299,7 +300,7 @@ export default function OptionsPage() {
   const runScreener = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/volatility/screen?min_iv_rank=0&max_iv_rank=100`);
+      const res = await apiFetch(`/volatility/screen?min_iv_rank=0&max_iv_rank=100`);
       const data = await res.json();
       setScreenResults(data.results || []);
     } catch (err) {

@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Layout from '../src/components/Layout';
+import { apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -25,12 +26,12 @@ export default function ShortInterest() {
   }, [view]);
 
   const fetchStats = async () => {
-    const res = await fetch(`${API_BASE}/short-interest/stats`);
+    const res = await apiFetch(`/short-interest/stats`);
     if (res.ok) setStats(await res.json());
   };
 
   const fetchSectors = async () => {
-    const res = await fetch(`${API_BASE}/short-interest/sectors`);
+    const res = await apiFetch(`/short-interest/sectors`);
     if (res.ok) {
       const d = await res.json();
       setSectors(d.sectors || []);
@@ -39,7 +40,7 @@ export default function ShortInterest() {
 
   const fetchMostShorted = async () => {
     setLoading(true);
-    const res = await fetch(`${API_BASE}/short-interest/most-shorted?min_short_percent=5`);
+    const res = await apiFetch(`/short-interest/most-shorted?min_short_percent=5`);
     if (res.ok) {
       const d = await res.json();
       setData(d.stocks || []);
@@ -49,7 +50,7 @@ export default function ShortInterest() {
 
   const fetchSqueezeCandidates = async () => {
     setLoading(true);
-    const res = await fetch(`${API_BASE}/short-interest/squeeze-candidates?min_score=40`);
+    const res = await apiFetch(`/short-interest/squeeze-candidates?min_score=40`);
     if (res.ok) {
       const d = await res.json();
       setData(d.candidates || []);
@@ -59,7 +60,7 @@ export default function ShortInterest() {
 
   const fetchChanges = async () => {
     setLoading(true);
-    const res = await fetch(`${API_BASE}/short-interest/changes?min_change=5`);
+    const res = await apiFetch(`/short-interest/changes?min_change=5`);
     if (res.ok) {
       const d = await res.json();
       setData(d.stocks || []);
@@ -70,7 +71,7 @@ export default function ShortInterest() {
   const fetchTicker = async () => {
     if (!ticker) return;
     setLoading(true);
-    const res = await fetch(`${API_BASE}/short-interest/ticker/${ticker}`);
+    const res = await apiFetch(`/short-interest/ticker/${ticker}`);
     if (res.ok) {
       const d = await res.json();
       setTickerData(d.data);

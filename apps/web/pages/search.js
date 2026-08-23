@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { getApiBaseUrl } from '../lib/api'
+import { getApiBaseUrl , apiFetch } from '../lib/api'
 
 const QUICK_TERMS = ['apple', 'palantir', 'spacex', 'microsoft', 'defense', 'blackrock', 'tesla']
 
@@ -34,7 +34,7 @@ export default function SearchPage() {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(async () => {
       try {
-        const r = await fetch(`${API}/search/?q=${encodeURIComponent(q)}&limit=5`)
+        const r = await apiFetch(`/search/?q=${encodeURIComponent(q)}&limit=5`)
         if (r.ok) {
           const data = await r.json()
           const items = (data.entities || []).slice(0, 6).map(e => ({
@@ -56,7 +56,7 @@ export default function SearchPage() {
     if (!term.trim()) return
     setErr(''); setLoading(true); setRes(null)
     try {
-      const r = await fetch(`${API}/search/?q=${encodeURIComponent(term)}`)
+      const r = await apiFetch(`/search/?q=${encodeURIComponent(term)}`)
       if (!r.ok) throw new Error(`API returned ${r.status}`)
       setRes(await r.json())
     } catch (e) {

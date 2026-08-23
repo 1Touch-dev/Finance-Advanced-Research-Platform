@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getApiBaseUrl } from '../lib/api';
+import { getApiBaseUrl , apiFetch } from '../lib/api';
 import Head from 'next/head';
 
 export default function MacroDashboardPage() {
@@ -14,7 +14,7 @@ export default function MacroDashboardPage() {
   const [searchResults, setSearchResults] = useState(null);
 
   useEffect(() => {
-    fetch(`${API}/market/macro/dashboard`)
+    apiFetch(`/market/macro/dashboard`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         setDashboard(data);
@@ -29,7 +29,7 @@ export default function MacroDashboardPage() {
   async function fetchVintage() {
     if (!selectedSeries || !vintageDate) return;
     try {
-      const res = await fetch(`${API}/market/macro/vintage?series_id=${selectedSeries}&vintage_date=${vintageDate}`);
+      const res = await apiFetch(`/market/macro/vintage?series_id=${selectedSeries}&vintage_date=${vintageDate}`);
       setVintageData(await res.json());
     } catch (e) {
       console.error(e);
@@ -39,7 +39,7 @@ export default function MacroDashboardPage() {
   async function searchFred() {
     if (!searchQuery) return;
     try {
-      const res = await fetch(`${API}/market/fred/search?query=${encodeURIComponent(searchQuery)}`);
+      const res = await apiFetch(`/market/fred/search?query=${encodeURIComponent(searchQuery)}`);
       setSearchResults(await res.json());
     } catch (e) {
       console.error(e);

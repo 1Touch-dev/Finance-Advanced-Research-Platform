@@ -111,7 +111,7 @@ def oidc_callback(code: str, db: Session = Depends(get_db)):
     db.commit()
     return {"token": tok, "refresh_token": refresh, "email": email}
 
-@router.post('/orgs')
+@router.post('/rbac/orgs')
 def create_org(name: str, curr: Current = Depends(require_permission('org:create')), db: Session = Depends(get_db)):
     org = Organization(name=name)
     db.add(org); db.commit(); db.refresh(org)
@@ -119,7 +119,7 @@ def create_org(name: str, curr: Current = Depends(require_permission('org:create
     db.commit()
     return {"id": org.id, "name": org.name}
 
-@router.post('/workspaces')
+@router.post('/rbac/workspaces')
 def create_workspace(org_id: int, name: str, curr: Current = Depends(require_permission('workspace:create')), db: Session = Depends(get_db)):
     ws = Workspace(org_id=org_id, name=name)
     db.add(ws); db.commit(); db.refresh(ws)
@@ -144,7 +144,7 @@ def create_workspace(org_id: int, name: str, curr: Current = Depends(require_per
     db.commit()
     return {"id": ws.id, "name": ws.name}
 
-@router.post('/workspaces/{workspace_id}/members')
+@router.post('/rbac/workspaces/{workspace_id}/members')
 def add_member(workspace_id: int, user_id: int, role_name: str, curr: Current = Depends(require_permission('member:manage')), db: Session = Depends(get_db)):
     role = db.query(Role).filter_by(workspace_id=workspace_id, name=role_name).first()
     if not role: raise HTTPException(404, 'role not found')
@@ -154,7 +154,7 @@ def add_member(workspace_id: int, user_id: int, role_name: str, curr: Current = 
     db.commit()
     return {"id": m.id}
 
-@router.post('/workspaces/{workspace_id}/projects')
+@router.post('/rbac/workspaces/{workspace_id}/projects')
 def create_project(workspace_id: int, name: str, curr: Current = Depends(require_permission('project:create')), db: Session = Depends(get_db)):
     p = Project(workspace_id=workspace_id, name=name)
     db.add(p); db.commit(); db.refresh(p)
@@ -162,7 +162,7 @@ def create_project(workspace_id: int, name: str, curr: Current = Depends(require
     db.commit()
     return {"id": p.id, "name": p.name}
 
-@router.post('/workspaces/{workspace_id}/cases')
+@router.post('/rbac/workspaces/{workspace_id}/cases')
 def create_case(workspace_id: int, title: str, curr: Current = Depends(require_permission('case:create')), db: Session = Depends(get_db)):
     c = Case(workspace_id=workspace_id, title=title)
     db.add(c); db.commit(); db.refresh(c)

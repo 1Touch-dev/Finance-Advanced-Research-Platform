@@ -2,8 +2,10 @@
 Portfolio Analytics API (D1-D11)
 Advanced portfolio analytics features
 """
-from fastapi import APIRouter, Query, Body
+from fastapi import APIRouter, Query, Body, Depends
 from typing import List, Dict, Any, Optional
+
+from app.auth.security import get_current_user
 
 from app.services.portfolio_analytics_service import (
     get_factor_decomposition,
@@ -30,10 +32,12 @@ def factor_decomposition(user_id: str = Query(..., description="User ID")):
 
 @router.post("/rebalancing")
 def rebalancing_suggestions(
-    user_id: str = Query(..., description="User ID"),
-    target_allocation: Optional[Dict[str, float]] = Body(None, description="Target allocation")
+    user_id: Optional[str] = Query(None, description="User ID"),
+    target_allocation: Optional[Dict[str, float]] = Body(None, description="Target allocation"),
+    current_user: dict = Depends(get_current_user),
 ):
     """D2: Get rebalancing suggestions to target weights."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return get_rebalancing_suggestions(user_id, target_allocation)
 
 
@@ -51,10 +55,12 @@ def risk_parity(user_id: str = Query(..., description="User ID")):
 
 @router.post("/scenario-analysis")
 def scenario_analysis(
-    user_id: str = Query(..., description="User ID"),
-    scenarios: Optional[List[str]] = Body(None, description="Scenarios to analyze")
+    user_id: Optional[str] = Query(None, description="User ID"),
+    scenarios: Optional[List[str]] = Body(None, description="Scenarios to analyze"),
+    current_user: dict = Depends(get_current_user),
 ):
     """D5: Run what-if portfolio simulations."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return run_scenario_analysis(user_id, scenarios)
 
 
@@ -66,7 +72,7 @@ def drawdown_analytics(user_id: str = Query(..., description="User ID")):
 
 @router.get("/correlation-matrix")
 def correlation_matrix(
-    user_id: str = Query(..., description="User ID"),
+    user_id: Optional[str] = Query(None, description="User ID"),
     tickers: Optional[List[str]] = Query(None, description="Tickers to include")
 ):
     """D7: Get asset correlation heatmap data."""
@@ -87,10 +93,12 @@ def factor_timing():
 
 @router.post("/custom-benchmark")
 def custom_benchmark(
-    user_id: str = Query(..., description="User ID"),
-    components: List[Dict[str, Any]] = Body(..., description="Benchmark components")
+    user_id: Optional[str] = Query(None, description="User ID"),
+    components: List[Dict[str, Any]] = Body(..., description="Benchmark components"),
+    current_user: dict = Depends(get_current_user),
 ):
     """D10: Create custom benchmark blend."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     return create_custom_benchmark(user_id, components)
 
 

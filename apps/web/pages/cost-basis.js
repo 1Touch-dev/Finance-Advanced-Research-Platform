@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import NoDataCard from '../src/components/NoDataCard';
-import { isNoData } from '../lib/api';
+import { isNoData , apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -21,8 +21,8 @@ export default function CostBasisPage() {
     setLoading(true);
     try {
       const [posRes, sumRes] = await Promise.all([
-        fetch(`${API_BASE}/cost-basis/positions`),
-        fetch(`${API_BASE}/cost-basis/summary`)
+        apiFetch(`/cost-basis/positions`),
+        apiFetch(`/cost-basis/summary`)
       ]);
       const posData = await posRes.json();
       if (isNoData(posData)) { setNoData(posData); setLoading(false); return; }
@@ -37,7 +37,7 @@ export default function CostBasisPage() {
 
   async function compareTaxMethods(ticker, shares) {
     try {
-      const res = await fetch(`${API_BASE}/cost-basis/tax-lot-comparison/${ticker}?shares=${shares}`);
+      const res = await apiFetch(`/cost-basis/tax-lot-comparison/${ticker}?shares=${shares}`);
       const data = await res.json();
       setTaxComparison(data);
     } catch (err) {

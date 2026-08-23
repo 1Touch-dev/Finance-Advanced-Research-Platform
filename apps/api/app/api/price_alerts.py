@@ -25,7 +25,7 @@ router = APIRouter(prefix="/alerts", tags=["price-alerts"])
 
 @router.post("")
 def create_price_alert(
-    user_id: str = Query(..., description="User ID"),
+    user_id: Optional[str] = Query(None, description="User ID"),
     ticker: str = Query(..., description="Stock ticker"),
     alert_type: str = Query(..., description="Alert type"),
     target_value: float = Query(..., description="Target value"),
@@ -36,6 +36,7 @@ def create_price_alert(
     current_user: dict = Depends(get_current_user),
 ):
     """Create a new price alert."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     channel_list = [c.strip() for c in channels.split(",")] if channels else None
     
     alert = create_alert(
@@ -57,7 +58,7 @@ def create_price_alert(
 
 @router.get("")
 def list_alerts(
-    user_id: str = Query(..., description="User ID"),
+    user_id: Optional[str] = Query(None, description="User ID"),
     status: Optional[str] = Query(None, description="Filter by status"),
     ticker: Optional[str] = Query(None, description="Filter by ticker"),
 ):
@@ -79,7 +80,7 @@ def list_alert_types():
 
 @router.get("/stats")
 def alert_stats(
-    user_id: str = Query(..., description="User ID"),
+    user_id: Optional[str] = Query(None, description="User ID"),
 ):
     """Get alert statistics for a user."""
     return get_alert_stats(user_id)
@@ -87,7 +88,7 @@ def alert_stats(
 
 @router.get("/notifications")
 def list_notifications(
-    user_id: str = Query(..., description="User ID"),
+    user_id: Optional[str] = Query(None, description="User ID"),
     unread_only: bool = Query(False, description="Only unread"),
     limit: int = Query(50, ge=1, le=200),
 ):
@@ -102,10 +103,11 @@ def list_notifications(
 @router.post("/notifications/{notification_id}/read")
 def mark_read(
     notification_id: str,
-    user_id: str = Query(..., description="User ID"),
+    user_id: Optional[str] = Query(None, description="User ID"),
     current_user: dict = Depends(get_current_user),
 ):
     """Mark a notification as read."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     success = mark_notification_read(notification_id, user_id)
     if not success:
         raise HTTPException(status_code=404, detail="Notification not found")
@@ -115,7 +117,7 @@ def mark_read(
 @router.get("/{alert_id}")
 def get_single_alert(
     alert_id: str,
-    user_id: str = Query(..., description="User ID"),
+    user_id: Optional[str] = Query(None, description="User ID"),
 ):
     """Get a specific alert."""
     alert = get_alert(alert_id, user_id)
@@ -127,7 +129,7 @@ def get_single_alert(
 @router.put("/{alert_id}")
 def update_price_alert(
     alert_id: str,
-    user_id: str = Query(..., description="User ID"),
+    user_id: Optional[str] = Query(None, description="User ID"),
     target_value: Optional[float] = Query(None),
     channels: Optional[str] = Query(None),
     note: Optional[str] = Query(None),
@@ -135,6 +137,7 @@ def update_price_alert(
     current_user: dict = Depends(get_current_user),
 ):
     """Update an alert."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     channel_list = [c.strip() for c in channels.split(",")] if channels else None
     
     alert = update_alert(
@@ -158,10 +161,11 @@ def update_price_alert(
 @router.delete("/{alert_id}")
 def delete_price_alert(
     alert_id: str,
-    user_id: str = Query(..., description="User ID"),
+    user_id: Optional[str] = Query(None, description="User ID"),
     current_user: dict = Depends(get_current_user),
 ):
     """Delete an alert."""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     success = delete_alert(alert_id, user_id)
     if not success:
         raise HTTPException(status_code=404, detail="Alert not found")

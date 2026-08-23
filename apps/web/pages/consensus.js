@@ -10,6 +10,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -347,10 +348,10 @@ export default function ConsensusPage() {
 
     try {
       const [consensus, momentum, dispersion, surprise] = await Promise.all([
-        fetch(`${API_BASE}/consensus/snapshot?ticker=${ticker}&fiscal_year=${fiscalYear}`).then(r => r.json()),
-        fetch(`${API_BASE}/consensus/momentum?ticker=${ticker}&fiscal_year=${fiscalYear}`).then(r => r.json()),
-        fetch(`${API_BASE}/consensus/dispersion?ticker=${ticker}&fiscal_year=${fiscalYear}`).then(r => r.json()),
-        fetch(`${API_BASE}/consensus/surprise-history?ticker=${ticker}&quarters=12`).then(r => r.json()),
+        apiFetch(`/consensus/snapshot?ticker=${ticker}&fiscal_year=${fiscalYear}`).then(r => r.json()),
+        apiFetch(`/consensus/momentum?ticker=${ticker}&fiscal_year=${fiscalYear}`).then(r => r.json()),
+        apiFetch(`/consensus/dispersion?ticker=${ticker}&fiscal_year=${fiscalYear}`).then(r => r.json()),
+        apiFetch(`/consensus/surprise-history?ticker=${ticker}&quarters=12`).then(r => r.json()),
       ]);
 
       setConsensusData(consensus);

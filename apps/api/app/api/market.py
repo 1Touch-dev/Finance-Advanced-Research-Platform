@@ -86,23 +86,33 @@ def get_cash_flow(ticker: str, limit: int = 10):
 
 
 def _sec_edgar_financials_fallback(ticker: str, statement_type: str) -> list:
-    """Fall back to SEC EDGAR company facts when FMP returns empty."""
+    """Fall back to yfinance for financial statements when FMP returns empty."""
     try:
-        from app.connectors.sec_edgar_connector import get_filer_cik, get_company_facts, extract_financial_statements
-        cik = get_filer_cik(ticker)
-        if not cik:
-            return []
-        facts = get_company_facts(cik)
-        if not facts:
-            return []
-        stmts = extract_financial_statements(facts, years=5)
+        import yfinance as yf
+        stock = yf.Ticker(ticker)
         if statement_type == "income":
-            return stmts.get("income_statement", [])
+            df = stock.income_stmt
         elif statement_type == "balance":
-            return stmts.get("balance_sheet", [])
+            df = stock.balance_sheet
         elif statement_type == "cashflow":
-            return stmts.get("cash_flow", [])
-        return []
+            df = stock.cashflow
+        else:
+            return []
+
+        if df is None or df.empty:
+            return []
+
+        rows = []
+        for col in df.columns:
+            period = col.strftime("%Y-%m-%d") if hasattr(col, 'strftime') else str(col)
+            row = {"date": period, "source": "yfinance"}
+            for idx in df.index:
+                key = str(idx).lower().replace(" ", "_")
+                val = df.loc[idx, col]
+                if val is not None and str(val) != 'nan':
+                    row[key] = float(val)
+            rows.append(row)
+        return rows[:10]
     except Exception:
         return []
 

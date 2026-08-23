@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import NoDataCard from '../src/components/NoDataCard';
-import { isNoData } from '../lib/api';
+import { isNoData , apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -21,9 +21,9 @@ export default function TaxLotsPage() {
     setLoading(true);
     try {
       const [lotsRes, harvestRes, approachRes] = await Promise.all([
-        fetch(`${API_BASE}/tax-lots/`),
-        fetch(`${API_BASE}/tax-lots/harvesting-opportunities`),
-        fetch(`${API_BASE}/tax-lots/approaching-long-term`)
+        apiFetch(`/tax-lots/`),
+        apiFetch(`/tax-lots/harvesting-opportunities`),
+        apiFetch(`/tax-lots/approaching-long-term`)
       ]);
       const lotsData = await lotsRes.json();
       if (isNoData(lotsData)) { setNoData(lotsData); setLoading(false); return; }
@@ -40,7 +40,7 @@ export default function TaxLotsPage() {
 
   async function compareMethods(ticker, shares) {
     try {
-      const res = await fetch(`${API_BASE}/tax-lots/compare-methods?ticker=${ticker}&shares=${shares}`);
+      const res = await apiFetch(`/tax-lots/compare-methods?ticker=${ticker}&shares=${shares}`);
       const data = await res.json();
       setMethodComparison(data);
     } catch (err) {

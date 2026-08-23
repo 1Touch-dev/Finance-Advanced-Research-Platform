@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import NoDataCard from '../src/components/NoDataCard';
-import { isNoData } from '../lib/api';
+import { isNoData , apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -22,9 +22,9 @@ export default function TeamsPage() {
     setLoading(true);
     try {
       const [teamsRes, rolesRes, permsRes] = await Promise.all([
-        fetch(`${API_BASE}/teams/`),
-        fetch(`${API_BASE}/teams/roles`),
-        fetch(`${API_BASE}/teams/permissions`)
+        apiFetch(`/teams/`),
+        apiFetch(`/teams/roles`),
+        apiFetch(`/teams/permissions`)
       ]);
       const teamsData = await teamsRes.json();
       if (isNoData(teamsData)) { setNoData(teamsData); setLoading(false); return; }
@@ -44,7 +44,7 @@ export default function TeamsPage() {
 
   async function selectTeam(id) {
     try {
-      const res = await fetch(`${API_BASE}/teams/${id}`);
+      const res = await apiFetch(`/teams/${id}`);
       const data = await res.json();
       setSelectedTeam(data);
     } catch (err) {
@@ -54,7 +54,7 @@ export default function TeamsPage() {
 
   async function viewMemberPerms(userId) {
     try {
-      const res = await fetch(`${API_BASE}/teams/${selectedTeam.team_id}/members/${userId}/permissions`);
+      const res = await apiFetch(`/teams/${selectedTeam.team_id}/members/${userId}/permissions`);
       const data = await res.json();
       setMemberPermissions({ userId, ...data });
     } catch (err) {

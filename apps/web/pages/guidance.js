@@ -10,6 +10,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -169,8 +170,8 @@ export default function GuidancePage() {
     setError(null);
     try {
       const [cred, hist] = await Promise.all([
-        fetch(`${API_BASE}/guidance/credibility?ticker=${ticker}`).then(r => r.json()),
-        fetch(`${API_BASE}/guidance/history?ticker=${ticker}&quarters=12`).then(r => r.json()),
+        apiFetch(`/guidance/credibility?ticker=${ticker}`).then(r => r.json()),
+        apiFetch(`/guidance/history?ticker=${ticker}&quarters=12`).then(r => r.json()),
       ]);
       setCredibilityData(cred);
       setHistoryData(hist);

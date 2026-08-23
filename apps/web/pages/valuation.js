@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -19,8 +20,8 @@ export default function ValuationPage() {
     setLoading(true);
     try {
       const [valRes, compRes] = await Promise.all([
-        fetch(API_BASE + '/valuation/' + ticker),
-        fetch(API_BASE + '/valuation/comparison?tickers=' + tickers.join(','))
+        apiFetch('/valuation/' + ticker),
+        apiFetch('/valuation/comparison?tickers=' + tickers.join(','))
       ]);
       const valData = await valRes.json();
       const compData = await compRes.json();

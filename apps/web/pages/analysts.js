@@ -10,6 +10,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -126,7 +127,7 @@ export default function AnalystsPage() {
   const fetchLeaderboard = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/analysts/ranking?limit=20`);
+      const res = await apiFetch(`/analysts/ranking?limit=20`);
       const data = await res.json();
       setRanking(data.ranking || []);
     } catch (err) {
@@ -139,7 +140,7 @@ export default function AnalystsPage() {
   const fetchFirmRanking = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/analysts/ranking/firms`);
+      const res = await apiFetch(`/analysts/ranking/firms`);
       const data = await res.json();
       setFirmRanking(data);
     } catch (err) {
@@ -153,7 +154,7 @@ export default function AnalystsPage() {
     if (!searchQuery) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/analysts/search?name=${encodeURIComponent(searchQuery)}`);
+      const res = await apiFetch(`/analysts/search?name=${encodeURIComponent(searchQuery)}`);
       const data = await res.json();
       setSearchResults(data.analysts || []);
     } catch (err) {

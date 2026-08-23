@@ -12,6 +12,7 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import { apiFetch } from '../../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -268,7 +269,7 @@ export default function AnalystProfilePage() {
       setLoading(true);
       try {
         // Mock data - in production this would call an API
-        // const res = await fetch(`${API_BASE}/analysts/profile/${id}`);
+        // const res = await apiFetch(`/analysts/profile/${id}`);
         // const data = await res.json();
 
         // Mock analyst profile data

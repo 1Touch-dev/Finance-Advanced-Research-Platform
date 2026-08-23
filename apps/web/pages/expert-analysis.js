@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { getApiBaseUrl } from '../lib/api'
+import { getApiBaseUrl , apiFetch } from '../lib/api'
 import styles from '../src/styles/Page.module.css'
 
 const API = typeof window !== 'undefined' ? getApiBaseUrl() : ''
@@ -132,7 +132,7 @@ export default function ExpertAnalysisPage() {
     setError('')
     setData(null)
     try {
-      const res = await fetch(`${API}/market/company/expert-analysis/${sym}?company=${encodeURIComponent(companyInput)}`)
+      const res = await apiFetch(`/market/company/expert-analysis/${sym}?company=${encodeURIComponent(companyInput)}`)
       const d = await res.json()
       setData(d)
     } catch(e) {

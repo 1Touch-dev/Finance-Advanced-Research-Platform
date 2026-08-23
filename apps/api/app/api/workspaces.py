@@ -47,6 +47,7 @@ def api_create_workspace(
     current_user: dict = Depends(get_current_user),
 ):
     """Create a new workspace"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     return create_workspace(user_id, name, description)
@@ -96,6 +97,7 @@ def api_add_member(
     current_user: dict = Depends(get_current_user),
 ):
     """Add member to workspace"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     try:
@@ -112,6 +114,7 @@ def api_remove_member(
     current_user: dict = Depends(get_current_user),
 ):
     """Remove member from workspace"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     return remove_member(workspace_id, user_id)
@@ -125,6 +128,7 @@ def api_update_member_role(
     current_user: dict = Depends(get_current_user),
 ):
     """Update member's role"""
+    user_id = str(current_user["user_id"])  # authz: token identity wins over any query param
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     try:

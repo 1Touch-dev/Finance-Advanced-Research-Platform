@@ -10,6 +10,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -154,7 +155,7 @@ export default function VolumePage() {
   const fetchAlerts = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/volume/screen?min_ratio=${minRatio}`);
+      const res = await apiFetch(`/volume/screen?min_ratio=${minRatio}`);
       const data = await res.json();
       setAlerts(data.alerts || []);
     } catch (err) {
@@ -167,7 +168,7 @@ export default function VolumePage() {
   const fetchProfile = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/volume/profile/${ticker}`);
+      const res = await apiFetch(`/volume/profile/${ticker}`);
       const data = await res.json();
       setProfile(data);
     } catch (err) {

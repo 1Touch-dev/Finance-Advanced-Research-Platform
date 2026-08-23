@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Layout from '../src/components/Layout';
+import { apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -26,13 +27,13 @@ export default function IPOCalendar() {
   }, [view]);
 
   const fetchStats = async () => {
-    const res = await fetch(`${API_BASE}/ipo/stats`);
+    const res = await apiFetch(`/ipo/stats`);
     if (res.ok) setStats(await res.json());
   };
 
   const fetchUpcoming = async () => {
     setLoading(true);
-    const res = await fetch(`${API_BASE}/ipo/upcoming?days=30`);
+    const res = await apiFetch(`/ipo/upcoming?days=30`);
     if (res.ok) {
       const d = await res.json();
       setData(d.upcoming || []);
@@ -42,7 +43,7 @@ export default function IPOCalendar() {
 
   const fetchRecent = async () => {
     setLoading(true);
-    const res = await fetch(`${API_BASE}/ipo/recent?days=90`);
+    const res = await apiFetch(`/ipo/recent?days=90`);
     if (res.ok) {
       const d = await res.json();
       setData(d.recent || []);
@@ -52,7 +53,7 @@ export default function IPOCalendar() {
 
   const fetchLockups = async () => {
     setLoading(true);
-    const res = await fetch(`${API_BASE}/ipo/lockups?days=90`);
+    const res = await apiFetch(`/ipo/lockups?days=90`);
     if (res.ok) {
       const d = await res.json();
       setData(d.lockup_expirations || []);
@@ -62,7 +63,7 @@ export default function IPOCalendar() {
 
   const fetchWeek = async () => {
     setLoading(true);
-    const res = await fetch(`${API_BASE}/ipo/week`);
+    const res = await apiFetch(`/ipo/week`);
     if (res.ok) {
       const d = await res.json();
       setWeekCalendar(d.calendar || {});
@@ -72,7 +73,7 @@ export default function IPOCalendar() {
 
   const fetchPerformance = async () => {
     setLoading(true);
-    const res = await fetch(`${API_BASE}/ipo/performance?days=90`);
+    const res = await apiFetch(`/ipo/performance?days=90`);
     if (res.ok) {
       const d = await res.json();
       setData(d.performance || []);
@@ -82,7 +83,7 @@ export default function IPOCalendar() {
 
   const searchIPO = async () => {
     if (!searchTicker) return;
-    const res = await fetch(`${API_BASE}/ipo/ticker/${searchTicker}`);
+    const res = await apiFetch(`/ipo/ticker/${searchTicker}`);
     if (res.ok) {
       const d = await res.json();
       setSearchResults(d.ipo);

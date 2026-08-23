@@ -11,6 +11,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { apiFetch } from '../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -330,10 +331,10 @@ export default function WhisperPage() {
     setLoading(true);
     try {
       const [snapRes, sideRes, histRes, dispRes] = await Promise.all([
-        fetch(`${API_BASE}/whisper/${ticker}/snapshot`),
-        fetch(`${API_BASE}/whisper/${ticker}/side-split`),
-        fetch(`${API_BASE}/whisper/${ticker}/history`),
-        fetch(`${API_BASE}/whisper/${ticker}/dispersion`),
+        apiFetch(`/whisper/${ticker}/snapshot`),
+        apiFetch(`/whisper/${ticker}/side-split`),
+        apiFetch(`/whisper/${ticker}/history`),
+        apiFetch(`/whisper/${ticker}/dispersion`),
       ]);
 
       setSnapshot(await snapRes.json());
@@ -350,7 +351,7 @@ export default function WhisperPage() {
   const runScreener = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/whisper/screen`);
+      const res = await apiFetch(`/whisper/screen`);
       const data = await res.json();
       setScreenResults(data.results || []);
     } catch (err) {
@@ -363,7 +364,7 @@ export default function WhisperPage() {
   const runCompare = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/whisper/compare?tickers=${compareTickers}`);
+      const res = await apiFetch(`/whisper/compare?tickers=${compareTickers}`);
       const data = await res.json();
       setCompareData(data);
     } catch (err) {

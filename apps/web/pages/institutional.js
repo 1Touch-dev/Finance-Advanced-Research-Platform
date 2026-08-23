@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { getApiBaseUrl } from '../lib/api'
+import { getApiBaseUrl , apiFetch } from '../lib/api'
 import styles from '../src/styles/Page.module.css'
 
 const API = typeof window !== 'undefined' ? getApiBaseUrl() : ''
@@ -124,7 +124,7 @@ export default function InstitutionalPage() {
     setError('')
     setHolderData(null)
     try {
-      const res = await fetch(`${API}/market/company/institutional-changes/${sym}`)
+      const res = await apiFetch(`/market/company/institutional-changes/${sym}`)
       setHolderData(await res.json())
     } catch(e) { setError('Failed: ' + e.message) }
     setLoading(false)
@@ -135,7 +135,7 @@ export default function InstitutionalPage() {
     if (!n) return
     setInstLoading(true)
     try {
-      const res = await fetch(`${API}/market/institution/holdings/${encodeURIComponent(n)}`)
+      const res = await apiFetch(`/market/institution/holdings/${encodeURIComponent(n)}`)
       setInstData(await res.json())
       setTab('institution')
     } catch(e) { setError('Failed: ' + e.message) }

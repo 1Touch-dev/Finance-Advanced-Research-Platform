@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getApiBaseUrl } from '../lib/api';
+import { getApiBaseUrl , apiFetch } from '../lib/api';
 import Head from 'next/head';
 
 export default function EconomicsPage() {
@@ -20,10 +20,10 @@ export default function EconomicsPage() {
     setErr('');
 
     Promise.all([
-      fetch(`${API}/government/bea/gdp`).then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch(`${API}/government/bea/state-income`).then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch(`${API}/government/sam/opportunities?limit=10`).then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch(`${API}/government/regulations/search?limit=10`).then(r => r.ok ? r.json() : null).catch(() => null),
+      apiFetch(`/government/bea/gdp`).then(r => r.ok ? r.json() : null).catch(() => null),
+      apiFetch(`/government/bea/state-income`).then(r => r.ok ? r.json() : null).catch(() => null),
+      apiFetch(`/government/sam/opportunities?limit=10`).then(r => r.ok ? r.json() : null).catch(() => null),
+      apiFetch(`/government/regulations/search?limit=10`).then(r => r.ok ? r.json() : null).catch(() => null),
     ])
       .then(([gdp, state, sam, regs]) => {
         if (cancelled) return;
