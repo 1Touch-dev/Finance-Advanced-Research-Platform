@@ -244,7 +244,7 @@ def _fetch_eps_estimates_yf(ticker: str) -> list:
                     "numberAnalysts": int(row.get("numberOfAnalysts") or 0),
                 })
     except Exception as exc:
-        logger.debug("yfinance EPS estimate fallback failed for %s: %s", ticker, exc)
+        log.debug("yfinance EPS estimate fallback failed for %s: %s", ticker, exc)
 
     _set_cache(cache_key, rows)
     return rows

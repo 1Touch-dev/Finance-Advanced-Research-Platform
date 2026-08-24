@@ -614,7 +614,8 @@ def calculate_risk_metrics(
                 raise ValueError("Insufficient data")
         else:
             raise ValueError("No price data")
-    except Exception:
+    except Exception as exc:
+        logger.debug("Portfolio volatility calculation fell back to estimate: %s", exc)
         portfolio_volatility = 0.18 * max(0.5, 1 - len(holdings) * 0.03) * weighted_beta
         mean_return = None
         downside_dev = None
@@ -848,7 +849,8 @@ def _get_price_history_factors(ticker: str) -> Dict[str, float]:
         if not ytd_hist.empty:
             factors["ytd"] = float(ytd_hist['Close'].iloc[0]) / current
         return factors
-    except Exception:
+    except Exception as exc:
+        logger.debug("Price factor calculation failed: %s", exc)
         return {"day": 1.0, "week": 1.0, "month": 1.0, "ytd": 1.0}
 
 

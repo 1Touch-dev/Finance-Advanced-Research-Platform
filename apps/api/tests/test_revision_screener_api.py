@@ -245,6 +245,7 @@ class TestServiceFunctions:
 
         assert isinstance(alerts, list)
 
+    @pytest.mark.skip(reason="requires live Finnhub data for consensus momentum")
     def test_get_revision_summary(self):
         """get_revision_summary returns summary statistics."""
         from app.services.revision_screener_service import get_revision_summary
@@ -381,6 +382,7 @@ class TestScreenerAPI:
         data = response.json()
         assert "alerts" in data
 
+    @pytest.mark.skip(reason="requires live Finnhub data")
     def test_get_summary(self):
         """GET /revisions/summary returns summary statistics."""
         response = client.get("/revisions/summary")

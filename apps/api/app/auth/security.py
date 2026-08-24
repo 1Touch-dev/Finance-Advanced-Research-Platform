@@ -101,11 +101,27 @@ def exchange_refresh_token(refresh_token: str) -> dict | None:
 
 
 def revoke_token(token: str) -> None:
-    _revoked_tokens.add(hashlib.sha256(token.encode()).hexdigest())
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    _revoked_tokens.add(token_hash)
+    try:
+        from app.core.cache import cache_set
+        cache_set(f"revoked:{token_hash}", "1", ttl=86400 * 7)
+    except Exception:
+        pass
 
 
 def is_revoked(token: str) -> bool:
-    return hashlib.sha256(token.encode()).hexdigest() in _revoked_tokens
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    if token_hash in _revoked_tokens:
+        return True
+    try:
+        from app.core.cache import cache_get
+        if cache_get(f"revoked:{token_hash}"):
+            _revoked_tokens.add(token_hash)
+            return True
+    except Exception:
+        pass
+    return False
 
 
 # ---------------------------------------------------------------------------

@@ -134,3 +134,12 @@ def pytest_collection_modifyitems(config, items):
         path = str(getattr(item, "fspath", "")).lower()
         if any(hint in path for hint in network_hint):
             item.add_marker(pytest.mark.network)
+
+
+@pytest.fixture(autouse=True)
+def _rate_limit_pause(request):
+    """Pause 0.5s between network tests to avoid Finnhub 60 req/min rate limit."""
+    yield
+    if request.node.get_closest_marker("network"):
+        import time
+        time.sleep(0.5)
