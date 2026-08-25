@@ -147,46 +147,77 @@ class PortfolioSummary:
         }
 
 
-# Sector mapping for common tickers (simulated - in production would use API)
-_SECTOR_MAP = {
-    "AAPL": ("Technology", "Consumer Electronics"),
-    "MSFT": ("Technology", "Software"),
-    "GOOGL": ("Technology", "Internet Services"),
-    "AMZN": ("Consumer Discretionary", "E-Commerce"),
-    "META": ("Technology", "Social Media"),
-    "NVDA": ("Technology", "Semiconductors"),
-    "TSLA": ("Consumer Discretionary", "Electric Vehicles"),
-    "AMD": ("Technology", "Semiconductors"),
-    "JPM": ("Financials", "Banks"),
-    "BAC": ("Financials", "Banks"),
-    "WFC": ("Financials", "Banks"),
-    "GS": ("Financials", "Investment Banking"),
-    "MS": ("Financials", "Investment Banking"),
-    "JNJ": ("Healthcare", "Pharmaceuticals"),
-    "PFE": ("Healthcare", "Pharmaceuticals"),
-    "UNH": ("Healthcare", "Insurance"),
-    "XOM": ("Energy", "Oil & Gas"),
-    "CVX": ("Energy", "Oil & Gas"),
-    "PG": ("Consumer Staples", "Household Products"),
-    "KO": ("Consumer Staples", "Beverages"),
-    "PEP": ("Consumer Staples", "Beverages"),
-    "WMT": ("Consumer Staples", "Retail"),
-    "HD": ("Consumer Discretionary", "Home Improvement"),
-    "DIS": ("Communication Services", "Entertainment"),
-    "NFLX": ("Communication Services", "Streaming"),
-    "V": ("Financials", "Payment Processing"),
-    "MA": ("Financials", "Payment Processing"),
-    "INTC": ("Technology", "Semiconductors"),
-    "CRM": ("Technology", "Software"),
-    "ORCL": ("Technology", "Software"),
-    "IBM": ("Technology", "IT Services"),
-    "SPY": ("ETF", "S&P 500 Index"),
-    "QQQ": ("ETF", "Nasdaq 100 Index"),
-    "IWM": ("ETF", "Russell 2000 Index"),
-    "VTI": ("ETF", "Total Stock Market"),
-    "BTC": ("Crypto", "Cryptocurrency"),
-    "ETH": ("Crypto", "Cryptocurrency"),
-}
+# Sector/industry cache with timestamps for TTL (1 hour cache)
+_SECTOR_CACHE: Dict[str, tuple] = {}  # ticker -> (sector, industry, timestamp)
+_SECTOR_CACHE_TTL = 3600  # 1 hour
+
+# Company name cache with timestamps
+_COMPANY_CACHE: Dict[str, tuple] = {}  # ticker -> (name, timestamp)
+_COMPANY_CACHE_TTL = 3600  # 1 hour
+
+
+def _get_ticker_info(ticker: str) -> Dict[str, Any]:
+    """Fetch ticker info from yfinance with error handling."""
+    try:
+        import yfinance as yf
+        return yf.Ticker(ticker).info or {}
+    except Exception as e:
+        logger.warning(f"Failed to fetch info for {ticker}: {e}")
+        return {}
+
+
+def _get_sector_industry(ticker: str) -> tuple:
+    """Get sector and industry from yfinance with 1-hour cache."""
+    now = datetime.now().timestamp()
+
+    # Check cache with TTL
+    if ticker in _SECTOR_CACHE:
+        sector, industry, ts = _SECTOR_CACHE[ticker]
+        if now - ts < _SECTOR_CACHE_TTL:
+            return (sector, industry)
+
+    # Fetch from yfinance
+    info = _get_ticker_info(ticker)
+    sector = info.get("sector")
+    industry = info.get("industry")
+
+    if sector:
+        _SECTOR_CACHE[ticker] = (sector, industry or "Other", now)
+        return (sector, industry or "Other")
+
+    # ETF detection
+    quote_type = info.get("quoteType", "")
+    if quote_type == "ETF":
+        category = info.get("category", "Index")
+        _SECTOR_CACHE[ticker] = ("ETF", category, now)
+        return ("ETF", category)
+
+    # Crypto detection
+    if quote_type == "CRYPTOCURRENCY":
+        _SECTOR_CACHE[ticker] = ("Crypto", "Cryptocurrency", now)
+        return ("Crypto", "Cryptocurrency")
+
+    # Fallback
+    _SECTOR_CACHE[ticker] = ("Other", "Other", now)
+    return ("Other", "Other")
+
+
+def _get_company_name(ticker: str) -> str:
+    """Get company name from yfinance with 1-hour cache."""
+    now = datetime.now().timestamp()
+
+    # Check cache with TTL
+    if ticker in _COMPANY_CACHE:
+        name, ts = _COMPANY_CACHE[ticker]
+        if now - ts < _COMPANY_CACHE_TTL:
+            return name
+
+    # Fetch from yfinance
+    info = _get_ticker_info(ticker)
+    name = info.get("longName") or info.get("shortName") or f"{ticker}"
+
+    _COMPANY_CACHE[ticker] = (name, now)
+    return name
 
 
 class PortfolioService:
@@ -256,22 +287,8 @@ class PortfolioService:
         return {t: self._price_cache[t] for t in tickers if t in self._price_cache}
 
     def _get_sector_info(self, ticker: str) -> tuple:
-        """Get sector and industry for a ticker using yfinance, falling back to static map."""
-        if ticker in _SECTOR_MAP:
-            return _SECTOR_MAP[ticker]
-
-        try:
-            import yfinance as yf
-            info = yf.Ticker(ticker).info
-            sector = info.get("sector")
-            industry = info.get("industry")
-            if sector:
-                _SECTOR_MAP[ticker] = (sector, industry or "Other")
-                return (sector, industry or "Other")
-        except Exception as e:
-            logger.warning(f"Failed to fetch sector info for {ticker}: {e}")
-
-        return ("Other", "Other")
+        """Get sector and industry for a ticker using yfinance with caching."""
+        return _get_sector_industry(ticker)
 
     def calculate_holdings(
         self,
@@ -906,24 +923,13 @@ def calculate_position_pnl(
     ytd_pnl = quantity * (current_price - ytd_start_price)
     ytd_pnl_pct = ((current_price - ytd_start_price) / ytd_start_price * 100) if ytd_start_price else 0
 
-    # Company name (simulated)
-    company_names = {
-        "AAPL": "Apple Inc.",
-        "MSFT": "Microsoft Corporation",
-        "GOOGL": "Alphabet Inc.",
-        "NVDA": "NVIDIA Corporation",
-        "TSLA": "Tesla, Inc.",
-        "AMD": "Advanced Micro Devices",
-        "META": "Meta Platforms, Inc.",
-        "AMZN": "Amazon.com, Inc.",
-        "JPM": "JPMorgan Chase & Co.",
-        "BAC": "Bank of America Corporation",
-    }
+    # Get company name from yfinance
+    company_name = _get_company_name(ticker)
 
     return PositionPnL(
         position_id=position_id,
         ticker=ticker,
-        company_name=company_names.get(ticker, f"{ticker} Corp"),
+        company_name=company_name,
         sector=sector,
         quantity=quantity,
         cost_basis=cost_basis,

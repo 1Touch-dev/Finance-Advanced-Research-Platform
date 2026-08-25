@@ -15,9 +15,10 @@ Endpoints:
 
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel, Field
 
+from app.auth.security import get_current_user
 from app.services import entity_graph_service as graph
 from app.services import paypal_mafia_loader as paypal_loader
 from app.services import graph_ingestion_service as ingestion
@@ -106,7 +107,7 @@ class PathResponse(BaseModel):
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 @router.post("/entity", summary="Add an entity to the graph")
-def add_entity(request: AddEntityRequest) -> Dict[str, Any]:
+def add_entity(request: AddEntityRequest, current_user: dict = Depends(get_current_user)) -> Dict[str, Any]:
     """
     Add an entity to the intelligence graph.
 
@@ -130,7 +131,7 @@ def add_entity(request: AddEntityRequest) -> Dict[str, Any]:
 
 
 @router.post("/edge", summary="Add an edge with evidence")
-def add_edge(request: AddEdgeRequest) -> Dict[str, Any]:
+def add_edge(request: AddEdgeRequest, current_user: dict = Depends(get_current_user)) -> Dict[str, Any]:
     """
     Add an edge (relationship) to the intelligence graph.
 
@@ -335,7 +336,7 @@ def list_confidence_tiers() -> Dict[str, Any]:
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 @router.post("/paypal-mafia/load", summary="Load PayPal Mafia seed data")
-def load_paypal_mafia() -> Dict[str, Any]:
+def load_paypal_mafia(current_user: dict = Depends(get_current_user)) -> Dict[str, Any]:
     """
     Load the PayPal Mafia demonstration dataset into the graph.
 
@@ -444,7 +445,7 @@ class IngestEntityRequest(BaseModel):
 
 
 @router.post("/ingest/entity", summary="Ingest entity from public data sources")
-def ingest_entity(request: IngestEntityRequest) -> Dict[str, Any]:
+def ingest_entity(request: IngestEntityRequest, current_user: dict = Depends(get_current_user)) -> Dict[str, Any]:
     """
     Ingest an entity and its network from multiple public data sources.
 
@@ -469,6 +470,7 @@ def ingest_entity(request: IngestEntityRequest) -> Dict[str, Any]:
 def ingest_sec_company(
     cik: str,
     company_name: Optional[str] = Query(None, description="Company name override"),
+    current_user: dict = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """
     Ingest a single company from SEC EDGAR.
@@ -487,6 +489,7 @@ def ingest_sec_company(
 def ingest_fec_contributions(
     entity_name: str = Query(..., description="Entity name to search"),
     cycle: int = Query(2024, description="Election cycle year"),
+    current_user: dict = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """
     Ingest FEC political contribution data for an entity.
@@ -506,6 +509,7 @@ def ingest_fec_contributions(
 @router.post("/ingest/contracts", summary="Ingest government contract data")
 def ingest_government_contracts(
     entity_name: str = Query(..., description="Entity name to search"),
+    current_user: dict = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """
     Ingest federal government contracts from USASpending.gov.
@@ -522,7 +526,7 @@ def ingest_government_contracts(
 
 
 @router.post("/ingest/demo", summary="Ingest demo companies")
-def ingest_demo_companies() -> Dict[str, Any]:
+def ingest_demo_companies(current_user: dict = Depends(get_current_user)) -> Dict[str, Any]:
     """
     Ingest demonstration companies for testing.
 

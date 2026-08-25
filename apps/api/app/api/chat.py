@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.services.intelligence_service import get_intelligence_report
 from app.core.rate_limit import rate_limiter
+from app.auth.security import get_current_user
 
 try:
     from app.services.rag_chat_service import answer_question, build_entity_summary
@@ -42,7 +43,7 @@ class AskRequest(BaseModel):
 
 
 @router.post("/ask", dependencies=[Depends(rate_limiter("chat_ask", limit=_ASK_LIMIT, window=60))])
-def chat_ask(payload: AskRequest, db: Session = Depends(get_db)):
+def chat_ask(payload: AskRequest, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """
     Ask a natural-language question about an intelligence report.
     - If report_id is provided: answers from that specific report's data.
@@ -69,7 +70,7 @@ def chat_ask(payload: AskRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/summary/{report_id}")
-def chat_summary(report_id: int, db: Session = Depends(get_db)):
+def chat_summary(report_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """
     Generate a 3-sentence executive summary for an entity's intelligence report.
     """

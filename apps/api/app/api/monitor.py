@@ -6,25 +6,26 @@ import csv, io, json, os, requests
 from app.db.session import get_db
 from app.models.base import Base
 from app.models.monitor import Watchlist, WatchlistItem, Portfolio, Position, AlertRule, AlertEvent, DeliveryChannel
+from app.auth.security import get_current_user
 
 router = APIRouter(prefix="/monitor")
 
 @router.post('/bootstrap')
-def bootstrap(db: Session = Depends(get_db)):
+def bootstrap(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     Base.metadata.create_all(bind=db.get_bind())
     return {"ok": True}
 
 # --- Watchlists ---
 @router.post('/watchlists')
-def create_watchlist(name: str, db: Session = Depends(get_db)):
+def create_watchlist(name: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     w = Watchlist(name=name); db.add(w); db.commit(); db.refresh(w); return {"id": w.id}
 
 @router.post('/watchlists/{wid}/items')
-def add_watch_item(wid: int, entity_id: Optional[int] = None, ticker: Optional[str] = None, notes: Optional[str] = None, db: Session = Depends(get_db)):
+def add_watch_item(wid: int, entity_id: Optional[int] = None, ticker: Optional[str] = None, notes: Optional[str] = None, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     i = WatchlistItem(watchlist_id=wid, entity_id=entity_id, ticker=ticker, notes=notes); db.add(i); db.commit(); db.refresh(i); return {"id": i.id}
 
 @router.get('/watchlists/{wid}')
-def get_watchlist(wid: int, db: Session = Depends(get_db)):
+def get_watchlist(wid: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     w = db.query(Watchlist).filter_by(id=wid).first();
     if not w: raise HTTPException(404, 'not found')
     items = db.execute(text("select id,entity_id,ticker,notes from watchlist_items where watchlist_id=:id"), {"id": wid}).fetchall()
@@ -32,15 +33,16 @@ def get_watchlist(wid: int, db: Session = Depends(get_db)):
 
 # --- Portfolios ---
 @router.post('/portfolios')
-def create_portfolio(name: str, base_ccy: str = 'USD', thesis: Optional[str] = None, db: Session = Depends(get_db)):
-    p = Portfolio(name=name, base_ccy=base_ccy, thesis=thesis); db.add(p); db.commit(); db.refresh(p); return {"id": p.id}
+def create_portfolio(name: str, base_ccy: str = 'USD', thesis: Optional[str] = None, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    user_id = str(current_user.get("user_id", current_user.get("sub", "")))
+    p = Portfolio(user_id=user_id, name=name, base_ccy=base_ccy, thesis=thesis); db.add(p); db.commit(); db.refresh(p); return {"id": p.id}
 
 @router.post('/portfolios/{pid}/positions')
-def add_position(pid: int, ticker: str, qty: float, cost_basis: float, entity_id: Optional[int] = None, notes: Optional[str] = None, db: Session = Depends(get_db)):
+def add_position(pid: int, ticker: str, qty: float, cost_basis: float, entity_id: Optional[int] = None, notes: Optional[str] = None, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     pos = Position(portfolio_id=pid, ticker=ticker, qty=qty, cost_basis=cost_basis, entity_id=entity_id, notes=notes); db.add(pos); db.commit(); db.refresh(pos); return {"id": pos.id}
 
 @router.post('/portfolios/{pid}/import_csv')
-def import_csv(pid: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+def import_csv(pid: int, file: UploadFile = File(...), db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     content = file.file.read().decode('utf-8'); reader = csv.DictReader(io.StringIO(content))
     count=0
     for row in reader:
@@ -57,16 +59,16 @@ def exposure(pid: int, db: Session = Depends(get_db)):
 
 # --- Alerts ---
 @router.post('/rules')
-def create_rule(name: str, kind: str, params: Optional[dict] = None, watchlist_id: Optional[int] = None, portfolio_id: Optional[int] = None, db: Session = Depends(get_db)):
+def create_rule(name: str, kind: str, params: Optional[dict] = None, watchlist_id: Optional[int] = None, portfolio_id: Optional[int] = None, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     r = AlertRule(name=name, kind=kind, params=params or {}, watchlist_id=watchlist_id, portfolio_id=portfolio_id)
     db.add(r); db.commit(); db.refresh(r); return {"id": r.id}
 
 @router.post('/rules/{rid}/channels')
-def add_channel(rid: int, kind: str, target: Optional[str] = None, meta: Optional[dict] = None, db: Session = Depends(get_db)):
+def add_channel(rid: int, kind: str, target: Optional[str] = None, meta: Optional[dict] = None, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     db.add(DeliveryChannel(rule_id=rid, kind=kind, target=target, meta=meta or {})); db.commit(); return {"ok": True}
 
 @router.post('/scan')
-def run_scan(db: Session = Depends(get_db)):
+def run_scan(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """Scan for real connector deltas against watchlist entities."""
     rules = db.query(AlertRule).filter_by(enabled=True).all()
     created = []
@@ -146,7 +148,7 @@ def list_events(delivered: Optional[bool] = None, limit: int = 50, db: Session =
     return [{"id": e.id, "rule_id": e.rule_id, "kind": e.kind, "ticker": e.ticker, "payload": e.payload, "delivered": e.delivered} for e in events]
 
 @router.post('/deliver')
-def deliver(db: Session = Depends(get_db)):
+def deliver(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     events = db.query(AlertEvent).filter_by(delivered=False).all()
     delivered = []
     for ev in events:

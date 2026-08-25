@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.auth.security import get_current_user
 from app.connectors.financial_news_connector import (
     finnhub_quote, finnhub_company_profile, finnhub_financials,
     finnhub_insider_transactions, fmp_income_statement, fmp_balance_sheet,
@@ -428,7 +429,7 @@ def get_rss_digest(hours: int = 24):
 
 
 @router.post("/rss/poll")
-def trigger_rss_poll():
+def trigger_rss_poll(current_user: dict = Depends(get_current_user)):
     """Manually trigger one RSS poll cycle (all 50 sources). Returns stats."""
     from app.connectors.rss_worker import run_poll_cycle
     stats = run_poll_cycle()

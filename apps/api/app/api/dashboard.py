@@ -370,6 +370,7 @@ def share_watchlist(
     shared_with: str = Query(..., description="User to share with"),
     permission: str = Query("view", description="Permission level: view or edit"),
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Share a watchlist with another user.
@@ -421,6 +422,7 @@ def revoke_share(
     watchlist_id: int,
     share_id: int,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Revoke a watchlist share.

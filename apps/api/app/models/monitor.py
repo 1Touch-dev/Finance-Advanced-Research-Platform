@@ -39,6 +39,7 @@ class InvestmentAlertSeen(Base):
 class Portfolio(Base):
     __tablename__ = 'portfolios'
     id = Column(Integer, primary_key=True)
+    user_id = Column(String, nullable=True, index=True)  # Owner of the portfolio
     name = Column(String, nullable=False)
     base_ccy = Column(String, nullable=True, default='USD')
     thesis = Column(Text, nullable=True)

@@ -8,6 +8,7 @@ from typing import Optional, List, Dict
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from app.db.session import get_db
+from app.auth.security import get_current_user
 import uuid
 
 router = APIRouter(prefix="/freshness", tags=["freshness"])
@@ -124,7 +125,7 @@ def get_freshness_status():
 
 
 @router.post("/register")
-def register_page(url: str, page_type: str, last_generated: Optional[str] = None):
+def register_page(url: str, page_type: str, last_generated: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     """Register a page for freshness tracking."""
     now = datetime.utcnow().isoformat()
 
@@ -184,7 +185,7 @@ def list_stale_pages(limit: int = 50):
 
 
 @router.post("/refresh")
-def queue_refresh(url: str, background_tasks: BackgroundTasks):
+def queue_refresh(url: str, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
     """Queue a page for refresh."""
     page = _page_freshness.get(url)
     if not page:
@@ -217,7 +218,7 @@ def queue_refresh(url: str, background_tasks: BackgroundTasks):
 
 
 @router.post("/refresh-stale")
-def refresh_all_stale(background_tasks: BackgroundTasks, max_jobs: int = 10):
+def refresh_all_stale(background_tasks: BackgroundTasks, max_jobs: int = 10, current_user: dict = Depends(get_current_user)):
     """Queue all stale pages for refresh."""
     stale_result = list_stale_pages(limit=max_jobs)
     queued = []
@@ -292,7 +293,7 @@ def get_freshness_config():
 
 
 @router.put("/config/{page_type}")
-def update_freshness_config(page_type: str, max_age_hours: int, priority: int = 5):
+def update_freshness_config(page_type: str, max_age_hours: int, priority: int = 5, current_user: dict = Depends(get_current_user)):
     """Update freshness rules for a page type."""
     FRESHNESS_RULES[page_type] = {
         "max_age_hours": max_age_hours,

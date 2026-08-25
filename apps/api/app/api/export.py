@@ -5,6 +5,7 @@ Band A Priority #13: Export, API, and MCP access to user data
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from app.auth.security import get_current_user
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from sqlalchemy.orm import Session
@@ -160,7 +161,7 @@ def list_available_data():
 
 
 @router.post("/request")
-def request_export(request: ExportRequest):
+def request_export(request: ExportRequest, current_user: dict = Depends(get_current_user)):
     """Request a data export."""
     job_id = f"export-{uuid.uuid4().hex[:8]}"
     now = datetime.utcnow()
@@ -296,7 +297,7 @@ def download_export(job_id: str):
 
 
 @router.delete("/jobs/{job_id}")
-def delete_export_job(job_id: str):
+def delete_export_job(job_id: str, current_user: dict = Depends(get_current_user)):
     """Delete an export job and its data."""
     if job_id not in _export_jobs:
         raise HTTPException(404, "Export job not found")

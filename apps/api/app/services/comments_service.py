@@ -7,12 +7,26 @@ Provides:
   - Reactions (like, insightful, etc.)
   - Annotations (text highlights with notes)
   - Visibility controls (private, team, public)
+
+Tables used (created here if missing):
+  - comments           : { id, user_id, user_name, entity_type, entity_id, content, parent_id, visibility, is_edited, is_deleted, created_at, updated_at }
+  - comment_reactions   : { id, comment_id, user_id, reaction_type, created_at }
+  - annotations         : { id, user_id, document_type, document_id, start_offset, end_offset, selected_text, note, color, tags, visibility, created_at, updated_at }
 """
 
+import json
+import logging
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 from enum import Enum
-from datetime import datetime, date
+from datetime import datetime
+
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from app.db.session import get_db_context
+
+logger = logging.getLogger(__name__)
 
 
 # ── Enums ──────────────────────────────────────────────────────────────────────
@@ -197,15 +211,121 @@ class CommentStats:
         }
 
 
-# ── In-Memory Storage (for development/testing) ──────────────────────────────
+# ── DB helpers ─────────────────────────────────────────────────────────────────
 
 
-_comments_store: Dict[int, Dict[str, Any]] = {}
-_reactions_store: Dict[int, Dict[str, Any]] = {}
-_annotations_store: Dict[int, Dict[str, Any]] = {}
-_next_comment_id = 1
-_next_reaction_id = 1
-_next_annotation_id = 1
+def _ensure_tables(db: Session):
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS comments (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     VARCHAR(200) NOT NULL,
+            user_name   VARCHAR(200),
+            entity_type VARCHAR(50) NOT NULL,
+            entity_id   VARCHAR(500) NOT NULL,
+            content     TEXT NOT NULL,
+            parent_id   INTEGER,
+            visibility  VARCHAR(20) NOT NULL DEFAULT 'private',
+            is_edited   BOOLEAN NOT NULL DEFAULT 0,
+            is_deleted  BOOLEAN NOT NULL DEFAULT 0,
+            created_at  DATETIME NOT NULL DEFAULT (datetime('now')),
+            updated_at  DATETIME
+        )
+    """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS comment_reactions (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            comment_id    INTEGER NOT NULL,
+            user_id       VARCHAR(200) NOT NULL,
+            reaction_type VARCHAR(50) NOT NULL,
+            created_at    DATETIME NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(comment_id, user_id)
+        )
+    """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS annotations (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id       VARCHAR(200) NOT NULL,
+            document_type VARCHAR(50) NOT NULL,
+            document_id   VARCHAR(500) NOT NULL,
+            start_offset  INTEGER NOT NULL,
+            end_offset    INTEGER NOT NULL,
+            selected_text TEXT,
+            note          TEXT,
+            color         VARCHAR(20) NOT NULL DEFAULT 'yellow',
+            tags          TEXT DEFAULT '[]',
+            visibility    VARCHAR(20) NOT NULL DEFAULT 'private',
+            created_at    DATETIME NOT NULL DEFAULT (datetime('now')),
+            updated_at    DATETIME
+        )
+    """))
+    db.commit()
+
+
+def _parse_datetime(val) -> Optional[datetime]:
+    if val is None:
+        return None
+    if isinstance(val, datetime):
+        return val
+    return datetime.fromisoformat(str(val))
+
+
+def _row_to_comment_data(row, db: Session) -> CommentData:
+    """Convert a DB row (from comments table) to CommentData with reply_count and reactions."""
+    comment_id = row.id
+
+    reply_count_row = db.execute(text(
+        "SELECT COUNT(*) as cnt FROM comments WHERE parent_id = :pid AND is_deleted = 0"
+    ), {"pid": comment_id}).fetchone()
+    reply_count = reply_count_row.cnt if reply_count_row else 0
+
+    reaction_rows = db.execute(text(
+        "SELECT reaction_type, COUNT(*) as cnt FROM comment_reactions WHERE comment_id = :cid GROUP BY reaction_type"
+    ), {"cid": comment_id}).fetchall()
+    reactions = {r.reaction_type: r.cnt for r in reaction_rows}
+
+    return CommentData(
+        comment_id=comment_id,
+        user_id=row.user_id,
+        user_name=row.user_name,
+        entity_type=EntityType(row.entity_type),
+        entity_id=row.entity_id,
+        content=row.content,
+        parent_id=row.parent_id,
+        visibility=Visibility(row.visibility),
+        is_edited=bool(row.is_edited),
+        reply_count=reply_count,
+        reactions=reactions,
+        created_at=_parse_datetime(row.created_at),
+        updated_at=_parse_datetime(row.updated_at),
+    )
+
+
+def _row_to_annotation_data(row) -> AnnotationData:
+    """Convert a DB row (from annotations table) to AnnotationData."""
+    tags_raw = row.tags
+    if isinstance(tags_raw, str):
+        try:
+            tags = json.loads(tags_raw)
+        except (json.JSONDecodeError, TypeError):
+            tags = []
+    else:
+        tags = tags_raw or []
+
+    return AnnotationData(
+        annotation_id=row.id,
+        user_id=row.user_id,
+        document_type=DocumentType(row.document_type),
+        document_id=row.document_id,
+        start_offset=row.start_offset,
+        end_offset=row.end_offset,
+        selected_text=row.selected_text,
+        note=row.note,
+        color=AnnotationColor(row.color),
+        tags=tags,
+        visibility=Visibility(row.visibility),
+        created_at=_parse_datetime(row.created_at),
+        updated_at=_parse_datetime(row.updated_at),
+    )
 
 
 # ── Service Functions ──────────────────────────────────────────────────────────
@@ -235,80 +355,55 @@ def create_comment(
     Returns:
         Created comment data
     """
-    global _next_comment_id
+    with get_db_context() as db:
+        _ensure_tables(db)
+        now = datetime.now()
 
-    now = datetime.now()
-    comment_id = _next_comment_id
-    _next_comment_id += 1
+        result = db.execute(text("""
+            INSERT INTO comments (user_id, user_name, entity_type, entity_id, content, parent_id, visibility, is_edited, is_deleted, created_at)
+            VALUES (:user_id, :user_name, :entity_type, :entity_id, :content, :parent_id, :visibility, 0, 0, :created_at)
+        """), {
+            "user_id": user_id,
+            "user_name": user_name,
+            "entity_type": entity_type.value,
+            "entity_id": entity_id,
+            "content": content,
+            "parent_id": parent_id,
+            "visibility": visibility.value,
+            "created_at": now.isoformat(),
+        })
+        db.commit()
+        comment_id = result.lastrowid
 
-    comment = {
-        "comment_id": comment_id,
-        "user_id": user_id,
-        "user_name": user_name,
-        "entity_type": entity_type,
-        "entity_id": entity_id,
-        "content": content,
-        "parent_id": parent_id,
-        "visibility": visibility,
-        "is_edited": False,
-        "is_deleted": False,
-        "created_at": now,
-        "updated_at": None,
-    }
-
-    _comments_store[comment_id] = comment
-
-    return CommentData(
-        comment_id=comment_id,
-        user_id=user_id,
-        user_name=user_name,
-        entity_type=entity_type,
-        entity_id=entity_id,
-        content=content,
-        parent_id=parent_id,
-        visibility=visibility,
-        is_edited=False,
-        reply_count=0,
-        reactions={},
-        created_at=now,
-        updated_at=None,
-    )
+        return CommentData(
+            comment_id=comment_id,
+            user_id=user_id,
+            user_name=user_name,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            content=content,
+            parent_id=parent_id,
+            visibility=visibility,
+            is_edited=False,
+            reply_count=0,
+            reactions={},
+            created_at=now,
+            updated_at=None,
+        )
 
 
 def get_comment(comment_id: int) -> Optional[CommentData]:
     """Get a single comment by ID."""
-    comment = _comments_store.get(comment_id)
-    if not comment or comment.get("is_deleted"):
-        return None
+    with get_db_context() as db:
+        _ensure_tables(db)
+        row = db.execute(text(
+            "SELECT * FROM comments WHERE id = :id AND is_deleted = 0"
+        ), {"id": comment_id}).fetchone()
 
-    # Count replies
-    reply_count = sum(
-        1 for c in _comments_store.values()
-        if c.get("parent_id") == comment_id and not c.get("is_deleted")
-    )
+        if not row:
+            return None
 
-    # Count reactions
-    reactions: Dict[str, int] = {}
-    for r in _reactions_store.values():
-        if r.get("comment_id") == comment_id:
-            rt = r["reaction_type"].value
-            reactions[rt] = reactions.get(rt, 0) + 1
-
-    return CommentData(
-        comment_id=comment["comment_id"],
-        user_id=comment["user_id"],
-        user_name=comment["user_name"],
-        entity_type=comment["entity_type"],
-        entity_id=comment["entity_id"],
-        content=comment["content"],
-        parent_id=comment["parent_id"],
-        visibility=comment["visibility"],
-        is_edited=comment["is_edited"],
-        reply_count=reply_count,
-        reactions=reactions,
-        created_at=comment["created_at"],
-        updated_at=comment["updated_at"],
-    )
+        return _row_to_comment_data(row, db)
 
 
 def update_comment(
@@ -321,18 +416,26 @@ def update_comment(
 
     Only the original author can update their comment.
     """
-    comment = _comments_store.get(comment_id)
-    if not comment or comment.get("is_deleted"):
-        return None
+    with get_db_context() as db:
+        _ensure_tables(db)
+        row = db.execute(text(
+            "SELECT * FROM comments WHERE id = :id AND is_deleted = 0"
+        ), {"id": comment_id}).fetchone()
 
-    if comment["user_id"] != user_id:
-        raise ValueError("Only the author can edit this comment")
+        if not row:
+            return None
 
-    comment["content"] = content
-    comment["is_edited"] = True
-    comment["updated_at"] = datetime.now()
+        if row.user_id != user_id:
+            raise ValueError("Only the author can edit this comment")
 
-    return get_comment(comment_id)
+        now = datetime.now()
+        db.execute(text("""
+            UPDATE comments SET content = :content, is_edited = 1, updated_at = :updated_at
+            WHERE id = :id
+        """), {"content": content, "updated_at": now.isoformat(), "id": comment_id})
+        db.commit()
+
+        return get_comment(comment_id)
 
 
 def delete_comment(comment_id: int, user_id: str) -> bool:
@@ -341,16 +444,24 @@ def delete_comment(comment_id: int, user_id: str) -> bool:
 
     Only the original author can delete their comment.
     """
-    comment = _comments_store.get(comment_id)
-    if not comment or comment.get("is_deleted"):
-        return False
+    with get_db_context() as db:
+        _ensure_tables(db)
+        row = db.execute(text(
+            "SELECT * FROM comments WHERE id = :id AND is_deleted = 0"
+        ), {"id": comment_id}).fetchone()
 
-    if comment["user_id"] != user_id:
-        raise ValueError("Only the author can delete this comment")
+        if not row:
+            return False
 
-    comment["is_deleted"] = True
-    comment["updated_at"] = datetime.now()
-    return True
+        if row.user_id != user_id:
+            raise ValueError("Only the author can delete this comment")
+
+        now = datetime.now()
+        db.execute(text(
+            "UPDATE comments SET is_deleted = 1, updated_at = :updated_at WHERE id = :id"
+        ), {"updated_at": now.isoformat(), "id": comment_id})
+        db.commit()
+        return True
 
 
 def get_comments_for_entity(
@@ -375,44 +486,42 @@ def get_comments_for_entity(
     Returns:
         List of comment threads
     """
-    # Filter comments for this entity
-    entity_comments = [
-        c for c in _comments_store.values()
-        if c["entity_type"] == entity_type
-        and c["entity_id"] == entity_id
-        and not c.get("is_deleted")
-        and c.get("parent_id") is None  # Top-level only
-    ]
+    with get_db_context() as db:
+        _ensure_tables(db)
 
-    # Sort by created_at descending
-    entity_comments.sort(key=lambda x: x["created_at"], reverse=True)
+        top_level_rows = db.execute(text("""
+            SELECT * FROM comments
+            WHERE entity_type = :entity_type
+              AND entity_id = :entity_id
+              AND is_deleted = 0
+              AND parent_id IS NULL
+            ORDER BY created_at DESC
+            LIMIT :limit OFFSET :offset
+        """), {
+            "entity_type": entity_type.value,
+            "entity_id": entity_id,
+            "limit": limit,
+            "offset": offset,
+        }).fetchall()
 
-    # Apply pagination
-    paginated = entity_comments[offset:offset + limit]
+        threads = []
+        for row in top_level_rows:
+            comment_data = _row_to_comment_data(row, db)
 
-    threads = []
-    for comment in paginated:
-        comment_data = get_comment(comment["comment_id"])
-        if not comment_data:
-            continue
+            replies = []
+            if include_replies:
+                reply_rows = db.execute(text("""
+                    SELECT * FROM comments
+                    WHERE parent_id = :parent_id AND is_deleted = 0
+                    ORDER BY created_at ASC
+                """), {"parent_id": row.id}).fetchall()
 
-        replies = []
-        if include_replies:
-            # Get replies
-            reply_comments = [
-                c for c in _comments_store.values()
-                if c.get("parent_id") == comment["comment_id"]
-                and not c.get("is_deleted")
-            ]
-            reply_comments.sort(key=lambda x: x["created_at"])
-            for rc in reply_comments:
-                reply_data = get_comment(rc["comment_id"])
-                if reply_data:
-                    replies.append(reply_data)
+                for rr in reply_rows:
+                    replies.append(_row_to_comment_data(rr, db))
 
-        threads.append(CommentThread(comment=comment_data, replies=replies))
+            threads.append(CommentThread(comment=comment_data, replies=replies))
 
-    return threads
+        return threads
 
 
 def add_reaction(
@@ -425,54 +534,62 @@ def add_reaction(
 
     If user already has a reaction, it's updated.
     """
-    global _next_reaction_id
+    with get_db_context() as db:
+        _ensure_tables(db)
 
-    comment = _comments_store.get(comment_id)
-    if not comment or comment.get("is_deleted"):
-        raise ValueError("Comment not found")
+        row = db.execute(text(
+            "SELECT id FROM comments WHERE id = :id AND is_deleted = 0"
+        ), {"id": comment_id}).fetchone()
+        if not row:
+            raise ValueError("Comment not found")
 
-    # Check for existing reaction
-    for reaction_id, r in _reactions_store.items():
-        if r["comment_id"] == comment_id and r["user_id"] == user_id:
-            # Update existing reaction
-            r["reaction_type"] = reaction_type
+        existing = db.execute(text(
+            "SELECT * FROM comment_reactions WHERE comment_id = :cid AND user_id = :uid"
+        ), {"cid": comment_id, "uid": user_id}).fetchone()
+
+        if existing:
+            db.execute(text(
+                "UPDATE comment_reactions SET reaction_type = :rt WHERE id = :id"
+            ), {"rt": reaction_type.value, "id": existing.id})
+            db.commit()
             return UserReaction(
-                reaction_id=reaction_id,
+                reaction_id=existing.id,
                 comment_id=comment_id,
                 user_id=user_id,
                 reaction_type=reaction_type,
-                created_at=r["created_at"],
+                created_at=_parse_datetime(existing.created_at),
             )
 
-    # Create new reaction
-    reaction_id = _next_reaction_id
-    _next_reaction_id += 1
-    now = datetime.now()
+        now = datetime.now()
+        result = db.execute(text("""
+            INSERT INTO comment_reactions (comment_id, user_id, reaction_type, created_at)
+            VALUES (:cid, :uid, :rt, :created_at)
+        """), {
+            "cid": comment_id,
+            "uid": user_id,
+            "rt": reaction_type.value,
+            "created_at": now.isoformat(),
+        })
+        db.commit()
 
-    _reactions_store[reaction_id] = {
-        "reaction_id": reaction_id,
-        "comment_id": comment_id,
-        "user_id": user_id,
-        "reaction_type": reaction_type,
-        "created_at": now,
-    }
-
-    return UserReaction(
-        reaction_id=reaction_id,
-        comment_id=comment_id,
-        user_id=user_id,
-        reaction_type=reaction_type,
-        created_at=now,
-    )
+        return UserReaction(
+            reaction_id=result.lastrowid,
+            comment_id=comment_id,
+            user_id=user_id,
+            reaction_type=reaction_type,
+            created_at=now,
+        )
 
 
 def remove_reaction(comment_id: int, user_id: str) -> bool:
     """Remove user's reaction from a comment."""
-    for reaction_id, r in list(_reactions_store.items()):
-        if r["comment_id"] == comment_id and r["user_id"] == user_id:
-            del _reactions_store[reaction_id]
-            return True
-    return False
+    with get_db_context() as db:
+        _ensure_tables(db)
+        result = db.execute(text(
+            "DELETE FROM comment_reactions WHERE comment_id = :cid AND user_id = :uid"
+        ), {"cid": comment_id, "uid": user_id})
+        db.commit()
+        return result.rowcount > 0
 
 
 def get_comment_stats(
@@ -480,49 +597,49 @@ def get_comment_stats(
     entity_id: str,
 ) -> CommentStats:
     """Get statistics for comments on an entity."""
-    # Filter comments for this entity
-    entity_comments = [
-        c for c in _comments_store.values()
-        if c["entity_type"] == entity_type
-        and c["entity_id"] == entity_id
-        and not c.get("is_deleted")
-    ]
+    with get_db_context() as db:
+        _ensure_tables(db)
 
-    # Count reactions
-    comment_ids = {c["comment_id"] for c in entity_comments}
-    reaction_breakdown: Dict[str, int] = {}
-    total_reactions = 0
-    for r in _reactions_store.values():
-        if r["comment_id"] in comment_ids:
-            rt = r["reaction_type"].value
-            reaction_breakdown[rt] = reaction_breakdown.get(rt, 0) + 1
-            total_reactions += 1
+        total_row = db.execute(text("""
+            SELECT COUNT(*) as cnt FROM comments
+            WHERE entity_type = :et AND entity_id = :eid AND is_deleted = 0
+        """), {"et": entity_type.value, "eid": entity_id}).fetchone()
+        total_comments = total_row.cnt if total_row else 0
 
-    # Top commenters
-    commenter_counts: Dict[str, int] = {}
-    for c in entity_comments:
-        uid = c["user_id"]
-        commenter_counts[uid] = commenter_counts.get(uid, 0) + 1
+        reaction_rows = db.execute(text("""
+            SELECT cr.reaction_type, COUNT(*) as cnt
+            FROM comment_reactions cr
+            JOIN comments c ON cr.comment_id = c.id
+            WHERE c.entity_type = :et AND c.entity_id = :eid AND c.is_deleted = 0
+            GROUP BY cr.reaction_type
+        """), {"et": entity_type.value, "eid": entity_id}).fetchall()
 
-    top_commenters = [
-        {"user_id": uid, "count": count}
-        for uid, count in sorted(commenter_counts.items(), key=lambda x: -x[1])[:5]
-    ]
+        reaction_breakdown = {r.reaction_type: r.cnt for r in reaction_rows}
+        total_reactions = sum(reaction_breakdown.values())
 
-    # Recent activity
-    recent = sorted(entity_comments, key=lambda x: x["created_at"], reverse=True)[:5]
-    recent_activity = [get_comment(c["comment_id"]) for c in recent]
-    recent_activity = [c for c in recent_activity if c is not None]
+        top_rows = db.execute(text("""
+            SELECT user_id, COUNT(*) as cnt FROM comments
+            WHERE entity_type = :et AND entity_id = :eid AND is_deleted = 0
+            GROUP BY user_id ORDER BY cnt DESC LIMIT 5
+        """), {"et": entity_type.value, "eid": entity_id}).fetchall()
+        top_commenters = [{"user_id": r.user_id, "count": r.cnt} for r in top_rows]
 
-    return CommentStats(
-        entity_type=entity_type,
-        entity_id=entity_id,
-        total_comments=len(entity_comments),
-        total_reactions=total_reactions,
-        top_commenters=top_commenters,
-        reaction_breakdown=reaction_breakdown,
-        recent_activity=recent_activity,
-    )
+        recent_rows = db.execute(text("""
+            SELECT * FROM comments
+            WHERE entity_type = :et AND entity_id = :eid AND is_deleted = 0
+            ORDER BY created_at DESC LIMIT 5
+        """), {"et": entity_type.value, "eid": entity_id}).fetchall()
+        recent_activity = [_row_to_comment_data(r, db) for r in recent_rows]
+
+        return CommentStats(
+            entity_type=entity_type,
+            entity_id=entity_id,
+            total_comments=total_comments,
+            total_reactions=total_reactions,
+            top_commenters=top_commenters,
+            reaction_breakdown=reaction_breakdown,
+            recent_activity=recent_activity,
+        )
 
 
 # ── Annotation Functions ───────────────────────────────────────────────────────
@@ -558,68 +675,58 @@ def create_annotation(
     Returns:
         Created annotation data
     """
-    global _next_annotation_id
+    with get_db_context() as db:
+        _ensure_tables(db)
+        now = datetime.now()
+        tags_list = tags or []
 
-    now = datetime.now()
-    annotation_id = _next_annotation_id
-    _next_annotation_id += 1
+        result = db.execute(text("""
+            INSERT INTO annotations (user_id, document_type, document_id, start_offset, end_offset, selected_text, note, color, tags, visibility, created_at)
+            VALUES (:user_id, :document_type, :document_id, :start_offset, :end_offset, :selected_text, :note, :color, :tags, :visibility, :created_at)
+        """), {
+            "user_id": user_id,
+            "document_type": document_type.value,
+            "document_id": document_id,
+            "start_offset": start_offset,
+            "end_offset": end_offset,
+            "selected_text": selected_text,
+            "note": note,
+            "color": color.value,
+            "tags": json.dumps(tags_list),
+            "visibility": visibility.value,
+            "created_at": now.isoformat(),
+        })
+        db.commit()
 
-    annotation = {
-        "annotation_id": annotation_id,
-        "user_id": user_id,
-        "document_type": document_type,
-        "document_id": document_id,
-        "start_offset": start_offset,
-        "end_offset": end_offset,
-        "selected_text": selected_text,
-        "note": note,
-        "color": color,
-        "tags": tags or [],
-        "visibility": visibility,
-        "created_at": now,
-        "updated_at": None,
-    }
-
-    _annotations_store[annotation_id] = annotation
-
-    return AnnotationData(
-        annotation_id=annotation_id,
-        user_id=user_id,
-        document_type=document_type,
-        document_id=document_id,
-        start_offset=start_offset,
-        end_offset=end_offset,
-        selected_text=selected_text,
-        note=note,
-        color=color,
-        tags=tags or [],
-        visibility=visibility,
-        created_at=now,
-        updated_at=None,
-    )
+        return AnnotationData(
+            annotation_id=result.lastrowid,
+            user_id=user_id,
+            document_type=document_type,
+            document_id=document_id,
+            start_offset=start_offset,
+            end_offset=end_offset,
+            selected_text=selected_text,
+            note=note,
+            color=color,
+            tags=tags_list,
+            visibility=visibility,
+            created_at=now,
+            updated_at=None,
+        )
 
 
 def get_annotation(annotation_id: int) -> Optional[AnnotationData]:
     """Get a single annotation by ID."""
-    annotation = _annotations_store.get(annotation_id)
-    if not annotation:
-        return None
+    with get_db_context() as db:
+        _ensure_tables(db)
+        row = db.execute(text(
+            "SELECT * FROM annotations WHERE id = :id"
+        ), {"id": annotation_id}).fetchone()
 
-    return AnnotationData(
-        annotation_id=annotation["annotation_id"],
-        user_id=annotation["user_id"],
-        document_type=annotation["document_type"],
-        document_id=annotation["document_id"],
-        start_offset=annotation["start_offset"],
-        end_offset=annotation["end_offset"],
-        selected_text=annotation["selected_text"],
-        note=annotation["note"],
-        color=annotation["color"],
-        tags=annotation["tags"],
-        visibility=annotation["visibility"],
-        created_at=annotation["created_at"],
-        updated_at=annotation["updated_at"],
-    )
+        if not row:
+            return None
+
+        return _row_to_annotation_data(row)
 
 
 def update_annotation(
@@ -634,23 +741,41 @@ def update_annotation(
 
     Only the original author can update their annotation.
     """
-    annotation = _annotations_store.get(annotation_id)
-    if not annotation:
-        return None
+    with get_db_context() as db:
+        _ensure_tables(db)
+        row = db.execute(text(
+            "SELECT * FROM annotations WHERE id = :id"
+        ), {"id": annotation_id}).fetchone()
 
-    if annotation["user_id"] != user_id:
-        raise ValueError("Only the author can edit this annotation")
+        if not row:
+            return None
 
-    if note is not None:
-        annotation["note"] = note
-    if color is not None:
-        annotation["color"] = color
-    if tags is not None:
-        annotation["tags"] = tags
+        if row.user_id != user_id:
+            raise ValueError("Only the author can edit this annotation")
 
-    annotation["updated_at"] = datetime.now()
+        updates = []
+        params: Dict[str, Any] = {"id": annotation_id}
 
-    return get_annotation(annotation_id)
+        if note is not None:
+            updates.append("note = :note")
+            params["note"] = note
+        if color is not None:
+            updates.append("color = :color")
+            params["color"] = color.value
+        if tags is not None:
+            updates.append("tags = :tags")
+            params["tags"] = json.dumps(tags)
+
+        if updates:
+            now = datetime.now()
+            updates.append("updated_at = :updated_at")
+            params["updated_at"] = now.isoformat()
+            db.execute(text(
+                f"UPDATE annotations SET {', '.join(updates)} WHERE id = :id"
+            ), params)
+            db.commit()
+
+        return get_annotation(annotation_id)
 
 
 def delete_annotation(annotation_id: int, user_id: str) -> bool:
@@ -659,15 +784,21 @@ def delete_annotation(annotation_id: int, user_id: str) -> bool:
 
     Only the original author can delete their annotation.
     """
-    annotation = _annotations_store.get(annotation_id)
-    if not annotation:
-        return False
+    with get_db_context() as db:
+        _ensure_tables(db)
+        row = db.execute(text(
+            "SELECT * FROM annotations WHERE id = :id"
+        ), {"id": annotation_id}).fetchone()
 
-    if annotation["user_id"] != user_id:
-        raise ValueError("Only the author can delete this annotation")
+        if not row:
+            return False
 
-    del _annotations_store[annotation_id]
-    return True
+        if row.user_id != user_id:
+            raise ValueError("Only the author can delete this annotation")
+
+        db.execute(text("DELETE FROM annotations WHERE id = :id"), {"id": annotation_id})
+        db.commit()
+        return True
 
 
 def get_annotations_for_document(
@@ -686,40 +817,24 @@ def get_annotations_for_document(
     Returns:
         List of annotations sorted by position
     """
-    annotations = [
-        a for a in _annotations_store.values()
-        if a["document_type"] == document_type
-        and a["document_id"] == document_id
-    ]
+    with get_db_context() as db:
+        _ensure_tables(db)
 
-    # Filter by visibility if user_id provided
-    if user_id:
-        annotations = [
-            a for a in annotations
-            if a["user_id"] == user_id or a["visibility"] == Visibility.PUBLIC
-        ]
+        if user_id:
+            rows = db.execute(text("""
+                SELECT * FROM annotations
+                WHERE document_type = :dt AND document_id = :did
+                  AND (user_id = :uid OR visibility = 'public')
+                ORDER BY start_offset ASC
+            """), {"dt": document_type.value, "did": document_id, "uid": user_id}).fetchall()
+        else:
+            rows = db.execute(text("""
+                SELECT * FROM annotations
+                WHERE document_type = :dt AND document_id = :did
+                ORDER BY start_offset ASC
+            """), {"dt": document_type.value, "did": document_id}).fetchall()
 
-    # Sort by position
-    annotations.sort(key=lambda x: x["start_offset"])
-
-    return [
-        AnnotationData(
-            annotation_id=a["annotation_id"],
-            user_id=a["user_id"],
-            document_type=a["document_type"],
-            document_id=a["document_id"],
-            start_offset=a["start_offset"],
-            end_offset=a["end_offset"],
-            selected_text=a["selected_text"],
-            note=a["note"],
-            color=a["color"],
-            tags=a["tags"],
-            visibility=a["visibility"],
-            created_at=a["created_at"],
-            updated_at=a["updated_at"],
-        )
-        for a in annotations
-    ]
+        return [_row_to_annotation_data(r) for r in rows]
 
 
 def get_user_annotations(
@@ -728,33 +843,20 @@ def get_user_annotations(
     limit: int = 50,
 ) -> List[AnnotationData]:
     """Get all annotations by a user."""
-    annotations = [
-        a for a in _annotations_store.values()
-        if a["user_id"] == user_id
-    ]
+    with get_db_context() as db:
+        _ensure_tables(db)
 
-    if document_type:
-        annotations = [a for a in annotations if a["document_type"] == document_type]
+        if document_type:
+            rows = db.execute(text("""
+                SELECT * FROM annotations
+                WHERE user_id = :uid AND document_type = :dt
+                ORDER BY created_at DESC LIMIT :limit
+            """), {"uid": user_id, "dt": document_type.value, "limit": limit}).fetchall()
+        else:
+            rows = db.execute(text("""
+                SELECT * FROM annotations
+                WHERE user_id = :uid
+                ORDER BY created_at DESC LIMIT :limit
+            """), {"uid": user_id, "limit": limit}).fetchall()
 
-    # Sort by created_at descending
-    annotations.sort(key=lambda x: x["created_at"], reverse=True)
-    annotations = annotations[:limit]
-
-    return [
-        AnnotationData(
-            annotation_id=a["annotation_id"],
-            user_id=a["user_id"],
-            document_type=a["document_type"],
-            document_id=a["document_id"],
-            start_offset=a["start_offset"],
-            end_offset=a["end_offset"],
-            selected_text=a["selected_text"],
-            note=a["note"],
-            color=a["color"],
-            tags=a["tags"],
-            visibility=a["visibility"],
-            created_at=a["created_at"],
-            updated_at=a["updated_at"],
-        )
-        for a in annotations
-    ]
+        return [_row_to_annotation_data(r) for r in rows]

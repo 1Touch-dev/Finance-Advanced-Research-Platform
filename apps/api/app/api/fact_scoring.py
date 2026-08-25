@@ -2,10 +2,11 @@
 Fact Scoring API — Source Reliability & Credibility Endpoints
 """
 
-from fastapi import APIRouter, Query, Body
+from fastapi import APIRouter, Query, Body, Depends
 from typing import List, Optional
 from pydantic import BaseModel
 
+from app.auth.security import get_current_user
 from app.services.fact_scoring_service import (
     get_source_reliability,
     score_fact,
@@ -52,7 +53,7 @@ def get_source_info(source: str):
 
 
 @router.post("/score-fact")
-def score_single_fact(request: FactScoreRequest):
+def score_single_fact(request: FactScoreRequest, current_user: dict = Depends(get_current_user)):
     """Score the reliability of a single fact/claim based on its sources."""
     return score_fact(
         claim=request.claim,
@@ -64,7 +65,7 @@ def score_single_fact(request: FactScoreRequest):
 
 
 @router.post("/score-report")
-def score_full_report(request: ReportScoreRequest):
+def score_full_report(request: ReportScoreRequest, current_user: dict = Depends(get_current_user)):
     """Score an entire report's reliability based on all sections."""
     sections = [
         {
@@ -81,7 +82,7 @@ def score_full_report(request: ReportScoreRequest):
 
 
 @router.post("/validate-claim")
-def validate_single_claim(request: ClaimValidationRequest):
+def validate_single_claim(request: ClaimValidationRequest, current_user: dict = Depends(get_current_user)):
     """Validate a claim against actual data."""
     return validate_claim(
         claim=request.claim,

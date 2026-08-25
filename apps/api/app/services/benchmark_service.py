@@ -13,6 +13,55 @@ import yfinance as yf
 
 log = logging.getLogger(__name__)
 
+
+def _get_user_portfolio(user_id: str) -> Dict[str, float]:
+    """Fetch user's portfolio from database. Falls back to DEMO if not found."""
+    try:
+        from app.db.session import SessionLocal
+        from sqlalchemy import text
+        db = SessionLocal()
+        try:
+            # Get user's portfolios
+            portfolios = db.execute(
+                text("SELECT id FROM portfolios WHERE user_id = :uid ORDER BY created_at DESC LIMIT 1"),
+                {"uid": user_id}
+            ).fetchone()
+
+            if not portfolios:
+                log.debug("No portfolio found for user %s, using demo", user_id)
+                return None
+
+            portfolio_id = portfolios[0]
+            positions = db.execute(
+                text("SELECT ticker, qty, cost_basis FROM positions WHERE portfolio_id = :pid"),
+                {"pid": portfolio_id}
+            ).fetchall()
+
+            if not positions:
+                log.debug("No positions found for portfolio %d", portfolio_id)
+                return None
+
+            # Calculate weights based on cost basis * qty
+            total_value = sum(abs(float(p[1]) * float(p[2])) for p in positions if p[1] and p[2])
+            if total_value == 0:
+                return None
+
+            weights = {}
+            for ticker, qty, cost_basis in positions:
+                if ticker and qty and cost_basis:
+                    value = abs(float(qty) * float(cost_basis))
+                    weights[ticker] = value / total_value
+
+            if weights:
+                log.debug("Loaded %d positions for user %s", len(weights), user_id)
+                return weights
+            return None
+        finally:
+            db.close()
+    except Exception as e:
+        log.debug("Failed to fetch portfolio for %s: %s", user_id, e)
+        return None
+
 _cache: Dict[str, Any] = {}
 _CACHE_TTL = 1800  # 30 minutes
 
@@ -166,7 +215,8 @@ def get_portfolio_vs_benchmark(
     if cached is not None:
         return cached
 
-    portfolio = DEMO_PORTFOLIO
+    # Try to get real portfolio, fall back to demo
+    portfolio = _get_user_portfolio(user_id) or DEMO_PORTFOLIO
     all_tickers = list(portfolio.keys()) + [benchmark_ticker]
 
     try:
@@ -268,7 +318,8 @@ def get_sector_attribution(user_id: str) -> Dict[str, Any]:
     if cached is not None:
         return cached
 
-    portfolio = DEMO_PORTFOLIO
+    # Try to get real portfolio, fall back to demo
+    portfolio = _get_user_portfolio(user_id) or DEMO_PORTFOLIO
     try:
         sectors = {}
         for ticker in portfolio:
@@ -330,7 +381,8 @@ def get_historical_comparison(
     if cached is not None:
         return cached
 
-    portfolio = DEMO_PORTFOLIO
+    # Try to get real portfolio, fall back to demo
+    portfolio = _get_user_portfolio(user_id) or DEMO_PORTFOLIO
     all_tickers = list(portfolio.keys()) + [benchmark_ticker]
 
     try:
@@ -392,7 +444,8 @@ def get_risk_contribution(user_id: str) -> Dict[str, Any]:
     if cached is not None:
         return cached
 
-    portfolio = DEMO_PORTFOLIO
+    # Try to get real portfolio, fall back to demo
+    portfolio = _get_user_portfolio(user_id) or DEMO_PORTFOLIO
     try:
         data = yf.download(list(portfolio.keys()), period="6mo", progress=False)
         if data.empty:

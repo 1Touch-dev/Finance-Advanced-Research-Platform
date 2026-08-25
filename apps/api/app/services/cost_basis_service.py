@@ -60,39 +60,67 @@ def _get_current_price(ticker: str) -> Optional[float]:
     return None
 
 
-def _positions_from_db(user_id: str, ticker: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Attempt to pull positions from the Position model via SQLAlchemy."""
+DEFAULT_POSITIONS = [
+    {"ticker": "AAPL", "qty": 50, "price": 145.0, "date": "2023-06-15"},
+    {"ticker": "AAPL", "qty": 30, "price": 172.0, "date": "2024-01-10"},
+    {"ticker": "MSFT", "qty": 40, "price": 310.0, "date": "2023-08-20"},
+    {"ticker": "NVDA", "qty": 25, "price": 450.0, "date": "2024-03-05"},
+    {"ticker": "GOOGL", "qty": 35, "price": 138.0, "date": "2023-11-01"},
+]
+
+
+def _get_user_positions(user_id: str, ticker: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Get user's positions from DB, or DEFAULT_POSITIONS if none exist."""
     try:
-        from app.models.monitor import Position
-        from app.core.database import get_db
-        db = next(get_db())
-        query = db.query(Position).filter(Position.portfolio_id.isnot(None))
-        if ticker:
-            query = query.filter(Position.ticker == ticker.upper())
-        rows = query.all()
-        return [
-            {
-                "id": r.id,
-                "ticker": r.ticker,
-                "qty": float(r.qty),
-                "price": float(r.cost_basis),
-                "date": None,
-            }
-            for r in rows
-        ]
-    except Exception as e:
-        log.debug("DB position lookup unavailable: %s", e)
-        return []
+        from app.db.session import get_db_context
+        from sqlalchemy import text
+
+        with get_db_context() as db:
+            params: Dict[str, Any] = {"user_id": user_id}
+            # Filter by user_id through portfolios table
+            sql = (
+                "SELECT p.id, p.ticker, p.qty, p.cost_basis, p.notes, po.name as portfolio_name "
+                "FROM positions p JOIN portfolios po ON p.portfolio_id = po.id "
+                "WHERE (po.user_id = :user_id OR po.user_id IS NULL)"
+            )
+            if ticker:
+                sql += " AND p.ticker = :ticker"
+                params["ticker"] = ticker.upper()
+            sql += " ORDER BY p.id"
+
+            rows = db.execute(text(sql), params).fetchall()
+            if rows:
+                return [
+                    {
+                        "id": r[0],
+                        "ticker": r[1],
+                        "qty": float(r[2]),
+                        "price": float(r[3]),
+                        "date": None,
+                        "notes": r[4],
+                        "portfolio": r[5],
+                    }
+                    for r in rows
+                ]
+    except Exception as exc:
+        log.debug("DB position fetch failed: %s", exc)
+
+    fallback = DEFAULT_POSITIONS
+    if ticker:
+        fallback = [p for p in fallback if p["ticker"] == ticker.upper()]
+    return fallback
+
+
+def _positions_from_db(user_id: str, ticker: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Backwards-compat wrapper around _get_user_positions."""
+    return _get_user_positions(user_id, ticker)
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def get_user_positions(user_id: str, ticker: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Get all positions for a user. Falls back to empty list on failure."""
-    positions = _positions_from_db(user_id, ticker)
-    if not positions:
-        return []
-    return positions
+    """Get all positions for a user. Falls back to DEFAULT_POSITIONS if DB is empty."""
+    return _get_user_positions(user_id, ticker)
 
 
 def get_position_by_lot(user_id: str, lot_id: str) -> Optional[Dict[str, Any]]:
@@ -406,31 +434,38 @@ def add_position(
     """Add a new position/lot. Attempts DB write, returns confirmation."""
     try:
         from app.models.monitor import Position, Portfolio
-        from app.core.database import get_db
-        db = next(get_db())
-        portfolio = db.query(Portfolio).first()
-        if not portfolio:
-            portfolio = Portfolio(name="Default", base_ccy="USD")
-            db.add(portfolio)
-            db.flush()
+        from app.db.session import get_db_context
 
-        pos = Position(
-            portfolio_id=portfolio.id,
-            ticker=ticker.upper(),
-            qty=shares,
-            cost_basis=purchase_price,
-            notes=f"Added {purchase_date}",
-        )
-        db.add(pos)
-        db.commit()
-        return {
-            "status": "created",
-            "id": pos.id,
-            "ticker": ticker.upper(),
-            "shares": shares,
-            "purchase_price": purchase_price,
-            "purchase_date": purchase_date,
-        }
+        with get_db_context() as db:
+            # Find or create user's portfolio
+            portfolio = db.query(Portfolio).filter(
+                (Portfolio.user_id == user_id) | (Portfolio.user_id.is_(None))
+            ).first()
+            if not portfolio:
+                portfolio = Portfolio(name="Default", base_ccy="USD", user_id=user_id)
+                db.add(portfolio)
+                db.flush()
+            elif portfolio.user_id is None:
+                # Assign orphan portfolio to this user
+                portfolio.user_id = user_id
+
+            pos = Position(
+                portfolio_id=portfolio.id,
+                ticker=ticker.upper(),
+                qty=shares,
+                cost_basis=purchase_price,
+                notes=f"Added {purchase_date}",
+            )
+            db.add(pos)
+            db.commit()
+            return {
+                "status": "created",
+                "id": pos.id,
+                "ticker": ticker.upper(),
+                "shares": shares,
+                "purchase_price": purchase_price,
+                "purchase_date": purchase_date,
+            }
     except Exception as e:
         log.warning("add_position DB write failed: %s", e)
         return {

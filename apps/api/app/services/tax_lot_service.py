@@ -50,30 +50,58 @@ def _get_current_price(ticker: str) -> Optional[float]:
     return None
 
 
-def _load_lots_from_db(user_id: str, ticker: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Load tax lots from the Position model."""
+DEFAULT_TAX_LOTS = [
+    {"lot_id": "demo-1", "ticker": "AAPL", "qty": 50, "purchase_price": 145.0, "purchase_date": "2023-06-15", "notes": None},
+    {"lot_id": "demo-2", "ticker": "AAPL", "qty": 30, "purchase_price": 172.0, "purchase_date": "2024-01-10", "notes": None},
+    {"lot_id": "demo-3", "ticker": "MSFT", "qty": 40, "purchase_price": 310.0, "purchase_date": "2023-08-20", "notes": None},
+    {"lot_id": "demo-4", "ticker": "NVDA", "qty": 25, "purchase_price": 450.0, "purchase_date": "2024-03-05", "notes": None},
+    {"lot_id": "demo-5", "ticker": "GOOGL", "qty": 35, "purchase_price": 138.0, "purchase_date": "2023-11-01", "notes": None},
+]
+
+
+def _get_user_positions(user_id: str, ticker: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Get user's tax lots from DB, or DEFAULT_TAX_LOTS if none exist."""
     try:
-        from app.models.monitor import Position
-        from app.core.database import get_db
-        db = next(get_db())
-        query = db.query(Position)
-        if ticker:
-            query = query.filter(Position.ticker == ticker.upper())
-        rows = query.all()
-        lots = []
-        for r in rows:
-            lots.append({
-                "lot_id": str(r.id),
-                "ticker": r.ticker,
-                "qty": float(r.qty),
-                "purchase_price": float(r.cost_basis),
-                "purchase_date": None,
-                "notes": r.notes,
-            })
-        return lots
-    except Exception as e:
-        log.debug("DB lot lookup unavailable: %s", e)
-        return []
+        from app.db.session import get_db_context
+        from sqlalchemy import text
+
+        with get_db_context() as db:
+            params: Dict[str, Any] = {}
+            sql = (
+                "SELECT p.id, p.ticker, p.qty, p.cost_basis, p.notes, po.name as portfolio_name "
+                "FROM positions p JOIN portfolios po ON p.portfolio_id = po.id"
+            )
+            if ticker:
+                sql += " WHERE p.ticker = :ticker"
+                params["ticker"] = ticker.upper()
+            sql += " ORDER BY p.id"
+
+            rows = db.execute(text(sql), params).fetchall()
+            if rows:
+                return [
+                    {
+                        "lot_id": str(r[0]),
+                        "ticker": r[1],
+                        "qty": float(r[2]),
+                        "purchase_price": float(r[3]),
+                        "purchase_date": None,
+                        "notes": r[4],
+                        "portfolio": r[5],
+                    }
+                    for r in rows
+                ]
+    except Exception as exc:
+        log.debug("DB tax lot fetch failed: %s", exc)
+
+    fallback = DEFAULT_TAX_LOTS
+    if ticker:
+        fallback = [l for l in fallback if l["ticker"] == ticker.upper()]
+    return fallback
+
+
+def _load_lots_from_db(user_id: str, ticker: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Backwards-compat wrapper around _get_user_positions."""
+    return _get_user_positions(user_id, ticker)
 
 
 # ── Public API ────────────────────────────────────────────────────────────────

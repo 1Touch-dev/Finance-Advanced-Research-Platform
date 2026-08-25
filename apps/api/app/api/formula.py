@@ -11,11 +11,12 @@ Endpoints:
 - GET /formula/functions - Get available functions
 """
 
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Optional
 
 from app.services.formula_service import get_formula_service
+from app.auth.security import get_current_user
 
 router = APIRouter(prefix="/formula", tags=["formula"])
 
@@ -39,7 +40,7 @@ class SaveFormulaRequest(BaseModel):
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.post("/evaluate")
-def evaluate_formula(request: EvaluateRequest):
+def evaluate_formula(request: EvaluateRequest, current_user: dict = Depends(get_current_user)):
     """Evaluate a formula and return chart data."""
     service = get_formula_service()
 
@@ -72,7 +73,7 @@ def list_formulas(category: Optional[str] = None):
 
 
 @router.post("/save")
-def save_formula(request: SaveFormulaRequest):
+def save_formula(request: SaveFormulaRequest, current_user: dict = Depends(get_current_user)):
     """Save a custom formula."""
     service = get_formula_service()
 
@@ -105,7 +106,7 @@ def get_formula(formula_id: str):
 
 
 @router.delete("/{formula_id}")
-def delete_formula(formula_id: str):
+def delete_formula(formula_id: str, current_user: dict = Depends(get_current_user)):
     """Delete a saved formula."""
     service = get_formula_service()
     success = service.delete_formula(formula_id)

@@ -7,28 +7,29 @@ from app.db.session import get_db
 from app.models.base import Base
 from app.models.reports import ReportSection, Claim
 from app.models.review import Comment, Suggestion, SectionVersion, ReviewerAssignment, ReviewTask
+from app.auth.security import get_current_user
 
 router = APIRouter(prefix="/review")
 
 @router.post('/bootstrap')
-def bootstrap(db: Session = Depends(get_db)):
+def bootstrap(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     Base.metadata.create_all(bind=db.get_bind())
     return {"ok": True}
 
 @router.post('/comments')
-def add_comment(report_id: int, section_id: Optional[int] = None, text: str = '', author: Optional[str] = None, db: Session = Depends(get_db)):
+def add_comment(report_id: int, section_id: Optional[int] = None, text: str = '', author: Optional[str] = None, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     c = Comment(report_id=report_id, section_id=section_id, text=text, author=author)
     db.add(c); db.commit(); db.refresh(c)
     return {"id": c.id}
 
 @router.post('/suggest')
-def suggest(report_id: int, section_id: int, proposed: str, db: Session = Depends(get_db)):
+def suggest(report_id: int, section_id: int, proposed: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     s = Suggestion(report_id=report_id, section_id=section_id, proposed=proposed)
     db.add(s); db.commit(); db.refresh(s)
     return {"id": s.id}
 
 @router.post('/suggestions/{sid}/accept')
-def accept_suggestion(sid: int, db: Session = Depends(get_db)):
+def accept_suggestion(sid: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     s = db.query(Suggestion).filter_by(id=sid).first()
     if not s: raise HTTPException(404, 'not found')
     sec = db.query(ReportSection).filter_by(id=s.section_id).first()
@@ -40,7 +41,7 @@ def accept_suggestion(sid: int, db: Session = Depends(get_db)):
     db.commit(); return {"ok": True}
 
 @router.post('/suggestions/{sid}/reject')
-def reject_suggestion(sid: int, db: Session = Depends(get_db)):
+def reject_suggestion(sid: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     db.execute(update(Suggestion).where(Suggestion.id==sid).values(state='rejected'))
     db.commit(); return {"ok": True}
 
@@ -58,15 +59,15 @@ def section_diff(section_id: int, v1: int, v2: int, db: Session = Depends(get_db
     return {"diff": list(diff)}
 
 @router.post('/assign')
-def assign_reviewer(report_id: int, reviewer: str, role: str = 'reviewer', db: Session = Depends(get_db)):
+def assign_reviewer(report_id: int, reviewer: str, role: str = 'reviewer', db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     db.add(ReviewerAssignment(report_id=report_id, reviewer=reviewer, role=role)); db.commit(); return {"ok": True}
 
 @router.post('/tasks')
-def create_task(report_id: int, kind: str, payload: Optional[dict] = None, db: Session = Depends(get_db)):
+def create_task(report_id: int, kind: str, payload: Optional[dict] = None, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     db.add(ReviewTask(report_id=report_id, kind=kind, payload=payload or {})); db.commit(); return {"ok": True}
 
 @router.post('/reverify')
-def reverify(report_id: int, db: Session = Depends(get_db)):
+def reverify(report_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     # iterate claims and call verify
     claims = db.execute(text("select id from claims where report_id=:id"), {"id": report_id}).fetchall()
     results = []
@@ -80,7 +81,7 @@ def reverify(report_id: int, db: Session = Depends(get_db)):
     db.commit(); return {"results": results}
 
 @router.post('/enhance/section')
-def enhance_section(section_id: int, skill: str = 'one_pager', db: Session = Depends(get_db)):
+def enhance_section(section_id: int, skill: str = 'one_pager', db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     # placeholder: record a task; external worker/skills gateway will process
     sec = db.query(ReportSection).filter_by(id=section_id).first()
     db.add(ReviewTask(report_id=sec.report_id, kind='enhance_section', payload={"section_id": section_id, "skill": skill}))

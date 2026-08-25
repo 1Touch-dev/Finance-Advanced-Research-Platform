@@ -8,6 +8,7 @@ from typing import Optional, List, Dict
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from app.db.session import get_db
+from app.auth.security import get_current_user
 import uuid
 
 router = APIRouter(prefix="/ai-visibility", tags=["ai-visibility"])
@@ -41,7 +42,7 @@ _visibility_scores: Dict[str, List[dict]] = {}  # url -> [daily scores]
 # ─── Routes ─────────────────────────────────────────────────────────────────
 
 @router.post("/record")
-def record_citation(citation: CitationRecord):
+def record_citation(citation: CitationRecord, current_user: dict = Depends(get_current_user)):
     """Record an AI citation observation."""
     citation_id = f"cite-{uuid.uuid4().hex[:8]}"
 
@@ -86,7 +87,7 @@ def list_citations(
 
 
 @router.post("/targets")
-def add_tracking_target(target: TrackingTarget):
+def add_tracking_target(target: TrackingTarget, current_user: dict = Depends(get_current_user)):
     """Add a URL to track for AI citations."""
     target_id = f"target-{uuid.uuid4().hex[:8]}"
 
@@ -110,7 +111,7 @@ def list_tracking_targets():
 
 
 @router.delete("/targets/{target_id}")
-def remove_tracking_target(target_id: str):
+def remove_tracking_target(target_id: str, current_user: dict = Depends(get_current_user)):
     """Remove a tracking target."""
     if target_id not in _tracking_targets:
         raise HTTPException(404, "Target not found")

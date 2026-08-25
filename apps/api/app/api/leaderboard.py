@@ -10,11 +10,12 @@ Endpoints:
 - GET /leaderboard/calibration/{user_id} - Get user calibration
 """
 
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
 
 from app.services.leaderboard_service import get_leaderboard_service
+from app.auth.security import get_current_user
 
 router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
 
@@ -95,7 +96,7 @@ def get_idea_leaderboard(
 
 
 @router.post("/predict")
-def submit_prediction(request: PredictionRequest):
+def submit_prediction(request: PredictionRequest, current_user: dict = Depends(get_current_user)):
     """
     Submit a new prediction.
 
@@ -122,7 +123,7 @@ def submit_prediction(request: PredictionRequest):
 
 
 @router.post("/resolve")
-def resolve_prediction(request: ResolvePredictionRequest):
+def resolve_prediction(request: ResolvePredictionRequest, current_user: dict = Depends(get_current_user)):
     """
     Resolve a pending prediction with actual outcome.
     """
@@ -140,7 +141,7 @@ def resolve_prediction(request: ResolvePredictionRequest):
 
 
 @router.post("/idea")
-def submit_idea(request: IdeaRequest):
+def submit_idea(request: IdeaRequest, current_user: dict = Depends(get_current_user)):
     """
     Submit a trading idea.
 

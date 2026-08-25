@@ -24,6 +24,7 @@ import os
 import time
 from pydantic import BaseModel, Field
 from app.db.session import get_db
+from app.auth.security import get_current_user
 from app.services.intelligence_service import (
     generate_intelligence_report,
     get_intelligence_report,
@@ -170,7 +171,7 @@ class InteractiveReportRequest(BaseModel):
 
 
 @router.post("/self-dealing")
-def intelligence_self_dealing(payload: SelfDealingRequest):
+def intelligence_self_dealing(payload: SelfDealingRequest, current_user: dict = Depends(get_current_user)):
     return build_self_dealing_analysis(
         entity_name=payload.entity_name,
         ticker=payload.ticker,
@@ -181,7 +182,7 @@ def intelligence_self_dealing(payload: SelfDealingRequest):
 
 
 @router.post("/network")
-def intelligence_network(payload: NetworkRequest):
+def intelligence_network(payload: NetworkRequest, current_user: dict = Depends(get_current_user)):
     return build_network_analysis(
         entity_name=payload.entity_name,
         ticker=payload.ticker,
@@ -191,7 +192,7 @@ def intelligence_network(payload: NetworkRequest):
 
 
 @router.post("/correlation")
-def intelligence_correlation(payload: CorrelationRequest):
+def intelligence_correlation(payload: CorrelationRequest, current_user: dict = Depends(get_current_user)):
     started = time.monotonic()
     logger.warning("route:correlation:start ticker=%s", payload.ticker)
     result = build_correlation_analysis(
@@ -205,7 +206,7 @@ def intelligence_correlation(payload: CorrelationRequest):
 
 
 @router.post("/contract-probability")
-def intelligence_contract_probability(payload: ContractProbabilityRequest):
+def intelligence_contract_probability(payload: ContractProbabilityRequest, current_user: dict = Depends(get_current_user)):
     return build_contract_probability_analysis(
         entity_name=payload.entity_name,
         ticker=payload.ticker,
@@ -219,6 +220,7 @@ def intelligence_contract_probability(payload: ContractProbabilityRequest):
 def intelligence_interactive_report(
     payload: InteractiveReportRequest,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     try:
         result = build_interactive_report_html(
@@ -239,6 +241,7 @@ def generate_report(
     ticker: Optional[str] = None,
     background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Kick off a Layer 1 Entity Network Intelligence Report.
@@ -256,6 +259,7 @@ def browser_research(
     jurisdiction: Optional[str] = None,
     context: str = "",
     deep_dive: bool = False,
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Run browser-based research on an entity using public registries, news, and
@@ -337,6 +341,7 @@ def apollo_enrich(
     entity_name: str,
     domain: str = "",
     include_people: bool = True,
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Full Apollo enrichment: org profile + executives + key people search.
@@ -872,6 +877,7 @@ def generate_enhanced_report(
     include_financial_health: bool = True,
     include_competitive: bool = True,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Generate an enhanced intelligence report with AI-synthesized insights.
@@ -1502,6 +1508,7 @@ def generate_full_report(
     ticker: str,
     peers: str = "",
     background_tasks: BackgroundTasks = None,
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Generate a comprehensive intelligence report PDF for a ticker.
@@ -1575,6 +1582,7 @@ def generate_network_report(
     network: str = "paypal_mafia",
     expanded: bool = True,
     background_tasks: BackgroundTasks = None,
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Generate a network/group intelligence report PDF.
@@ -1759,6 +1767,7 @@ class NarrativeEditResponse(BaseModel):
 def save_narrative_edit(
     report_id: str,
     edit: NarrativeEditRequest,
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Save a human edit to a report section for AI fine-tuning.

@@ -5,40 +5,41 @@ from typing import List, Dict, Any, Optional
 from app.db.session import get_db
 from app.models.base import Base
 from app.models.reports import Report, ReportSection, EvidenceBundle, Claim, ClaimEvidence
+from app.auth.security import get_current_user
 
 router = APIRouter(prefix="/reports")
 
 @router.post('/bootstrap')
-def bootstrap(db: Session = Depends(get_db)):
+def bootstrap(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     Base.metadata.create_all(bind=db.get_bind())
     return {"ok": True}
 
 @router.post('/')
-def create_report(title: str, kind: str, db: Session = Depends(get_db)):
+def create_report(title: str, kind: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     r = Report(title=title, kind=kind)
     db.add(r); db.commit(); db.refresh(r)
     return {"id": r.id, "title": r.title, "kind": r.kind}
 
 @router.post('/{report_id}/sections')
-def add_section(report_id: int, name: str, content: Optional[str] = None, order: int = 0, db: Session = Depends(get_db)):
+def add_section(report_id: int, name: str, content: Optional[str] = None, order: int = 0, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     s = ReportSection(report_id=report_id, name=name, content=content, order=order)
     db.add(s); db.commit(); db.refresh(s)
     return {"id": s.id}
 
 @router.post('/{report_id}/bundles')
-def add_bundle(report_id: int, name: str, items: Optional[List[int]] = None, db: Session = Depends(get_db)):
+def add_bundle(report_id: int, name: str, items: Optional[List[int]] = None, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     b = EvidenceBundle(report_id=report_id, name=name, items=items or [])
     db.add(b); db.commit(); db.refresh(b)
     return {"id": b.id}
 
 @router.post('/{report_id}/claims')
-def add_claim(report_id: int, text: str, db: Session = Depends(get_db)):
+def add_claim(report_id: int, text: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     c = Claim(report_id=report_id, text=text)
     db.add(c); db.commit(); db.refresh(c)
     return {"id": c.id}
 
 @router.post('/claims/{claim_id}/evidence')
-def attach_claim_evidence(claim_id: int, evidence_ref_id: int, weight: int = 1, db: Session = Depends(get_db)):
+def attach_claim_evidence(claim_id: int, evidence_ref_id: int, weight: int = 1, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     ce = ClaimEvidence(claim_id=claim_id, evidence_ref_id=evidence_ref_id, weight=weight)
     db.add(ce); db.commit(); db.refresh(ce)
     return {"id": ce.id}
@@ -81,7 +82,7 @@ def _verifier_v2(claim_id: int, db: Session) -> dict:
     return {"status": "verified", "flags": []}
 
 @router.post('/claims/{claim_id}/verify')
-def verify_claim(claim_id: int, db: Session = Depends(get_db)):
+def verify_claim(claim_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     result = _verifier_v2(claim_id, db)
     db.execute(update(Claim).where(Claim.id==claim_id).values(status=result["status"]))
     db.commit()
@@ -99,7 +100,7 @@ def export_ready(report_id: int, db: Session = Depends(get_db)):
     return {"ready": len(blocked) == 0, "blocked": blocked}
 
 @router.post('/claims/{claim_id}/contradict')
-def contradict_claim(claim_id: int, note: Optional[str] = None, db: Session = Depends(get_db)):
+def contradict_claim(claim_id: int, note: Optional[str] = None, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     db.execute(update(Claim).where(Claim.id==claim_id).values(status='contradicted', contradiction_note=note))
     db.commit(); return {"status": "contradicted"}
 
@@ -118,6 +119,6 @@ def get_report(report_id: int, db: Session = Depends(get_db)):
     }
 
 @router.post('/{report_id}/status')
-def set_status(report_id: int, status: str, db: Session = Depends(get_db)):
+def set_status(report_id: int, status: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     db.execute(update(Report).where(Report.id==report_id).values(status=status))
     db.commit(); return {"ok": True}

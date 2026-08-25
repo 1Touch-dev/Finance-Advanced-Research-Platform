@@ -8,6 +8,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from sqlalchemy.orm import Session
 from app.db.session import get_db
+from app.auth.security import get_current_user
 import uuid
 import hashlib
 
@@ -90,7 +91,7 @@ def _calculate_stats(events: List[dict], metric: str) -> dict:
 # ─── Routes ─────────────────────────────────────────────────────────────────
 
 @router.post("/create")
-def create_experiment(experiment: ExperimentCreate):
+def create_experiment(experiment: ExperimentCreate, current_user: dict = Depends(get_current_user)):
     """Create a new experiment."""
     experiment_id = f"exp-{uuid.uuid4().hex[:8]}"
     now = datetime.utcnow().isoformat()
@@ -141,7 +142,7 @@ def get_experiment(experiment_id: str):
 
 
 @router.post("/{experiment_id}/start")
-def start_experiment(experiment_id: str):
+def start_experiment(experiment_id: str, current_user: dict = Depends(get_current_user)):
     """Start an experiment."""
     exp = _experiments.get(experiment_id)
     if not exp:
@@ -157,7 +158,7 @@ def start_experiment(experiment_id: str):
 
 
 @router.post("/{experiment_id}/stop")
-def stop_experiment(experiment_id: str):
+def stop_experiment(experiment_id: str, current_user: dict = Depends(get_current_user)):
     """Stop an experiment."""
     exp = _experiments.get(experiment_id)
     if not exp:
@@ -214,7 +215,7 @@ def get_variant_assignment(experiment_id: str, user_id: str):
 
 
 @router.post("/{experiment_id}/event")
-def record_event(experiment_id: str, event: MetricEvent):
+def record_event(experiment_id: str, event: MetricEvent, current_user: dict = Depends(get_current_user)):
     """Record a metric event for an experiment."""
     exp = _experiments.get(experiment_id)
     if not exp:
@@ -285,7 +286,7 @@ def get_experiment_results(experiment_id: str):
 
 
 @router.delete("/{experiment_id}")
-def delete_experiment(experiment_id: str):
+def delete_experiment(experiment_id: str, current_user: dict = Depends(get_current_user)):
     """Delete an experiment (only if draft or stopped)."""
     exp = _experiments.get(experiment_id)
     if not exp:

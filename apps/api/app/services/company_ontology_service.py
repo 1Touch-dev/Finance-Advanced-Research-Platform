@@ -401,21 +401,43 @@ def _extract_custom_kpis_from_filings(ticker: str) -> List[KPIDefinition]:
         (r"total\s+contract\s+value", "tcv", "Total Contract Value"),
     ]
 
-    # TODO: Actually parse filings to find these
-    # For now, add common ones based on ticker patterns
-
-    if ticker.upper() in ["NVDA", "AMD", "INTC"]:
-        custom_kpis.append(KPIDefinition(
-            id="data_center_segment",
-            name="Data Center Segment Revenue",
-            description="Revenue from data center products and services",
-            metric_type=MetricType.FINANCIAL,
-            unit="USD",
-            aggregation=AggregationType.SUM,
-            frequency=DataFrequency.QUARTERLY,
-            higher_is_better=True,
-            source_tags=["segment", "data_center"],
-        ))
+    # Derive sector-specific KPIs from the company's SIC/industry code
+    # rather than hardcoding per ticker. Falls back to common patterns.
+    try:
+        from app.connectors.sec_edgar_connector import get_cik_from_ticker
+        from app.connectors.sec_http import sec_get_json
+        cik = get_cik_from_ticker(ticker)
+        if cik:
+            subs = sec_get_json(f"https://data.sec.gov/submissions/CIK{cik.zfill(10)}.json") or {}
+            sic = subs.get("sic", "")
+            # Semiconductor companies (SIC 3674)
+            if sic in ["3674", "3672", "3661"]:
+                custom_kpis.append(KPIDefinition(
+                    id="data_center_segment",
+                    name="Data Center Segment Revenue",
+                    description="Revenue from data center products and services",
+                    metric_type=MetricType.FINANCIAL,
+                    unit="USD",
+                    aggregation=AggregationType.SUM,
+                    frequency=DataFrequency.QUARTERLY,
+                    higher_is_better=True,
+                    source_tags=["segment", "data_center"],
+                ))
+            # Software companies (SIC 7372, 7371)
+            elif sic in ["7372", "7371", "7374"]:
+                custom_kpis.append(KPIDefinition(
+                    id="arr",
+                    name="Annual Recurring Revenue",
+                    description="Annualized recurring subscription revenue",
+                    metric_type=MetricType.FINANCIAL,
+                    unit="USD",
+                    aggregation=AggregationType.SUM,
+                    frequency=DataFrequency.QUARTERLY,
+                    higher_is_better=True,
+                    source_tags=["saas", "recurring"],
+                ))
+    except Exception:
+        pass
 
     return custom_kpis
 

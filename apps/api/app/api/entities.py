@@ -9,28 +9,29 @@ from app.models.entities import (
     Entity, EntityAlias, EntityIdentifier, Relationship, RelationshipEvidence,
     MergeCandidate, MergeAction, ResolutionQueue
 )
+from app.auth.security import get_current_user
 
 router = APIRouter(prefix="/entities")
 
 @router.post('/bootstrap')
-def bootstrap(db: Session = Depends(get_db)):
+def bootstrap(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     Base.metadata.create_all(bind=db.get_bind())
     return {"ok": True}
 
 @router.post('/')
-def create_entity(name: str, kind: str, db: Session = Depends(get_db)):
+def create_entity(name: str, kind: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     e = Entity(name=name, kind=kind)
     db.add(e); db.commit(); db.refresh(e)
     return {"id": e.id, "name": e.name, "kind": e.kind}
 
 @router.post('/{entity_id}/aliases')
-def add_alias(entity_id: int, alias: str, db: Session = Depends(get_db)):
+def add_alias(entity_id: int, alias: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     a = EntityAlias(entity_id=entity_id, alias=alias)
     db.add(a); db.commit(); db.refresh(a)
     return {"id": a.id}
 
 @router.post('/{entity_id}/identifiers')
-def add_identifier(entity_id: int, scheme: str, value: str, db: Session = Depends(get_db)):
+def add_identifier(entity_id: int, scheme: str, value: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     # deterministic linking: if scheme+value exists for another entity, propose merge
     existing = db.query(EntityIdentifier).filter_by(scheme=scheme, value=value).first()
     if existing and existing.entity_id != entity_id:
@@ -68,19 +69,19 @@ def resolve(name: Optional[str] = None, scheme: Optional[str] = None, value: Opt
     return {"match": None}
 
 @router.post('/relationships')
-def create_relationship(src_entity_id: int, dst_entity_id: int, kind: str, db: Session = Depends(get_db)):
+def create_relationship(src_entity_id: int, dst_entity_id: int, kind: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     r = Relationship(src_entity_id=src_entity_id, dst_entity_id=dst_entity_id, kind=kind)
     db.add(r); db.commit(); db.refresh(r)
     return {"id": r.id}
 
 @router.post('/relationships/{rel_id}/evidence')
-def add_relationship_evidence(rel_id: int, evidence_ref_id: Optional[int] = None, db: Session = Depends(get_db)):
+def add_relationship_evidence(rel_id: int, evidence_ref_id: Optional[int] = None, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     ev = RelationshipEvidence(relationship_id=rel_id, evidence_ref_id=evidence_ref_id)
     db.add(ev); db.commit(); db.refresh(ev)
     return {"id": ev.id}
 
 @router.post('/merge/propose')
-def propose_merge(a_entity_id: int, b_entity_id: int, score: int = 70, reason: Optional[str] = None, db: Session = Depends(get_db)):
+def propose_merge(a_entity_id: int, b_entity_id: int, score: int = 70, reason: Optional[str] = None, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     pair = sorted([a_entity_id, b_entity_id])
     if db.query(MergeCandidate).filter_by(a_entity_id=pair[0], b_entity_id=pair[1]).first():
         return {"ok": True}
@@ -89,7 +90,7 @@ def propose_merge(a_entity_id: int, b_entity_id: int, score: int = 70, reason: O
     return {"ok": True}
 
 @router.post('/merge/approve')
-def approve_merge(primary_id: int, secondary_id: int, db: Session = Depends(get_db)):
+def approve_merge(primary_id: int, secondary_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     # Move aliases/identifiers/relationships from secondary to primary; record action for unmerge
     for a in db.query(EntityAlias).filter_by(entity_id=secondary_id).all():
         a.entity_id = primary_id
@@ -116,7 +117,7 @@ def approve_merge(primary_id: int, secondary_id: int, db: Session = Depends(get_
     return {"ok": True}
 
 @router.post('/merge/unmerge')
-def unmerge(primary_id: int, secondary_id: int, db: Session = Depends(get_db)):
+def unmerge(primary_id: int, secondary_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     # Naive: just toggle canonical and queue for review; detailed reversal would track per-record moves
     sec = db.query(Entity).filter_by(id=secondary_id).first()
     if sec:
@@ -146,7 +147,7 @@ def merge_candidates(status: str = 'pending', limit: int = 50, db: Session = Dep
     return out
 
 @router.post('/merge/reject')
-def reject_merge(candidate_id: int, db: Session = Depends(get_db)):
+def reject_merge(candidate_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     c = db.query(MergeCandidate).filter_by(id=candidate_id).first()
     if not c:
         raise HTTPException(404, 'not found')

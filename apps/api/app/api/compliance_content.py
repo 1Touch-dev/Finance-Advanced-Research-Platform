@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List, Dict
 from datetime import datetime
+from app.auth.security import get_current_user
 import re
 
 router = APIRouter(prefix="/compliance/content", tags=["compliance"])
@@ -172,7 +173,7 @@ def _check_required(content: str, required_patterns: List[str]) -> bool:
 # ─── Routes ─────────────────────────────────────────────────────────────────
 
 @router.post("/check", response_model=ComplianceResult)
-def check_content_compliance(request: ContentCheckRequest):
+def check_content_compliance(request: ContentCheckRequest, current_user: dict = Depends(get_current_user)):
     """Check content for compliance violations."""
     violations = []
 
@@ -222,7 +223,7 @@ def check_content_compliance(request: ContentCheckRequest):
 
 
 @router.post("/sanitize")
-def sanitize_content(request: ContentCheckRequest):
+def sanitize_content(request: ContentCheckRequest, current_user: dict = Depends(get_current_user)):
     """Attempt to automatically sanitize content for compliance."""
     content = request.content
     changes = []

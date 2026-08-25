@@ -7,6 +7,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.auth.security import get_current_user
 from finance.comps import multiples
 from finance.dcf import dcf, reverse_dcf
 from finance.fundamentals import statements_from_inputs
@@ -132,20 +133,20 @@ def analyze_stock(ticker: str, wacc: float = 0.1, terminal_growth: float = 0.02,
 
 
 @router.post("/dcf")
-def run_dcf(fcf: List[float], wacc: float, terminal_growth: float):
+def run_dcf(fcf: List[float], wacc: float, terminal_growth: float, current_user: dict = Depends(get_current_user)):
     return dcf(fcf, wacc, terminal_growth)
 
 
 @router.post("/reverse_dcf")
-def run_reverse_dcf(price_per_share: float, shares_out: float, wacc: float, years: int = 5):
+def run_reverse_dcf(price_per_share: float, shares_out: float, wacc: float, years: int = 5, current_user: dict = Depends(get_current_user)):
     return {"implied_terminal_growth": reverse_dcf(price_per_share, shares_out, wacc, years)}
 
 
 @router.post("/comps")
-def run_comps(peer: List[Dict[str, float]]):
+def run_comps(peer: List[Dict[str, float]], current_user: dict = Depends(get_current_user)):
     return multiples(peer)
 
 
 @router.post("/fundamentals")
-def fundamentals(revenue: float, op_margin: float, tax_rate: float, capex: float, wc_delta: float):
+def fundamentals(revenue: float, op_margin: float, tax_rate: float, capex: float, wc_delta: float, current_user: dict = Depends(get_current_user)):
     return statements_from_inputs(revenue, op_margin, tax_rate, capex, wc_delta)

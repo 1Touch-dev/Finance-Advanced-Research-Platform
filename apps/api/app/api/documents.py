@@ -214,7 +214,7 @@ def list_documents(
 # -- Parameterized routes (after static routes) -------------------------------
 
 @router.post("/{document_id}/process")
-def process_document(document_id: str):
+def process_document(document_id: str, current_user: dict = Depends(get_current_user)):
     """
     Process an uploaded document: extract text and create chunks.
 
@@ -302,7 +302,7 @@ def get_document_chunks(
 
 
 @router.delete("/{document_id}")
-def delete_document(document_id: str):
+def delete_document(document_id: str, current_user: dict = Depends(get_current_user)):
     """
     Delete a document and its chunks.
     """

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.base import Base
+from app.auth.security import get_current_user
 from app.models.sources import (
     Source,
     SourceCheckpoint,
@@ -41,13 +42,13 @@ class DlqBatch(BaseModel):
 
 
 @router.post("/bootstrap")
-def bootstrap(db: Session = Depends(get_db)):
+def bootstrap(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     Base.metadata.create_all(bind=db.get_bind())
     return {"ok": True}
 
 
 @router.post("/")
-def create_source(name: str, kind: str, workspace_id: int | None = None, db: Session = Depends(get_db)):
+def create_source(name: str, kind: str, workspace_id: int | None = None, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     src = Source(name=name, kind=kind, workspace_id=workspace_id)
     db.add(src)
     db.commit()
@@ -56,7 +57,7 @@ def create_source(name: str, kind: str, workspace_id: int | None = None, db: Ses
 
 
 @router.post("/{source_id}/credentials")
-def upsert_credentials(source_id: int, kind: str, secret: dict, db: Session = Depends(get_db)):
+def upsert_credentials(source_id: int, kind: str, secret: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     cred = SourceCredential(source_id=source_id, kind=kind, secret=secret)
     db.add(cred)
     db.commit()
@@ -65,7 +66,7 @@ def upsert_credentials(source_id: int, kind: str, secret: dict, db: Session = De
 
 
 @router.post("/{source_id}/contracts")
-def add_contract(source_id: int, version: str, spec: str, db: Session = Depends(get_db)):
+def add_contract(source_id: int, version: str, spec: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     c = SourceContract(source_id=source_id, version=version, spec=spec)
     db.add(c)
     db.commit()
@@ -74,7 +75,7 @@ def add_contract(source_id: int, version: str, spec: str, db: Session = Depends(
 
 
 @router.post("/{source_id}/runs")
-def trigger_run(source_id: int, checkpoint: dict | None = None, db: Session = Depends(get_db)):
+def trigger_run(source_id: int, checkpoint: dict | None = None, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     run = SourceRun(source_id=source_id, status="pending", checkpoint=checkpoint)
     db.add(run)
     db.commit()
@@ -87,6 +88,7 @@ def update_run_status(
     run_id: int,
     body: RunStatusUpdate,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     now = datetime.now(timezone.utc)
     values = {"status": body.status, "metrics": body.metrics}
@@ -103,6 +105,7 @@ def update_run_status(
 def upsert_record(
     body: SourceRecordUpsert,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     row = db.query(SourceRecordMeta).filter_by(source_id=body.source_id, external_id=body.external_id).first()
     if row:
@@ -124,7 +127,7 @@ def upsert_record(
 
 
 @router.post("/dlq")
-def add_dlq(body: DlqBatch, db: Session = Depends(get_db)):
+def add_dlq(body: DlqBatch, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     for item in body.items:
         db.add(
             SourceDeadLetter(
@@ -145,7 +148,7 @@ def get_checkpoint(source_id: int, cursor_key: str = "default", db: Session = De
 
 
 @router.post("/checkpoints/{source_id}")
-def save_checkpoint(source_id: int, state: dict, cursor_key: str = "default", db: Session = Depends(get_db)):
+def save_checkpoint(source_id: int, state: dict, cursor_key: str = "default", db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     row = db.query(SourceCheckpoint).filter_by(source_id=source_id, cursor_key=cursor_key).first()
     if row:
         row.state = state

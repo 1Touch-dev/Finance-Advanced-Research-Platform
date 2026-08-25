@@ -8,6 +8,7 @@ from typing import Optional, List, Dict
 from datetime import datetime
 from sqlalchemy.orm import Session
 from app.db.session import get_db
+from app.auth.security import get_current_user
 import uuid
 
 router = APIRouter(prefix="/editorial", tags=["editorial"])
@@ -66,7 +67,7 @@ _review_history: List[dict] = []
 # ─── Routes ─────────────────────────────────────────────────────────────────
 
 @router.post("/submit")
-def submit_content(submission: ContentSubmission):
+def submit_content(submission: ContentSubmission, current_user: dict = Depends(get_current_user)):
     """Submit AI-generated content for review."""
     content_id = f"content-{uuid.uuid4().hex[:8]}"
     now = datetime.utcnow().isoformat()
@@ -149,7 +150,7 @@ def get_content(content_id: str):
 
 
 @router.post("/content/{content_id}/review")
-def review_content(content_id: str, action: ReviewAction):
+def review_content(content_id: str, action: ReviewAction, current_user: dict = Depends(get_current_user)):
     """Review content and take action."""
     content = _content_queue.get(content_id)
     if not content:
@@ -206,7 +207,7 @@ def review_content(content_id: str, action: ReviewAction):
 
 
 @router.post("/content/{content_id}/publish")
-def publish_content(content_id: str, publisher_id: str):
+def publish_content(content_id: str, publisher_id: str, current_user: dict = Depends(get_current_user)):
     """Publish approved content."""
     content = _content_queue.get(content_id)
     if not content:
@@ -237,7 +238,7 @@ def publish_content(content_id: str, publisher_id: str):
 
 
 @router.post("/content/{content_id}/resubmit")
-def resubmit_content(content_id: str, updated_content: str, submitter_id: str):
+def resubmit_content(content_id: str, updated_content: str, submitter_id: str, current_user: dict = Depends(get_current_user)):
     """Resubmit content after changes requested."""
     content = _content_queue.get(content_id)
     if not content:

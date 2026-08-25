@@ -8,6 +8,7 @@ from typing import Optional, List, Dict
 from datetime import datetime
 from sqlalchemy.orm import Session
 from app.db.session import get_db
+from app.auth.security import get_current_user
 import re
 
 router = APIRouter(prefix="/seo", tags=["seo"])
@@ -133,7 +134,7 @@ def _get_hub_for_page(page_url: str) -> Optional[dict]:
 # ─── Routes ─────────────────────────────────────────────────────────────────
 
 @router.post("/register-page")
-def register_page(page: PageMetadata):
+def register_page(page: PageMetadata, current_user: dict = Depends(get_current_user)):
     """Register a page for internal linking."""
     _page_registry[page.url] = {
         "url": page.url,
@@ -331,7 +332,7 @@ def list_hubs():
 
 
 @router.post("/analyze-page")
-def analyze_page_seo(url: str, content: str, title: str):
+def analyze_page_seo(url: str, content: str, title: str, current_user: dict = Depends(get_current_user)):
     """Analyze a page for SEO issues and suggestions."""
     issues = []
     suggestions = []

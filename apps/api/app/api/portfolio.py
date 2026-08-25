@@ -41,11 +41,15 @@ router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 @router.get("")
 def list_portfolios(
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
-    List all portfolios with summary metrics.
+    List all portfolios with summary metrics for the current user.
     """
-    portfolios = db.query(Portfolio).order_by(Portfolio.created_at.desc()).all()
+    user_id = str(current_user.get("user_id", current_user.get("sub", "")))
+    portfolios = db.query(Portfolio).filter(
+        (Portfolio.user_id == user_id) | (Portfolio.user_id.is_(None))
+    ).order_by(Portfolio.created_at.desc()).all()
 
     result = []
     service = get_portfolio_service()
@@ -94,7 +98,9 @@ def create_portfolio(
     """
     Create a new portfolio.
     """
+    user_id = str(current_user.get("user_id", current_user.get("sub", "")))
     portfolio = Portfolio(
+        user_id=user_id,
         name=name,
         base_ccy=base_currency,
         thesis=thesis,
@@ -170,13 +176,18 @@ def compare_portfolios(
 def get_portfolio(
     portfolio_id: int,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Get full portfolio summary with holdings, allocation, and performance.
     """
+    user_id = str(current_user.get("user_id", current_user.get("sub", "")))
     portfolio = db.query(Portfolio).filter_by(id=portfolio_id).first()
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
+    # Check ownership (allow access to legacy portfolios without user_id)
+    if portfolio.user_id and portfolio.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     # Get positions
     positions = db.execute(
@@ -216,9 +227,12 @@ def update_portfolio(
     """
     Update portfolio metadata.
     """
+    user_id = str(current_user.get("user_id", current_user.get("sub", "")))
     portfolio = db.query(Portfolio).filter_by(id=portfolio_id).first()
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
+    if portfolio.user_id and portfolio.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     if name is not None:
         portfolio.name = name
@@ -248,9 +262,12 @@ def delete_portfolio(
     """
     Delete a portfolio and all its positions.
     """
+    user_id = str(current_user.get("user_id", current_user.get("sub", "")))
     portfolio = db.query(Portfolio).filter_by(id=portfolio_id).first()
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
+    if portfolio.user_id and portfolio.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     # Delete positions first
     db.execute(

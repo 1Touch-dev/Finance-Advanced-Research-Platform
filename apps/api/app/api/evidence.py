@@ -6,11 +6,12 @@ from app.db.session import get_db
 from app.models.evidence import RawDocument, EvidenceRef
 from app.models.base import Base
 from app.storage.files import ensure_vault, compute_sha256, store_file
+from app.auth.security import get_current_user
 
 router = APIRouter(prefix="/evidence")
 
 @router.post('/bootstrap')
-def bootstrap(db: Session = Depends(get_db)):
+def bootstrap(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     Base.metadata.create_all(bind=db.get_bind())
     ensure_vault()
     return {"ok": True}
@@ -25,6 +26,7 @@ async def upload_raw(
     source_run_id: Optional[int] = Form(None),
     uploader_user_id: Optional[int] = Form(None),
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     ensure_vault()
     contents = await file.read()
@@ -85,6 +87,7 @@ def create_ref(
     excerpt: Optional[str] = Form(None),
     created_by_user_id: Optional[int] = Form(None),
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     ref = EvidenceRef(
         raw_document_id=raw_document_id,
@@ -103,7 +106,7 @@ def create_ref(
     return {"id": ref.id}
 
 @router.post('/raw/{doc_id}/legal_hold')
-def set_legal_hold(doc_id: int, hold: bool = True, db: Session = Depends(get_db)):
+def set_legal_hold(doc_id: int, hold: bool = True, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     doc = db.query(RawDocument).filter_by(id=doc_id).first()
     if not doc:
         raise HTTPException(404, "not found")
@@ -112,7 +115,7 @@ def set_legal_hold(doc_id: int, hold: bool = True, db: Session = Depends(get_db)
     return {"id": doc.id, "legal_hold": bool(doc.legal_hold)}
 
 @router.post('/raw/{doc_id}/retention')
-def set_retention(doc_id: int, retention_until: str, db: Session = Depends(get_db)):
+def set_retention(doc_id: int, retention_until: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from datetime import datetime
     doc = db.query(RawDocument).filter_by(id=doc_id).first()
     if not doc:

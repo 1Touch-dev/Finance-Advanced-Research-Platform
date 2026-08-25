@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from app.db.session import get_db
 from app.models.base import Base
 from app.models.skills import SkillRegistry, SkillRun, SkillArtifact
+from app.auth.security import get_current_user
 import os, json
 
 router = APIRouter(prefix="/skills")
@@ -26,7 +27,7 @@ def skills_status():
     }
 
 @router.post('/bootstrap')
-def bootstrap(db: Session = Depends(get_db)):
+def bootstrap(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     Base.metadata.create_all(bind=db.get_bind())
     # seed registry
     skills = [
@@ -46,7 +47,7 @@ def _estimate_cost_usd(output: dict) -> tuple:
     return cost_cents, tokens
 
 @router.post('/run')
-def run_skill(name: str, version: str = "v1", input: Optional[Dict[str, Any]] = None, require_review: bool = False, workspace_id: int = 1, db: Session = Depends(get_db)):
+def run_skill(name: str, version: str = "v1", input: Optional[Dict[str, Any]] = None, require_review: bool = False, workspace_id: int = 1, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     reg = db.query(SkillRegistry).filter_by(name=name, version=version).first()
     if not reg or not reg.allowlisted:
         raise HTTPException(403, "skill not available")

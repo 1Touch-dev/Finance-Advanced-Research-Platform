@@ -8,6 +8,7 @@ from typing import Optional, List
 from datetime import datetime
 from sqlalchemy.orm import Session
 from app.db.session import get_db
+from app.auth.security import get_current_user
 import uuid
 import os
 
@@ -60,7 +61,7 @@ SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "support@enterprise-intel.com")
 # ─── Routes ─────────────────────────────────────────────────────────────────
 
 @router.post("/tickets", response_model=TicketResponse)
-def create_ticket(ticket: TicketCreate, db: Session = Depends(get_db)):
+def create_ticket(ticket: TicketCreate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """Create a new support ticket."""
     ticket_id = f"TKT-{uuid.uuid4().hex[:8].upper()}"
     now = datetime.utcnow()
@@ -134,7 +135,7 @@ def list_tickets(
 
 
 @router.patch("/tickets/{ticket_id}")
-def update_ticket(ticket_id: str, update: TicketUpdate):
+def update_ticket(ticket_id: str, update: TicketUpdate, current_user: dict = Depends(get_current_user)):
     """Update a ticket (status, add reply)."""
     ticket = _tickets.get(ticket_id)
     if not ticket:
@@ -171,7 +172,7 @@ def update_ticket(ticket_id: str, update: TicketUpdate):
 
 
 @router.post("/tickets/{ticket_id}/escalate")
-def escalate_ticket(ticket_id: str, reason: Optional[str] = None):
+def escalate_ticket(ticket_id: str, reason: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     """Escalate a ticket to higher priority support."""
     ticket = _tickets.get(ticket_id)
     if not ticket:

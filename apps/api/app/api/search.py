@@ -7,6 +7,7 @@ from app.db.session import get_db
 from app.models.entities import Entity, Relationship
 from app.models.evidence import RawDocument, EvidenceRef
 from app.models.sources import Source, SourceRun
+from app.auth.security import get_current_user
 
 router = APIRouter(prefix="/search")
 
@@ -136,7 +137,7 @@ def entity_evidence(entity_id: int, limit: int = 50, db: Session = Depends(get_d
 
 # Saved/recent searches (Phase 1 basics)
 @router.post('/saved')
-def save_search(query: str, db: Session = Depends(get_db)):
+def save_search(query: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     db.execute(text("CREATE TABLE IF NOT EXISTS saved_searches (id INTEGER PRIMARY KEY AUTOINCREMENT, query TEXT, created_at TEXT DEFAULT (datetime('now')))"))
     db.execute(text("INSERT INTO saved_searches (query) VALUES (:q)"), {"q": query}); db.commit()
     return {"ok": True}
@@ -150,7 +151,7 @@ def list_saved(db: Session = Depends(get_db)):
         return []
 
 @router.post('/recent')
-def add_recent(query: str, db: Session = Depends(get_db)):
+def add_recent(query: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     db.execute(text("CREATE TABLE IF NOT EXISTS recent_searches (id INTEGER PRIMARY KEY AUTOINCREMENT, query TEXT, created_at TEXT DEFAULT (datetime('now')))"))
     db.execute(text("INSERT INTO recent_searches (query) VALUES (:q)"), {"q": query}); db.commit()
     return {"ok": True}
