@@ -13,8 +13,33 @@ from app.core.no_data import no_data_response, NoDataReason
 
 log = logging.getLogger(__name__)
 
-# In-memory storage for notification preferences (does not require external service)
-_notification_preferences: Dict[str, Dict[str, bool]] = {}
+# Notification preferences — backed by Redis with in-memory fallback
+try:
+    from app.core.cache import cache_json_get, cache_json_set
+    _REDIS_PREFS = True
+except ImportError:
+    _REDIS_PREFS = False
+    def cache_json_get(k): return None
+    def cache_json_set(k, v, ttl=0): pass
+
+_PREFS_TTL = 86400 * 90   # 90-day TTL (refreshed on every write)
+_notification_preferences: Dict[str, Dict[str, bool]] = {}  # in-memory fallback
+
+
+def _prefs_key(user_id: str) -> str:
+    return f"pwa:prefs:{user_id}"
+
+
+def _load_prefs(user_id: str) -> Optional[Dict[str, bool]]:
+    cached = cache_json_get(_prefs_key(user_id))
+    if cached is not None:
+        return cached
+    return _notification_preferences.get(user_id)
+
+
+def _save_prefs(user_id: str, prefs: Dict[str, bool]) -> None:
+    _notification_preferences[user_id] = prefs
+    cache_json_set(_prefs_key(user_id), prefs, ttl=_PREFS_TTL)
 
 
 def register_push_subscription(user_id: str, subscription_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -56,15 +81,15 @@ def get_notification_preferences(user_id: str) -> Dict[str, Any]:
         "market_opens": False,
         "insider_trading": True,
     }
-    prefs = _notification_preferences.get(user_id, defaults)
+    prefs = _load_prefs(user_id) or defaults
     return {"user_id": user_id, "preferences": prefs}
 
 
 def update_notification_preferences(user_id: str, preferences: Dict[str, bool]) -> Dict[str, Any]:
     """Update notification preferences."""
-    current = _notification_preferences.get(user_id, {})
+    current = _load_prefs(user_id) or {}
     current.update(preferences)
-    _notification_preferences[user_id] = current
+    _save_prefs(user_id, current)
     return {"user_id": user_id, "preferences": current, "updated": True}
 
 

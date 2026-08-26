@@ -155,8 +155,8 @@ def _fetch_insider_data_for_ticker(ticker: str, days: int = 90) -> List[Dict[str
     try:
         subs = get_company_submissions(cik, limit=1)
         company_name = subs.get("name", "")
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug("Failed to get company name for %s: %s", ticker, e)
 
     transactions = []
     for txn in result.get("transactions", []):

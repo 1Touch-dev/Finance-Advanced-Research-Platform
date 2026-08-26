@@ -7,8 +7,9 @@ if not _env_path.exists():
 load_dotenv(_env_path, override=False)
 
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from app.api.routes import router as core_router
 from app.api.sources import router as sources_router
 from app.api.evidence import router as evidence_router
@@ -104,6 +105,24 @@ async def lifespan(app):
 
 
 app = FastAPI(title="Identity & Collaboration API", lifespan=lifespan)
+
+
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception):
+    """Catch-all: log + send to Sentry, return clean 500 JSON (never leak internals)."""
+    from app.core.logging import capture_exception, logger
+    logger.error({
+        "event": "unhandled_exception",
+        "path": str(request.url.path),
+        "method": request.method,
+        "error": str(exc),
+        "type": type(exc).__name__,
+    })
+    capture_exception(exc, extra={"path": str(request.url.path), "method": request.method})
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "An unexpected error occurred. Our team has been notified."},
+    )
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

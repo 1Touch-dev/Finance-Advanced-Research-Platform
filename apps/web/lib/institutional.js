@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from './api'
+import { getApiBaseUrl, apiFetch } from './api'
 
 function appendQueryParam(params, key, value) {
   if (value === null || value === undefined) {
@@ -46,7 +46,6 @@ function buildInstitutionalError({ status, detail, message, raw }) {
 }
 
 export async function fetchInstitutionalPositionDiff(query = {}) {
-  const baseUrl = getApiBaseUrl()
   const params = new URLSearchParams()
 
   appendQueryParam(params, 'institution_cik', query.institution_cik)
@@ -60,10 +59,10 @@ export async function fetchInstitutionalPositionDiff(query = {}) {
   appendQueryParam(params, 'limit', query.limit)
   appendQueryParam(params, 'offset', query.offset)
 
-  const requestUrl = `${baseUrl}/market/institutional/position-diff?${params.toString()}`
+  const requestUrl = `/market/institutional/position-diff?${params.toString()}`
   let response
   try {
-    response = await fetch(requestUrl)
+    response = await apiFetch(requestUrl)
   } catch (networkError) {
     const message = networkError?.message || 'Network request failed.'
     throw buildInstitutionalError({

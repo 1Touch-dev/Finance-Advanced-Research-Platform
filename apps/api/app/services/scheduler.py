@@ -79,8 +79,8 @@ def _refresh_global_indices():
     for idx in indices:
         try:
             yf_price_history(idx, period="5d", interval="1d")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("Failed to refresh global index %s: %s", idx, e)
 
 
 def _refresh_graph_ingestion():
@@ -177,8 +177,8 @@ def get_scheduler_status() -> dict:
                     lr = datetime.fromisoformat(last_run)
                     next_run = (lr.timestamp() + job["interval"])
                     next_run = datetime.fromtimestamp(next_run, tz=timezone.utc).isoformat()
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.debug("Failed to compute next run time for job %s: %s", job["name"], e)
 
             jobs.append({
                 "name": job["name"],

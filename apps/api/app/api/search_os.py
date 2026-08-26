@@ -5,6 +5,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.auth.security import get_current_user
 from app.services.opensearch_client import OpenSearchClient
 
 router = APIRouter(prefix="/searchos")
@@ -50,7 +51,7 @@ def fulltext(q: str, size: int = 20, db: Session = Depends(get_db)):
 
 
 @router.post("/index/doc")
-def index_doc(doc_id: int, db: Session = Depends(get_db)):
+def index_doc(doc_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     row = db.execute(
         text("""
             select rd.id, rd.sha256, rd.source_url, rd.meta, er.excerpt, rd.source_native_id, rd.source_id
@@ -67,7 +68,7 @@ def index_doc(doc_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/index/rebuild")
-def rebuild_index(db: Session = Depends(get_db)):
+def rebuild_index(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     osclient = OpenSearchClient()
     rows = db.execute(
         text("""

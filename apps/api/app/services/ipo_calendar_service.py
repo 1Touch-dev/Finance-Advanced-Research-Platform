@@ -216,8 +216,8 @@ def get_ipo_calendar_week() -> Dict[str, List[Dict[str, Any]]]:
                     key = f"{day_name} ({ipo_date})"
                     if key in calendar:
                         calendar[key].append(ipo)
-                except ValueError:
-                    pass
+                except ValueError as e:
+                    log.debug("Failed to parse IPO date '%s': %s", ipo_date, e)
 
             return calendar
     except Exception as e:

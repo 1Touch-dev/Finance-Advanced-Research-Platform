@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 from sqlalchemy.orm import Session
 
 from app.auth.security import (
@@ -34,13 +34,12 @@ class TokenResponse(BaseModel):
 
 
 class UserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     email: str
     name: str | None = None
     is_active: bool = True
-
-    class Config:
-        from_attributes = True
 
 
 # ---------------------------------------------------------------------------

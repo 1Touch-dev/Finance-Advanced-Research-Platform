@@ -140,8 +140,8 @@ def get_active_rumors(
                 pub_dt = datetime.fromisoformat(pub.replace("Z", "+00:00"))
                 if pub_dt < cutoff:
                     continue
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as e:
+                log.debug("Failed to parse published_at date '%s': %s", pub, e)
 
         if status and r.get("status") != status:
             continue
@@ -257,6 +257,6 @@ def get_recent_updates(hours: int = 24) -> List[dict]:
                 pub_dt = datetime.fromisoformat(pub.replace("Z", "+00:00"))
                 if pub_dt >= cutoff:
                     recent.append(r)
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as e:
+                log.debug("Failed to parse published_at date '%s' in recent updates: %s", pub, e)
     return recent

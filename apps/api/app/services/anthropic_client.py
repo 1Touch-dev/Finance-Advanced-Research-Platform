@@ -1,8 +1,11 @@
 import json
+import logging
 import os
 from typing import Any, Dict, Optional
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 class AnthropicClient:
@@ -40,8 +43,8 @@ class AnthropicClient:
             detail = resp.text[:500]
             try:
                 detail = resp.json().get("error", {}).get("message", detail)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed to parse Anthropic API error response: %s", e)
             raise RuntimeError(f"Anthropic API error ({resp.status_code}): {detail}")
         data = resp.json()
         text = ""

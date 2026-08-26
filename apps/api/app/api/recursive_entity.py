@@ -2,7 +2,8 @@
 Recursive Entity Discovery API (J7)
 Deep recursive entity graph building
 """
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
+from app.auth.security import get_current_user
 
 from app.services.recursive_entity_service import (
     recursive_discover,
@@ -20,7 +21,8 @@ router = APIRouter(prefix="/recursive", tags=["Recursive Entity Discovery"])
 @router.post("/discover/{ticker}")
 def discover_recursively(
     ticker: str,
-    max_depth: int = Query(3, description="Maximum recursion depth")
+    max_depth: int = Query(3, description="Maximum recursion depth"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Recursively discover related entities."""
     return recursive_discover(ticker, max_depth)

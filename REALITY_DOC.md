@@ -612,8 +612,87 @@ Based on the conversation summary, I completed a comprehensive independent
   whisper_estimates_service.py, guidance_service.py                         
   4. Add database migrations - Zero migrations exist for 75 models          
                                                                             
-  The audit findings are now documented in MASTER_TASK_STATUS.md with the   
+  The audit findings are now documented in MASTER_TASK_STATUS.md with the
   full breakdown of fake vs real services, connector status, and recommended
-   fix order. The document serves as the source of truth for actual project 
-  completion rather than claimed completion.                                
+   fix order. The document serves as the source of truth for actual project
+  completion rather than claimed completion.
+
+---
+
+## REMAINING BLOCKERS (Requires Manual Setup)
+
+### Fixed in Latest Sprint (2026-08-25)
+- ✅ Added `user_id` to Portfolio model for multi-tenancy
+- ✅ Created Alembic migration for price_alerts and alert_notifications tables
+- ✅ Added auth protection to watchlist/portfolio/alert routes in monitor.py
+- ✅ Added ownership verification to portfolio endpoints
+- ✅ Made FRED primary data source for economics page (BEA is fallback)
+- ✅ Updated .env.example with PostgreSQL/Redis documentation
+
+### Still Required (Cannot Be Fixed Without Infrastructure Setup)
+
+| Blocker | Manual Action Required | Command |
+|---------|----------------------|---------|
+| **SQLite → PostgreSQL** | Start PostgreSQL via Docker | `docker-compose up -d postgres` |
+| **Redis for Cache/Sessions** | Start Redis via Docker | `docker-compose up -d redis` |
+| **Update .env** | Switch DATABASE_URL to PostgreSQL | `DATABASE_URL=postgresql://finance:finance@localhost:5432/finance` |
+| **Run Migrations** | Apply Alembic migrations | `cd apps/api && alembic upgrade head` |
+| **Plaid for Brokerage** | Requires Plaid API contract + compliance | Not automatable |
+| **Reddit API for Whale Flow** | Requires Reddit API approval | Not automatable |
+| **Push Notifications** | Requires VAPID keys + web push setup | Not automatable |
+| **Monitoring/Alerting** | Set up Sentry DSN | Add `SENTRY_DSN` to .env |
+| **HTTPS Termination** | Configure reverse proxy (nginx/Caddy) | Manual infra setup |
+| **Load Testing** | Run k6 or similar | Manual testing |
+
+### Quick Start Commands (After Manual Setup)
+
+```bash
+# 1. Start infrastructure
+docker-compose up -d postgres redis
+
+# 2. Update .env
+# Change DATABASE_URL to: postgresql://finance:finance@localhost:5432/finance
+
+# 3. Run migrations
+cd apps/api
+alembic upgrade head
+
+# 4. Start API
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+# 5. Start frontend
+cd apps/web
+npm run dev
+```
+
+### API Keys Required for Full Functionality
+
+| API Key | Required For | Get From |
+|---------|-------------|----------|
+| `FINNHUB_API_KEY` | Earnings, quotes, IPO | https://finnhub.io |
+| `FRED_API_KEY` | GDP, CPI, unemployment | https://fred.stlouisfed.org |
+| `FMP_API_KEY` | IPO fallback, financials | https://financialmodelingprep.com |
+| `SEC_USER_AGENT` | SEC EDGAR access | Your email (required by SEC) |
+| `BEA_API_USER_ID` | State income, GDP (backup) | https://apps.bea.gov/api |
+| `SAM_GOV_API_KEY` | Government contracts | https://sam.gov |
+
+### Current Completion After This Sprint
+
+```
+Overall:                   ~45% (up from 35-40%)
+Portfolio persistence:     ~80% (DB models + auth + multi-tenancy)
+Auth coverage:             ~35% (critical routes protected)
+Economics page:            ~90% (FRED primary, BEA fallback)
+Database:                  ~30% (needs PostgreSQL + migrations run)
+Infrastructure:            ~20% (needs Redis + monitoring)
+```
+
+### What's Still Fake (Requires Connector Work)
+
+1. **Portfolio prices** - `portfolio_service.py` still uses yfinance for real prices but sector maps are hardcoded
+2. **Benchmark comparisons** - Uses hardcoded benchmark data
+3. **Reddit whale flow** - Returns `not_available` (needs Reddit API)
+4. **Brokerage sync** - Returns `not_available` (needs Plaid)
+5. **Narrative model** - Returns `not_available` (needs GPU/training infra)
+6. **Push notifications** - Returns `not_available` (needs web push setup)                                
                                            

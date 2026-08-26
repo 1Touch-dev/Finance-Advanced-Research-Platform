@@ -10,6 +10,8 @@ import logging
 import yfinance as yf
 import numpy as np
 
+from app.core.no_data import no_data_response, NoDataReason
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_PORTFOLIO = {
@@ -18,29 +20,46 @@ DEFAULT_PORTFOLIO = {
 }
 
 
-def _get_user_portfolio(user_id: str) -> Dict[str, float]:
-    """Get user's portfolio weights from DB, or DEFAULT_PORTFOLIO if none."""
+def _get_user_portfolio(user_id: str) -> Optional[Dict[str, float]]:
+    """Get user's portfolio weights from DB.
+
+    Returns None if the user has no portfolio — callers must handle this
+    and return a no_data_response instead of computing on fake weights.
+    """
     try:
         from app.db.session import get_db_context
         from app.models.monitor import Portfolio, Position
         from sqlalchemy import text
         with get_db_context() as db:
-            portfolio = db.query(Portfolio).first()  # TODO: filter by user_id when auth is wired
+            portfolio = db.query(Portfolio).filter(
+                Portfolio.user_id == user_id
+            ).first() if user_id else db.query(Portfolio).first()
             if not portfolio:
-                return DEFAULT_PORTFOLIO
+                return None
             positions = db.execute(
                 text("SELECT ticker, qty, cost_basis FROM positions WHERE portfolio_id = :pid"),
                 {"pid": portfolio.id}
             ).fetchall()
             if not positions:
-                return DEFAULT_PORTFOLIO
+                return None
             total = sum(r[1] * r[2] for r in positions)
             if total <= 0:
-                return DEFAULT_PORTFOLIO
+                return None
             return {r[0]: (r[1] * r[2]) / total for r in positions if r[0]}
     except Exception as exc:
-        logger.debug("Failed to load user portfolio, using default: %s", exc)
-        return DEFAULT_PORTFOLIO
+        logger.warning("Failed to load user portfolio: %s", exc)
+        return None
+
+
+def _no_portfolio_response(user_id: str, analysis_type: str) -> Dict[str, Any]:
+    """Standard response when user has no portfolio to analyze."""
+    return no_data_response(
+        entity=user_id or "anonymous",
+        data_type=analysis_type,
+        reason=NoDataReason.ENTITY_NOT_FOUND,
+        source="Portfolio Analytics",
+        details="No portfolio found. Create a portfolio with positions first.",
+    )
 
 SECTOR_ETFS = {
     "XLK": "Technology", "XLF": "Financials", "XLE": "Energy",
@@ -130,6 +149,8 @@ def get_factor_decomposition(user_id: str) -> Dict[str, Any]:
         return cached
 
     portfolio = _get_user_portfolio(user_id)
+    if not portfolio:
+        return _no_portfolio_response(user_id, "factor_decomposition")
     factor_tickers = ["SPY", "IWM", "IWD", "IWG"]
     all_tickers = list(set(list(portfolio.keys()) + factor_tickers))
 
@@ -206,6 +227,8 @@ def get_factor_decomposition(user_id: str) -> Dict[str, Any]:
 def get_correlation_matrix(user_id: str, tickers: List[str] = None) -> Dict[str, Any]:
     """D7: Pairwise correlation matrix from historical prices."""
     portfolio = _get_user_portfolio(user_id)
+    if not portfolio and not tickers:
+        return _no_portfolio_response(user_id, "correlation_matrix")
     ticker_list = tickers if tickers else list(portfolio.keys())
 
     cache_key = f"corr_{'_'.join(sorted(ticker_list))}"
@@ -283,6 +306,8 @@ def get_drawdown_analytics(user_id: str) -> Dict[str, Any]:
         return cached
 
     portfolio = _get_user_portfolio(user_id)
+    if not portfolio:
+        return _no_portfolio_response(user_id, "drawdown_analytics")
     tickers = list(portfolio.keys())
     prices = _download_prices(tickers, period="2y")
 
@@ -373,6 +398,8 @@ def get_performance_attribution(user_id: str) -> Dict[str, Any]:
         return cached
 
     portfolio = _get_user_portfolio(user_id)
+    if not portfolio:
+        return _no_portfolio_response(user_id, "performance_attribution")
     tickers = list(portfolio.keys())
     prices = _download_prices(tickers + ["SPY"], period="6mo")
 
@@ -449,6 +476,8 @@ def run_scenario_analysis(user_id: str, scenarios: List[str] = None) -> Dict[str
 
     selected = scenarios or ["2008_financial_crisis", "covid_crash", "2022_rate_hike"]
     portfolio = _get_user_portfolio(user_id)
+    if not portfolio:
+        return _no_portfolio_response(user_id, "stress_test")
     tickers = list(portfolio.keys())
 
     results = {}
@@ -484,8 +513,8 @@ def run_scenario_analysis(user_id: str, scenarios: List[str] = None) -> Dict[str
                             "contribution": round(ret * portfolio[t], 4)
                         }
                         port_return += ret * portfolio[t]
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Failed to extract stock return for %s: %s", t, e)
 
             scenario_result["portfolio_return"] = round(port_return, 4)
             scenario_result["portfolio_dollar_impact"] = round(port_return * 10000, 2)
@@ -511,6 +540,8 @@ def get_risk_parity_allocation(user_id: str) -> Dict[str, Any]:
         return cached
 
     portfolio = _get_user_portfolio(user_id)
+    if not portfolio:
+        return _no_portfolio_response(user_id, "risk_parity")
     tickers = list(portfolio.keys())
     prices = _download_prices(tickers, period="1y")
 
@@ -575,6 +606,8 @@ def get_rebalancing_suggestions(user_id: str, target_allocation: Dict[str, float
         return cached
 
     portfolio = _get_user_portfolio(user_id)
+    if not portfolio:
+        return _no_portfolio_response(user_id, "rebalancing_suggestions")
     target = target_allocation or portfolio  # if no target, use equal weight
     if target_allocation is None:
         n = len(portfolio)

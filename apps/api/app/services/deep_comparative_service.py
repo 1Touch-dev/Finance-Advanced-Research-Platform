@@ -476,8 +476,8 @@ def _extract_xbrl_value(facts: Dict[str, Any], concept: str, unit: str = "USD") 
             )
             return sorted_values[0].get("val")
 
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Failed to extract XBRL value for concept %s: %s", concept, e)
 
     return None
 
@@ -672,8 +672,8 @@ def _calculate_company_metrics(ticker: str, cik: str = None) -> Dict[str, Any]:
                 old_eps = _safe_float(income["annualReports"][3].get("netIncome"))
                 if old_eps and old_eps > 0 and net_income and net_income > 0:
                     metrics["eps_growth_3yr"] = ((net_income / old_eps) ** (1/3)) - 1
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed to calculate growth rates for %s: %s", ticker, e)
 
     # Process balance sheet
     if balance and balance.get("annualReports"):

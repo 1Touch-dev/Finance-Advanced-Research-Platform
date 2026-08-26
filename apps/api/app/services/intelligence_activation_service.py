@@ -1666,5 +1666,5 @@ def render_interactive_report_from_report(report: Dict[str, Any]) -> Dict[str, A
     finally:
         try:
             os.unlink(temp_path)
-        except OSError:
-            pass
+        except OSError as e:
+            logger.debug("Failed to remove temp file %s: %s", temp_path, e)

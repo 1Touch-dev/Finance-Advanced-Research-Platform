@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from './api'
+import { apiFetch } from './api'
 
 function normalizeErrorDetail(detail) {
   if (Array.isArray(detail)) {
@@ -112,15 +112,12 @@ async function requestIntelligence(path, options = {}) {
     expectHtml = false,
   } = options
 
-  const baseUrl = getApiBaseUrl()
-  const requestUrl = `${baseUrl}${path}`
-
   let response
   try {
-    response = await fetch(requestUrl, {
+    response = await apiFetch(path, {
       method,
-      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+      ...(body !== undefined && { body: JSON.stringify(body) }),
     })
   } catch (networkError) {
     const message = networkError?.message || 'Network request failed.'

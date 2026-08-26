@@ -436,8 +436,8 @@ def _extract_custom_kpis_from_filings(ticker: str) -> List[KPIDefinition]:
                     higher_is_better=True,
                     source_tags=["saas", "recurring"],
                 ))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Failed to extract sector-specific KPIs for %s: %s", ticker, e)
 
     return custom_kpis
 

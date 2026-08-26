@@ -99,8 +99,8 @@ def _extract_metric(info: Dict, metric: str) -> Optional[float]:
     if val is not None:
         try:
             return float(val)
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError) as e:
+            log.debug("Failed to convert metric '%s' value to float: %s", metric, e)
     return None
 
 

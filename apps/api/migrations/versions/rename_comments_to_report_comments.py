@@ -25,15 +25,22 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Use batch mode (required for SQLite ALTER TABLE operations).
-    # Rename the old editorial-comments table so its name no longer conflicts
-    # with the entity-comments table created by comments_service._ensure_tables.
-    with op.batch_alter_table('comments', schema=None) as batch_op:
-        pass  # triggers a copy under the new name via recreate
-
-    # SQLite doesn't support RENAME TABLE via Alembic batch; use raw SQL.
-    op.execute("ALTER TABLE comments RENAME TO report_comments")
+    # Only rename if the old 'comments' table exists (i.e. this is a DB that was
+    # created before the initial_schema migration was updated to use 'report_comments').
+    # On fresh databases the initial_schema already creates 'report_comments' directly,
+    # so this is a safe no-op.
+    conn = op.get_bind()
+    from sqlalchemy import inspect as sa_inspect
+    inspector = sa_inspect(conn)
+    existing_tables = inspector.get_table_names()
+    if 'comments' in existing_tables and 'report_comments' not in existing_tables:
+        op.execute("ALTER TABLE comments RENAME TO report_comments")
 
 
 def downgrade() -> None:
-    op.execute("ALTER TABLE report_comments RENAME TO comments")
+    conn = op.get_bind()
+    from sqlalchemy import inspect as sa_inspect
+    inspector = sa_inspect(conn)
+    existing_tables = inspector.get_table_names()
+    if 'report_comments' in existing_tables and 'comments' not in existing_tables:
+        op.execute("ALTER TABLE report_comments RENAME TO comments")

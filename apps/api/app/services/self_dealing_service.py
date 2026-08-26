@@ -132,8 +132,8 @@ def _award_counterparties(contract_intelligence: Dict[str, Any]) -> List[Dict[st
         })
         try:
             entry["amount"] += float(amount or 0)
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError) as e:
+            logger.debug("Failed to parse award amount: %s", e)
         entry["count"] += 1
 
     contracts = contract_intelligence or {}

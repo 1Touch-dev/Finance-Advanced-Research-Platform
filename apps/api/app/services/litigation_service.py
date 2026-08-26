@@ -558,8 +558,8 @@ def calculate_docket_velocity(
         try:
             recon = reconcile_litigation(ticker)
             undisclosed_count = recon.summary.get("undisclosed_count", 0)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to reconcile litigation for %s: %s", ticker, e)
 
         # Determine alert level
         if velocity_ratio > 3.0 or undisclosed_count > 5:

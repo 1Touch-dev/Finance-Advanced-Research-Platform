@@ -176,8 +176,8 @@ def calculate_gains(
             try:
                 pd = datetime.strptime(lot["purchase_date"], "%Y-%m-%d").date()
                 holding_days = (date.today() - pd).days
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as e:
+                log.debug("Failed to parse purchase_date for lot: %s", e)
 
         results.append({
             "lot_id": lot.get("lot_id"),
@@ -286,8 +286,8 @@ def harvest_opportunities(
                     pd = datetime.strptime(lot["purchase_date"], "%Y-%m-%d").date()
                     holding_days = (date.today() - pd).days
                     term = "long" if holding_days > 365 else "short"
-                except (ValueError, TypeError):
-                    pass
+                except (ValueError, TypeError) as e:
+                    log.debug("Failed to parse purchase_date for harvest opportunity: %s", e)
 
             opportunities.append({
                 "lot_id": lot.get("lot_id"),

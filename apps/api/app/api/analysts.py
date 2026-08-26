@@ -25,6 +25,8 @@ from app.services.analyst_scoring_service import (
     get_price_target_history,
     get_rating_distribution,
     get_analyst_rating_history,
+    get_analyst_consensus,
+    get_service_info,
     profile_to_dict,
     accuracy_score_to_dict,
     estimate_record_to_dict,
@@ -318,6 +320,38 @@ def get_analyst_ratings(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching rating history: {str(e)}")
+
+
+@router.get("/consensus/{ticker}")
+def get_ticker_consensus(ticker: str):
+    """
+    Get comprehensive analyst consensus for a ticker.
+
+    Combines recommendation distribution, price targets, recent rating changes,
+    and calculates an overall consensus score (0-100 scale).
+
+    Returns real data from Finnhub API with source attribution.
+    """
+    result = get_analyst_consensus(ticker)
+
+    # If no_data response, return with appropriate status
+    if result.get("no_data"):
+        raise HTTPException(
+            status_code=404 if result.get("reason") == "entity_not_found" else 503,
+            detail=result.get("message", "Data unavailable"),
+        )
+
+    return result
+
+
+@router.get("/info")
+def get_analyst_service_info():
+    """
+    Get information about the analyst scoring service.
+
+    Shows data sources, API configuration status, and available features.
+    """
+    return get_service_info()
 
 
 @router.get("/summary/{ticker}")

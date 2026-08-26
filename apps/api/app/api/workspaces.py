@@ -22,6 +22,7 @@ try:
         update_workspace,
         delete_workspace,
         get_workspace_activity,
+        list_all_workspaces,
         WorkspaceRole,
     )
     SERVICE_AVAILABLE = True
@@ -175,3 +176,15 @@ def api_get_activity(
     if not SERVICE_AVAILABLE:
         return {"error": "Service not available"}
     return {"activity": get_workspace_activity(workspace_id, limit)}
+
+
+@router.get("/admin/list")
+def api_list_all_workspaces(
+    limit: int = Query(default=100),
+    offset: int = Query(default=0),
+    current_user: dict = Depends(get_current_user),
+):
+    """List all workspaces (admin only)"""
+    if not SERVICE_AVAILABLE:
+        return {"error": "Service not available"}
+    return list_all_workspaces(limit, offset)

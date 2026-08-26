@@ -190,8 +190,8 @@ def get_person_timeline(person_id: str, start_date: Optional[str] = None,
         try:
             start_dt = datetime.strptime(start_date, "%Y-%m-%d")
             days = (datetime.now() - start_dt).days
-        except ValueError:
-            pass
+        except ValueError as e:
+            logger.debug("Failed to parse start_date '%s': %s", start_date, e)
 
     # Congressional trades
     if resolved["type"] == "politician":

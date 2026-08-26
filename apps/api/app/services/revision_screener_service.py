@@ -7,7 +7,10 @@ Provides:
   - Rank by revision strength
 """
 
+import logging
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
 from typing import Dict, List, Optional, Any
 from enum import Enum
 from datetime import datetime, date
@@ -241,8 +244,8 @@ def _get_company_revision_data(
                 )
                 dispersion_level = dispersion.dispersion_level
                 uncertainty_score = dispersion.uncertainty_score
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed to get dispersion data for %s: %s", ticker, e)
 
         # Get consensus value (placeholder - would come from snapshot)
         from app.services.consensus_service import get_consensus_snapshot

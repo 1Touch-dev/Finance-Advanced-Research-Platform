@@ -13,6 +13,7 @@ import logging
 import re
 import threading
 import uuid
+import json
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Tuple
 from html import unescape
@@ -40,7 +41,38 @@ from app.connectors.sec_http import sec_get_text
 
 log = logging.getLogger(__name__)
 
-_JOBS: Dict[str, Dict] = {}
+# ── Job store: Redis-backed with in-memory fallback ──────────────────────────
+# Jobs in-flight hold a live thread reference that cannot be serialized to Redis,
+# so we keep a two-layer store: Redis for durability (status/results) and a
+# local _JOBS dict for the live thread handles.  On restart, completed/failed
+# jobs survive in Redis; in-flight jobs are lost (they were running threads) but
+# their Redis record is updated to "interrupted" automatically at startup.
+
+try:
+    from app.core.cache import cache_json_get, cache_json_set
+    _REDIS_JOBS = True
+except ImportError:
+    _REDIS_JOBS = False
+    def cache_json_get(k): return None
+    def cache_json_set(k, v, ttl=86400): pass
+
+_JOBS: Dict[str, Dict] = {}          # live thread handles (process-local only)
+_JOB_TTL = 86400 * 7                 # keep job records for 7 days
+
+
+def _job_key(job_id: str) -> str:
+    return f"agent:job:{job_id}"
+
+
+def _save_job(job_id: str, job: Dict) -> None:
+    """Persist serializable subset of job to Redis."""
+    serializable = {k: v for k, v in job.items() if k != "_thread"}
+    cache_json_set(_job_key(job_id), serializable, ttl=_JOB_TTL)
+
+
+def _load_job(job_id: str) -> Optional[Dict]:
+    """Load job from Redis if not in local dict (e.g. after restart)."""
+    return cache_json_get(_job_key(job_id))
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -619,6 +651,7 @@ def _run_discovery(job_id: str, ticker: str, depth: int, entity_types: Optional[
     try:
         job["status"] = "running"
         job["progress"] = {"step": "resolving_cik", "detail": f"Looking up CIK for {ticker}"}
+        _save_job(job_id, job)
 
         cik = get_filer_cik(ticker)
         company_name = None
@@ -626,10 +659,12 @@ def _run_discovery(job_id: str, ticker: str, depth: int, entity_types: Optional[
             subs = get_company_submissions(cik)
             company_name = subs.get("name") or ticker
             job["progress"] = {"step": "ingesting_company", "detail": f"Found {company_name}"}
+            _save_job(job_id, job)
         else:
             job["status"] = "failed"
             job["error"] = f"Could not resolve ticker {ticker} to SEC CIK"
             job["completed_at"] = datetime.utcnow().isoformat() + "Z"
+            _save_job(job_id, job)
             return
 
         # Run standard graph ingestion
@@ -718,12 +753,14 @@ def _run_discovery(job_id: str, ticker: str, depth: int, entity_types: Optional[
                 "def_14a": def14a_url if not is_foreign_private_issuer(cik) else "N/A (Foreign Private Issuer)",
             },
         }
+        _save_job(job_id, job)
 
     except Exception as exc:
         log.error("Discovery job %s failed: %s", job_id, exc)
         job["status"] = "failed"
         job["error"] = str(exc)
         job["completed_at"] = datetime.utcnow().isoformat() + "Z"
+        _save_job(job_id, job)
 
 
 def start_discovery_job(ticker: str, depth: int = 2, entity_types: List[str] = None) -> Dict[str, Any]:
@@ -742,6 +779,7 @@ def start_discovery_job(ticker: str, depth: int = 2, entity_types: List[str] = N
         "progress": {"step": "queued", "detail": "Job queued for processing"},
     }
     _JOBS[job_id] = job
+    _save_job(job_id, job)
 
     thread = threading.Thread(
         target=_run_discovery,
@@ -763,6 +801,9 @@ def start_discovery_job(ticker: str, depth: int = 2, entity_types: List[str] = N
 def get_job_status(job_id: str) -> Dict[str, Any]:
     """Return actual status of a running background discovery job."""
     job = _JOBS.get(job_id)
+    if not job:
+        # Not in local dict — check Redis (survives across restarts)
+        job = _load_job(job_id)
     if not job:
         return {
             "status": "not_found",

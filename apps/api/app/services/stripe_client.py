@@ -57,7 +57,7 @@ class StripeClient:
 
             # Payload to sign: timestamp + "." + request_body
             signed_payload = f"{timestamp}.".encode('utf-8') + payload
-            computed = hmac.new(
+            computed = hmac.HMAC(
                 self.webhook_secret.encode('utf-8'),
                 signed_payload,
                 hashlib.sha256

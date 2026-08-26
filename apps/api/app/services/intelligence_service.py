@@ -14,6 +14,26 @@ from app.models.reports import Report, ReportSection, Claim, ClaimEvidence
 from app.models.entities import Entity, EntityIdentifier, Relationship, RelationshipEvidence
 from app.models.base import Base
 
+# Redis cache integration (graceful fallback to no-cache)
+try:
+    from app.core.cache import cache_json_get, cache_json_set
+    _CACHE_AVAILABLE = True
+except ImportError:
+    _CACHE_AVAILABLE = False
+    def cache_json_get(key): return None
+    def cache_json_set(key, data, ttl=3600): pass
+
+# TTLs for intelligence data sources (seconds)
+_TTL_SEC       = 86400   # SEC filings — daily refresh is plenty
+_TTL_FEC       = 86400   # Campaign finance — daily
+_TTL_FARA      = 86400   # FARA registrations — daily
+_TTL_SPENDING  = 3600    # USASpending — hourly (contracts change frequently)
+_TTL_OFAC      = 86400   # Sanctions list — daily
+_TTL_COURTS    = 3600    # Court dockets — hourly
+_TTL_WIKI      = 86400   # Wikipedia — daily
+_TTL_FUNDED    = 86400   # Crunchbase/funded — daily
+_TTL_LDA       = 86400   # Lobbying disclosures — daily
+
 # Apify enrichment connectors
 try:
     from app.connectors.apify_connector import (
@@ -166,8 +186,8 @@ def _upsert_rel(db: Session, src: int, dst: int, kind: str, meta: dict = None) -
     if row:
         return row[0]
     db.execute(
-        text("INSERT INTO relationships (src_entity_id, dst_entity_id, kind, meta) VALUES (:s,:d,:k,:m)"),
-        {"s": src, "d": dst, "k": kind, "m": None})
+        text("INSERT INTO relationships (src_entity_id, dst_entity_id, kind, confidence_tier, meta) VALUES (:s,:d,:k,:ct,:m)"),
+        {"s": src, "d": dst, "k": kind, "ct": "INFERRED", "m": None})
     db.flush()
     row = db.execute(
         text("SELECT id FROM relationships WHERE src_entity_id=:s AND dst_entity_id=:d AND kind=:k ORDER BY id DESC LIMIT 1"),
@@ -179,6 +199,11 @@ def _upsert_rel(db: Session, src: int, dst: int, kind: str, meta: dict = None) -
 # ── SEC EDGAR connector (entity-specific) ────────────────────────────────────
 
 def _fetch_sec(entity_name: str, ticker: Optional[str]) -> Dict[str, Any]:
+    cache_key = f"intel:sec:{entity_name.lower()}:{(ticker or '').upper()}"
+    cached = cache_json_get(cache_key)
+    if cached is not None:
+        return cached
+
     headers = {"User-Agent": os.getenv("SEC_USER_AGENT", "IntelPlatform research@example.com")}
     result = {"filings": [], "officers": [], "cik": None, "company_name": None}
     try:
@@ -221,12 +246,19 @@ def _fetch_sec(entity_name: str, ticker: Optional[str]) -> Dict[str, Any]:
                 result["state_of_inc"] = data.get("stateOfIncorporation")
     except Exception as e:
         result["error"] = str(e)
+
+    cache_json_set(cache_key, result, ttl=_TTL_SEC)
     return result
 
 
 # ── FEC connector (entity-specific) ─────────────────────────────────────────
 
 def _fetch_fec(entity_name: str) -> Dict[str, Any]:
+    cache_key = f"intel:fec:{entity_name.lower()}"
+    cached = cache_json_get(cache_key)
+    if cached is not None:
+        return cached
+
     fec_key = os.getenv("FEC_API_KEY", "")
     result = {
         "committees": [],
@@ -279,15 +311,21 @@ def _fetch_fec(entity_name: str) -> Dict[str, Any]:
                     "recipient":    item.get("committee", {}).get("name", ""),
                     "side":         "CONTRIBUTOR (entity donated to a committee)",
                 })
-    except Exception as e:
+    except Exception:
         pass  # Non-fatal; FEC schedule A can be slow
 
+    cache_json_set(cache_key, result, ttl=_TTL_FEC)
     return result
 
 
 # ── FARA connector (entity-specific, two-sided) ───────────────────────────────
 
 def _fetch_fara(entity_name: str) -> Dict[str, Any]:
+    cache_key = f"intel:fara:{entity_name.lower()}"
+    cached = cache_json_get(cache_key)
+    if cached is not None:
+        return cached
+
     result = {
         "registrants":        [],   # entity as the lobbyist/registrant
         "foreign_principals": [],   # entity as the foreign principal being lobbied for
@@ -334,9 +372,10 @@ def _fetch_fara(entity_name: str) -> Dict[str, Any]:
                         "reg_num":            r.get("Registration_Number", ""),
                         "side":               "FOREIGN PRINCIPAL (entity has a FARA-registered lobbyist)",
                     })
-    except Exception as e:
+    except Exception:
         pass  # Non-fatal
 
+    cache_json_set(cache_key, result, ttl=_TTL_FARA)
     return result
 
 
@@ -347,6 +386,11 @@ def _fetch_usaspending(entity_name: str) -> Dict[str, Any]:
     - As RECIPIENT (company receiving federal contracts) — primary view
     - As AWARDING AGENCY (agency awarding contracts to others) — secondary view
     """
+    cache_key = f"intel:spending:{entity_name.lower()}"
+    cached = cache_json_get(cache_key)
+    if cached is not None:
+        return cached
+
     result = {
         "awards": [],
         "total_obligated": 0,
@@ -426,11 +470,17 @@ def _fetch_usaspending(entity_name: str) -> Dict[str, Any]:
 
     except Exception as e:
         result["error"] = str(e)
+    cache_json_set(cache_key, result, ttl=_TTL_SPENDING)
     return result
 
 # ── OFAC sanctions check ──────────────────────────────────────────────────────
 
 def _fetch_ofac(entity_name: str) -> Dict[str, Any]:
+    cache_key = f"intel:ofac:{entity_name.lower()}"
+    cached = cache_json_get(cache_key)
+    if cached is not None:
+        return cached
+
     result = {"hits": [], "is_sanctioned": False}
     try:
         api_key = os.getenv("SANCTIONS_API_KEY", "")
@@ -452,12 +502,18 @@ def _fetch_ofac(entity_name: str) -> Dict[str, Any]:
                 result["is_sanctioned"] = len(result["hits"]) > 0
     except Exception as e:
         result["error"] = str(e)
+    cache_json_set(cache_key, result, ttl=_TTL_OFAC)
     return result
 
 
 # ── CourtListener litigation check ───────────────────────────────────────────
 
 def _fetch_courts(entity_name: str) -> Dict[str, Any]:
+    cache_key = f"intel:courts:{entity_name.lower()}"
+    cached = cache_json_get(cache_key)
+    if cached is not None:
+        return cached
+
     result = {"cases": []}
     try:
         cl_token = os.getenv("COURTLISTENER_API_TOKEN", "")
@@ -477,12 +533,18 @@ def _fetch_courts(entity_name: str) -> Dict[str, Any]:
                 })
     except Exception as e:
         result["error"] = str(e)
+    cache_json_set(cache_key, result, ttl=_TTL_COURTS)
     return result
 
 
 # ── Wikipedia company background ─────────────────────────────────────────────
 
 def _fetch_wikipedia(entity_name: str) -> Dict[str, Any]:
+    cache_key = f"intel:wiki:{entity_name.lower()}"
+    cached = cache_json_get(cache_key)
+    if cached is not None:
+        return cached
+
     result = {"summary": "", "founders": [], "founded": None, "hq": None, "url": None}
     slug = entity_name.replace(" ", "_")
     try:
@@ -497,12 +559,18 @@ def _fetch_wikipedia(entity_name: str) -> Dict[str, Any]:
             result["title"] = d.get("title", "")
     except Exception as e:
         result["error"] = str(e)
+    cache_json_set(cache_key, result, ttl=_TTL_WIKI)
     return result
 
 
 # ── FundedAPI — free investor/funding data (no key needed) ────────────────────
 
 def _fetch_funded_api(entity_name: str) -> Dict[str, Any]:
+    cache_key = f"intel:funded:{entity_name.lower()}"
+    cached = cache_json_get(cache_key)
+    if cached is not None:
+        return cached
+
     result = {"rounds": [], "investors": [], "total_raised": 0}
     try:
         resp = requests.get(
@@ -527,12 +595,18 @@ def _fetch_funded_api(entity_name: str) -> Dict[str, Any]:
                     result["total_raised"] += amt
     except Exception as e:
         result["error"] = str(e)
+    cache_json_set(cache_key, result, ttl=_TTL_FUNDED)
     return result
 
 
 # ── SEC Form D / institutional ownership via EDGAR full-text ─────────────────
 
 def _fetch_sec_investors(entity_name: str, cik: Optional[str] = None) -> Dict[str, Any]:
+    cache_key = f"intel:sec_inv:{entity_name.lower()}:{cik or ''}"
+    cached = cache_json_get(cache_key)
+    if cached is not None:
+        return cached
+
     result = {"form_d_filings": [], "ownership_filings": [], "institutional_notes": ""}
     headers = {"User-Agent": os.getenv("SEC_USER_AGENT", "IntelPlatform research@example.com")}
     try:
@@ -589,6 +663,7 @@ def _fetch_sec_investors(entity_name: str, cik: Optional[str] = None) -> Dict[st
 
     except Exception as e:
         result["error"] = str(e)
+    cache_json_set(cache_key, result, ttl=_TTL_SEC)
     return result
 
 
@@ -600,6 +675,11 @@ def _fetch_lda(entity_name: str) -> Dict[str, Any]:
     - As REGISTRANT (lobbying firm working for clients) — the other side
     Both are returned separately so the report can show the full picture.
     """
+    cache_key = f"intel:lda:{entity_name.lower()}"
+    cached = cache_json_get(cache_key)
+    if cached is not None:
+        return cached
+
     result = {
         "filings": [],
         "total_count": 0,
@@ -688,6 +768,7 @@ def _fetch_lda(entity_name: str) -> Dict[str, Any]:
         except Exception as e:
             result["error"] = str(e)
             continue
+    cache_json_set(cache_key, result, ttl=_TTL_LDA)
     return result
 
 
@@ -1698,8 +1779,8 @@ def _fallback_summary(sections: List[Dict[str, Any]]) -> Dict[str, Any]:
             for m in _re.findall(r'\$([0-9][0-9,]{2,})', c.get("text", "")):
                 try:
                     total_obligated = max(total_obligated, int(m.replace(",", "")))
-                except ValueError:
-                    pass
+                except ValueError as e:
+                    logger.debug("Failed to parse obligated amount '%s': %s", m, e)
 
     return {
         "sec_filings":         _count("sec", "filing"),

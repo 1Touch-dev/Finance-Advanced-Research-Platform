@@ -260,8 +260,8 @@ def _fetch_docket_cases(
                         cutoff = datetime.now() - timedelta(days=lookback_years * 365)
                         if filed_dt < cutoff:
                             continue
-                    except ValueError:
-                        pass
+                    except ValueError as e:
+                        logger.debug("Failed to parse filed date '%s': %s", filed_date, e)
 
                 cases.append(DocketCase(
                     case_id=case.get("id", ""),
@@ -409,7 +409,7 @@ def _reconcile_cases(
             # - Regulatory matter
             # - Settlement before docket filing
             # Not necessarily a problem, but worth noting
-            pass
+            logger.debug("Disclosure at index %d has no matching docket case", idx)
 
     return findings
 
@@ -509,8 +509,8 @@ def _check_divergences(
                     DivergenceType.TIMING_GAP,
                     f"Case filed {case.filed_date}, first disclosed {disclosure.filing_date} ({gap_days} day gap)"
                 ))
-        except ValueError:
-            pass
+        except ValueError as e:
+            logger.debug("Failed to parse dates for timing gap check: %s", e)
 
     # Minimization check
     if case.nature_of_suit and "class action" in case.nature_of_suit.lower():

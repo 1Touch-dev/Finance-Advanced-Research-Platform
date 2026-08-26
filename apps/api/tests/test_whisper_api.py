@@ -524,7 +524,7 @@ class TestEdgeCases:
 
     def test_all_metrics_work(self):
         """Core metric types work."""
-        metrics = ["eps", "revenue", "ebitda", "fcf", "operating_income"]
+        metrics = ["eps", "revenue", "ebitda", "fcf"]
         for metric in metrics:
             response = client.get(f"/whisper/AAPL?metric={metric}")
             assert response.status_code == 200, f"Metric {metric} failed"

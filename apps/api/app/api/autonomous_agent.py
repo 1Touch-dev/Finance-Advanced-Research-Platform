@@ -2,8 +2,9 @@
 Autonomous Agent API (J6)
 Auto-discover subsidiaries/family entities
 """
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
 from typing import List, Optional
+from app.auth.security import get_current_user
 
 from app.services.autonomous_agent_service import (
     start_discovery_job,
@@ -23,7 +24,8 @@ router = APIRouter(prefix="/agent", tags=["Autonomous Agent"])
 def start_discovery(
     ticker: str = Query(..., description="Stock ticker"),
     depth: int = Query(2, description="Discovery depth (1-5)"),
-    entity_types: Optional[List[str]] = Query(None, description="Entity types to discover")
+    entity_types: Optional[List[str]] = Query(None, description="Entity types to discover"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Start autonomous entity discovery job."""
     return start_discovery_job(ticker, depth, entity_types)

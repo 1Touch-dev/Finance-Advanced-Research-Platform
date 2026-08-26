@@ -1,5 +1,6 @@
 import os
 import secrets
+from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 
 _current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -9,16 +10,17 @@ if not os.path.exists(_root_env):
 
 
 class Settings(BaseSettings):
+    model_config = ConfigDict(
+        env_file=_root_env,
+        env_prefix="",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
     database_url: str = "sqlite:///./local.db"
     jwt_secret: str = ""
     jwt_issuer: str = "identity-api"
     env: str = "local"
-
-    class Config:
-        env_file = _root_env
-        env_prefix = ""
-        case_sensitive = False
-        extra = "ignore"
 
 
 settings = Settings()

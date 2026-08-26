@@ -60,13 +60,13 @@ def load_paypal_mafia_graph() -> Dict[str, Any]:
             if rel_data.get("as_of"):
                 try:
                     as_of = datetime.strptime(rel_data["as_of"], "%Y-%m-%d")
-                except ValueError:
-                    pass
+                except ValueError as e:
+                    log.debug("Failed to parse as_of date '%s': %s", rel_data["as_of"], e)
             if rel_data.get("valid_to"):
                 try:
                     valid_to = datetime.strptime(rel_data["valid_to"], "%Y-%m-%d")
-                except ValueError:
-                    pass
+                except ValueError as e:
+                    log.debug("Failed to parse valid_to date '%s': %s", rel_data["valid_to"], e)
 
             # Format evidence
             evidence = rel_data.get("evidence", {})

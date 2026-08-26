@@ -3,7 +3,7 @@ from sqlalchemy.sql import func
 from .base import Base
 
 class Comment(Base):
-    __tablename__ = 'comments'
+    __tablename__ = 'report_comments'
     id = Column(Integer, primary_key=True)
     report_id = Column(Integer, ForeignKey('reports.id'), nullable=False)
     section_id = Column(Integer, ForeignKey('report_sections.id'), nullable=True)

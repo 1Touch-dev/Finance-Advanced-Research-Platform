@@ -12,9 +12,10 @@ Endpoints:
 - POST /litigation/screen - Screen companies (#56)
 """
 
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Depends
 from typing import Optional, List
 import logging
+from app.auth.security import get_current_user
 
 from app.services.litigation_service import (
     get_enforcement_events,
@@ -312,6 +313,7 @@ def screen_by_litigation(
     min_exposure_pct: Optional[float] = Query(None, ge=0),
     max_exposure_pct: Optional[float] = Query(None, ge=0),
     risk_level: Optional[str] = Query(None, description="Filter by risk level (critical, high, medium, low, minimal)"),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Screen companies by litigation criteria (#56).

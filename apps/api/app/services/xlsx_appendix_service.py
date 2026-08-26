@@ -88,8 +88,8 @@ def _auto_column_width(ws, min_width: int = 10, max_width: int = 50):
             try:
                 if cell.value:
                     max_length = max(max_length, len(str(cell.value)))
-            except:
-                pass
+            except Exception as e:
+                logger.debug("Failed to get cell value length: %s", e)
         adjusted_width = min(max(max_length + 2, min_width), max_width)
         ws.column_dimensions[column].width = adjusted_width
 

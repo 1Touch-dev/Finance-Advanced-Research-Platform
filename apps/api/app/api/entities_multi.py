@@ -8,8 +8,9 @@ Provides endpoints for:
   - Cross-entity comparison
 """
 
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Depends
 from typing import Optional, List
+from app.auth.security import get_current_user
 
 from app.services.multi_entity_service import (
     # Data types
@@ -294,6 +295,7 @@ def create_corpus(
     description: str = Query(..., description="Corpus description"),
     tickers: str = Query(..., description="Comma-separated tickers"),
     keywords: Optional[str] = Query(None, description="Comma-separated theme keywords"),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Create a custom thematic corpus.

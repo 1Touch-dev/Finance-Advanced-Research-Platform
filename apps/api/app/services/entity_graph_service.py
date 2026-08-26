@@ -387,7 +387,7 @@ class EntityGraphStore:
                 # Insert new
                 result = db.execute(text(
                     "INSERT INTO entities (kind, name, canonical, meta) "
-                    "VALUES (:kind, :name, 1, :meta)"
+                    "VALUES (:kind, :name, true, :meta)"
                 ), {"kind": entity.kind, "name": entity.name,
                     "meta": json.dumps(meta_dict)})
                 db_pk = result.lastrowid
@@ -483,11 +483,12 @@ class EntityGraphStore:
             else:
                 result = db.execute(text(
                     "INSERT INTO relationships "
-                    "(src_entity_id, dst_entity_id, kind, meta) "
-                    "VALUES (:src, :dst, :kind, :meta)"
+                    "(src_entity_id, dst_entity_id, kind, confidence_tier, meta) "
+                    "VALUES (:src, :dst, :kind, :ct, :meta)"
                 ), {
                     "src": src_db_pk, "dst": dst_db_pk,
                     "kind": edge.relationship_type,
+                    "ct": edge.confidence.value if hasattr(edge.confidence, 'value') else "INFERRED",
                     "meta": json.dumps(meta_dict),
                 })
                 db_pk = result.lastrowid

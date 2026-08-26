@@ -10,9 +10,10 @@ Endpoints:
 - GET /revisions/summary - Revision summary statistics
 """
 
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Depends
 from typing import Optional, List
 import logging
+from app.auth.security import get_current_user
 
 from app.services.revision_screener_service import (
     screen_by_revisions,

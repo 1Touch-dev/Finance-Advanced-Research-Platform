@@ -293,8 +293,8 @@ class NewsStalenessGate(QualityGate):
                     else:
                         date = datetime.strptime(date_str[:10], "%Y-%m-%d")
                     dates.append(date.replace(tzinfo=None))
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug("Failed to parse article date '%s': %s", date_str, e)
 
         if not dates:
             return {

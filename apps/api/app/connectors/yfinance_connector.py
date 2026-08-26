@@ -10,12 +10,29 @@ Wraps the yfinance library to expose:
   • Institutional holders & insider ownership summary
 
 All functions return plain dicts / lists and degrade gracefully on error.
+Redis caching is applied to every public function (falls back to in-memory
+when Redis is not available).
 """
 
 import logging
 from typing import Optional
 
 log = logging.getLogger(__name__)
+
+try:
+    from app.core.cache import cache_json_get, cache_json_set
+    _CACHE_AVAILABLE = True
+except ImportError:
+    _CACHE_AVAILABLE = False
+    def cache_json_get(key): return None
+    def cache_json_set(key, data, ttl=3600): pass
+
+# TTLs (seconds)
+_TTL_PRICE  = 300   # 5 min — intraday price moves matter
+_TTL_FUNDAS = 1800  # 30 min — valuation ratios don't change per-minute
+_TTL_INFO   = 3600  # 1 hour — company profile is stable
+_TTL_SNAP   = 300   # 5 min — snapshot reuses sub-calls that are individually cached
+
 
 def _import_yf():
     try:
@@ -34,6 +51,11 @@ def yf_price_history(ticker: str, period: str = "1y", interval: str = "1d") -> l
     period: 1d 5d 1mo 3mo 6mo 1y 2y 5y 10y ytd max
     interval: 1m 2m 5m 15m 30m 60m 90m 1h 1d 5d 1wk 1mo 3mo
     """
+    cache_key = f"yf:price_history:{ticker}:{period}:{interval}"
+    cached = cache_json_get(cache_key)
+    if cached is not None:
+        return cached
+
     yf = _import_yf()
     if not yf:
         return []
@@ -51,6 +73,7 @@ def yf_price_history(ticker: str, period: str = "1y", interval: str = "1d") -> l
                 "close":  round(float(row.get("Close", 0)), 4),
                 "volume": int(row.get("Volume", 0)),
             })
+        cache_json_set(cache_key, rows, ttl=_TTL_PRICE)
         return rows
     except Exception as e:
         log.warning("yf_price_history error for %s: %s", ticker, e)
@@ -61,6 +84,11 @@ def yf_price_history(ticker: str, period: str = "1y", interval: str = "1d") -> l
 
 def yf_dividends(ticker: str) -> list:
     """Historical dividend payments."""
+    cache_key = f"yf:dividends:{ticker}"
+    cached = cache_json_get(cache_key)
+    if cached is not None:
+        return cached
+
     yf = _import_yf()
     if not yf:
         return []
@@ -68,8 +96,10 @@ def yf_dividends(ticker: str) -> list:
         divs = yf.Ticker(ticker).dividends
         if divs.empty:
             return []
-        return [{"date": str(d.date()), "dividend": round(float(v), 6)}
+        rows = [{"date": str(d.date()), "dividend": round(float(v), 6)}
                 for d, v in divs.items()][-40:]
+        cache_json_set(cache_key, rows, ttl=_TTL_INFO)
+        return rows
     except Exception as e:
         log.warning("yf_dividends error for %s: %s", ticker, e)
         return []
@@ -77,6 +107,11 @@ def yf_dividends(ticker: str) -> list:
 
 def yf_splits(ticker: str) -> list:
     """Historical stock splits."""
+    cache_key = f"yf:splits:{ticker}"
+    cached = cache_json_get(cache_key)
+    if cached is not None:
+        return cached
+
     yf = _import_yf()
     if not yf:
         return []
@@ -84,8 +119,9 @@ def yf_splits(ticker: str) -> list:
         splits = yf.Ticker(ticker).splits
         if splits.empty:
             return []
-        return [{"date": str(d.date()), "ratio": float(v)}
-                for d, v in splits.items()]
+        rows = [{"date": str(d.date()), "ratio": float(v)} for d, v in splits.items()]
+        cache_json_set(cache_key, rows, ttl=_TTL_INFO)
+        return rows
     except Exception as e:
         log.warning("yf_splits error for %s: %s", ticker, e)
         return []
@@ -95,6 +131,11 @@ def yf_splits(ticker: str) -> list:
 
 def yf_options(ticker: str) -> dict:
     """Nearest-expiry options chain (calls + puts), top 10 strikes each."""
+    cache_key = f"yf:options:{ticker}"
+    cached = cache_json_get(cache_key)
+    if cached is not None:
+        return cached
+
     yf = _import_yf()
     if not yf:
         return {"calls": [], "puts": [], "expiry": None}
@@ -121,7 +162,9 @@ def yf_options(ticker: str) -> dict:
                 })
             return rows
 
-        return {"calls": _fmt(chain.calls), "puts": _fmt(chain.puts), "expiry": expiry}
+        result = {"calls": _fmt(chain.calls), "puts": _fmt(chain.puts), "expiry": expiry}
+        cache_json_set(cache_key, result, ttl=_TTL_PRICE)
+        return result
     except Exception as e:
         log.warning("yf_options error for %s: %s", ticker, e)
         return {"calls": [], "puts": [], "expiry": None}
@@ -134,6 +177,11 @@ def yf_fundamentals(ticker: str) -> dict:
     Fast fundamentals via yfinance info dict.
     Includes valuation ratios, margins, revenue, EPS, etc.
     """
+    cache_key = f"yf:fundamentals:{ticker}"
+    cached = cache_json_get(cache_key)
+    if cached is not None:
+        return cached
+
     yf = _import_yf()
     if not yf:
         return {}
@@ -165,6 +213,7 @@ def yf_fundamentals(ticker: str) -> dict:
                 except (TypeError, ValueError):
                     result[f] = v
         result["source"] = "yfinance"
+        cache_json_set(cache_key, result, ttl=_TTL_FUNDAS)
         return result
     except Exception as e:
         log.warning("yf_fundamentals error for %s: %s", ticker, e)
@@ -175,12 +224,17 @@ def yf_fundamentals(ticker: str) -> dict:
 
 def yf_company_info(ticker: str) -> dict:
     """Company profile: name, sector, industry, employees, website, description."""
+    cache_key = f"yf:company_info:{ticker}"
+    cached = cache_json_get(cache_key)
+    if cached is not None:
+        return cached
+
     yf = _import_yf()
     if not yf:
         return {}
     try:
         info = yf.Ticker(ticker).info
-        return {
+        result = {
             "name":        info.get("longName") or info.get("shortName"),
             "sector":      info.get("sector"),
             "industry":    info.get("industry"),
@@ -193,6 +247,8 @@ def yf_company_info(ticker: str) -> dict:
             "currency":    info.get("currency"),
             "source":      "yfinance",
         }
+        cache_json_set(cache_key, result, ttl=_TTL_INFO)
+        return result
     except Exception as e:
         log.warning("yf_company_info error for %s: %s", ticker, e)
         return {}
@@ -202,6 +258,11 @@ def yf_company_info(ticker: str) -> dict:
 
 def yf_institutional_holders(ticker: str) -> list:
     """Top institutional holders."""
+    cache_key = f"yf:inst_holders:{ticker}"
+    cached = cache_json_get(cache_key)
+    if cached is not None:
+        return cached
+
     yf = _import_yf()
     if not yf:
         return []
@@ -218,6 +279,7 @@ def yf_institutional_holders(ticker: str) -> list:
                 "pct_held":   round(float(row.get("% Out", 0) or 0), 4),
                 "date_reported": str(row.get("Date Reported", "")),
             })
+        cache_json_set(cache_key, rows, ttl=_TTL_INFO)
         return rows
     except Exception as e:
         log.warning("yf_institutional_holders error for %s: %s", ticker, e)

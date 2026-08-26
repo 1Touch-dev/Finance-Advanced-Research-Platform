@@ -2,8 +2,9 @@
 Narrative Model API (G1, G2)
 Fine-tune and deploy narrative generation models
 """
-from fastapi import APIRouter, Query, Body
+from fastapi import APIRouter, Query, Body, Depends
 from typing import Optional, Dict, Any
+from app.auth.security import get_current_user
 
 from app.services.narrative_model_service import (
     get_available_models,
@@ -36,7 +37,8 @@ def list_datasets():
 def start_training(
     base_model: str = Query(..., description="Base model ID"),
     dataset_id: str = Query(..., description="Training dataset ID"),
-    config: Optional[Dict[str, Any]] = Body(None, description="Training config")
+    config: Optional[Dict[str, Any]] = Body(None, description="Training config"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Start model fine-tuning job (requires GPU)."""
     return start_training_job(base_model, dataset_id, config)
@@ -57,7 +59,8 @@ def training_metrics(job_id: str):
 @router.post("/deploy")
 def deploy(
     model_id: str = Query(..., description="Model ID to deploy"),
-    config: Optional[Dict[str, Any]] = Body(None, description="Deployment config")
+    config: Optional[Dict[str, Any]] = Body(None, description="Deployment config"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Deploy trained model to production."""
     return deploy_model(model_id, config)
@@ -72,7 +75,8 @@ def deployment_status(deployment_id: str):
 @router.post("/generate")
 def generate(
     ticker: str = Query(..., description="Stock ticker"),
-    report_type: str = Query("analysis", description="Type: analysis, summary, risk")
+    report_type: str = Query("analysis", description="Type: analysis, summary, risk"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Generate narrative using deployed model."""
     return generate_narrative(ticker, report_type)

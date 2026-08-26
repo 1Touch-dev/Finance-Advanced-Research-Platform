@@ -76,8 +76,8 @@ def _resolve_threshold(rule: AlertRule) -> float:
     if rule.params and isinstance(rule.params, dict):
         try:
             return float(rule.params.get("threshold", DEFAULT_THRESHOLD))
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError) as e:
+            log.debug("Failed to parse threshold from rule params: %s", e)
     return DEFAULT_THRESHOLD
 
 

@@ -72,8 +72,9 @@ def company_core_name(name: str) -> str:
         cleaned = clean_legal_name((name or "").upper())
         if cleaned:
             return " ".join(cleaned.lower().split())
-    except ImportError:
-        pass
+    except ImportError as e:
+        import logging
+        logging.getLogger(__name__).debug("entity_naming module not available for company_core_name: %s", e)
     words = [
         w for w in re.sub(r"[^\w\s]", " ", (name or "").lower()).split()
         if w not in _CORPORATE_SUFFIXES
@@ -438,8 +439,9 @@ def is_same_company(left: str, right: str) -> bool:
         from app.connectors.entity_naming import matches_entity
         if matches_entity(left, right) or matches_entity(right, left):
             return True
-    except ImportError:
-        pass
+    except ImportError as e:
+        import logging
+        logging.getLogger(__name__).debug("entity_naming module not available for is_same_company: %s", e)
     return normalize_person_name(left) == normalize_person_name(right)
 
 

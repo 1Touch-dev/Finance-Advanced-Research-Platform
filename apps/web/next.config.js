@@ -1,4 +1,5 @@
 const path = require('path')
+const { withSentryConfig } = require('@sentry/nextjs')
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -27,4 +28,21 @@ const nextConfig = {
   },
 }
 
-module.exports = nextConfig
+// Only wrap with Sentry when a DSN is configured — keeps local builds clean
+const SENTRY_DSN = process.env.NEXT_PUBLIC_SENTRY_DSN
+if (SENTRY_DSN) {
+  module.exports = withSentryConfig(nextConfig, {
+    org: process.env.SENTRY_ORG,
+    project: process.env.SENTRY_PROJECT,
+    // Upload source maps silently; don't block the build on Sentry failures
+    silent: true,
+    // Disable Sentry CLI auto-instrumentation (we do it manually in sentry.*.config.js)
+    autoInstrumentServerFunctions: false,
+    // Static export doesn't support server-side Sentry tunnel
+    tunnelRoute: undefined,
+    // Don't tree-shake Sentry in dev (faster builds)
+    disableLogger: process.env.NODE_ENV === 'production',
+  })
+} else {
+  module.exports = nextConfig
+}
