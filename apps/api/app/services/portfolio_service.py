@@ -7,15 +7,28 @@ Provides comprehensive portfolio tracking with:
 - Performance metrics (daily, total return)
 - Sector/industry breakdown
 - Risk metrics integration
+
+All data is sourced from yfinance (real market data).
+When data is unavailable, returns no_data responses per S0-C Mock Ban.
 """
 
 from dataclasses import dataclass, field
 from datetime import datetime, date, timedelta
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from enum import Enum
 import logging
+import math
+
+import yfinance as yf
+
+from app.core.no_data import no_data_response, NoDataReason, is_no_data_response
 
 logger = logging.getLogger(__name__)
+
+# Cache TTL constants
+PRICE_CACHE_TTL = 300  # 5 minutes for prices
+SECTOR_CACHE_TTL = 3600  # 1 hour for sector/company info
+BETA_CACHE_TTL = 3600  # 1 hour for beta values
 
 
 class AssetClass(Enum):
@@ -33,91 +46,112 @@ class Holding:
     ticker: str
     quantity: float
     cost_basis: float  # Per share
-    current_price: float
-    market_value: float
-    unrealized_pnl: float
-    unrealized_pnl_pct: float
-    weight: float  # Portfolio weight
+    current_price: Optional[float]  # None if market data unavailable
+    market_value: Optional[float]  # None if price unavailable
+    unrealized_pnl: Optional[float]
+    unrealized_pnl_pct: Optional[float]
+    weight: Optional[float]  # Portfolio weight
     sector: Optional[str] = None
     industry: Optional[str] = None
     asset_class: str = "equity"
     company_name: Optional[str] = None
-    day_change: float = 0.0
-    day_change_pct: float = 0.0
+    day_change: Optional[float] = None
+    day_change_pct: Optional[float] = None
+    data_available: bool = True
+    data_error: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        result = {
             "ticker": self.ticker,
             "quantity": self.quantity,
             "cost_basis": round(self.cost_basis, 2),
-            "current_price": round(self.current_price, 2),
-            "market_value": round(self.market_value, 2),
-            "unrealized_pnl": round(self.unrealized_pnl, 2),
-            "unrealized_pnl_pct": round(self.unrealized_pnl_pct, 2),
-            "weight": round(self.weight * 100, 2),
             "sector": self.sector,
             "industry": self.industry,
             "asset_class": self.asset_class,
             "company_name": self.company_name,
-            "day_change": round(self.day_change, 2),
-            "day_change_pct": round(self.day_change_pct, 2),
+            "data_available": self.data_available,
         }
+
+        if self.data_available and self.current_price is not None:
+            result.update({
+                "current_price": round(self.current_price, 2),
+                "market_value": round(self.market_value, 2) if self.market_value else None,
+                "unrealized_pnl": round(self.unrealized_pnl, 2) if self.unrealized_pnl is not None else None,
+                "unrealized_pnl_pct": round(self.unrealized_pnl_pct, 2) if self.unrealized_pnl_pct is not None else None,
+                "weight": round(self.weight * 100, 2) if self.weight else None,
+                "day_change": round(self.day_change, 2) if self.day_change is not None else None,
+                "day_change_pct": round(self.day_change_pct, 2) if self.day_change_pct is not None else None,
+            })
+        else:
+            result["data_error"] = self.data_error or "Market data unavailable"
+
+        return result
 
 
 @dataclass
 class SectorAllocation:
     """Sector weight in portfolio."""
     sector: str
-    weight: float
-    market_value: float
+    weight: Optional[float]
+    market_value: Optional[float]
     holdings_count: int
-    day_change: float = 0.0
+    day_change: Optional[float] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "sector": self.sector,
-            "weight": round(self.weight * 100, 2),
-            "market_value": round(self.market_value, 2),
+            "weight": round(self.weight * 100, 2) if self.weight else None,
+            "market_value": round(self.market_value, 2) if self.market_value else None,
             "holdings_count": self.holdings_count,
-            "day_change": round(self.day_change, 2),
+            "day_change": round(self.day_change, 2) if self.day_change is not None else None,
         }
 
 
 @dataclass
 class PerformanceMetrics:
     """Portfolio performance metrics."""
-    total_market_value: float
+    total_market_value: Optional[float]
     total_cost_basis: float
-    total_unrealized_pnl: float
-    total_unrealized_pnl_pct: float
-    day_change: float
-    day_change_pct: float
+    total_unrealized_pnl: Optional[float]
+    total_unrealized_pnl_pct: Optional[float]
+    day_change: Optional[float]
+    day_change_pct: Optional[float]
     holdings_count: int
-    positive_positions: int
-    negative_positions: int
-    largest_position_weight: float
+    positive_positions: Optional[int]
+    negative_positions: Optional[int]
+    largest_position_weight: Optional[float]
     top_gainer: Optional[str] = None
-    top_gainer_pct: float = 0.0
+    top_gainer_pct: Optional[float] = None
     top_loser: Optional[str] = None
-    top_loser_pct: float = 0.0
+    top_loser_pct: Optional[float] = None
+    data_available: bool = True
+    partial_data: bool = False  # True if some holdings missing prices
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
-            "total_market_value": round(self.total_market_value, 2),
-            "total_cost_basis": round(self.total_cost_basis, 2),
-            "total_unrealized_pnl": round(self.total_unrealized_pnl, 2),
-            "total_unrealized_pnl_pct": round(self.total_unrealized_pnl_pct, 2),
-            "day_change": round(self.day_change, 2),
-            "day_change_pct": round(self.day_change_pct, 2),
+        result = {
             "holdings_count": self.holdings_count,
-            "positive_positions": self.positive_positions,
-            "negative_positions": self.negative_positions,
-            "largest_position_weight": round(self.largest_position_weight * 100, 2),
-            "top_gainer": self.top_gainer,
-            "top_gainer_pct": round(self.top_gainer_pct, 2),
-            "top_loser": self.top_loser,
-            "top_loser_pct": round(self.top_loser_pct, 2),
+            "total_cost_basis": round(self.total_cost_basis, 2),
+            "data_available": self.data_available,
+            "partial_data": self.partial_data,
         }
+
+        if self.data_available and self.total_market_value is not None:
+            result.update({
+                "total_market_value": round(self.total_market_value, 2),
+                "total_unrealized_pnl": round(self.total_unrealized_pnl, 2) if self.total_unrealized_pnl is not None else None,
+                "total_unrealized_pnl_pct": round(self.total_unrealized_pnl_pct, 2) if self.total_unrealized_pnl_pct is not None else None,
+                "day_change": round(self.day_change, 2) if self.day_change is not None else None,
+                "day_change_pct": round(self.day_change_pct, 2) if self.day_change_pct is not None else None,
+                "positive_positions": self.positive_positions,
+                "negative_positions": self.negative_positions,
+                "largest_position_weight": round(self.largest_position_weight * 100, 2) if self.largest_position_weight else None,
+                "top_gainer": self.top_gainer,
+                "top_gainer_pct": round(self.top_gainer_pct, 2) if self.top_gainer_pct is not None else None,
+                "top_loser": self.top_loser,
+                "top_loser_pct": round(self.top_loser_pct, 2) if self.top_loser_pct is not None else None,
+            })
+
+        return result
 
 
 @dataclass
@@ -147,37 +181,57 @@ class PortfolioSummary:
         }
 
 
-# Sector/industry cache with timestamps for TTL (1 hour cache)
+# ─────────────────────────────────────────────────────────────────────────────
+# Caches with TTL
+# ─────────────────────────────────────────────────────────────────────────────
+
 _SECTOR_CACHE: Dict[str, tuple] = {}  # ticker -> (sector, industry, timestamp)
-_SECTOR_CACHE_TTL = 3600  # 1 hour
-
-# Company name cache with timestamps
 _COMPANY_CACHE: Dict[str, tuple] = {}  # ticker -> (name, timestamp)
-_COMPANY_CACHE_TTL = 3600  # 1 hour
+_BETA_CACHE: Dict[str, tuple] = {}  # ticker -> (beta, timestamp)
 
 
-def _get_ticker_info(ticker: str) -> Dict[str, Any]:
-    """Fetch ticker info from yfinance with error handling."""
+def _is_cache_valid(cache_entry: Optional[tuple], ttl: int) -> bool:
+    """Check if a cache entry is still valid."""
+    if cache_entry is None:
+        return False
+    timestamp = cache_entry[-1]
+    return (datetime.now().timestamp() - timestamp) < ttl
+
+
+def _get_ticker_info(ticker: str) -> Optional[Dict[str, Any]]:
+    """
+    Fetch ticker info from yfinance with error handling.
+    Returns None if data unavailable (no fake data).
+    """
     try:
-        import yfinance as yf
-        return yf.Ticker(ticker).info or {}
+        info = yf.Ticker(ticker).info
+        if info and len(info) > 1:  # yfinance returns {} or minimal dict on failure
+            return info
+        logger.warning(f"No info available for {ticker}")
+        return None
     except Exception as e:
         logger.warning(f"Failed to fetch info for {ticker}: {e}")
-        return {}
+        return None
 
 
 def _get_sector_industry(ticker: str) -> tuple:
-    """Get sector and industry from yfinance with 1-hour cache."""
+    """
+    Get sector and industry from yfinance with caching.
+    Returns (sector, industry) or (None, None) if unavailable.
+    """
     now = datetime.now().timestamp()
 
     # Check cache with TTL
     if ticker in _SECTOR_CACHE:
-        sector, industry, ts = _SECTOR_CACHE[ticker]
-        if now - ts < _SECTOR_CACHE_TTL:
-            return (sector, industry)
+        cached = _SECTOR_CACHE[ticker]
+        if _is_cache_valid(cached, SECTOR_CACHE_TTL):
+            return (cached[0], cached[1])
 
     # Fetch from yfinance
     info = _get_ticker_info(ticker)
+    if info is None:
+        return (None, None)
+
     sector = info.get("sector")
     industry = info.get("industry")
 
@@ -197,77 +251,132 @@ def _get_sector_industry(ticker: str) -> tuple:
         _SECTOR_CACHE[ticker] = ("Crypto", "Cryptocurrency", now)
         return ("Crypto", "Cryptocurrency")
 
-    # Fallback
-    _SECTOR_CACHE[ticker] = ("Other", "Other", now)
-    return ("Other", "Other")
+    # Unknown - return None, not fake data
+    return (None, None)
 
 
-def _get_company_name(ticker: str) -> str:
-    """Get company name from yfinance with 1-hour cache."""
+def _get_company_name(ticker: str) -> Optional[str]:
+    """
+    Get company name from yfinance with caching.
+    Returns None if unavailable (no fake data).
+    """
     now = datetime.now().timestamp()
 
     # Check cache with TTL
     if ticker in _COMPANY_CACHE:
-        name, ts = _COMPANY_CACHE[ticker]
-        if now - ts < _COMPANY_CACHE_TTL:
-            return name
+        cached = _COMPANY_CACHE[ticker]
+        if _is_cache_valid(cached, SECTOR_CACHE_TTL):
+            return cached[0]
 
     # Fetch from yfinance
     info = _get_ticker_info(ticker)
-    name = info.get("longName") or info.get("shortName") or f"{ticker}"
+    if info is None:
+        return None
 
-    _COMPANY_CACHE[ticker] = (name, now)
-    return name
+    name = info.get("longName") or info.get("shortName")
+    if name:
+        _COMPANY_CACHE[ticker] = (name, now)
+        return name
+
+    return None
+
+
+def _get_real_beta(ticker: str) -> Optional[float]:
+    """
+    Get beta from yfinance info.
+    Returns None if unavailable (no default/fake values).
+    """
+    now = datetime.now().timestamp()
+
+    # Check cache with TTL
+    if ticker in _BETA_CACHE:
+        cached = _BETA_CACHE[ticker]
+        if _is_cache_valid(cached, BETA_CACHE_TTL):
+            return cached[0]
+
+    try:
+        info = yf.Ticker(ticker).info
+        beta = info.get("beta")
+        if beta is not None:
+            _BETA_CACHE[ticker] = (float(beta), now)
+            return float(beta)
+    except Exception as exc:
+        logger.debug("beta fetch failed for %s: %s", ticker, exc)
+
+    return None
 
 
 class PortfolioService:
-    """Service for portfolio tracking and analytics."""
+    """Service for portfolio tracking and analytics using real market data."""
 
     def __init__(self):
         self._price_cache: Dict[str, Dict[str, Any]] = {}
         self._cache_time: Optional[datetime] = None
 
     def _is_cache_valid(self) -> bool:
-        """Check if price cache is still within 5-minute TTL."""
+        """Check if price cache is still within TTL."""
         if not self._cache_time or not self._price_cache:
             return False
-        return (datetime.now() - self._cache_time).total_seconds() < 300
+        return (datetime.now() - self._cache_time).total_seconds() < PRICE_CACHE_TTL
 
     def _get_market_data(self, tickers: List[str]) -> Dict[str, Dict[str, Any]]:
-        """Get current market data for tickers using yfinance with 5-min cache."""
-        import yfinance as yf
+        """
+        Get current market data for tickers using yfinance with caching.
+        Returns only tickers with real data - no fake/simulated prices.
+        """
+        if not tickers:
+            return {}
 
+        # Check cache validity
         if self._is_cache_valid():
             missing = [t for t in tickers if t not in self._price_cache]
             if not missing:
-                return {t: self._price_cache[t] for t in tickers}
+                return {t: self._price_cache[t] for t in tickers if t in self._price_cache}
         else:
             missing = tickers
+            self._price_cache = {}  # Clear stale cache
+
+        if not missing:
+            return {t: self._price_cache[t] for t in tickers if t in self._price_cache}
 
         try:
+            # Download price data from yfinance
             data = yf.download(
                 missing,
                 period="2d",
                 progress=False,
                 group_by="ticker" if len(missing) > 1 else "column",
                 threads=True,
+                timeout=15,
             )
+
+            if data.empty:
+                logger.warning(f"yfinance returned empty data for tickers: {missing}")
+                return {t: self._price_cache[t] for t in tickers if t in self._price_cache}
 
             for ticker in missing:
                 try:
                     if len(missing) == 1:
                         ticker_data = data
                     else:
+                        if ticker not in data.columns.get_level_values(0):
+                            logger.warning(f"No data returned for ticker: {ticker}")
+                            continue
                         ticker_data = data[ticker]
 
                     closes = ticker_data["Close"].dropna()
                     if len(closes) < 1:
+                        logger.warning(f"No close prices for {ticker}")
                         continue
 
                     current_price = float(closes.iloc[-1])
-                    prev_close = float(closes.iloc[-2]) if len(closes) >= 2 else current_price
-                    day_change = current_price - prev_close
-                    day_change_pct = (day_change / prev_close * 100) if prev_close else 0
+                    prev_close = float(closes.iloc[-2]) if len(closes) >= 2 else None
+
+                    day_change = None
+                    day_change_pct = None
+                    if prev_close is not None and prev_close > 0:
+                        day_change = current_price - prev_close
+                        day_change_pct = (day_change / prev_close * 100)
 
                     self._price_cache[ticker] = {
                         "price": current_price,
@@ -287,14 +396,17 @@ class PortfolioService:
         return {t: self._price_cache[t] for t in tickers if t in self._price_cache}
 
     def _get_sector_info(self, ticker: str) -> tuple:
-        """Get sector and industry for a ticker using yfinance with caching."""
+        """Get sector and industry for a ticker."""
         return _get_sector_industry(ticker)
 
     def calculate_holdings(
         self,
         positions: List[Dict[str, Any]],
     ) -> List[Holding]:
-        """Calculate holdings with market values and P&L."""
+        """
+        Calculate holdings with market values and P&L.
+        Only uses real market data - holdings without price data are marked accordingly.
+        """
         if not positions:
             return []
 
@@ -302,42 +414,74 @@ class PortfolioService:
         tickers = list(set(p["ticker"] for p in positions if p.get("ticker")))
         market_data = self._get_market_data(tickers)
 
-        # Calculate total market value for weights
         holdings_raw = []
         for pos in positions:
             ticker = pos.get("ticker", "UNKNOWN")
             qty = pos.get("qty", 0)
             cost_basis = pos.get("cost_basis", 0)
 
-            data = market_data.get(ticker, {"price": cost_basis, "day_change": 0, "day_change_pct": 0})
-            current_price = data["price"]
-            market_value = qty * current_price
-            cost_total = qty * cost_basis
-            unrealized_pnl = market_value - cost_total
-            unrealized_pnl_pct = (unrealized_pnl / cost_total * 100) if cost_total else 0
-
+            # Get real market data - do NOT fall back to cost_basis
+            data = market_data.get(ticker)
             sector, industry = self._get_sector_info(ticker)
+            company_name = _get_company_name(ticker)
 
-            holdings_raw.append({
-                "ticker": ticker,
-                "quantity": qty,
-                "cost_basis": cost_basis,
-                "current_price": current_price,
-                "market_value": market_value,
-                "unrealized_pnl": unrealized_pnl,
-                "unrealized_pnl_pct": unrealized_pnl_pct,
-                "sector": sector,
-                "industry": industry,
-                "day_change": data.get("day_change", 0) * qty,
-                "day_change_pct": data.get("day_change_pct", 0),
-            })
+            if data is None:
+                # No market data available - mark as unavailable
+                holdings_raw.append({
+                    "ticker": ticker,
+                    "quantity": qty,
+                    "cost_basis": cost_basis,
+                    "current_price": None,
+                    "market_value": None,
+                    "unrealized_pnl": None,
+                    "unrealized_pnl_pct": None,
+                    "sector": sector,
+                    "industry": industry,
+                    "company_name": company_name,
+                    "day_change": None,
+                    "day_change_pct": None,
+                    "data_available": False,
+                    "data_error": "Market data unavailable from yfinance",
+                })
+            else:
+                current_price = data["price"]
+                market_value = qty * current_price
+                cost_total = qty * cost_basis
+                unrealized_pnl = market_value - cost_total
+                unrealized_pnl_pct = (unrealized_pnl / cost_total * 100) if cost_total else 0
 
-        # Calculate weights
-        total_value = sum(h["market_value"] for h in holdings_raw)
+                holdings_raw.append({
+                    "ticker": ticker,
+                    "quantity": qty,
+                    "cost_basis": cost_basis,
+                    "current_price": current_price,
+                    "market_value": market_value,
+                    "unrealized_pnl": unrealized_pnl,
+                    "unrealized_pnl_pct": unrealized_pnl_pct,
+                    "sector": sector,
+                    "industry": industry,
+                    "company_name": company_name,
+                    "day_change": data.get("day_change"),
+                    "day_change_pct": data.get("day_change_pct"),
+                    "data_available": True,
+                    "data_error": None,
+                })
+
+        # Calculate weights based only on holdings with real data
+        holdings_with_value = [h for h in holdings_raw if h["market_value"] is not None]
+        total_value = sum(h["market_value"] for h in holdings_with_value)
 
         holdings = []
         for h in holdings_raw:
-            weight = h["market_value"] / total_value if total_value else 0
+            weight = None
+            if h["market_value"] is not None and total_value > 0:
+                weight = h["market_value"] / total_value
+
+            # Calculate day change in dollar terms for holding
+            day_change_dollars = None
+            if h.get("day_change") is not None:
+                day_change_dollars = h["day_change"] * h["quantity"]
+
             holdings.append(Holding(
                 ticker=h["ticker"],
                 quantity=h["quantity"],
@@ -349,23 +493,29 @@ class PortfolioService:
                 weight=weight,
                 sector=h["sector"],
                 industry=h["industry"],
-                day_change=h["day_change"],
+                company_name=h["company_name"],
+                day_change=day_change_dollars,
                 day_change_pct=h["day_change_pct"],
+                data_available=h["data_available"],
+                data_error=h["data_error"],
             ))
 
-        # Sort by market value descending
-        holdings.sort(key=lambda x: x.market_value, reverse=True)
+        # Sort by market value descending (holdings without value at end)
+        holdings.sort(key=lambda x: (x.market_value is not None, x.market_value or 0), reverse=True)
         return holdings
 
     def calculate_sector_allocation(
         self,
         holdings: List[Holding],
     ) -> List[SectorAllocation]:
-        """Calculate sector allocation from holdings."""
+        """Calculate sector allocation from holdings with real data only."""
         sector_data: Dict[str, Dict[str, Any]] = {}
 
         for h in holdings:
-            sector = h.sector or "Other"
+            if not h.data_available or h.market_value is None:
+                continue  # Skip holdings without real price data
+
+            sector = h.sector or "Unknown"
             if sector not in sector_data:
                 sector_data[sector] = {
                     "market_value": 0,
@@ -373,63 +523,96 @@ class PortfolioService:
                     "holdings_count": 0,
                 }
             sector_data[sector]["market_value"] += h.market_value
-            sector_data[sector]["day_change"] += h.day_change
+            if h.day_change is not None:
+                sector_data[sector]["day_change"] += h.day_change
             sector_data[sector]["holdings_count"] += 1
 
         total_value = sum(s["market_value"] for s in sector_data.values())
 
         allocations = []
         for sector, data in sector_data.items():
-            weight = data["market_value"] / total_value if total_value else 0
+            weight = data["market_value"] / total_value if total_value > 0 else None
             allocations.append(SectorAllocation(
                 sector=sector,
                 weight=weight,
                 market_value=data["market_value"],
                 holdings_count=data["holdings_count"],
-                day_change=data["day_change"],
+                day_change=data["day_change"] if data["day_change"] != 0 else None,
             ))
 
-        allocations.sort(key=lambda x: x.weight, reverse=True)
+        allocations.sort(key=lambda x: (x.weight is not None, x.weight or 0), reverse=True)
         return allocations
 
     def calculate_performance(
         self,
         holdings: List[Holding],
     ) -> PerformanceMetrics:
-        """Calculate portfolio performance metrics."""
+        """Calculate portfolio performance metrics using only real data."""
         if not holdings:
             return PerformanceMetrics(
-                total_market_value=0,
+                total_market_value=None,
                 total_cost_basis=0,
-                total_unrealized_pnl=0,
-                total_unrealized_pnl_pct=0,
-                day_change=0,
-                day_change_pct=0,
+                total_unrealized_pnl=None,
+                total_unrealized_pnl_pct=None,
+                day_change=None,
+                day_change_pct=None,
                 holdings_count=0,
-                positive_positions=0,
-                negative_positions=0,
-                largest_position_weight=0,
+                positive_positions=None,
+                negative_positions=None,
+                largest_position_weight=None,
+                data_available=False,
             )
 
-        total_market_value = sum(h.market_value for h in holdings)
+        # Separate holdings with and without real data
+        holdings_with_data = [h for h in holdings if h.data_available and h.market_value is not None]
+        holdings_without_data = [h for h in holdings if not h.data_available or h.market_value is None]
+
         total_cost_basis = sum(h.quantity * h.cost_basis for h in holdings)
-        total_unrealized_pnl = total_market_value - total_cost_basis
-        total_unrealized_pnl_pct = (total_unrealized_pnl / total_cost_basis * 100) if total_cost_basis else 0
 
-        day_change = sum(h.day_change for h in holdings)
-        prev_value = total_market_value - day_change
-        day_change_pct = (day_change / prev_value * 100) if prev_value else 0
+        if not holdings_with_data:
+            # No real market data available
+            return PerformanceMetrics(
+                total_market_value=None,
+                total_cost_basis=total_cost_basis,
+                total_unrealized_pnl=None,
+                total_unrealized_pnl_pct=None,
+                day_change=None,
+                day_change_pct=None,
+                holdings_count=len(holdings),
+                positive_positions=None,
+                negative_positions=None,
+                largest_position_weight=None,
+                data_available=False,
+            )
 
-        positive_positions = sum(1 for h in holdings if h.unrealized_pnl >= 0)
-        negative_positions = sum(1 for h in holdings if h.unrealized_pnl < 0)
-        largest_position_weight = max(h.weight for h in holdings) if holdings else 0
+        total_market_value = sum(h.market_value for h in holdings_with_data)
+        total_cost_with_data = sum(h.quantity * h.cost_basis for h in holdings_with_data)
+        total_unrealized_pnl = total_market_value - total_cost_with_data
+        total_unrealized_pnl_pct = (total_unrealized_pnl / total_cost_with_data * 100) if total_cost_with_data else None
+
+        # Day change calculation
+        day_changes = [h.day_change for h in holdings_with_data if h.day_change is not None]
+        day_change = sum(day_changes) if day_changes else None
+        day_change_pct = None
+        if day_change is not None and total_market_value > 0:
+            prev_value = total_market_value - day_change
+            if prev_value > 0:
+                day_change_pct = (day_change / prev_value * 100)
+
+        positive_positions = sum(1 for h in holdings_with_data if h.unrealized_pnl is not None and h.unrealized_pnl >= 0)
+        negative_positions = sum(1 for h in holdings_with_data if h.unrealized_pnl is not None and h.unrealized_pnl < 0)
+        largest_position_weight = max((h.weight for h in holdings_with_data if h.weight is not None), default=None)
 
         # Find top gainer and loser
-        sorted_by_pnl_pct = sorted(holdings, key=lambda x: x.unrealized_pnl_pct, reverse=True)
+        sorted_by_pnl_pct = sorted(
+            [h for h in holdings_with_data if h.unrealized_pnl_pct is not None],
+            key=lambda x: x.unrealized_pnl_pct,
+            reverse=True
+        )
         top_gainer = sorted_by_pnl_pct[0].ticker if sorted_by_pnl_pct else None
-        top_gainer_pct = sorted_by_pnl_pct[0].unrealized_pnl_pct if sorted_by_pnl_pct else 0
+        top_gainer_pct = sorted_by_pnl_pct[0].unrealized_pnl_pct if sorted_by_pnl_pct else None
         top_loser = sorted_by_pnl_pct[-1].ticker if sorted_by_pnl_pct else None
-        top_loser_pct = sorted_by_pnl_pct[-1].unrealized_pnl_pct if sorted_by_pnl_pct else 0
+        top_loser_pct = sorted_by_pnl_pct[-1].unrealized_pnl_pct if sorted_by_pnl_pct else None
 
         return PerformanceMetrics(
             total_market_value=total_market_value,
@@ -446,6 +629,8 @@ class PortfolioService:
             top_gainer_pct=top_gainer_pct,
             top_loser=top_loser,
             top_loser_pct=top_loser_pct,
+            data_available=True,
+            partial_data=len(holdings_without_data) > 0,
         )
 
     def get_portfolio_summary(
@@ -479,213 +664,281 @@ class PortfolioService:
 
 @dataclass
 class RiskMetrics:
-    """Portfolio risk metrics."""
+    """Portfolio risk metrics computed from real market data."""
     portfolio_id: int
     as_of_date: str
+    data_available: bool = True
+    data_error: Optional[str] = None
 
-    # Value at Risk (VaR)
-    var_95_daily: float  # 95% VaR (daily)
-    var_99_daily: float  # 99% VaR (daily)
-    var_95_monthly: float  # 95% VaR (monthly)
-    var_99_monthly: float  # 99% VaR (monthly)
-    var_method: str  # historical, parametric, monte_carlo
+    # Value at Risk (VaR) - computed from real returns
+    var_95_daily: Optional[float] = None
+    var_99_daily: Optional[float] = None
+    var_95_monthly: Optional[float] = None
+    var_99_monthly: Optional[float] = None
+    var_method: str = "parametric"
 
-    # Beta (market correlation)
-    portfolio_beta: float  # vs S&P 500
-    weighted_avg_beta: float
+    # Beta (from real yfinance data)
+    portfolio_beta: Optional[float] = None
+    weighted_avg_beta: Optional[float] = None
 
-    # Volatility metrics
-    portfolio_volatility: float  # Annualized std dev
-    downside_deviation: float
-    sharpe_ratio: float
-    sortino_ratio: float
+    # Volatility metrics (from real historical returns)
+    portfolio_volatility: Optional[float] = None
+    downside_deviation: Optional[float] = None
+    sharpe_ratio: Optional[float] = None
+    sortino_ratio: Optional[float] = None
 
-    # Drawdown metrics
-    max_drawdown: float  # Maximum peak-to-trough decline
-    current_drawdown: float  # Current drawdown from peak
-    avg_drawdown: float
-    drawdown_duration_days: int  # Days in current drawdown
+    # Drawdown metrics (from real price history)
+    max_drawdown: Optional[float] = None
+    current_drawdown: Optional[float] = None
+    avg_drawdown: Optional[float] = None
+    drawdown_duration_days: Optional[int] = None
 
-    # Concentration risk
-    top_5_concentration: float  # % in top 5 holdings
-    herfindahl_index: float  # Concentration index
-    sector_concentration: float  # % in largest sector
+    # Concentration metrics (calculated, not fetched)
+    top_5_concentration: Optional[float] = None
+    herfindahl_index: Optional[float] = None
+    sector_concentration: Optional[float] = None
 
-    # Correlation
-    avg_pairwise_correlation: float
-    diversification_ratio: float
+    # Correlation (from real returns)
+    avg_pairwise_correlation: Optional[float] = None
+    diversification_ratio: Optional[float] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        result = {
             "portfolio_id": self.portfolio_id,
             "as_of_date": self.as_of_date,
+            "data_available": self.data_available,
+        }
+
+        if not self.data_available:
+            result["data_error"] = self.data_error
+            return result
+
+        result.update({
             "value_at_risk": {
-                "var_95_daily": round(self.var_95_daily, 2),
-                "var_99_daily": round(self.var_99_daily, 2),
-                "var_95_monthly": round(self.var_95_monthly, 2),
-                "var_99_monthly": round(self.var_99_monthly, 2),
+                "var_95_daily": round(self.var_95_daily, 2) if self.var_95_daily is not None else None,
+                "var_99_daily": round(self.var_99_daily, 2) if self.var_99_daily is not None else None,
+                "var_95_monthly": round(self.var_95_monthly, 2) if self.var_95_monthly is not None else None,
+                "var_99_monthly": round(self.var_99_monthly, 2) if self.var_99_monthly is not None else None,
                 "method": self.var_method,
             },
             "beta": {
-                "portfolio_beta": round(self.portfolio_beta, 3),
-                "weighted_avg_beta": round(self.weighted_avg_beta, 3),
+                "portfolio_beta": round(self.portfolio_beta, 3) if self.portfolio_beta is not None else None,
+                "weighted_avg_beta": round(self.weighted_avg_beta, 3) if self.weighted_avg_beta is not None else None,
             },
             "volatility": {
-                "annualized": round(self.portfolio_volatility * 100, 2),
-                "downside_deviation": round(self.downside_deviation * 100, 2),
-                "sharpe_ratio": round(self.sharpe_ratio, 3),
-                "sortino_ratio": round(self.sortino_ratio, 3),
+                "annualized": round(self.portfolio_volatility * 100, 2) if self.portfolio_volatility is not None else None,
+                "downside_deviation": round(self.downside_deviation * 100, 2) if self.downside_deviation is not None else None,
+                "sharpe_ratio": round(self.sharpe_ratio, 3) if self.sharpe_ratio is not None else None,
+                "sortino_ratio": round(self.sortino_ratio, 3) if self.sortino_ratio is not None else None,
             },
             "drawdown": {
-                "max_drawdown_pct": round(self.max_drawdown * 100, 2),
-                "current_drawdown_pct": round(self.current_drawdown * 100, 2),
-                "avg_drawdown_pct": round(self.avg_drawdown * 100, 2),
+                "max_drawdown_pct": round(self.max_drawdown * 100, 2) if self.max_drawdown is not None else None,
+                "current_drawdown_pct": round(self.current_drawdown * 100, 2) if self.current_drawdown is not None else None,
+                "avg_drawdown_pct": round(self.avg_drawdown * 100, 2) if self.avg_drawdown is not None else None,
                 "duration_days": self.drawdown_duration_days,
             },
             "concentration": {
-                "top_5_pct": round(self.top_5_concentration * 100, 2),
-                "herfindahl_index": round(self.herfindahl_index, 4),
-                "largest_sector_pct": round(self.sector_concentration * 100, 2),
+                "top_5_pct": round(self.top_5_concentration * 100, 2) if self.top_5_concentration is not None else None,
+                "herfindahl_index": round(self.herfindahl_index, 4) if self.herfindahl_index is not None else None,
+                "largest_sector_pct": round(self.sector_concentration * 100, 2) if self.sector_concentration is not None else None,
             },
             "diversification": {
-                "avg_correlation": round(self.avg_pairwise_correlation, 3),
-                "diversification_ratio": round(self.diversification_ratio, 3),
+                "avg_correlation": round(self.avg_pairwise_correlation, 3) if self.avg_pairwise_correlation is not None else None,
+                "diversification_ratio": round(self.diversification_ratio, 3) if self.diversification_ratio is not None else None,
             },
-        }
-
-
-def _get_real_beta(ticker: str) -> float:
-    """Get beta from yfinance info or return market-neutral default."""
-    import yfinance as yf
-    try:
-        info = yf.Ticker(ticker).info
-        beta = info.get("beta")
-        if beta is not None:
-            return float(beta)
-    except Exception as exc:
-        logger.debug("beta fetch failed for %s: %s", ticker, exc)
-    return 1.0
+        })
+        return result
 
 
 def calculate_risk_metrics(
     portfolio_id: int,
     holdings: List[Holding],
     total_value: float,
-) -> RiskMetrics:
+) -> Union[RiskMetrics, Dict[str, Any]]:
     """
-    Calculate comprehensive risk metrics for a portfolio.
+    Calculate comprehensive risk metrics for a portfolio using REAL market data.
 
-    Includes VaR, beta, volatility, drawdown, and concentration metrics.
+    All metrics are derived from actual yfinance historical data.
+    If data is unavailable, returns no_data response - never fake/simulated values.
     """
-    import math
+    import numpy as np
+    import pandas as pd
 
     today = datetime.now().strftime("%Y-%m-%d")
 
-    if not holdings or total_value == 0:
+    # Filter to holdings with real data
+    valid_holdings = [h for h in holdings if h.data_available and h.weight is not None]
+
+    if not valid_holdings or total_value == 0:
         return RiskMetrics(
             portfolio_id=portfolio_id,
             as_of_date=today,
-            var_95_daily=0, var_99_daily=0, var_95_monthly=0, var_99_monthly=0,
-            var_method="parametric",
-            portfolio_beta=0, weighted_avg_beta=0,
-            portfolio_volatility=0, downside_deviation=0,
-            sharpe_ratio=0, sortino_ratio=0,
-            max_drawdown=0, current_drawdown=0, avg_drawdown=0, drawdown_duration_days=0,
-            top_5_concentration=0, herfindahl_index=0, sector_concentration=0,
-            avg_pairwise_correlation=0, diversification_ratio=0,
+            data_available=False,
+            data_error="No valid holdings with market data",
         )
 
-    # Calculate weighted average beta
-    total_weight = sum(h.weight for h in holdings)
-    weighted_beta = sum(
-        h.weight * _get_real_beta(h.ticker) for h in holdings
-    ) / total_weight if total_weight > 0 else 1.0
+    # ─────────────────────────────────────────────────────────────────────────
+    # Calculate weighted average beta from REAL yfinance data
+    # ─────────────────────────────────────────────────────────────────────────
+    betas = []
+    weights_for_beta = []
+    for h in valid_holdings:
+        beta = _get_real_beta(h.ticker)
+        if beta is not None:
+            betas.append(beta)
+            weights_for_beta.append(h.weight)
 
-    # Compute real portfolio volatility from yfinance historical returns
+    weighted_beta = None
+    if betas and weights_for_beta:
+        total_weight = sum(weights_for_beta)
+        if total_weight > 0:
+            weighted_beta = sum(b * w for b, w in zip(betas, weights_for_beta)) / total_weight
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Compute portfolio volatility from REAL historical returns
+    # ─────────────────────────────────────────────────────────────────────────
+    portfolio_volatility = None
+    downside_dev = None
+    sharpe_ratio = None
+    sortino_ratio = None
+    max_dd = None
+    current_dd = None
+    avg_dd = None
+    drawdown_duration = None
+    avg_correlation = None
+
     try:
-        import yfinance as yf
-        import numpy as np
-        import pandas as pd
-        tickers_str = " ".join(h.ticker for h in holdings[:20])
-        hist = yf.download(tickers_str, period="1y", interval="1d", progress=False, timeout=15)
-        if "Adj Close" in hist.columns or "Close" in hist.columns:
-            prices = hist.get("Adj Close", hist.get("Close"))
-            if isinstance(prices, pd.Series):
-                prices = prices.to_frame()
-            returns = prices.pct_change().dropna()
-            if len(returns) > 20:
-                weights = np.array([h.weight for h in holdings[:len(returns.columns)]])
-                weights = weights[:len(returns.columns)]
-                weights = weights / weights.sum() if weights.sum() > 0 else weights
-                port_returns = (returns * weights).sum(axis=1)
-                portfolio_volatility = float(port_returns.std() * math.sqrt(252))
-                mean_return = float(port_returns.mean() * 252)
-                downside_returns = port_returns[port_returns < 0]
-                downside_dev = float(downside_returns.std() * math.sqrt(252)) if len(downside_returns) > 0 else 0.0
-                cumulative = (1 + port_returns).cumprod()
-                running_max = cumulative.cummax()
-                drawdowns = (cumulative - running_max) / running_max
-                max_dd = float(drawdowns.min())
-                current_dd = float(drawdowns.iloc[-1]) if len(drawdowns) > 0 else 0.0
-            else:
-                raise ValueError("Insufficient data")
+        # Limit to top 20 holdings for performance
+        tickers_to_fetch = [h.ticker for h in valid_holdings[:20]]
+        tickers_str = " ".join(tickers_to_fetch)
+
+        hist = yf.download(
+            tickers_str,
+            period="1y",
+            interval="1d",
+            progress=False,
+            timeout=20,
+            threads=True
+        )
+
+        if hist.empty:
+            logger.warning("yfinance returned empty historical data for risk metrics")
         else:
-            raise ValueError("No price data")
+            # Extract close prices
+            if "Adj Close" in hist.columns or ("Adj Close" in [c[0] for c in hist.columns] if isinstance(hist.columns, pd.MultiIndex) else False):
+                prices = hist.get("Adj Close", hist.get("Close"))
+            else:
+                prices = hist.get("Close")
+
+            if prices is not None:
+                if isinstance(prices, pd.Series):
+                    prices = prices.to_frame(name=tickers_to_fetch[0])
+
+                returns = prices.pct_change().dropna()
+
+                if len(returns) > 20:
+                    # Build weights array matching available tickers
+                    available_tickers = list(returns.columns)
+                    weights_array = []
+                    for ticker in available_tickers:
+                        matching = [h for h in valid_holdings if h.ticker == ticker]
+                        if matching:
+                            weights_array.append(matching[0].weight)
+                        else:
+                            weights_array.append(0)
+
+                    weights_array = np.array(weights_array)
+                    if weights_array.sum() > 0:
+                        weights_array = weights_array / weights_array.sum()
+
+                    # Portfolio returns
+                    port_returns = (returns * weights_array).sum(axis=1)
+
+                    # Annualized volatility
+                    portfolio_volatility = float(port_returns.std() * math.sqrt(252))
+
+                    # Mean return (annualized)
+                    mean_return = float(port_returns.mean() * 252)
+
+                    # Downside deviation
+                    downside_returns = port_returns[port_returns < 0]
+                    if len(downside_returns) > 0:
+                        downside_dev = float(downside_returns.std() * math.sqrt(252))
+
+                    # Drawdown calculations
+                    cumulative = (1 + port_returns).cumprod()
+                    running_max = cumulative.cummax()
+                    drawdowns = (cumulative - running_max) / running_max
+                    max_dd = float(drawdowns.min())
+                    current_dd = float(drawdowns.iloc[-1]) if len(drawdowns) > 0 else None
+                    avg_dd = float(drawdowns[drawdowns < 0].mean()) if len(drawdowns[drawdowns < 0]) > 0 else None
+
+                    # Drawdown duration - days since last peak
+                    if current_dd is not None and current_dd < 0:
+                        peak_idx = cumulative.idxmax()
+                        drawdown_duration = (returns.index[-1] - peak_idx).days
+
+                    # Risk-adjusted returns (using 5% risk-free rate)
+                    risk_free_rate = 0.05
+                    if portfolio_volatility is not None and portfolio_volatility > 0:
+                        sharpe_ratio = (mean_return - risk_free_rate) / portfolio_volatility
+
+                    if downside_dev is not None and downside_dev > 0:
+                        sortino_ratio = (mean_return - risk_free_rate) / downside_dev
+
+                    # Average pairwise correlation
+                    if len(available_tickers) > 1:
+                        corr_matrix = returns.corr()
+                        # Get upper triangle (excluding diagonal)
+                        upper_tri = np.triu(corr_matrix.values, k=1)
+                        mask = upper_tri != 0
+                        if mask.sum() > 0:
+                            avg_correlation = float(upper_tri[mask].mean())
+
     except Exception as exc:
-        logger.debug("Portfolio volatility calculation fell back to estimate: %s", exc)
-        portfolio_volatility = 0.18 * max(0.5, 1 - len(holdings) * 0.03) * weighted_beta
-        mean_return = None
-        downside_dev = None
-        max_dd = None
-        current_dd = None
+        logger.warning(f"Risk metrics calculation failed: {exc}")
+        # Return partial metrics - don't generate fake data
 
-    # Calculate VaR (parametric method)
-    z_95 = 1.645
-    z_99 = 2.326
-    daily_vol = portfolio_volatility / math.sqrt(252)
+    # ─────────────────────────────────────────────────────────────────────────
+    # Calculate VaR from REAL volatility (if available)
+    # ─────────────────────────────────────────────────────────────────────────
+    var_95_daily = None
+    var_99_daily = None
+    var_95_monthly = None
+    var_99_monthly = None
 
-    var_95_daily = total_value * z_95 * daily_vol
-    var_99_daily = total_value * z_99 * daily_vol
-    var_95_monthly = total_value * z_95 * portfolio_volatility * math.sqrt(21/252)
-    var_99_monthly = total_value * z_99 * portfolio_volatility * math.sqrt(21/252)
+    if portfolio_volatility is not None:
+        z_95 = 1.645
+        z_99 = 2.326
+        daily_vol = portfolio_volatility / math.sqrt(252)
 
-    # Risk-adjusted returns from real data
-    risk_free_rate = 0.05
-    if mean_return is not None and portfolio_volatility > 0:
-        sharpe_ratio = (mean_return - risk_free_rate) / portfolio_volatility
-    else:
-        sharpe_ratio = None
-    if mean_return is not None and downside_dev and downside_dev > 0:
-        sortino_ratio = (mean_return - risk_free_rate) / downside_dev
-    else:
-        sortino_ratio = None
+        var_95_daily = total_value * z_95 * daily_vol
+        var_99_daily = total_value * z_99 * daily_vol
+        var_95_monthly = total_value * z_95 * portfolio_volatility * math.sqrt(21/252)
+        var_99_monthly = total_value * z_99 * portfolio_volatility * math.sqrt(21/252)
 
-    # Drawdown metrics
-    max_drawdown = max_dd
-    current_drawdown = current_dd
-    avg_drawdown = None
-    drawdown_duration = 0
-
-    # Concentration metrics
-    sorted_holdings = sorted(holdings, key=lambda x: x.weight, reverse=True)
-    top_5_weight = sum(h.weight for h in sorted_holdings[:5])
-    hhi = sum(h.weight ** 2 for h in holdings)  # Herfindahl index
+    # ─────────────────────────────────────────────────────────────────────────
+    # Concentration metrics (calculated from holding weights - no external data)
+    # ─────────────────────────────────────────────────────────────────────────
+    sorted_holdings = sorted(valid_holdings, key=lambda x: x.weight or 0, reverse=True)
+    top_5_weight = sum(h.weight for h in sorted_holdings[:5] if h.weight is not None)
+    hhi = sum((h.weight or 0) ** 2 for h in valid_holdings)  # Herfindahl index
 
     # Sector concentration
     sector_weights: Dict[str, float] = {}
-    for h in holdings:
-        sector = h.sector or "Other"
-        sector_weights[sector] = sector_weights.get(sector, 0) + h.weight
-    max_sector_weight = max(sector_weights.values()) if sector_weights else 0
+    for h in valid_holdings:
+        sector = h.sector or "Unknown"
+        sector_weights[sector] = sector_weights.get(sector, 0) + (h.weight or 0)
+    max_sector_weight = max(sector_weights.values()) if sector_weights else None
 
-    # Correlation and diversification
-    n = len(holdings)
-    avg_correlation = None
-    diversification_ratio = 1 / math.sqrt(n) if n > 0 else 1
+    # Diversification ratio
+    n = len(valid_holdings)
+    diversification_ratio = 1 / math.sqrt(n) if n > 0 else None
 
     return RiskMetrics(
         portfolio_id=portfolio_id,
         as_of_date=today,
+        data_available=True,
         var_95_daily=var_95_daily,
         var_99_daily=var_99_daily,
         var_95_monthly=var_95_monthly,
@@ -694,17 +947,17 @@ def calculate_risk_metrics(
         portfolio_beta=weighted_beta,
         weighted_avg_beta=weighted_beta,
         portfolio_volatility=portfolio_volatility,
-        downside_deviation=downside_dev or 0.0,
-        sharpe_ratio=sharpe_ratio or 0.0,
-        sortino_ratio=sortino_ratio or 0.0,
-        max_drawdown=max_drawdown or 0.0,
-        current_drawdown=current_drawdown or 0.0,
-        avg_drawdown=avg_drawdown or 0.0,
+        downside_deviation=downside_dev,
+        sharpe_ratio=sharpe_ratio,
+        sortino_ratio=sortino_ratio,
+        max_drawdown=max_dd,
+        current_drawdown=current_dd,
+        avg_drawdown=avg_dd,
         drawdown_duration_days=drawdown_duration,
-        top_5_concentration=top_5_weight,
-        herfindahl_index=hhi,
+        top_5_concentration=top_5_weight if top_5_weight > 0 else None,
+        herfindahl_index=hhi if hhi > 0 else None,
         sector_concentration=max_sector_weight,
-        avg_pairwise_correlation=avg_correlation or 0.0,
+        avg_pairwise_correlation=avg_correlation,
         diversification_ratio=diversification_ratio,
     )
 
@@ -713,67 +966,85 @@ def calculate_risk_metrics(
 
 @dataclass
 class PositionPnL:
-    """Detailed P&L metrics for a single position."""
+    """Detailed P&L metrics for a single position using real market data."""
     position_id: int
     ticker: str
     company_name: Optional[str]
     sector: Optional[str]
+    data_available: bool = True
+    data_error: Optional[str] = None
 
     # Current position
-    quantity: float
-    cost_basis: float
-    current_price: float
-    market_value: float
+    quantity: float = 0
+    cost_basis: float = 0
+    current_price: Optional[float] = None
+    market_value: Optional[float] = None
 
     # Unrealized P&L
-    unrealized_pnl: float
-    unrealized_pnl_pct: float
+    unrealized_pnl: Optional[float] = None
+    unrealized_pnl_pct: Optional[float] = None
 
-    # Period returns
-    day_pnl: float
-    day_pnl_pct: float
-    week_pnl: float
-    week_pnl_pct: float
-    month_pnl: float
-    month_pnl_pct: float
-    ytd_pnl: float
-    ytd_pnl_pct: float
+    # Period returns (from real historical data)
+    day_pnl: Optional[float] = None
+    day_pnl_pct: Optional[float] = None
+    week_pnl: Optional[float] = None
+    week_pnl_pct: Optional[float] = None
+    month_pnl: Optional[float] = None
+    month_pnl_pct: Optional[float] = None
+    ytd_pnl: Optional[float] = None
+    ytd_pnl_pct: Optional[float] = None
 
     # Cost tracking
-    total_cost: float
-    avg_cost_per_share: float
+    total_cost: float = 0
+    avg_cost_per_share: float = 0
 
     # Realized P&L (from closed positions)
-    realized_pnl: float
-    total_pnl: float  # realized + unrealized
+    realized_pnl: float = 0
+    total_pnl: Optional[float] = None
 
     # Timestamps
-    first_purchase_date: Optional[str]
-    last_activity_date: Optional[str]
+    first_purchase_date: Optional[str] = None
+    last_activity_date: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        result = {
             "position_id": self.position_id,
             "ticker": self.ticker,
             "company_name": self.company_name,
             "sector": self.sector,
+            "data_available": self.data_available,
+        }
+
+        if not self.data_available:
+            result["data_error"] = self.data_error
+            result["position"] = {
+                "quantity": self.quantity,
+                "cost_basis": round(self.cost_basis, 2),
+            }
+            return result
+
+        result.update({
             "position": {
                 "quantity": self.quantity,
                 "cost_basis": round(self.cost_basis, 2),
-                "current_price": round(self.current_price, 2),
-                "market_value": round(self.market_value, 2),
+                "current_price": round(self.current_price, 2) if self.current_price else None,
+                "market_value": round(self.market_value, 2) if self.market_value else None,
             },
             "pnl": {
-                "unrealized": round(self.unrealized_pnl, 2),
-                "unrealized_pct": round(self.unrealized_pnl_pct, 2),
+                "unrealized": round(self.unrealized_pnl, 2) if self.unrealized_pnl is not None else None,
+                "unrealized_pct": round(self.unrealized_pnl_pct, 2) if self.unrealized_pnl_pct is not None else None,
                 "realized": round(self.realized_pnl, 2),
-                "total": round(self.total_pnl, 2),
+                "total": round(self.total_pnl, 2) if self.total_pnl is not None else None,
             },
             "period_returns": {
-                "day": {"pnl": round(self.day_pnl, 2), "pct": round(self.day_pnl_pct, 2)},
-                "week": {"pnl": round(self.week_pnl, 2), "pct": round(self.week_pnl_pct, 2)},
-                "month": {"pnl": round(self.month_pnl, 2), "pct": round(self.month_pnl_pct, 2)},
-                "ytd": {"pnl": round(self.ytd_pnl, 2), "pct": round(self.ytd_pnl_pct, 2)},
+                "day": {"pnl": round(self.day_pnl, 2) if self.day_pnl is not None else None,
+                        "pct": round(self.day_pnl_pct, 2) if self.day_pnl_pct is not None else None},
+                "week": {"pnl": round(self.week_pnl, 2) if self.week_pnl is not None else None,
+                         "pct": round(self.week_pnl_pct, 2) if self.week_pnl_pct is not None else None},
+                "month": {"pnl": round(self.month_pnl, 2) if self.month_pnl is not None else None,
+                          "pct": round(self.month_pnl_pct, 2) if self.month_pnl_pct is not None else None},
+                "ytd": {"pnl": round(self.ytd_pnl, 2) if self.ytd_pnl is not None else None,
+                        "pct": round(self.ytd_pnl_pct, 2) if self.ytd_pnl_pct is not None else None},
             },
             "cost_tracking": {
                 "total_cost": round(self.total_cost, 2),
@@ -783,7 +1054,8 @@ class PositionPnL:
                 "first_purchase": self.first_purchase_date,
                 "last_activity": self.last_activity_date,
             },
-        }
+        })
+        return result
 
 
 @dataclass
@@ -792,83 +1064,107 @@ class PortfolioPnLSummary:
     portfolio_id: int
     portfolio_name: str
     as_of_date: str
+    data_available: bool = True
+    partial_data: bool = False
 
     # Totals
-    total_market_value: float
-    total_cost_basis: float
-    total_unrealized_pnl: float
-    total_realized_pnl: float
-    total_pnl: float
+    total_market_value: Optional[float] = None
+    total_cost_basis: float = 0
+    total_unrealized_pnl: Optional[float] = None
+    total_realized_pnl: float = 0
+    total_pnl: Optional[float] = None
 
-    # Period totals
-    day_pnl: float
-    week_pnl: float
-    month_pnl: float
-    ytd_pnl: float
+    # Period totals (from real data)
+    day_pnl: Optional[float] = None
+    week_pnl: Optional[float] = None
+    month_pnl: Optional[float] = None
+    ytd_pnl: Optional[float] = None
 
     # Position details
-    positions: List[PositionPnL]
+    positions: List[PositionPnL] = field(default_factory=list)
 
     # Statistics
-    winners_count: int
-    losers_count: int
-    best_performer: Optional[str]
-    best_performer_pct: float
-    worst_performer: Optional[str]
-    worst_performer_pct: float
+    winners_count: Optional[int] = None
+    losers_count: Optional[int] = None
+    best_performer: Optional[str] = None
+    best_performer_pct: Optional[float] = None
+    worst_performer: Optional[str] = None
+    worst_performer_pct: Optional[float] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        result = {
             "portfolio_id": self.portfolio_id,
             "portfolio_name": self.portfolio_name,
             "as_of_date": self.as_of_date,
+            "data_available": self.data_available,
+            "partial_data": self.partial_data,
+        }
+
+        if not self.data_available:
+            result["positions"] = [p.to_dict() for p in self.positions]
+            return result
+
+        result.update({
             "summary": {
-                "total_market_value": round(self.total_market_value, 2),
+                "total_market_value": round(self.total_market_value, 2) if self.total_market_value else None,
                 "total_cost_basis": round(self.total_cost_basis, 2),
-                "total_unrealized_pnl": round(self.total_unrealized_pnl, 2),
+                "total_unrealized_pnl": round(self.total_unrealized_pnl, 2) if self.total_unrealized_pnl is not None else None,
                 "total_realized_pnl": round(self.total_realized_pnl, 2),
-                "total_pnl": round(self.total_pnl, 2),
+                "total_pnl": round(self.total_pnl, 2) if self.total_pnl is not None else None,
             },
             "period_totals": {
-                "day": round(self.day_pnl, 2),
-                "week": round(self.week_pnl, 2),
-                "month": round(self.month_pnl, 2),
-                "ytd": round(self.ytd_pnl, 2),
+                "day": round(self.day_pnl, 2) if self.day_pnl is not None else None,
+                "week": round(self.week_pnl, 2) if self.week_pnl is not None else None,
+                "month": round(self.month_pnl, 2) if self.month_pnl is not None else None,
+                "ytd": round(self.ytd_pnl, 2) if self.ytd_pnl is not None else None,
             },
             "statistics": {
                 "winners": self.winners_count,
                 "losers": self.losers_count,
                 "best_performer": self.best_performer,
-                "best_performer_pct": round(self.best_performer_pct, 2),
+                "best_performer_pct": round(self.best_performer_pct, 2) if self.best_performer_pct is not None else None,
                 "worst_performer": self.worst_performer,
-                "worst_performer_pct": round(self.worst_performer_pct, 2),
+                "worst_performer_pct": round(self.worst_performer_pct, 2) if self.worst_performer_pct is not None else None,
             },
             "positions": [p.to_dict() for p in self.positions],
-        }
+        })
+        return result
 
 
-def _get_price_history_factors(ticker: str) -> Dict[str, float]:
-    """Get actual price change factors from yfinance."""
-    import yfinance as yf
+def _get_price_history(ticker: str) -> Optional[Dict[str, float]]:
+    """
+    Get historical prices from yfinance for period P&L calculations.
+    Returns dict with price_1d_ago, price_5d_ago, price_21d_ago, price_ytd_start.
+    Returns None if data unavailable.
+    """
     try:
         hist = yf.Ticker(ticker).history(period="1y")
-        if hist.empty:
-            return {"day": 1.0, "week": 1.0, "month": 1.0, "ytd": 1.0}
+        if hist.empty or len(hist) < 2:
+            return None
+
         current = float(hist['Close'].iloc[-1])
-        factors = {"day": 1.0, "week": 1.0, "month": 1.0, "ytd": 1.0}
-        if len(hist) > 1:
-            factors["day"] = float(hist['Close'].iloc[-2]) / current
-        if len(hist) > 5:
-            factors["week"] = float(hist['Close'].iloc[-5]) / current
-        if len(hist) > 21:
-            factors["month"] = float(hist['Close'].iloc[-21]) / current
-        ytd_hist = hist[hist.index >= f"{datetime.now().year}-01-01"]
+
+        result = {
+            "current": current,
+            "price_1d_ago": float(hist['Close'].iloc[-2]) if len(hist) >= 2 else None,
+            "price_5d_ago": float(hist['Close'].iloc[-5]) if len(hist) >= 5 else None,
+            "price_21d_ago": float(hist['Close'].iloc[-21]) if len(hist) >= 21 else None,
+        }
+
+        # YTD start price
+        current_year = datetime.now().year
+        ytd_start = f"{current_year}-01-01"
+        ytd_hist = hist[hist.index >= ytd_start]
         if not ytd_hist.empty:
-            factors["ytd"] = float(ytd_hist['Close'].iloc[0]) / current
-        return factors
+            result["price_ytd_start"] = float(ytd_hist['Close'].iloc[0])
+        else:
+            result["price_ytd_start"] = None
+
+        return result
+
     except Exception as exc:
-        logger.debug("Price factor calculation failed: %s", exc)
-        return {"day": 1.0, "week": 1.0, "month": 1.0, "ytd": 1.0}
+        logger.debug("Price history fetch failed for %s: %s", ticker, exc)
+        return None
 
 
 def calculate_position_pnl(
@@ -879,58 +1175,85 @@ def calculate_position_pnl(
     notes: Optional[str] = None,
 ) -> PositionPnL:
     """
-    Calculate detailed P&L for a single position.
-
-    Returns comprehensive P&L metrics including period returns.
+    Calculate detailed P&L for a single position using REAL market data only.
+    Returns no_data-style response when data is unavailable.
     """
     service = get_portfolio_service()
 
     # Get current market data
     market_data = service._get_market_data([ticker])
-    data = market_data.get(ticker, {"price": cost_basis, "day_change": 0, "day_change_pct": 0})
-    current_price = data["price"]
+    data = market_data.get(ticker)
 
-    # Get sector info
+    # Get sector info and company name
     sector, industry = service._get_sector_info(ticker)
-
-    # Calculate basic P&L
-    market_value = quantity * current_price
-    total_cost = quantity * cost_basis
-    unrealized_pnl = market_value - total_cost
-    unrealized_pnl_pct = (unrealized_pnl / total_cost * 100) if total_cost else 0
-
-    # Get historical price factors
-    factors = _get_price_history_factors(ticker)
-
-    # Calculate period P&L
-    # Day P&L
-    prev_day_price = current_price * factors["day"]
-    day_pnl = quantity * (current_price - prev_day_price)
-    day_pnl_pct = ((current_price - prev_day_price) / prev_day_price * 100) if prev_day_price else 0
-
-    # Week P&L
-    prev_week_price = current_price * factors["week"]
-    week_pnl = quantity * (current_price - prev_week_price)
-    week_pnl_pct = ((current_price - prev_week_price) / prev_week_price * 100) if prev_week_price else 0
-
-    # Month P&L
-    prev_month_price = current_price * factors["month"]
-    month_pnl = quantity * (current_price - prev_month_price)
-    month_pnl_pct = ((current_price - prev_month_price) / prev_month_price * 100) if prev_month_price else 0
-
-    # YTD P&L
-    ytd_start_price = current_price * factors["ytd"]
-    ytd_pnl = quantity * (current_price - ytd_start_price)
-    ytd_pnl_pct = ((current_price - ytd_start_price) / ytd_start_price * 100) if ytd_start_price else 0
-
-    # Get company name from yfinance
     company_name = _get_company_name(ticker)
+
+    total_cost = quantity * cost_basis
+
+    if data is None:
+        # No market data available - return with data_available=False
+        return PositionPnL(
+            position_id=position_id,
+            ticker=ticker,
+            company_name=company_name,
+            sector=sector,
+            data_available=False,
+            data_error="Market data unavailable from yfinance",
+            quantity=quantity,
+            cost_basis=cost_basis,
+            total_cost=total_cost,
+            avg_cost_per_share=cost_basis,
+            last_activity_date=datetime.now().strftime("%Y-%m-%d"),
+        )
+
+    current_price = data["price"]
+    market_value = quantity * current_price
+    unrealized_pnl = market_value - total_cost
+    unrealized_pnl_pct = (unrealized_pnl / total_cost * 100) if total_cost else None
+
+    # Get historical prices for period P&L
+    price_history = _get_price_history(ticker)
+
+    day_pnl = None
+    day_pnl_pct = None
+    week_pnl = None
+    week_pnl_pct = None
+    month_pnl = None
+    month_pnl_pct = None
+    ytd_pnl = None
+    ytd_pnl_pct = None
+
+    if price_history:
+        # Day P&L
+        if price_history.get("price_1d_ago"):
+            prev_day_price = price_history["price_1d_ago"]
+            day_pnl = quantity * (current_price - prev_day_price)
+            day_pnl_pct = ((current_price - prev_day_price) / prev_day_price * 100) if prev_day_price else None
+
+        # Week P&L
+        if price_history.get("price_5d_ago"):
+            prev_week_price = price_history["price_5d_ago"]
+            week_pnl = quantity * (current_price - prev_week_price)
+            week_pnl_pct = ((current_price - prev_week_price) / prev_week_price * 100) if prev_week_price else None
+
+        # Month P&L
+        if price_history.get("price_21d_ago"):
+            prev_month_price = price_history["price_21d_ago"]
+            month_pnl = quantity * (current_price - prev_month_price)
+            month_pnl_pct = ((current_price - prev_month_price) / prev_month_price * 100) if prev_month_price else None
+
+        # YTD P&L
+        if price_history.get("price_ytd_start"):
+            ytd_start_price = price_history["price_ytd_start"]
+            ytd_pnl = quantity * (current_price - ytd_start_price)
+            ytd_pnl_pct = ((current_price - ytd_start_price) / ytd_start_price * 100) if ytd_start_price else None
 
     return PositionPnL(
         position_id=position_id,
         ticker=ticker,
         company_name=company_name,
         sector=sector,
+        data_available=True,
         quantity=quantity,
         cost_basis=cost_basis,
         current_price=current_price,
@@ -961,6 +1284,7 @@ def calculate_portfolio_pnl_summary(
 ) -> PortfolioPnLSummary:
     """
     Calculate P&L summary for all positions in a portfolio.
+    Uses only real market data from yfinance.
     """
     today = datetime.now().strftime("%Y-%m-%d")
 
@@ -969,22 +1293,8 @@ def calculate_portfolio_pnl_summary(
             portfolio_id=portfolio_id,
             portfolio_name=portfolio_name,
             as_of_date=today,
-            total_market_value=0,
-            total_cost_basis=0,
-            total_unrealized_pnl=0,
-            total_realized_pnl=0,
-            total_pnl=0,
-            day_pnl=0,
-            week_pnl=0,
-            month_pnl=0,
-            ytd_pnl=0,
+            data_available=True,
             positions=[],
-            winners_count=0,
-            losers_count=0,
-            best_performer=None,
-            best_performer_pct=0,
-            worst_performer=None,
-            worst_performer_pct=0,
         )
 
     # Calculate P&L for each position
@@ -999,22 +1309,47 @@ def calculate_portfolio_pnl_summary(
         )
         position_pnls.append(pnl)
 
-    # Calculate totals
-    total_market_value = sum(p.market_value for p in position_pnls)
-    total_cost_basis = sum(p.total_cost for p in position_pnls)
-    total_unrealized_pnl = sum(p.unrealized_pnl for p in position_pnls)
-    total_realized_pnl = sum(p.realized_pnl for p in position_pnls)
+    # Separate positions with and without data
+    positions_with_data = [p for p in position_pnls if p.data_available]
+    positions_without_data = [p for p in position_pnls if not p.data_available]
 
-    day_pnl = sum(p.day_pnl for p in position_pnls)
-    week_pnl = sum(p.week_pnl for p in position_pnls)
-    month_pnl = sum(p.month_pnl for p in position_pnls)
-    ytd_pnl = sum(p.ytd_pnl for p in position_pnls)
+    total_cost_basis = sum(p.total_cost for p in position_pnls)
+
+    if not positions_with_data:
+        return PortfolioPnLSummary(
+            portfolio_id=portfolio_id,
+            portfolio_name=portfolio_name,
+            as_of_date=today,
+            data_available=False,
+            total_cost_basis=total_cost_basis,
+            positions=position_pnls,
+        )
+
+    # Calculate totals from positions with real data
+    total_market_value = sum(p.market_value for p in positions_with_data if p.market_value is not None)
+    total_unrealized_pnl = sum(p.unrealized_pnl for p in positions_with_data if p.unrealized_pnl is not None)
+    total_realized_pnl = sum(p.realized_pnl for p in positions_with_data)
+
+    # Period P&L totals
+    day_pnls = [p.day_pnl for p in positions_with_data if p.day_pnl is not None]
+    week_pnls = [p.week_pnl for p in positions_with_data if p.week_pnl is not None]
+    month_pnls = [p.month_pnl for p in positions_with_data if p.month_pnl is not None]
+    ytd_pnls = [p.ytd_pnl for p in positions_with_data if p.ytd_pnl is not None]
+
+    day_pnl = sum(day_pnls) if day_pnls else None
+    week_pnl = sum(week_pnls) if week_pnls else None
+    month_pnl = sum(month_pnls) if month_pnls else None
+    ytd_pnl = sum(ytd_pnls) if ytd_pnls else None
 
     # Statistics
-    winners = [p for p in position_pnls if p.unrealized_pnl >= 0]
-    losers = [p for p in position_pnls if p.unrealized_pnl < 0]
+    winners = [p for p in positions_with_data if p.unrealized_pnl is not None and p.unrealized_pnl >= 0]
+    losers = [p for p in positions_with_data if p.unrealized_pnl is not None and p.unrealized_pnl < 0]
 
-    sorted_by_pct = sorted(position_pnls, key=lambda x: x.unrealized_pnl_pct, reverse=True)
+    sorted_by_pct = sorted(
+        [p for p in positions_with_data if p.unrealized_pnl_pct is not None],
+        key=lambda x: x.unrealized_pnl_pct,
+        reverse=True
+    )
     best = sorted_by_pct[0] if sorted_by_pct else None
     worst = sorted_by_pct[-1] if sorted_by_pct else None
 
@@ -1022,11 +1357,13 @@ def calculate_portfolio_pnl_summary(
         portfolio_id=portfolio_id,
         portfolio_name=portfolio_name,
         as_of_date=today,
+        data_available=True,
+        partial_data=len(positions_without_data) > 0,
         total_market_value=total_market_value,
         total_cost_basis=total_cost_basis,
         total_unrealized_pnl=total_unrealized_pnl,
         total_realized_pnl=total_realized_pnl,
-        total_pnl=total_unrealized_pnl + total_realized_pnl,
+        total_pnl=total_unrealized_pnl + total_realized_pnl if total_unrealized_pnl is not None else None,
         day_pnl=day_pnl,
         week_pnl=week_pnl,
         month_pnl=month_pnl,
@@ -1035,13 +1372,16 @@ def calculate_portfolio_pnl_summary(
         winners_count=len(winners),
         losers_count=len(losers),
         best_performer=best.ticker if best else None,
-        best_performer_pct=best.unrealized_pnl_pct if best else 0,
+        best_performer_pct=best.unrealized_pnl_pct if best else None,
         worst_performer=worst.ticker if worst else None,
-        worst_performer_pct=worst.unrealized_pnl_pct if worst else 0,
+        worst_performer_pct=worst.unrealized_pnl_pct if worst else None,
     )
 
 
+# ─────────────────────────────────────────────────────────────────────────────
 # Singleton instance
+# ─────────────────────────────────────────────────────────────────────────────
+
 _service: Optional[PortfolioService] = None
 
 

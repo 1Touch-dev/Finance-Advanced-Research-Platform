@@ -3,6 +3,7 @@ Financial data + news API connectors.
 Covers: FINNHUB, FMP, Alpha Vantage, FRED, NewsAPI, Guardian, NYT, GDELT,
         UK Companies House, ICIJ Offshore Leaks, ALEPH/OCCRP
 All APIs are free-tier; gracefully returns {} / [] when key is missing.
+Redis caching is applied to expensive external API calls.
 """
 import os
 import logging
@@ -23,6 +24,20 @@ ALEPH_KEY    = os.getenv("ALEPH_API_KEY", "")
 
 _TIMEOUT = 12
 
+try:
+    from app.core.cache import cache_json_get, cache_json_set
+    _CACHE_OK = True
+except ImportError:
+    _CACHE_OK = False
+    def cache_json_get(key): return None
+    def cache_json_set(key, data, ttl=3600): pass
+
+_TTL_QUOTE   = 60    # 1 min — price quotes are time-sensitive
+_TTL_PROFILE = 3600  # 1 hour — company profile is stable
+_TTL_FINS    = 1800  # 30 min — financial data changes infrequently
+_TTL_NEWS    = 600   # 10 min — news changes but not per-second
+_TTL_FRED    = 3600  # 1 hour — macro data is stable within a session
+
 
 def _get(url, params=None, headers=None, auth=None):
     try:
@@ -35,13 +50,28 @@ def _get(url, params=None, headers=None, auth=None):
     return None
 
 
+def _cached_get(cache_key: str, url, params=None, headers=None, auth=None, ttl: int = 3600):
+    """GET with Redis cache. Returns cached result or fetches and caches."""
+    cached = cache_json_get(cache_key)
+    if cached is not None:
+        return cached
+    result = _get(url, params=params, headers=headers, auth=auth)
+    if result is not None:
+        cache_json_set(cache_key, result, ttl=ttl)
+    return result
+
+
 # ─── FINNHUB ──────────────────────────────────────────────────────────────────
 
 def finnhub_quote(ticker: str) -> dict:
     if not FINNHUB_KEY:
         return {"error": "FINNHUB_API_KEY not set", "ticker": ticker}
-    data = _get("https://finnhub.io/api/v1/quote",
-                params={"symbol": ticker, "token": FINNHUB_KEY})
+    data = _cached_get(
+        f"fh:quote:{ticker}",
+        "https://finnhub.io/api/v1/quote",
+        params={"symbol": ticker, "token": FINNHUB_KEY},
+        ttl=_TTL_QUOTE,
+    )
     if not data:
         return {}
     return {
@@ -60,8 +90,12 @@ def finnhub_quote(ticker: str) -> dict:
 def finnhub_company_profile(ticker: str) -> dict:
     if not FINNHUB_KEY:
         return {}
-    data = _get("https://finnhub.io/api/v1/stock/profile2",
-                params={"symbol": ticker, "token": FINNHUB_KEY})
+    data = _cached_get(
+        f"fh:profile:{ticker}",
+        "https://finnhub.io/api/v1/stock/profile2",
+        params={"symbol": ticker, "token": FINNHUB_KEY},
+        ttl=_TTL_PROFILE,
+    )
     if not data:
         return {}
     return {
@@ -84,8 +118,12 @@ def finnhub_financials(ticker: str) -> dict:
     """Fetch basic financial metrics from Finnhub."""
     if not FINNHUB_KEY:
         return {}
-    data = _get("https://finnhub.io/api/v1/stock/metric",
-                params={"symbol": ticker, "metric": "all", "token": FINNHUB_KEY})
+    data = _cached_get(
+        f"fh:fins:{ticker}",
+        "https://finnhub.io/api/v1/stock/metric",
+        params={"symbol": ticker, "metric": "all", "token": FINNHUB_KEY},
+        ttl=_TTL_FINS,
+    )
     if not data or "metric" not in data:
         return {}
     m = data["metric"]
@@ -113,8 +151,12 @@ def finnhub_financials(ticker: str) -> dict:
 def finnhub_insider_transactions(ticker: str) -> list:
     if not FINNHUB_KEY:
         return []
-    data = _get("https://finnhub.io/api/v1/stock/insider-transactions",
-                params={"symbol": ticker, "token": FINNHUB_KEY})
+    data = _cached_get(
+        f"fh:insider:{ticker}",
+        "https://finnhub.io/api/v1/stock/insider-transactions",
+        params={"symbol": ticker, "token": FINNHUB_KEY},
+        ttl=_TTL_FINS,
+    )
     if not data or "data" not in data:
         return []
     txns = []
@@ -134,9 +176,13 @@ def finnhub_news(entity_name: str, limit: int = 20) -> list:
     """Company news from Finnhub (by ticker if available, otherwise general search)."""
     if not FINNHUB_KEY:
         return []
-    data = _get("https://finnhub.io/api/v1/company-news",
-                params={"symbol": entity_name.upper()[:5], "from": "2024-01-01",
-                        "to": "2026-12-31", "token": FINNHUB_KEY})
+    data = _cached_get(
+        f"fh:news:{entity_name.upper()[:5]}",
+        "https://finnhub.io/api/v1/company-news",
+        params={"symbol": entity_name.upper()[:5], "from": "2024-01-01",
+                "to": "2026-12-31", "token": FINNHUB_KEY},
+        ttl=_TTL_NEWS,
+    )
     if not data:
         return []
     articles = []
@@ -165,16 +211,17 @@ def finnhub_ipo_calendar(from_date: str, to_date: str) -> list:
     """
     if not FINNHUB_KEY:
         return []
-    data = _get("https://finnhub.io/api/v1/calendar/ipo",
-                params={"from": from_date, "to": to_date, "token": FINNHUB_KEY})
+    data = _cached_get(
+        f"fh:ipo:{from_date}:{to_date}",
+        "https://finnhub.io/api/v1/calendar/ipo",
+        params={"from": from_date, "to": to_date, "token": FINNHUB_KEY},
+        ttl=3600,
+    )
     if not data or "ipoCalendar" not in data:
         return []
 
     ipos = []
     for ipo in data.get("ipoCalendar", []):
-        # Parse price range
-        price_range = ipo.get("priceRangeLow"), ipo.get("priceRangeHigh")
-
         ipos.append({
             "ticker": ipo.get("symbol", ""),
             "company_name": ipo.get("name", ""),
@@ -196,8 +243,12 @@ def fmp_income_statement(ticker: str, limit: int = 20) -> list:
     """FMP stable endpoint (v3 legacy endpoints no longer supported for new accounts)."""
     if not FMP_KEY:
         return []
-    data = _get("https://financialmodelingprep.com/stable/income-statement",
-                params={"symbol": ticker, "limit": limit, "apikey": FMP_KEY})
+    data = _cached_get(
+        f"fmp:income:{ticker}:{limit}",
+        "https://financialmodelingprep.com/stable/income-statement",
+        params={"symbol": ticker, "limit": limit, "apikey": FMP_KEY},
+        ttl=_TTL_FINS,
+    )
     if not data or isinstance(data, dict):
         return []
     rows = []
@@ -221,8 +272,12 @@ def fmp_income_statement(ticker: str, limit: int = 20) -> list:
 def fmp_balance_sheet(ticker: str, limit: int = 10) -> list:
     if not FMP_KEY:
         return []
-    data = _get("https://financialmodelingprep.com/stable/balance-sheet-statement",
-                params={"symbol": ticker, "limit": limit, "apikey": FMP_KEY})
+    data = _cached_get(
+        f"fmp:bs:{ticker}:{limit}",
+        "https://financialmodelingprep.com/stable/balance-sheet-statement",
+        params={"symbol": ticker, "limit": limit, "apikey": FMP_KEY},
+        ttl=_TTL_FINS,
+    )
     if not data or isinstance(data, dict):
         return []
     rows = []
@@ -243,8 +298,12 @@ def fmp_balance_sheet(ticker: str, limit: int = 10) -> list:
 def fmp_cash_flow(ticker: str, limit: int = 10) -> list:
     if not FMP_KEY:
         return []
-    data = _get("https://financialmodelingprep.com/stable/cash-flow-statement",
-                params={"symbol": ticker, "limit": limit, "apikey": FMP_KEY})
+    data = _cached_get(
+        f"fmp:cf:{ticker}:{limit}",
+        "https://financialmodelingprep.com/stable/cash-flow-statement",
+        params={"symbol": ticker, "limit": limit, "apikey": FMP_KEY},
+        ttl=_TTL_FINS,
+    )
     if not data or isinstance(data, dict):
         return []
     rows = []
@@ -264,8 +323,12 @@ def fmp_key_metrics(ticker: str) -> dict:
     """FMP stable key-metrics-ttm endpoint."""
     if not FMP_KEY:
         return {}
-    data = _get("https://financialmodelingprep.com/stable/key-metrics-ttm",
-                params={"symbol": ticker, "apikey": FMP_KEY})
+    data = _cached_get(
+        f"fmp:km:{ticker}",
+        "https://financialmodelingprep.com/stable/key-metrics-ttm",
+        params={"symbol": ticker, "apikey": FMP_KEY},
+        ttl=_TTL_FINS,
+    )
     if not data or not isinstance(data, list):
         return {}
     m = data[0] if data else {}
@@ -447,9 +510,13 @@ def fred_macro_data(series_id: str = "GDP", limit: int = 10) -> list:
     """Fetch FRED series observations."""
     if not FRED_KEY:
         return []
-    data = _get("https://api.stlouisfed.org/fred/series/observations",
-                params={"series_id": series_id, "api_key": FRED_KEY,
-                        "file_type": "json", "sort_order": "desc", "limit": limit})
+    data = _cached_get(
+        f"fred:obs:{series_id}:{limit}",
+        "https://api.stlouisfed.org/fred/series/observations",
+        params={"series_id": series_id, "api_key": FRED_KEY,
+                "file_type": "json", "sort_order": "desc", "limit": limit},
+        ttl=_TTL_FRED,
+    )
     if not data or "observations" not in data:
         return []
     series_meta = FRED_SERIES.get(series_id, {"name": series_id, "units": "N/A"})
@@ -462,8 +529,12 @@ def fred_series_info(series_id: str) -> dict:
     """Get metadata about a FRED series."""
     if not FRED_KEY:
         return {}
-    data = _get("https://api.stlouisfed.org/fred/series",
-                params={"series_id": series_id, "api_key": FRED_KEY, "file_type": "json"})
+    data = _cached_get(
+        f"fred:info:{series_id}",
+        "https://api.stlouisfed.org/fred/series",
+        params={"series_id": series_id, "api_key": FRED_KEY, "file_type": "json"},
+        ttl=86400,  # Series metadata is very stable — cache 24h
+    )
     if not data or "seriess" not in data:
         return {}
     s = data["seriess"][0] if data["seriess"] else {}
@@ -491,17 +562,20 @@ def fred_vintage_data(series_id: str, vintage_date: str, limit: int = 10) -> lis
     """
     if not FRED_KEY:
         return []
-    # ALFRED API endpoint for vintage data
-    data = _get("https://api.stlouisfed.org/fred/series/observations",
-                params={
-                    "series_id": series_id,
-                    "api_key": FRED_KEY,
-                    "file_type": "json",
-                    "sort_order": "desc",
-                    "limit": limit,
-                    "realtime_start": vintage_date,
-                    "realtime_end": vintage_date,
-                })
+    data = _cached_get(
+        f"fred:vintage:{series_id}:{vintage_date}:{limit}",
+        "https://api.stlouisfed.org/fred/series/observations",
+        params={
+            "series_id": series_id,
+            "api_key": FRED_KEY,
+            "file_type": "json",
+            "sort_order": "desc",
+            "limit": limit,
+            "realtime_start": vintage_date,
+            "realtime_end": vintage_date,
+        },
+        ttl=86400,  # Historical vintage data never changes
+    )
     if not data or "observations" not in data:
         return []
     series_meta = FRED_SERIES.get(series_id, {"name": series_id})
@@ -585,9 +659,13 @@ def fred_search(query: str, limit: int = 10) -> list:
     """Search for FRED series by keyword."""
     if not FRED_KEY:
         return []
-    data = _get("https://api.stlouisfed.org/fred/series/search",
-                params={"search_text": query, "api_key": FRED_KEY,
-                        "file_type": "json", "limit": limit})
+    data = _cached_get(
+        f"fred:search:{query}:{limit}",
+        "https://api.stlouisfed.org/fred/series/search",
+        params={"search_text": query, "api_key": FRED_KEY,
+                "file_type": "json", "limit": limit},
+        ttl=86400,
+    )
     if not data or "seriess" not in data:
         return []
     return [{
@@ -604,9 +682,13 @@ def fred_search(query: str, limit: int = 10) -> list:
 def newsapi_search(query: str, limit: int = 20) -> list:
     if not NEWSAPI_KEY:
         return []
-    data = _get("https://newsapi.org/v2/everything",
-                params={"q": query, "sortBy": "publishedAt", "pageSize": limit,
-                        "language": "en", "apiKey": NEWSAPI_KEY})
+    data = _cached_get(
+        f"news:newsapi:{query}:{limit}",
+        "https://newsapi.org/v2/everything",
+        params={"q": query, "sortBy": "publishedAt", "pageSize": limit,
+                "language": "en", "apiKey": NEWSAPI_KEY},
+        ttl=_TTL_NEWS,
+    )
     if not data or "articles" not in data:
         return []
     articles = []
@@ -625,10 +707,14 @@ def newsapi_search(query: str, limit: int = 20) -> list:
 def guardian_search(query: str, limit: int = 20) -> list:
     if not GUARDIAN_KEY:
         return []
-    data = _get("https://content.guardianapis.com/search",
-                params={"q": query, "page-size": limit, "order-by": "newest",
-                        "show-fields": "headline,trailText,byline",
-                        "api-key": GUARDIAN_KEY})
+    data = _cached_get(
+        f"news:guardian:{query}:{limit}",
+        "https://content.guardianapis.com/search",
+        params={"q": query, "page-size": limit, "order-by": "newest",
+                "show-fields": "headline,trailText,byline",
+                "api-key": GUARDIAN_KEY},
+        ttl=_TTL_NEWS,
+    )
     if not data or "response" not in data:
         return []
     articles = []
@@ -648,8 +734,12 @@ def guardian_search(query: str, limit: int = 20) -> list:
 def nyt_search(query: str, limit: int = 20) -> list:
     if not NYT_KEY:
         return []
-    data = _get("https://api.nytimes.com/svc/search/v2/articlesearch.json",
-                params={"q": query, "sort": "newest", "api-key": NYT_KEY})
+    data = _cached_get(
+        f"news:nyt:{query}:{limit}",
+        "https://api.nytimes.com/svc/search/v2/articlesearch.json",
+        params={"q": query, "sort": "newest", "api-key": NYT_KEY},
+        ttl=_TTL_NEWS,
+    )
     if not data or "response" not in data:
         return []
     articles = []
@@ -667,6 +757,9 @@ def nyt_search(query: str, limit: int = 20) -> list:
 
 def gdelt_search(query: str, limit: int = 20) -> list:
     """GDELT — no key required. Requires 5s between requests per their policy."""
+    cached = cache_json_get(f"news:gdelt:{query}:{limit}")
+    if cached is not None:
+        return cached
     import time
     time.sleep(1)  # brief polite delay
     data = _get("https://api.gdeltproject.org/api/v2/doc/doc",
@@ -685,6 +778,7 @@ def gdelt_search(query: str, limit: int = 20) -> list:
             "tone": a.get("tone"),
             "provider": "GDELT",
         })
+    cache_json_set(f"news:gdelt:{query}:{limit}", articles, ttl=_TTL_NEWS)
     return articles
 
 
@@ -713,9 +807,13 @@ def aggregate_news(entity_name: str, limit_per_source: int = 10) -> dict:
 def ukch_search(company_name: str, limit: int = 10) -> list:
     if not UKCH_KEY:
         return []
-    data = _get("https://api.company-information.service.gov.uk/search/companies",
-                params={"q": company_name, "items_per_page": limit},
-                auth=(UKCH_KEY, ""))
+    data = _cached_get(
+        f"ukch:search:{company_name}:{limit}",
+        "https://api.company-information.service.gov.uk/search/companies",
+        params={"q": company_name, "items_per_page": limit},
+        auth=(UKCH_KEY, ""),
+        ttl=3600,
+    )
     if not data or "items" not in data:
         return []
     results = []
@@ -736,8 +834,12 @@ def ukch_search(company_name: str, limit: int = 10) -> list:
 def ukch_officers(company_number: str) -> list:
     if not UKCH_KEY:
         return []
-    data = _get(f"https://api.company-information.service.gov.uk/company/{company_number}/officers",
-                auth=(UKCH_KEY, ""))
+    data = _cached_get(
+        f"ukch:officers:{company_number}",
+        f"https://api.company-information.service.gov.uk/company/{company_number}/officers",
+        auth=(UKCH_KEY, ""),
+        ttl=3600,
+    )
     if not data or "items" not in data:
         return []
     officers = []
@@ -769,9 +871,13 @@ def icij_search(entity_name: str) -> list:
 
 def aleph_search(entity_name: str, limit: int = 10) -> list:
     headers = {"Authorization": f"ApiKey {ALEPH_KEY}"} if ALEPH_KEY else {}
-    data = _get("https://aleph.occrp.org/api/2/entities",
-                params={"q": entity_name, "limit": limit},
-                headers=headers)
+    data = _cached_get(
+        f"aleph:{entity_name}:{limit}",
+        "https://aleph.occrp.org/api/2/entities",
+        params={"q": entity_name, "limit": limit},
+        headers=headers,
+        ttl=3600,
+    )
     if not data or "results" not in data:
         return []
     results = []

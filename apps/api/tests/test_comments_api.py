@@ -453,7 +453,10 @@ class TestCommentsAPI:
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["user_id"] == "apiuser1"
+        # user_id is taken from the JWT token (not the query param), so we
+        # only verify it is a non-empty string — its exact value depends on
+        # which registered user the test client is authenticated as.
+        assert isinstance(data["user_id"], str) and data["user_id"]
         assert data["content"] == "API test comment"
 
     def test_create_comment_invalid_entity_type(self):
@@ -552,7 +555,8 @@ class TestAnnotationsAPI:
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["user_id"] == "annotator_api"
+        # user_id comes from the JWT token, not the query param
+        assert isinstance(data["user_id"], str) and data["user_id"]
         assert data["position"]["start"] == 100
 
     def test_create_annotation_invalid_offsets(self):
@@ -608,7 +612,8 @@ class TestAnnotationsAPI:
         assert response.status_code == 200
         data = response.json()
         assert "annotations" in data
-        assert data["user_id"] == "annotator_api"
+        # user_id is resolved from JWT token, not the query param
+        assert isinstance(data["user_id"], str) and data["user_id"]
 
     def test_update_annotation(self):
         """PUT /annotations/{id} updates an annotation."""

@@ -33,6 +33,8 @@ class NoDataReason(str, Enum):
     DATA_NOT_PUBLIC = "data_not_public"
     UNSUPPORTED_TICKER = "unsupported_ticker"
     DEPENDENCY_MISSING = "dependency_missing"
+    INTEGRATION_NOT_CONFIGURED = "integration_not_configured"
+    SERVICE_UNAVAILABLE = "service_unavailable"
 
 
 # Human-readable messages for each reason
@@ -48,6 +50,8 @@ REASON_MESSAGES = {
     NoDataReason.DATA_NOT_PUBLIC: "Data is not publicly available",
     NoDataReason.UNSUPPORTED_TICKER: "Ticker not supported by data source",
     NoDataReason.DEPENDENCY_MISSING: "Required package not installed",
+    NoDataReason.INTEGRATION_NOT_CONFIGURED: "Integration not configured",
+    NoDataReason.SERVICE_UNAVAILABLE: "Service not available",
 }
 
 

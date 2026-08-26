@@ -577,7 +577,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['claim_id'], ['claims.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_table('comments',
+    op.create_table('report_comments',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('section_id', sa.Integer(), nullable=True),
@@ -734,7 +734,7 @@ def downgrade() -> None:
     op.drop_table('invitations')
     op.drop_table('investment_alert_seen')
     op.drop_table('delivery_channels')
-    op.drop_table('comments')
+    op.drop_table('report_comments')
     op.drop_table('claim_evidence')
     op.drop_table('cases')
     op.drop_table('audit_logs')

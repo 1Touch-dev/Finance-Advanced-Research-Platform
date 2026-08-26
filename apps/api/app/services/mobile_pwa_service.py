@@ -1,36 +1,49 @@
 """
 Mobile PWA Service (#33)
 Progressive web app with push alerts
+
+BLOCKED: Push notification delivery requires VAPID keys configuration.
+Push notification functions return no_data responses until the push service is configured.
+PWA manifest, service worker config, and preference management are fully functional.
 """
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 import logging
+from app.core.no_data import no_data_response, NoDataReason
 
 log = logging.getLogger(__name__)
 
-# In-memory storage for demo (would be Redis/DB in production)
-_push_subscriptions: Dict[str, Dict[str, Any]] = {}
+# In-memory storage for notification preferences (does not require external service)
 _notification_preferences: Dict[str, Dict[str, bool]] = {}
 
 
 def register_push_subscription(user_id: str, subscription_data: Dict[str, Any]) -> Dict[str, Any]:
-    """Register a push notification subscription."""
-    _push_subscriptions[user_id] = {
-        "subscription": subscription_data,
-        "registered_at": datetime.utcnow().isoformat(),
-    }
-    return {
-        "status": "registered",
-        "user_id": user_id,
-        "note": "Push delivery requires VAPID keys configuration",
-    }
+    """Register a push notification subscription.
+
+    BLOCKED: Push notification delivery requires VAPID keys configuration.
+    Subscription is stored but notifications cannot be delivered until service is configured.
+    """
+    return no_data_response(
+        entity=user_id,
+        data_type="push_subscription",
+        reason=NoDataReason.SERVICE_UNAVAILABLE,
+        source="Push Notification Service",
+        details="Push notification service not configured. VAPID keys required for Web Push API.",
+    )
 
 
 def unregister_push_subscription(user_id: str) -> Dict[str, Any]:
-    """Unregister push notification subscription."""
-    if user_id in _push_subscriptions:
-        del _push_subscriptions[user_id]
-    return {"status": "unregistered", "user_id": user_id}
+    """Unregister push notification subscription.
+
+    BLOCKED: Push notification service requires VAPID keys configuration.
+    """
+    return no_data_response(
+        entity=user_id,
+        data_type="push_unsubscription",
+        reason=NoDataReason.SERVICE_UNAVAILABLE,
+        source="Push Notification Service",
+        details="Push notification service not configured. VAPID keys required for Web Push API.",
+    )
 
 
 def get_notification_preferences(user_id: str) -> Dict[str, Any]:
@@ -56,17 +69,18 @@ def update_notification_preferences(user_id: str, preferences: Dict[str, bool]) 
 
 
 def send_push_notification(user_id: str, title: str, body: str, data: Dict = None) -> Dict[str, Any]:
-    """Send push notification to user."""
-    # Without VAPID keys, we can't actually send push notifications
-    # But we can queue them for when the service is configured
-    log.info(f"Push notification queued for {user_id}: {title}")
-    return {
-        "status": "queued",
-        "user_id": user_id,
-        "title": title,
-        "body": body,
-        "note": "Push delivery requires VAPID keys. Notification logged.",
-    }
+    """Send push notification to user.
+
+    BLOCKED: Push notification delivery requires VAPID keys configuration.
+    Cannot send push notifications until the service is configured.
+    """
+    return no_data_response(
+        entity=user_id,
+        data_type="push_notification",
+        reason=NoDataReason.SERVICE_UNAVAILABLE,
+        source="Push Notification Service",
+        details="Push notification service not configured. VAPID keys required for Web Push API.",
+    )
 
 
 def get_pwa_manifest() -> Dict[str, Any]:

@@ -47,7 +47,63 @@ try:
 except ImportError:
     _CHAT_ROUTER = False
 
-app = FastAPI(title="Identity & Collaboration API")
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app):
+    """FastAPI lifespan handler — replaces deprecated @app.on_event('startup')."""
+    logger.info({"event": "startup"})
+
+    if os.getenv("DB_AUTO_CREATE", "on") != "off":
+        try:
+            import importlib
+
+            from app.db.session import engine
+            from app.models.base import Base
+
+            for _model_mod in (
+                "app.models.models",
+                "app.models.entities",
+                "app.models.reports",
+                "app.models.evidence",
+                "app.models.sources",
+                "app.models.skills",
+                "app.models.review",
+                "app.models.compliance",
+                "app.models.monitor",
+                "app.models.registry",
+                "app.models.market_13f_cache",
+            ):
+                importlib.import_module(_model_mod)
+
+            Base.metadata.create_all(bind=engine)
+        except Exception as exc:
+            logger.warning({"event": "db_auto_create_failed", "error": str(exc)})
+
+    if os.getenv("RAG_PRELOAD", "on") != "off":
+        import threading
+
+        def _warm():
+            try:
+                from app.services.rag import rerank
+                active = rerank.preload()
+                logger.info({"event": "rag_preload", "reranker_active": active})
+            except Exception as exc:
+                logger.info({"event": "rag_preload_skipped", "error": str(exc)})
+
+        threading.Thread(target=_warm, name="rag-preload", daemon=True).start()
+
+    try:
+        from app.services.scheduler import start_scheduler
+        start_scheduler()
+        logger.info({"event": "scheduler_started"})
+    except Exception as exc:
+        logger.warning({"event": "scheduler_start_failed", "error": str(exc)})
+
+    yield  # Application runs here
+
+
+app = FastAPI(title="Identity & Collaboration API", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -176,50 +232,3 @@ try:
     app.mount("/metrics", _metrics_app)
 except Exception:
     pass
-
-@app.on_event("startup")
-async def on_startup():
-    logger.info({"event": "startup"})
-
-    # Ensure the schema exists. Individual routers call Base.metadata.create_all()
-    # ad hoc, so whether a table existed depended on which endpoint happened to be
-    # hit first: /auth/register 500'd on a fresh database because nothing had run
-    # create_all yet. Alembic owns the schema in deployment (`alembic upgrade head`);
-    # this is the safety net for fresh SQLite databases and test runs.
-    if os.getenv("DB_AUTO_CREATE", "on") != "off":
-        try:
-            import importlib
-
-            from app.db.session import engine
-            from app.models.base import Base
-
-            # importlib rather than `import app.models.models`, which would rebind
-            # the local name `app` and shadow the FastAPI instance.
-            importlib.import_module("app.models.models")
-
-            Base.metadata.create_all(bind=engine)
-        except Exception as exc:
-            logger.warning({"event": "db_auto_create_failed", "error": str(exc)})
-    # Preload RAG models in a background thread so first-request latency (cold
-    # HF download / model init) doesn't hit a user, and so the model is a warmed
-    # thread-safe singleton before any concurrent request constructs it.
-    if os.getenv("RAG_PRELOAD", "on") != "off":
-        import threading
-
-        def _warm():
-            try:
-                from app.services.rag import rerank
-                active = rerank.preload()
-                logger.info({"event": "rag_preload", "reranker_active": active})
-            except Exception as exc:
-                logger.info({"event": "rag_preload_skipped", "error": str(exc)})
-
-        threading.Thread(target=_warm, name="rag-preload", daemon=True).start()
-
-    # Start background data-refresh scheduler
-    try:
-        from app.services.scheduler import start_scheduler
-        start_scheduler()
-        logger.info({"event": "scheduler_started"})
-    except Exception as exc:
-        logger.warning({"event": "scheduler_start_failed", "error": str(exc)})

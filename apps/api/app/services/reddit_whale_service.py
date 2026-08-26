@@ -3,11 +3,15 @@ Reddit & Whale Improvements Service (James J4)
 Enhanced social sentiment and whale tracking
 
 Uses yfinance for institutional/insider data.
-Reddit sentiment requires Reddit API credentials (optional).
+
+BLOCKED: Reddit sentiment functions require Reddit API approval.
+The Reddit API functions return no_data responses until API access is configured.
+Whale/institutional functions use yfinance and return real data.
 """
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import logging
+from app.core.no_data import no_data_response, NoDataReason
 
 log = logging.getLogger(__name__)
 
@@ -37,52 +41,64 @@ def get_reddit_sentiment(
 ) -> Dict[str, Any]:
     """Get Reddit sentiment for ticker or subreddit.
 
-    Note: Requires Reddit API credentials for real data.
-    Returns stub data indicating the feature is available but needs config.
+    BLOCKED: Requires Reddit API approval and credentials.
+    Returns no_data response until Reddit API access is configured.
     """
-    return {
-        "ticker": ticker,
-        "subreddit": subreddit or "wallstreetbets",
-        "status": "api_key_required",
-        "message": "Reddit API credentials not configured. Set REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET.",
-        "sample_response": {
-            "sentiment_score": 0.65,
-            "mentions_24h": 150,
-            "top_posts": [],
-        },
-    }
+    return no_data_response(
+        entity=ticker or subreddit or "reddit",
+        data_type="reddit_sentiment",
+        reason=NoDataReason.API_KEY_MISSING,
+        source="Reddit API",
+        details="Reddit API access not configured. Requires REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET environment variables.",
+    )
 
 
 def get_reddit_trending(limit: int = 10) -> Dict[str, Any]:
-    """Get trending tickers on Reddit."""
-    return {
-        "status": "api_key_required",
-        "message": "Reddit API credentials not configured.",
-        "trending": [],
-    }
+    """Get trending tickers on Reddit.
+
+    BLOCKED: Requires Reddit API approval and credentials.
+    Returns no_data response until Reddit API access is configured.
+    """
+    return no_data_response(
+        entity="reddit",
+        data_type="trending_tickers",
+        reason=NoDataReason.API_KEY_MISSING,
+        source="Reddit API",
+        details="Reddit API access not configured. Requires REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET environment variables.",
+    )
 
 
 def get_subreddit_activity(subreddit: str) -> Dict[str, Any]:
-    """Get activity metrics for a subreddit."""
-    return {
-        "subreddit": subreddit,
-        "status": "api_key_required",
-        "message": "Reddit API credentials not configured.",
-    }
+    """Get activity metrics for a subreddit.
+
+    BLOCKED: Requires Reddit API approval and credentials.
+    Returns no_data response until Reddit API access is configured.
+    """
+    return no_data_response(
+        entity=subreddit,
+        data_type="subreddit_activity",
+        reason=NoDataReason.API_KEY_MISSING,
+        source="Reddit API",
+        details="Reddit API access not configured. Requires REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET environment variables.",
+    )
 
 
 def get_sentiment_history(
     ticker: str,
     days: int = 30,
 ) -> Dict[str, Any]:
-    """Get sentiment history over time."""
-    return {
-        "ticker": ticker,
-        "days": days,
-        "status": "api_key_required",
-        "message": "Reddit API credentials not configured.",
-        "history": [],
-    }
+    """Get sentiment history over time.
+
+    BLOCKED: Requires Reddit API approval and credentials.
+    Returns no_data response until Reddit API access is configured.
+    """
+    return no_data_response(
+        entity=ticker,
+        data_type="sentiment_history",
+        reason=NoDataReason.API_KEY_MISSING,
+        source="Reddit API",
+        details="Reddit API access not configured. Requires REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET environment variables.",
+    )
 
 
 def get_whale_transactions(
@@ -344,7 +360,7 @@ def get_social_momentum(ticker: str) -> Dict[str, Any]:
     """Get combined social momentum score.
 
     Combines insider sentiment with institutional ownership changes.
-    Reddit sentiment requires API credentials.
+    Reddit sentiment is unavailable (requires API credentials).
     """
     cache_key = f"social_momentum:{ticker}"
     cached = _get_cached(cache_key)
@@ -376,12 +392,21 @@ def get_social_momentum(ticker: str) -> Dict[str, Any]:
         elif inst_pct < 20:
             score -= 15  # Low institutional interest
 
+        # Reddit sentiment is unavailable without API credentials
+        reddit_sentiment_response = no_data_response(
+            entity=ticker,
+            data_type="reddit_sentiment",
+            reason=NoDataReason.API_KEY_MISSING,
+            source="Reddit API",
+            details="Reddit API access not configured.",
+        )
+
         result = {
             "ticker": ticker,
             "momentum_score": min(100, max(0, score)),
             "insider_sentiment": insider.get("sentiment", "neutral"),
             "institutional_ownership_pct": ownership.get("institutional_ownership_pct", 0),
-            "reddit_sentiment": "api_key_required",
+            "reddit_sentiment": reddit_sentiment_response,
             "components": {
                 "insider": insider,
                 "institutional": ownership,

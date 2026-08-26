@@ -18,7 +18,17 @@ import tempfile
 import uuid
 from pathlib import Path
 
-# Load .env BEFORE any app modules read os.getenv at import time.
+# Pin the test database BEFORE load_dotenv (which would stamp in the Postgres
+# URL from .env and make setdefault a no-op).  pydantic-settings prefers
+# environment variables over env_file, so as long as DATABASE_URL is in
+# os.environ before Settings() is instantiated the engine points at SQLite.
+_TEST_DB = os.path.join(tempfile.gettempdir(), f"pytest_{uuid.uuid4().hex[:8]}.db")
+os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB}"
+os.environ.setdefault("RATE_LIMIT", "off")
+os.environ.setdefault("RAG_PRELOAD", "off")
+
+# Load remaining .env values (non-DB keys like API keys, JWT secret, etc.)
+# override=False so our DATABASE_URL above is not clobbered.
 from dotenv import load_dotenv
 _env_path = Path(__file__).resolve().parents[1] / ".env"
 if not _env_path.exists():
@@ -26,12 +36,6 @@ if not _env_path.exists():
 load_dotenv(_env_path, override=False)
 
 import pytest
-
-# Must be set before app.core.settings is imported anywhere.
-_TEST_DB = os.path.join(tempfile.gettempdir(), f"pytest_{uuid.uuid4().hex[:8]}.db")
-os.environ.setdefault("DATABASE_URL", f"sqlite:///{_TEST_DB}")
-os.environ.setdefault("RATE_LIMIT", "off")
-os.environ.setdefault("RAG_PRELOAD", "off")
 
 
 def _issue_token() -> str | None:

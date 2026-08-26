@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { getApiBaseUrl } from './api';
+import { getApiBaseUrl, apiFetch } from './api';
 
 const AuthContext = createContext(null);
 
@@ -20,9 +20,7 @@ export function AuthProvider({ children }) {
 
   async function fetchMe(t) {
     try {
-      const res = await fetch(`${getApiBaseUrl()}/auth/me`, {
-        headers: { Authorization: `Bearer ${t}` },
-      });
+      const res = await apiFetch('/auth/me');
       if (res.ok) {
         const data = await res.json();
         setUser(data);
@@ -42,7 +40,7 @@ export function AuthProvider({ children }) {
   }
 
   const login = useCallback(async (email, password) => {
-    const res = await fetch(`${getApiBaseUrl()}/auth/login`, {
+    const res = await apiFetch('/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -60,7 +58,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const register = useCallback(async (email, password) => {
-    const res = await fetch(`${getApiBaseUrl()}/auth/register`, {
+    const res = await apiFetch('/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -96,26 +94,10 @@ export function useAuth() {
   return ctx;
 }
 
-export function apiFetch(path, options = {}) {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-  const base = getApiBaseUrl();
-  const url = path.startsWith('http') ? path : `${base}${path.startsWith('/') ? '' : '/'}${path}`;
-  const headers = { ...(options.headers || {}) };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  return fetch(url, { ...options, headers });
-}
-
 export function useApiFetch() {
   const { token } = useAuth();
   return useCallback((path, options = {}) => {
-    const base = getApiBaseUrl();
-    const url = path.startsWith('http') ? path : `${base}${path.startsWith('/') ? '' : '/'}${path}`;
-    const headers = { ...(options.headers || {}) };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    return fetch(url, { ...options, headers });
+    return apiFetch(path, options);
   }, [token]);
 }
+
