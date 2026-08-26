@@ -29,3 +29,6 @@ if not settings.jwt_secret or len(settings.jwt_secret) < 32:
     if settings.env == "production":
         raise RuntimeError("JWT_SECRET must be at least 32 characters in production. Set it in .env or environment.")
     settings.jwt_secret = os.getenv("JWT_SECRET") or secrets.token_hex(32)
+elif len(settings.jwt_secret) < 32:
+    # Pad short secrets in dev/test to silence InsecureKeyLengthWarning
+    settings.jwt_secret = settings.jwt_secret.ljust(32, "0")

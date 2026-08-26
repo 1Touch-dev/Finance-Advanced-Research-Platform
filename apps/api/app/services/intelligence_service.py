@@ -14,6 +14,22 @@ from app.models.reports import Report, ReportSection, Claim, ClaimEvidence
 from app.models.entities import Entity, EntityIdentifier, Relationship, RelationshipEvidence
 from app.models.base import Base
 
+# APM tracing (no-op if Sentry not configured)
+try:
+    from app.core.tracing import trace_op, trace
+    _TRACING = True
+except ImportError:
+    _TRACING = False
+    from contextlib import contextmanager
+
+    @contextmanager
+    def trace_op(op, description=None, data=None):
+        yield None
+
+    def trace(op, description=None):
+        def d(fn): return fn
+        return d
+
 # Redis cache integration (graceful fallback to no-cache)
 try:
     from app.core.cache import cache_json_get, cache_json_set
@@ -839,20 +855,22 @@ RULES:
 - Be specific about amounts, dates, agency names where present in evidence"""
 
     try:
-        resp = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={
-                "model": "gpt-4o-mini",
-                "messages": [
-                    {"role": "system", "content": "You are a senior intelligence analyst at a professional intelligence research firm. You write deep, evidence-first dossiers at the level of Jane's Intelligence Review or Kroll/Mintz analytical reports. You are thorough, precise, and analytical."},
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": 0.15,
-                "max_tokens": 2000,
-            },
-            timeout=60,
-        )
+        with trace_op("llm.openai.narrative", description=f"GPT-4o narrative for {entity_name}",
+                      data={"entity": entity_name, "model": "gpt-4o-mini"}):
+            resp = requests.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": [
+                        {"role": "system", "content": "You are a senior intelligence analyst at a professional intelligence research firm. You write deep, evidence-first dossiers at the level of Jane's Intelligence Review or Kroll/Mintz analytical reports. You are thorough, precise, and analytical."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": 0.15,
+                    "max_tokens": 2000,
+                },
+                timeout=60,
+            )
         if resp.ok:
             return resp.json()["choices"][0]["message"]["content"]
         return f"[GPT error {resp.status_code}: {resp.text[:200]}]"
@@ -889,16 +907,17 @@ def generate_intelligence_report(db: Session, entity_name: str, entity_type: str
     entity_id = _upsert_entity(db, entity_name, entity_type)
 
     # 2. Run all connectors (existing + new enrichment)
-    sec_data      = _fetch_sec(entity_name, ticker)
-    fec_data      = _fetch_fec(entity_name)
-    fara_data     = _fetch_fara(entity_name)
-    spending_data = _fetch_usaspending(entity_name)
-    lda_data      = _fetch_lda(entity_name)            # TWO-SIDED: client + registrant
-    ofac_data     = _fetch_ofac(entity_name)
-    court_data    = _fetch_courts(entity_name)
-    wiki_data     = _fetch_wikipedia(entity_name)
-    funded_data   = _fetch_funded_api(entity_name)
-    investor_data = _fetch_sec_investors(entity_name, sec_data.get("cik"))
+    with trace_op("intelligence.fetch_all", description=f"Fetch all data sources for {entity_name}"):
+        sec_data      = _fetch_sec(entity_name, ticker)
+        fec_data      = _fetch_fec(entity_name)
+        fara_data     = _fetch_fara(entity_name)
+        spending_data = _fetch_usaspending(entity_name)
+        lda_data      = _fetch_lda(entity_name)            # TWO-SIDED: client + registrant
+        ofac_data     = _fetch_ofac(entity_name)
+        court_data    = _fetch_courts(entity_name)
+        wiki_data     = _fetch_wikipedia(entity_name)
+        funded_data   = _fetch_funded_api(entity_name)
+        investor_data = _fetch_sec_investors(entity_name, sec_data.get("cik"))
 
     # Apify enrichment (LinkedIn + PitchBook + News + Social)
     apify_linkedin   = {}

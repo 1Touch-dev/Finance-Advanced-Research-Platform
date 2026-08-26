@@ -7,6 +7,15 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+try:
+    from app.core.tracing import trace_op
+except ImportError:
+    from contextlib import contextmanager
+
+    @contextmanager
+    def trace_op(op, description=None, data=None):
+        yield None
+
 
 class AnthropicClient:
     def __init__(self):
@@ -37,8 +46,10 @@ class AnthropicClient:
             "system": system or "You are an expert financial analyst.",
             "messages": [{"role": "user", "content": prompt}],
         }
-        with httpx.Client(timeout=120) as client:
-            resp = client.post(self.base_url, headers=headers, json=body)
+        with trace_op("llm.anthropic", description=f"Claude {self.model}",
+                      data={"model": self.model, "max_tokens": max_tokens}):
+            with httpx.Client(timeout=120) as client:
+                resp = client.post(self.base_url, headers=headers, json=body)
         if resp.status_code >= 400:
             detail = resp.text[:500]
             try:

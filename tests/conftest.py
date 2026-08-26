@@ -16,7 +16,8 @@ if API_ROOT not in sys.path:
 # Set test environment variables BEFORE importing app modules
 os.environ["ENV"] = "test"
 os.environ["DATABASE_URL"] = "sqlite:///./test.db"
-os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-for-testing-only")
+os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-for-testing-only-min32!")
+os.environ.setdefault("JWT_SECRET",     "test-secret-key-for-testing-only-min32!")
 os.environ.setdefault("REDIS_URL", "")  # Disable Redis in tests
 
 # Remove stale sqlite test DBs so schema migrations apply cleanly
