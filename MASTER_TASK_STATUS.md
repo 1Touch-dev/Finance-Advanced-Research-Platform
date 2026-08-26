@@ -33,6 +33,109 @@
 
 ---
 
+## ⚠️ WHY AUDITS KEEP SHOWING 30-45% (READ THIS)
+
+### The Audit Cycle Problem
+
+For the past week (30-40 commits), this pattern has repeated:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  1. Working agent claims "85% done!"                                    │
+│  2. Audit agent verifies → finds 35-45% actual completion               │
+│  3. Working agent "fixes" things → claims "80% done!"                   │
+│  4. Another audit → still 35-45%                                        │
+│  5. Repeat for 1 week...                                                │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Root Cause: Two Different Definitions of "Done"
+
+| Working Agent Counts | Audit Agent Verifies |
+|---------------------|----------------------|
+| Files created | Does data actually flow? |
+| Functions written | Do APIs return real data? |
+| Routes registered | Is database persisting? |
+| Frontend pages exist | Can user actually use it? |
+| Code compiles | End-to-end workflow works? |
+
+### The Evidence
+
+**What working agents see:**
+- 79 frontend pages exist ✓
+- 856 API routes registered ✓
+- 90 service files created ✓
+- 57,950 lines of service code ✓
+
+**What audit agents find:**
+- **106 functions return `no_data_response`** (literally "feature not available")
+- **4 services are 100% stubs** (every function returns "not implemented")
+- Commit says "implement brokerage sync" but code is:
+  ```python
+  def get_supported_brokers():
+      return no_data_response("Plaid not configured")  # Does nothing
+  ```
+
+### Misleading Commit Messages (Examples)
+
+| Commit Message | Actual Code |
+|----------------|-------------|
+| `"feat(#43): implement brokerage sync API with Plaid/OAuth"` | 9 functions, ALL return "Plaid not configured" |
+| `"feat(G1/G2): implement narrative model training"` | 9 functions, ALL return "GPU required" |
+| `"feat: convert stubs to real services — 70%+"` | Converted `random.uniform()` to `no_data_response()` |
+| `"feat: wire 5 pages — 72% to 75%"` | Pages exist but backends return no data |
+
+### How To Break The Cycle
+
+**STOP doing this:**
+- ❌ Counting files/routes as completion
+- ❌ Writing stub services with "implement" commit messages
+- ❌ Claiming percentage increases without verification
+- ❌ Creating frontend pages for non-functional backends
+
+**START doing this:**
+- ✅ Only claim completion when data flows end-to-end
+- ✅ Delete pure stub services (they inflate metrics)
+- ✅ Use honest commit messages: "stub: placeholder for brokerage sync"
+- ✅ Fix P0 blockers before adding new features
+- ✅ Run audit checks BEFORE claiming progress
+
+### Strict Verification Checklist
+
+Before claiming ANY feature is complete, verify ALL of these:
+
+```
+[ ] Frontend page exists AND is reachable
+[ ] API endpoint is registered AND responds
+[ ] Service function executes real logic (not no_data_response)
+[ ] Database persists data (if applicable)
+[ ] Data survives server restart (if applicable)
+[ ] External API actually called (if applicable)
+[ ] User can see real data in UI
+[ ] Error states handled gracefully
+```
+
+**If ANY checkbox fails → feature is NOT complete.**
+
+### Current Stub Services (Remove or Implement)
+
+These services inflate line counts but do NOTHING:
+
+| Service | Lines | Functions | All Return |
+|---------|-------|-----------|------------|
+| brokerage_sync_service.py | 146 | 9 | "Plaid not configured" |
+| narrative_model_service.py | 146 | 9 | "GPU required" |
+| pwa_advanced_service.py | 87 | 16 | "not available" |
+| mobile_pwa_service.py | ~50 | 3 | "VAPID keys missing" |
+
+**Total: ~430 lines of code that produce zero functionality.**
+
+These should be:
+1. **Deleted** until actually implementing, OR
+2. **Marked clearly** in commit messages as stubs
+
+---
+
 ## WHAT ACTUALLY WORKS (Verified End-to-End)
 
 | Feature | Data Source | Status | Evidence |
