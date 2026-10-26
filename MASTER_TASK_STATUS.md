@@ -1,12 +1,50 @@
 # Finance Platform — Master Task Status
 
-> **HONEST SOURCE OF TRUTH — Updated 26 August 2026 (Post-Comprehensive Audit)**
+> **HONEST SOURCE OF TRUTH — Last code-verified 26 August 2026 (Post-Comprehensive Audit)**
+> **Status-checked 26 October 2026** — see "STATUS CHECK" section below before trusting anything past this line without re-verifying it yourself.
 > Previous completion claims were inflated. This document reflects verified reality.
 
 **Current Branch:** `8th-july-sprint`
-**Verified Completion:** ~45% (independently audited 26 Aug 2026)
+**Verified Completion (code-audited):** ~45% (independently audited 26 Aug 2026)
+**Unverified claim (commit messages only, never re-audited):** 85% (same day, 26 Aug 2026, 6 commits after the audit)
+**Honest working estimate (per 5 Oct 2026 KT handover, not a formal re-audit):** 45-55%
 **Previous Audit:** ~35-42% (22-25 Aug 2026)
 **Target:** 70-80% real completion
+**Repo activity:** No commits on any branch since `76c066c` (26 Aug 2026). As of 26 Oct 2026 this is 2 months of zero engineering activity.
+
+---
+
+## 🔴 STATUS CHECK — 26 OCTOBER 2026 (Read This First)
+
+**Nothing in the codebase has changed since the last entry in this document (26 Aug 2026).** `git log` confirms `76c066c` is still HEAD on every local and remote branch. What *has* changed is that someone actually logged into the staging server on **5 October 2026** and checked ground truth instead of trusting docs — see the full writeup in `docs/guides/KT_HANDOVER_2026-10-05.md`. The findings below are folded in here because they materially change what "done" means for several rows in this document, even though no code moved.
+
+### Built locally but never re-verified (the unverified "85%" claims)
+
+The 6 commits made *after* the 26 Aug audit (`9810224` → `d9a5187`) claim a jump from 45% to 85%. **No audit was re-run against them.** Per this doc's own "Audit Cycle Problem" section above, treat these as unverified until someone re-applies the Strict Verification Checklist:
+
+| Claimed | Commit | What it says it adds | Verification status |
+|---------|--------|----------------------|----------------------|
+| 45%→52% | `9810224` | Redis caching + lifespan migration | ❌ Not re-audited |
+| 52%→68% | `681bc95` | Sentry monitoring + API consolidation | ❌ Not re-audited |
+| 68%→72% | `082e669` | Rate limiting, health probes, APM tracing | ❌ Not re-audited |
+| 72%→75%, 75%→80%, 80%→85% | `d4b2838`, `dba0d5e`, `d9a5187` | 12 frontend pages "wired" to backend APIs | ❌ Not re-audited — given this doc's documented pattern (page exists ≠ backend returns real data), treat each as unverified individually |
+
+### Built but not deployed
+
+As of 5 Oct 2026, the **staging server was running `4978318` (24 Aug), not local HEAD `76c066c` (26 Aug)** — 2 days and ~10 commits behind, including all 6 rows above. None of the claimed Redis/Sentry/rate-limiting/health-probe/page-wiring work was live. Status unknown as of today (26 Oct) since no one has reported a deploy since.
+
+### New live bugs found in production (5 Oct 2026, not previously known)
+
+| Bug | Evidence | Impact |
+|-----|----------|--------|
+| Entity graph insert fails on every major company | `psycopg.errors.DatatypeMismatch: column "canonical" is of type boolean but expression is of type integer` — repeatedly logged for Apple, Microsoft, NVIDIA, Alphabet, Meta | Entity graph ingestion (REQ-006) is **actively broken in prod**, not just "unverified" as the 26 Aug audit assumed. One line is inserting `1` instead of `true`. |
+| Quality classifier not loaded in prod | `GET /health/full` → `"quality_classifier": {"status": "not_trained"}` | Contradicts README/audit claim of a live F1=0.895 classifier (REQ-017). Either the trained model isn't deployed on this box or needs retraining there. |
+| `finance-api` PM2 process: 339 restarts in 41 days (~8/day) | `pm2 status` on staging | Something is crash-looping or getting OOM-killed periodically. Never investigated. |
+| `finance-web` PM2 process: 70 restarts in 41 days | `pm2 status` on staging | Same category, lower severity. |
+| Shared production database | `DATABASE_URL` on staging points at Postgres DB `enterprise_claude_skills`, shared with an unrelated project (`claude-skill-agent`) on the same EC2 box | A destructive migration/reset against this DB could affect the other project and vice versa. Platform has no dedicated Postgres instance. |
+| Low headroom on staging box | Disk 79% used (22G/28G), ~350MB RAM free at idle (3.7G total) | Limited room to add services without a resize. |
+
+None of these were fixed as of 5 Oct, and since there have been zero commits since, **they should still be assumed broken today (26 Oct) until someone re-checks.**
 
 ---
 
@@ -157,7 +195,7 @@ These should be:
 
 | Feature | Issue | Status | What's Missing |
 |---------|-------|--------|----------------|
-| Entity Graph | DB persistence added | ⚠️ PARTIAL | Needs restart verification |
+| Entity Graph | DB persistence added, **but actively erroring in prod as of 5 Oct 2026** (`canonical` column boolean/integer type mismatch — see Status Check above) | 🔴 PARTIAL, CONFIRMED BROKEN | Fix `1`→`true` on insert; this is no longer "unverified," it's a reproducing bug |
 | Intelligence Reports | May crash on fresh DB | ⚠️ PARTIAL | Migration fix needed |
 | Portfolio CRUD | Auth-protected, real prices | ⚠️ PARTIAL | Some pages may not pass auth |
 | FRED Macro Economics | Requires API key | ⚠️ PARTIAL | Verify key deployed |
@@ -407,6 +445,9 @@ These features return `no_data_response`. They need business decisions + impleme
 
 | Date | Change |
 |------|--------|
+| **26 Oct 2026** | **STATUS CHECK (no code changes): Confirmed zero commits since 26 Aug on any branch. Folded in 5 Oct KT handover findings — live entity-graph bug, quality classifier not loaded in prod, high PM2 restart counts, shared-DB risk, server 10 commits behind local HEAD.** |
+| 5 Oct 2026 | KT handover (`docs/guides/KT_HANDOVER_2026-10-05.md`): logged into staging, found server running `4978318` not `76c066c`; found live `canonical` boolean/int bug on entity graph insert for every major company; found `quality_classifier: not_trained` in prod; found 339 API restarts / 70 web restarts in 41 days; found shared Postgres DB with unrelated project |
+| 26 Aug 2026 | 6 commits after the audit claimed 45%→85% in one afternoon; **none were re-audited** — treat as unverified (see Status Check above) |
 | **26 Aug 2026** | **COMPREHENSIVE INDEPENDENT AUDIT: Verified 45% completion** |
 | 26 Aug 2026 | Identified 4 services as 100% stubs (brokerage, narrative, pwa_advanced, mobile_pwa push) |
 | 26 Aug 2026 | Verified 37+ services using real data (yfinance, Finnhub, SEC EDGAR) |
@@ -466,6 +507,18 @@ Path to production: ~3-4 weeks focused engineering
 
 ---
 
-*Last updated: 2026-08-26T12:00:00*
-*Verified by: Independent comprehensive code audit*
-*Methodology: Git history analysis, service code review, frontend-backend wiring verification, requirements traceability*
+## NEXT STEPS (unchanged priority order, now 2 months overdue)
+
+1. Re-run the Strict Verification Checklist (above) against current `HEAD` before trusting the unverified 85% claim or planning new work.
+2. Fix the live `canonical` boolean/integer bug — quick fix, currently spamming prod logs and silently dropping entity ingestion for every major company.
+3. Investigate `finance-api`'s 339 restarts in 41 days — PM2 logs, check for OOM vs. unhandled exceptions.
+4. Deploy local HEAD to staging (confirmed 10 commits behind as of 5 Oct) — diff the stray `.bak`/`.backup2` files and `models/` dir already on the server first.
+5. Give this platform its own Postgres database, separate from the shared `enterprise_claude_skills` one.
+6. Get Alembic migrations caught up to the actual model set (64+ models, still only 3 migrations as of this check).
+7. Full context, access details, and suggested first-two-weeks plan: `docs/guides/KT_HANDOVER_2026-10-05.md`.
+
+---
+
+*Last updated: 2026-10-26 (status check, no code changes — see "STATUS CHECK" section above)*
+*Prior update: 2026-08-26T12:00:00 — Independent comprehensive code audit*
+*Methodology: Git history analysis, service code review, frontend-backend wiring verification, requirements traceability, live staging-server inspection (5 Oct 2026)*
