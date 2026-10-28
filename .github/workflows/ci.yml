@@ -31,16 +31,18 @@ jobs:
           DATABASE_URL: sqlite:///./test.db
           RAG_PRELOAD: 'off'
           RATE_LIMIT: 'off'
+          # Stable JWT so conftest-issued tokens verify against the same secret.
+          JWT_SECRET: 'ci-test-secret-key-at-least-32-chars-long!!'
           FINNHUB_API_KEY: ''
           FMP_API_KEY: ''
         run: |
           pip install pytest pytest-timeout
-          set -o pipefail
           # -m 'not network' keeps CI hermetic: without keys or outbound access the
           # provider-backed tests fail for environmental reasons and drown out real
           # regressions. Run the full suite separately where credentials exist.
+          # Do not pipe to `tail` — that hides the summary and can mask the real exit code.
           python -m pytest tests/ -q --timeout=60 -m 'not network' \
-            --continue-on-collection-errors 2>&1 | tail -30
+            --tb=line --continue-on-collection-errors
       - name: Verify migrations apply to an empty database
         working-directory: apps/api
         env:

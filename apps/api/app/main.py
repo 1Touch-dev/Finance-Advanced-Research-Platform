@@ -207,7 +207,9 @@ _safe_include("app.api.analysts")
 _safe_include("app.api.volume")
 _safe_include("app.api.formula")
 _safe_include("app.api.volatility")
-_safe_include("app.api.leaderboard")
+# Leaderboard is covered by CI API tests — fail loudly if it does not load.
+from app.api.leaderboard import router as leaderboard_router
+app.include_router(leaderboard_router)
 _safe_include("app.api.ontology")
 _safe_include("app.api.health_rag")
 _safe_include("app.api.docket")

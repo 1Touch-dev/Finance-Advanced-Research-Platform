@@ -143,9 +143,15 @@ class TestDashboardAPI:
         assert "count" in data
 
     def test_create_dashboard_requires_user(self):
-        """POST /dashboard requires user_id."""
-        response = client.post("/dashboard")
-        assert response.status_code == 422  # Missing required param
+        """POST /dashboard requires authentication (Bearer), not a user_id query param."""
+        # Session conftest injects Authorization on module clients; strip it for this check.
+        prior = client.headers.pop("Authorization", None)
+        try:
+            response = client.post("/dashboard")
+        finally:
+            if prior is not None:
+                client.headers["Authorization"] = prior
+        assert response.status_code == 401
 
 
 # ── Widget API Tests ─────────────────────────────────────────────────────────
@@ -175,9 +181,14 @@ class TestWatchlistSharingAPI:
         assert response.status_code == 422
 
     def test_get_shared_watchlists_requires_user(self):
-        """GET /watchlist/shared requires user_id."""
-        response = client.get("/watchlist/shared")
-        assert response.status_code == 422
+        """GET /watchlist/shared requires authentication when no user_id is provided."""
+        prior = client.headers.pop("Authorization", None)
+        try:
+            response = client.get("/watchlist/shared")
+        finally:
+            if prior is not None:
+                client.headers["Authorization"] = prior
+        assert response.status_code in (401, 422)
 
     def test_get_shared_watchlists_empty(self):
         """GET /watchlist/shared returns empty for user with no shares."""

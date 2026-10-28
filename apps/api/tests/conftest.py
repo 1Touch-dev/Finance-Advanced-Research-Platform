@@ -133,6 +133,14 @@ def pytest_collection_modifyitems(config, items):
         "short_interest", "ipo_calendar", "earnings_calendar", "ma_rumors",
         "benchmark", "valuation", "global_equity", "macro", "gov_trading",
         "sec_", "edgar", "finnhub", "yfinance", "rag_vector",
+        # Portfolio/PnL/risk tests call live yfinance; offline CI must not run them.
+        "portfolio", "position_pnl", "cost_basis", "tax_lot",
+        # Document search / ingest can block on embeddings or external fetch in CI.
+        "document", "filing",
+        # These modules hit SEC / CourtListener / live entity resolution.
+        "insider", "recursive", "multi_entity", "people_and_peer",
+        "litigation", "legal_proceedings", "docket", "ontology",
+        "revision", "rag_eval", "quality_judge", "train_quality",
     )
     for item in items:
         path = str(getattr(item, "fspath", "")).lower()
