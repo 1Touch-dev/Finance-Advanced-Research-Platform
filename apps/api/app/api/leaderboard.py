@@ -12,12 +12,14 @@ Endpoints:
 
 from fastapi import APIRouter, Query, HTTPException, Depends
 from pydantic import BaseModel
-from typing import Optional
+from typing import Literal, Optional
 
 from app.services.leaderboard_service import get_leaderboard_service
 from app.auth.security import get_current_user
 
 router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
+
+LeaderboardMetric = Literal["brier", "accuracy", "calibration"]
 
 
 # ── Request Models ───────────────────────────────────────────────────────────
@@ -51,7 +53,7 @@ class ResolvePredictionRequest(BaseModel):
 
 @router.get("/predictions")
 def get_prediction_leaderboard(
-    metric: str = Query("brier", enum=["brier", "accuracy", "calibration"]),
+    metric: LeaderboardMetric = Query("brier"),
     limit: int = Query(20, ge=1, le=100),
     category: Optional[str] = None
 ):
