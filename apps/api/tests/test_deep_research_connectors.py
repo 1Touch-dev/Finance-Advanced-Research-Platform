@@ -24,6 +24,11 @@ import time
 from typing import Dict, Any
 from datetime import datetime
 
+import pytest
+
+# Live connector suite — excluded from CI offline runs (`-m "not network"`).
+pytestmark = pytest.mark.network
+
 # Add app to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
